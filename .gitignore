@@ -1,1 +1,5 @@
-build/
+# Standard out-of-tree build subdirectory
+build
+
+# Third-party library dependencies
+lib
