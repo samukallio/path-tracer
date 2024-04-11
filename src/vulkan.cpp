@@ -315,6 +315,33 @@ static VkResult InternalCreateVulkan(
         vkGetDeviceQueue(vulkan->device, vulkan->presentQueueFamilyIndex, 0, &vulkan->presentQueue);
     }
 
+    // Create graphics and compute command pools.
+    {
+        auto graphicsCommandPoolInfo = VkCommandPoolCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+            .queueFamilyIndex = vulkan->graphicsQueueFamilyIndex,
+        };
+
+        result = vkCreateCommandPool(vulkan->device, &graphicsCommandPoolInfo, nullptr, &vulkan->graphicsCommandPool);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create graphics command pool");
+            return result;
+        }
+
+        auto computeCommandPoolInfo = VkCommandPoolCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
+            .flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
+            .queueFamilyIndex = vulkan->computeQueueFamilyIndex,
+        };
+
+        result = vkCreateCommandPool(vulkan->device, &computeCommandPoolInfo, nullptr, &vulkan->computeCommandPool);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create compute command pool");
+            return result;
+        }
+    }
+
     return VK_SUCCESS;
 }
 
@@ -335,6 +362,16 @@ VulkanContext* CreateVulkan(
 
 void DestroyVulkan(VulkanContext* vulkan)
 {
+    if (vulkan->graphicsCommandPool) {
+        vkDestroyCommandPool(vulkan->device, vulkan->graphicsCommandPool, nullptr);
+        vulkan->graphicsCommandPool = VK_NULL_HANDLE;
+    }
+
+    if (vulkan->computeCommandPool) {
+        vkDestroyCommandPool(vulkan->device, vulkan->computeCommandPool, nullptr);
+        vulkan->computeCommandPool = VK_NULL_HANDLE;
+    }
+
     if (vulkan->device) {
         vkDestroyDevice(vulkan->device, nullptr);
         vulkan->device = nullptr;

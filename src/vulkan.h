@@ -20,9 +20,11 @@ struct VulkanContext
 
     uint32_t                    graphicsQueueFamilyIndex    = 0;
     VkQueue                     graphicsQueue               = VK_NULL_HANDLE;
+    VkCommandPool               graphicsCommandPool         = VK_NULL_HANDLE;
 
     uint32_t                    computeQueueFamilyIndex     = 0;
     VkQueue                     computeQueue                = VK_NULL_HANDLE;
+    VkCommandPool               computeCommandPool          = VK_NULL_HANDLE;
 
     uint32_t                    presentQueueFamilyIndex     = 0;
     VkQueue                     presentQueue                = VK_NULL_HANDLE;
