@@ -3,6 +3,7 @@
 #include <cstdarg>
 #include <vector>
 #include <set>
+#include <algorithm>
 #include <optional>
 
 #define GLFW_INCLUDE_VULKAN
@@ -49,6 +50,9 @@ static void DestroyDebugUtilsMessengerEXT(
     if (!func) return;
     func(instance, debugMessenger, pAllocator);
 }
+
+static VkResult InternalCreatePresentationResources(
+    VulkanContext* vulkan);
 
 static VkResult InternalCreateVulkan(
     VulkanContext* vulkan,
@@ -342,6 +346,9 @@ static VkResult InternalCreateVulkan(
         }
     }
 
+    result = InternalCreatePresentationResources(vulkan);
+    if (result != VK_SUCCESS) return result;
+
     return VK_SUCCESS;
 }
 
@@ -360,6 +367,140 @@ VulkanContext* CreateVulkan(
     return vulkan;
 }
 
+static VkResult InternalCreatePresentationResources(
+    VulkanContext* vulkan)
+{
+    VkResult result = VK_SUCCESS;
+
+    // Create the swap chain.
+    {
+        // Determine current window surface capabilities.
+        VkSurfaceCapabilitiesKHR surfaceCapabilities;
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan->physicalDevice, vulkan->surface, &surfaceCapabilities);
+
+        // Determine width and height of the swap chain.
+        VkExtent2D imageExtent = surfaceCapabilities.currentExtent;
+        if (imageExtent.width == 0xFFFFFFFF) {
+            int width, height;
+            glfwGetFramebufferSize(vulkan->window, &width, &height);
+            imageExtent.width = std::clamp(
+                static_cast<uint32_t>(width),
+                surfaceCapabilities.minImageExtent.width,
+                surfaceCapabilities.maxImageExtent.width);
+            imageExtent.height = std::clamp(
+                static_cast<uint32_t>(height),
+                surfaceCapabilities.minImageExtent.height,
+                surfaceCapabilities.maxImageExtent.height);
+        }
+
+        // Determine swap chain image count.
+        uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+        if (surfaceCapabilities.maxImageCount > 0)
+            imageCount = std::min(imageCount, surfaceCapabilities.maxImageCount);
+
+        auto swapchainInfo = VkSwapchainCreateInfoKHR {
+            .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+            .surface = vulkan->surface,
+            .minImageCount = imageCount,
+            .imageFormat = vulkan->surfaceFormat.format,
+            .imageColorSpace = vulkan->surfaceFormat.colorSpace,
+            .imageExtent = imageExtent,
+            .imageArrayLayers = 1,
+            .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .preTransform = surfaceCapabilities.currentTransform,
+            .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+            .presentMode = vulkan->presentMode,
+            .clipped = VK_TRUE,
+            .oldSwapchain = VK_NULL_HANDLE,
+        };
+
+        if (vulkan->graphicsQueueFamilyIndex == vulkan->presentQueueFamilyIndex) {
+            swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            swapchainInfo.queueFamilyIndexCount = 0;
+            swapchainInfo.pQueueFamilyIndices = nullptr;
+        }
+        else {
+            uint32_t const queueFamilyIndices[] = {
+                vulkan->graphicsQueueFamilyIndex,
+                vulkan->presentQueueFamilyIndex
+            };
+            swapchainInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+            swapchainInfo.queueFamilyIndexCount = 2;
+            swapchainInfo.pQueueFamilyIndices = queueFamilyIndices;
+        }
+
+        result = vkCreateSwapchainKHR(vulkan->device, &swapchainInfo, nullptr, &vulkan->swapchain);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create swap chain");
+            return result;
+        }
+
+        vulkan->swapchainExtent = imageExtent;
+        vulkan->swapchainFormat = swapchainInfo.imageFormat;
+    }
+
+    // Retrieve swap chain images.
+    {
+        uint32_t imageCount = 0;
+        vkGetSwapchainImagesKHR(vulkan->device, vulkan->swapchain, &imageCount, nullptr);
+        auto images = std::vector<VkImage>(imageCount);
+        vkGetSwapchainImagesKHR(vulkan->device, vulkan->swapchain, &imageCount, images.data());
+
+        vulkan->swapchainImages.clear();
+        for (VkImage image : images) {
+            auto imageViewInfo = VkImageViewCreateInfo {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .image = image,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format = vulkan->swapchainFormat,
+                .components = {
+                    .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+                },
+                .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                }
+            };
+
+            VkImageView imageView;
+
+            result = vkCreateImageView(vulkan->device, &imageViewInfo, nullptr, &imageView);
+            if (result != VK_SUCCESS) {
+                Errorf(vulkan, "failed to create image view");
+                return result;
+            }
+
+            vulkan->swapchainImages.push_back({
+                .image = image,
+                .imageView = imageView,
+            });
+        }
+    }
+
+    return VK_SUCCESS;
+}
+
+static void InternalDestroyPresentationResources(
+    VulkanContext* vulkan)
+{
+    for (VulkanImage const& image : vulkan->swapchainImages)
+        vkDestroyImageView(vulkan->device, image.imageView, nullptr);
+    vulkan->swapchainImages.clear();
+
+    if (vulkan->swapchain) {
+        vkDestroySwapchainKHR(vulkan->device, vulkan->swapchain, nullptr);
+        vulkan->swapchain = nullptr;
+        vulkan->swapchainExtent = {};
+        vulkan->swapchainFormat = VK_FORMAT_UNDEFINED;
+    }
+}
+
 void DestroyVulkan(VulkanContext* vulkan)
 {
     if (vulkan->device) {
@@ -367,6 +508,9 @@ void DestroyVulkan(VulkanContext* vulkan)
         // before we start releasing resources.
         vkDeviceWaitIdle(vulkan->device);
     }
+
+    // Destroy swap chain and any other window-related resources.
+    InternalDestroyPresentationResources(vulkan);
 
     if (vulkan->graphicsCommandPool) {
         vkDestroyCommandPool(vulkan->device, vulkan->graphicsCommandPool, nullptr);
