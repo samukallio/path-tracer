@@ -2,6 +2,7 @@
 
 #include <cstdarg>
 #include <vector>
+#include <set>
 #include <optional>
 
 #define GLFW_INCLUDE_VULKAN
@@ -49,7 +50,7 @@ static void DestroyDebugUtilsMessengerEXT(
     func(instance, debugMessenger, pAllocator);
 }
 
-static VkResult InitializeVulkan(
+static VkResult InternalCreateVulkan(
     VulkanContext* vulkan,
     GLFWwindow* window,
     char const* applicationName)
@@ -255,6 +256,7 @@ static VkResult InitializeVulkan(
             vulkan->physicalDeviceFeatures = physicalDeviceFeatures;
             vulkan->physicalDeviceProperties = physicalDeviceProperties;
             vulkan->graphicsQueueFamilyIndex = graphicsQueueFamilyIndex.value();
+            vulkan->computeQueueFamilyIndex = computeQueueFamilyIndex.value();
             vulkan->presentQueueFamilyIndex = presentQueueFamilyIndex.value();
             vulkan->surfaceFormat = surfaceFormat;
             vulkan->presentMode = presentMode;
@@ -267,6 +269,52 @@ static VkResult InitializeVulkan(
         }
     }
 
+    // Create logical device.
+    {
+        const float queuePriority = 1.0f;
+
+        auto deviceFeatures = VkPhysicalDeviceFeatures {
+            .samplerAnisotropy = VK_TRUE,
+        };
+
+        std::set<uint32_t> queueFamilyIndices = {
+            vulkan->graphicsQueueFamilyIndex,
+            vulkan->computeQueueFamilyIndex,
+            vulkan->presentQueueFamilyIndex,
+        };
+
+        std::vector<VkDeviceQueueCreateInfo> queueInfos;
+        for (uint32_t queueFamilyIndex : queueFamilyIndices) {
+            queueInfos.push_back({
+                .sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO,
+                .queueFamilyIndex = queueFamilyIndex,
+                .queueCount = 1,
+                .pQueuePriorities = &queuePriority,
+            });
+        }
+
+        auto deviceCreateInfo = VkDeviceCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
+            .queueCreateInfoCount = (uint32_t)queueInfos.size(),
+            .pQueueCreateInfos = queueInfos.data(),
+            .enabledLayerCount = (uint32_t)requiredLayerNames.size(),
+            .ppEnabledLayerNames = requiredLayerNames.data(),
+            .enabledExtensionCount = (uint32_t)requiredDeviceExtensionNames.size(),
+            .ppEnabledExtensionNames = requiredDeviceExtensionNames.data(),
+            .pEnabledFeatures = &deviceFeatures,
+        };
+
+        result = vkCreateDevice(vulkan->physicalDevice, &deviceCreateInfo, nullptr, &vulkan->device);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create device");
+            return result;
+        }
+
+        vkGetDeviceQueue(vulkan->device, vulkan->graphicsQueueFamilyIndex, 0, &vulkan->graphicsQueue);
+        vkGetDeviceQueue(vulkan->device, vulkan->computeQueueFamilyIndex, 0, &vulkan->computeQueue);
+        vkGetDeviceQueue(vulkan->device, vulkan->presentQueueFamilyIndex, 0, &vulkan->presentQueue);
+    }
+
     return VK_SUCCESS;
 }
 
@@ -276,7 +324,7 @@ VulkanContext* CreateVulkan(
 {
     auto vulkan = new VulkanContext;
 
-    if (InitializeVulkan(vulkan, window, applicationName) != VK_SUCCESS) {
+    if (InternalCreateVulkan(vulkan, window, applicationName) != VK_SUCCESS) {
         DestroyVulkan(vulkan);
         delete vulkan;
         vulkan = nullptr;
@@ -287,6 +335,25 @@ VulkanContext* CreateVulkan(
 
 void DestroyVulkan(VulkanContext* vulkan)
 {
+    if (vulkan->device) {
+        vkDestroyDevice(vulkan->device, nullptr);
+        vulkan->device = nullptr;
+        vulkan->graphicsQueue = VK_NULL_HANDLE;
+        vulkan->computeQueue = VK_NULL_HANDLE;
+        vulkan->presentQueue = VK_NULL_HANDLE;
+    }
+
+    if (vulkan->physicalDevice) {
+        vulkan->physicalDevice = VK_NULL_HANDLE;
+        vulkan->physicalDeviceFeatures = {};
+        vulkan->physicalDeviceProperties = {};
+        vulkan->graphicsQueueFamilyIndex = 0;
+        vulkan->computeQueueFamilyIndex = 0;
+        vulkan->presentQueueFamilyIndex = 0;
+        vulkan->surfaceFormat = {};
+        vulkan->presentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
+    }
+
     if (vulkan->messenger) {
         DestroyDebugUtilsMessengerEXT(vulkan->instance, vulkan->messenger, nullptr);
         vulkan->messenger = VK_NULL_HANDLE;
