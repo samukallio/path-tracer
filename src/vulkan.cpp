@@ -2,6 +2,7 @@
 
 #include <cstdarg>
 #include <vector>
+#include <optional>
 
 #define GLFW_INCLUDE_VULKAN
 #include <GLFW/glfw3.h>
@@ -55,10 +56,11 @@ static VkResult InitializeVulkan(
 {
     VkResult result = VK_SUCCESS;
 
-    // Gather required Vulkan extensions.
-    std::vector<char const*> requiredExtensionNames = {
-        VK_EXT_DEBUG_UTILS_EXTENSION_NAME,
-    };
+    std::vector<char const*> requiredExtensionNames = { VK_EXT_DEBUG_UTILS_EXTENSION_NAME };
+    std::vector<char const*> requiredLayerNames = { "VK_LAYER_KHRONOS_validation" };
+    std::vector<char const*> requiredDeviceExtensionNames = { VK_KHR_SWAPCHAIN_EXTENSION_NAME };
+
+    // Gather Vulkan extensions required by GLFW.
     {
         uint32_t glfwExtensionCount = 0;
         const char** glfwExtensions;
@@ -67,11 +69,6 @@ static VkResult InitializeVulkan(
         for (uint32_t k = 0; k < glfwExtensionCount; k++)
             requiredExtensionNames.push_back(glfwExtensions[k]);
     }
-
-    // Required validation layers.
-    std::vector<char const*> requiredLayerNames = {
-        "VK_LAYER_KHRONOS_validation",
-    };
 
     // Check support for validation layers.
     {
@@ -93,57 +90,182 @@ static VkResult InitializeVulkan(
         }
     }
 
-    auto debugMessengerInfo = VkDebugUtilsMessengerCreateInfoEXT {
-        .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
-        .messageSeverity
-            = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
-            | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
-            | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
-        .messageType
-            = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
-            | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
-            | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
-        .pfnUserCallback = VulkanDebugCallback,
-        .pUserData = vulkan,
-    };
+    // Create Vulkan instance.
+    {
+        auto debugMessengerInfo = VkDebugUtilsMessengerCreateInfoEXT {
+            .sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+            .messageSeverity
+                = VK_DEBUG_UTILS_MESSAGE_SEVERITY_VERBOSE_BIT_EXT
+                | VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT
+                | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+            .messageType
+                = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+                | VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+                | VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+            .pfnUserCallback = VulkanDebugCallback,
+            .pUserData = vulkan,
+        };
 
-    auto applicationInfo = VkApplicationInfo {
-        .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
-        .pApplicationName = applicationName,
-        .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
-        .pEngineName = nullptr,
-        .engineVersion = VK_MAKE_VERSION(1, 0, 0),
-        .apiVersion = VK_API_VERSION_1_0,
-    };
+        auto applicationInfo = VkApplicationInfo {
+            .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO,
+            .pApplicationName = applicationName,
+            .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
+            .pEngineName = nullptr,
+            .engineVersion = VK_MAKE_VERSION(1, 0, 0),
+            .apiVersion = VK_API_VERSION_1_0,
+        };
 
-    auto instanceInfo = VkInstanceCreateInfo {
-        .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
-        .pNext = &debugMessengerInfo,
-        .pApplicationInfo = &applicationInfo,
-        .enabledLayerCount = (uint32_t)requiredLayerNames.size(),
-        .ppEnabledLayerNames = requiredLayerNames.data(),
-        .enabledExtensionCount = (uint32_t)requiredExtensionNames.size(),
-        .ppEnabledExtensionNames = requiredExtensionNames.data(),
-    };
+        auto instanceInfo = VkInstanceCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+            .pNext = &debugMessengerInfo,
+            .pApplicationInfo = &applicationInfo,
+            .enabledLayerCount = (uint32_t)requiredLayerNames.size(),
+            .ppEnabledLayerNames = requiredLayerNames.data(),
+            .enabledExtensionCount = (uint32_t)requiredExtensionNames.size(),
+            .ppEnabledExtensionNames = requiredExtensionNames.data(),
+        };
 
-    result = vkCreateInstance(&instanceInfo, nullptr, &vulkan->instance);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create instance");
-        return result;
+        result = vkCreateInstance(&instanceInfo, nullptr, &vulkan->instance);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create instance");
+            return result;
+        }
+
+        result = CreateDebugUtilsMessengerEXT(vulkan->instance, &debugMessengerInfo, nullptr, &vulkan->messenger);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create debug messenger");
+            return result;
+        }
     }
 
-    result = CreateDebugUtilsMessengerEXT(vulkan->instance, &debugMessengerInfo, nullptr, &vulkan->messenger);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create debug messenger");
-        return result;
+    // Create window surface.
+    {
+        result = glfwCreateWindowSurface(vulkan->instance, window, nullptr, &vulkan->surface);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create window surface");
+            return result;
+        }
+        vulkan->window = window;
     }
 
-    result = glfwCreateWindowSurface(vulkan->instance, window, nullptr, &vulkan->windowSurface);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create window surface");
-        return result;
+    // Enumerate physical devices and find the most suitable one.
+    {
+        uint32_t physicalDeviceCount = 0;
+        vkEnumeratePhysicalDevices(vulkan->instance, &physicalDeviceCount, nullptr);
+        auto physicalDevices = std::vector<VkPhysicalDevice>(physicalDeviceCount);
+        vkEnumeratePhysicalDevices(vulkan->instance, &physicalDeviceCount, physicalDevices.data());
+
+        for (VkPhysicalDevice physicalDevice : physicalDevices) {
+            // Find the required queue families.
+            uint32_t queueFamilyCount = 0;
+            vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, nullptr);
+            std::vector<VkQueueFamilyProperties> queueFamilies(queueFamilyCount);
+            vkGetPhysicalDeviceQueueFamilyProperties(physicalDevice, &queueFamilyCount, queueFamilies.data());
+
+            std::optional<uint32_t> graphicsQueueFamilyIndex;
+            std::optional<uint32_t> computeQueueFamilyIndex;
+            std::optional<uint32_t> presentQueueFamilyIndex;
+
+            for (uint32_t index = 0; index < queueFamilyCount; index++) {
+                auto const& queueFamily = queueFamilies[index];
+
+                if (!graphicsQueueFamilyIndex.has_value()) {
+                    if (queueFamily.queueFlags & VK_QUEUE_GRAPHICS_BIT)
+                        graphicsQueueFamilyIndex = index;
+                }
+
+                if (!computeQueueFamilyIndex.has_value()) {
+                    if (queueFamily.queueFlags & VK_QUEUE_COMPUTE_BIT)
+                        computeQueueFamilyIndex = index;
+                }
+
+                if (!presentQueueFamilyIndex.has_value()) {
+                    VkBool32 presentSupport = false;
+                    vkGetPhysicalDeviceSurfaceSupportKHR(physicalDevice, index, vulkan->surface, &presentSupport);
+                    if (presentSupport) presentQueueFamilyIndex = index;
+                }
+            }
+
+            if (!graphicsQueueFamilyIndex.has_value())
+                continue;
+            if (!computeQueueFamilyIndex.has_value())
+                continue;
+            if (!presentQueueFamilyIndex.has_value())
+                continue;
+
+            // Ensure the requested device extensions are supported.
+            uint32_t deviceExtensionCount;
+            vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &deviceExtensionCount, nullptr);
+            auto deviceExtensions = std::vector<VkExtensionProperties>(deviceExtensionCount);
+            vkEnumerateDeviceExtensionProperties(physicalDevice, nullptr, &deviceExtensionCount, deviceExtensions.data());
+
+            bool deviceExtensionsFound = true;
+            for (char const* extensionName : requiredDeviceExtensionNames) {
+                bool found = false;
+                for (VkExtensionProperties const& extension : deviceExtensions) {
+                    found = !strcmp(extension.extensionName, extensionName);
+                    if (found) break;
+                }
+                if (!found) {
+                    deviceExtensionsFound = false;
+                    break;
+                }
+            }
+            if (!deviceExtensionsFound)
+                continue;
+
+            // Find suitable surface format for the swap chain.
+            uint32_t surfaceFormatCount = 0;
+            vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, vulkan->surface, &surfaceFormatCount, nullptr);
+            auto surfaceFormats = std::vector<VkSurfaceFormatKHR>(surfaceFormatCount);
+            vkGetPhysicalDeviceSurfaceFormatsKHR(physicalDevice, vulkan->surface, &surfaceFormatCount, surfaceFormats.data());
+
+            VkSurfaceFormatKHR surfaceFormat = {};
+            bool surfaceFormatFound = false;
+            for (VkSurfaceFormatKHR const& sf : surfaceFormats) {
+                if (sf.format == VK_FORMAT_B8G8R8A8_SRGB &&
+                    sf.colorSpace == VK_COLOR_SPACE_SRGB_NONLINEAR_KHR) {
+                    surfaceFormat = sf;
+                    surfaceFormatFound = true;
+                }
+            }
+            if (!surfaceFormatFound)
+                continue;
+
+            // Choose a suitable present mode.
+            uint32_t presentModeCount = 0;
+            vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, vulkan->surface, &presentModeCount, nullptr);
+            auto presentModes = std::vector<VkPresentModeKHR>(presentModeCount);
+            vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, vulkan->surface, &presentModeCount, presentModes.data());
+
+            VkPresentModeKHR presentMode = VK_PRESENT_MODE_FIFO_KHR;
+            for (auto const& pm : presentModes) {
+                if (pm == VK_PRESENT_MODE_MAILBOX_KHR)
+                    presentMode = pm;
+            }
+
+            // Check physical device features and properties.
+            VkPhysicalDeviceFeatures physicalDeviceFeatures;
+            vkGetPhysicalDeviceFeatures(physicalDevice, &physicalDeviceFeatures);
+            VkPhysicalDeviceProperties physicalDeviceProperties;
+            vkGetPhysicalDeviceProperties(physicalDevice, &physicalDeviceProperties);
+
+            // Suitable physical device found.
+            vulkan->physicalDevice = physicalDevice;
+            vulkan->physicalDeviceFeatures = physicalDeviceFeatures;
+            vulkan->physicalDeviceProperties = physicalDeviceProperties;
+            vulkan->graphicsQueueFamilyIndex = graphicsQueueFamilyIndex.value();
+            vulkan->presentQueueFamilyIndex = presentQueueFamilyIndex.value();
+            vulkan->surfaceFormat = surfaceFormat;
+            vulkan->presentMode = presentMode;
+            break;
+        }
+
+        if (vulkan->physicalDevice == VK_NULL_HANDLE) {
+            Errorf(vulkan, "no suitable physical device");
+            return VK_ERROR_INITIALIZATION_FAILED;
+        }
     }
-    vulkan->window = window;
 
     return VK_SUCCESS;
 }
@@ -170,9 +292,9 @@ void DestroyVulkan(VulkanContext* vulkan)
         vulkan->messenger = VK_NULL_HANDLE;
     }
 
-    if (vulkan->windowSurface) {
-        vkDestroySurfaceKHR(vulkan->instance, vulkan->windowSurface, nullptr);
-        vulkan->windowSurface = VK_NULL_HANDLE;
+    if (vulkan->surface) {
+        vkDestroySurfaceKHR(vulkan->instance, vulkan->surface, nullptr);
+        vulkan->surface = VK_NULL_HANDLE;
         vulkan->window = nullptr;
     }
 
@@ -180,5 +302,4 @@ void DestroyVulkan(VulkanContext* vulkan)
         vkDestroyInstance(vulkan->instance, nullptr);
         vulkan->instance = VK_NULL_HANDLE;
     }
-
 }

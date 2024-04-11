@@ -13,9 +13,13 @@ struct VulkanContext
     VkPhysicalDeviceProperties  physicalDeviceProperties    = {};
 
     VkDevice                    device                      = VK_NULL_HANDLE;
-
     GLFWwindow*                 window                      = nullptr;
-    VkSurfaceKHR                windowSurface               = VK_NULL_HANDLE;
+    VkSurfaceKHR                surface                     = VK_NULL_HANDLE;
+    VkSurfaceFormatKHR          surfaceFormat               = {};
+    uint32_t                    graphicsQueueFamilyIndex    = 0;
+    uint32_t                    computeQueueFamilyIndex     = 0;
+    uint32_t                    presentQueueFamilyIndex     = 0;
+    VkPresentModeKHR            presentMode                 = VK_PRESENT_MODE_IMMEDIATE_KHR;
 };
 
 VulkanContext* CreateVulkan(
