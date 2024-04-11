@@ -362,6 +362,12 @@ VulkanContext* CreateVulkan(
 
 void DestroyVulkan(VulkanContext* vulkan)
 {
+    if (vulkan->device) {
+        // Device exists, make sure there is nothing going on
+        // before we start releasing resources.
+        vkDeviceWaitIdle(vulkan->device);
+    }
+
     if (vulkan->graphicsCommandPool) {
         vkDestroyCommandPool(vulkan->device, vulkan->graphicsCommandPool, nullptr);
         vulkan->graphicsCommandPool = VK_NULL_HANDLE;
