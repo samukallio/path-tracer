@@ -28,6 +28,14 @@ struct VulkanGraphicsPipelineConfiguration
     DescriptorTypes             descriptorTypes             = {};
 };
 
+struct VulkanComputePipelineConfiguration
+{
+    using DescriptorTypes = std::vector<VkDescriptorType>;
+
+    std::vector<char>           computeShaderCode           = {};
+    DescriptorTypes             descriptorTypes             = {};
+};
+
 struct VulkanPipeline
 {
     VkPipeline                  pipeline                    = VK_NULL_HANDLE;
@@ -117,7 +125,11 @@ VulkanPipeline* CreateVulkanGraphicsPipeline(
     VulkanContext* vulkan,
     VulkanGraphicsPipelineConfiguration const& config);
 
-void DestroyVulkanGraphicsPipeline(
+VulkanPipeline* CreateVulkanComputePipeline(
+    VulkanContext* vulkan,
+    VulkanComputePipelineConfiguration const& config);
+
+void DestroyVulkanPipeline(
     VulkanContext* vulkan,
     VulkanPipeline* pipeline);
 

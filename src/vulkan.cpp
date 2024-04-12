@@ -1146,14 +1146,114 @@ VulkanPipeline* CreateVulkanGraphicsPipeline(
 
     VkResult result = InternalCreateVulkanGraphicsPipeline(vulkan, pipeline, config);
     if (result != VK_SUCCESS) {
-        DestroyVulkanGraphicsPipeline(vulkan, pipeline);
+        DestroyVulkanPipeline(vulkan, pipeline);
         pipeline = nullptr;
     }
 
     return pipeline;
 }
 
-void DestroyVulkanGraphicsPipeline(
+static VkResult InternalCreateVulkanComputePipeline(
+    VulkanContext* vulkan,
+    VulkanPipeline* pipeline,
+    VulkanComputePipelineConfiguration const& config)
+{
+    VkResult result = VK_SUCCESS;
+
+    // Create descriptor set layout.
+    std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
+
+    for (size_t index = 0; index < config.descriptorTypes.size(); index++) {
+        descriptorSetLayoutBindings.push_back({
+            .binding            = static_cast<uint32_t>(index),
+            .descriptorType     = config.descriptorTypes[index],
+            .descriptorCount    = 1,
+            .stageFlags         = VK_SHADER_STAGE_ALL_GRAPHICS,
+            .pImmutableSamplers = nullptr,
+        });
+    }
+
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size()),
+        .pBindings = descriptorSetLayoutBindings.data(),
+    };
+
+    result = vkCreateDescriptorSetLayout(vulkan->device, &descriptorSetLayoutInfo, nullptr, &pipeline->descriptorSetLayout);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create descriptor set layout");
+        return result;
+    }
+
+    // Create compute shader module.
+    VkShaderModuleCreateInfo computeShaderModuleInfo = {
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = config.computeShaderCode.size(),
+        .pCode = reinterpret_cast<const uint32_t*>(config.computeShaderCode.data()),
+    };
+
+    VkShaderModule computeShaderModule;
+
+    result = vkCreateShaderModule(vulkan->device, &computeShaderModuleInfo, nullptr, &computeShaderModule);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create compute shader module");
+        return result;
+    }
+
+    VkPipelineShaderStageCreateInfo computeShaderStageInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+        .module = computeShaderModule,
+        .pName = "main",
+    };
+
+    // Create pipeline layout.
+    VkPipelineLayoutCreateInfo computePipelineLayoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts = &pipeline->descriptorSetLayout,
+    };
+
+    result = vkCreatePipelineLayout(vulkan->device, &computePipelineLayoutInfo, nullptr, &pipeline->pipelineLayout);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create compute pipeline layout");
+        return result;
+    }
+
+    // Create pipeline.
+    VkComputePipelineCreateInfo computePipelineInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+        .stage = computeShaderStageInfo,
+        .layout = pipeline->pipelineLayout,
+    };
+
+    result = vkCreateComputePipelines(vulkan->device, VK_NULL_HANDLE, 1, &computePipelineInfo, nullptr, &pipeline->pipeline);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create compute pipeline");
+        return result;
+    }
+
+    vkDestroyShaderModule(vulkan->device, computeShaderModule, nullptr);
+
+    return result;
+}
+
+VulkanPipeline* CreateVulkanComputePipeline(
+    VulkanContext* vulkan,
+    VulkanComputePipelineConfiguration const& config)
+{
+    auto pipeline = new VulkanPipeline;
+
+    VkResult result = InternalCreateVulkanComputePipeline(vulkan, pipeline, config);
+    if (result != VK_SUCCESS) {
+        DestroyVulkanPipeline(vulkan, pipeline);
+        pipeline = nullptr;
+    }
+
+    return pipeline;
+}
+
+void DestroyVulkanPipeline(
     VulkanContext* vulkan,
     VulkanPipeline* pipeline)
 {
