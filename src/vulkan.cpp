@@ -771,6 +771,19 @@ VkResult BeginFrame(
     // Reset the fence to indicate that the frame state is no longer available.
     vkResetFences(vulkan->device, 1, &frame->availableFence);
 
+    // Start compute command buffer.
+    vkResetCommandBuffer(frame->computeCommandBuffer, 0);
+    auto computeBeginInfo = VkCommandBufferBeginInfo {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = 0,
+        .pInheritanceInfo = nullptr,
+    };
+    result = vkBeginCommandBuffer(frame->computeCommandBuffer, &computeBeginInfo);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to begin recording compute command buffer");
+        return result;
+    }
+
     // Start graphics command buffer.
     vkResetCommandBuffer(frame->graphicsCommandBuffer, 0);
     auto graphicsBeginInfo = VkCommandBufferBeginInfo {
@@ -783,19 +796,6 @@ VkResult BeginFrame(
         Errorf(vulkan, "failed to begin recording graphics command buffer");
         return result;
     }
-
-    // Start compute command buffer.
-    //vkResetCommandBuffer(frame->computeCommandBuffer, 0);
-    //auto computeBeginInfo = VkCommandBufferBeginInfo {
-    //    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-    //    .flags = 0,
-    //    .pInheritanceInfo = nullptr,
-    //};
-    //result = vkBeginCommandBuffer(frame->computeCommandBuffer, &computeBeginInfo);
-    //if (result != VK_SUCCESS) {
-    //    Errorf(vulkan, "failed to begin recording compute command buffer");
-    //    return result;
-    //}
 
     VkClearValue clearValues[] = {
         { .color = {{ 0.0f, 0.0f, 0.0f, 1.0f }} },
@@ -833,11 +833,11 @@ VkResult EndFrame(
         return result;
     }
 
-    //result = vkEndCommandBuffer(frame->computeCommandBuffer);
-    //if (result != VK_SUCCESS) {
-    //    Errorf(vulkan, "failed to end recording compute command buffer");
-    //    return result;
-    //}
+    result = vkEndCommandBuffer(frame->computeCommandBuffer);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to end recording compute command buffer");
+        return result;
+    }
 
     VkPipelineStageFlags graphicsWaitStages[] = {
         //VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
