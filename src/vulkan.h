@@ -11,6 +11,22 @@ struct VulkanImage
     VkImageView                 imageView                   = VK_NULL_HANDLE;
 };
 
+struct VulkanFrameState
+{
+    // Fence that gets signaled when the previous commands
+    // accessing the resources of this frame state have been
+    // completed.
+    VkFence                     availableFence              = VK_NULL_HANDLE;
+
+    // Swap chain image state for this frame.
+    uint32_t                    imageIndex                  = 0;
+    VkSemaphore                 imageAvailableSemaphore     = VK_NULL_HANDLE;
+    VkSemaphore                 imageFinishedSemaphore      = VK_NULL_HANDLE;
+
+    VkCommandBuffer             graphicsCommandBuffer       = VK_NULL_HANDLE;
+    VkCommandBuffer             computeCommandBuffer        = VK_NULL_HANDLE;
+};
+
 struct VulkanContext
 {
     VkInstance                  instance                    = VK_NULL_HANDLE;
@@ -30,6 +46,10 @@ struct VulkanContext
     VkQueue                     computeQueue                = VK_NULL_HANDLE;
     VkCommandPool               computeCommandPool          = VK_NULL_HANDLE;
 
+    uint32_t                    presentQueueFamilyIndex     = 0;
+    VkQueue                     presentQueue                = VK_NULL_HANDLE;
+    VkPresentModeKHR            presentMode                 = VK_PRESENT_MODE_IMMEDIATE_KHR;
+
     GLFWwindow*                 window                      = nullptr;
     VkSurfaceKHR                surface                     = VK_NULL_HANDLE;
     VkSurfaceFormatKHR          surfaceFormat               = {};
@@ -38,10 +58,12 @@ struct VulkanContext
     VkExtent2D                  swapchainExtent             = {};
     VkFormat                    swapchainFormat             = VK_FORMAT_UNDEFINED;
     std::vector<VulkanImage>    swapchainImages             = {};
+    std::vector<VkFramebuffer>  swapchainFramebuffers       = {};
 
-    uint32_t                    presentQueueFamilyIndex     = 0;
-    VkQueue                     presentQueue                = VK_NULL_HANDLE;
-    VkPresentModeKHR            presentMode                 = VK_PRESENT_MODE_IMMEDIATE_KHR;
+    VkRenderPass                mainRenderPass              = VK_NULL_HANDLE;
+
+    int                         frameIndex                  = 0;
+    VulkanFrameState            frameStates[2]              = {};
 };
 
 VulkanContext* CreateVulkan(
@@ -50,3 +72,11 @@ VulkanContext* CreateVulkan(
 
 void DestroyVulkan(
     VulkanContext* vulkan);
+
+VkResult BeginFrame(
+    VulkanContext* vulkan,
+    VulkanFrameState** frameOut);
+
+VkResult EndFrame(
+    VulkanContext* vulkan,
+    VulkanFrameState* frame);

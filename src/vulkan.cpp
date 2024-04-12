@@ -54,6 +54,87 @@ static void DestroyDebugUtilsMessengerEXT(
 static VkResult InternalCreatePresentationResources(
     VulkanContext* vulkan);
 
+
+static VkResult InternalCreateFrameResources(
+    VulkanContext* vulkan,
+    VulkanFrameState* frame)
+{
+    VkResult result = VK_SUCCESS;
+
+    auto graphicsCommandBufferAllocateInfo = VkCommandBufferAllocateInfo {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = vulkan->graphicsCommandPool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+
+    result = vkAllocateCommandBuffers(vulkan->device, &graphicsCommandBufferAllocateInfo, &frame->graphicsCommandBuffer);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to allocate graphics command buffer");
+        return result;
+    }
+
+    auto computeCommandBufferAllocateInfo = VkCommandBufferAllocateInfo {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = vulkan->computeCommandPool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+
+    result = vkAllocateCommandBuffers(vulkan->device, &computeCommandBufferAllocateInfo, &frame->computeCommandBuffer);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to allocate compute command buffer");
+        return result;
+    }
+
+    auto semaphoreInfo = VkSemaphoreCreateInfo {
+        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+    };
+
+    VkSemaphore* pSemaphores[] = {
+        &frame->imageAvailableSemaphore,
+        &frame->imageFinishedSemaphore,
+    };
+
+    for (VkSemaphore* pSemaphore : pSemaphores) {
+        result = vkCreateSemaphore(vulkan->device, &semaphoreInfo, nullptr, pSemaphore);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create semaphore");
+            return result;
+        }
+    }
+
+    auto fenceInfo = VkFenceCreateInfo {
+        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+    };
+
+    VkFence* pFences[] = {
+        &frame->availableFence,
+    };
+
+    for (VkFence* pFence : pFences) {
+        result = vkCreateFence(vulkan->device, &fenceInfo, nullptr, pFence);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create semaphore");
+            return result;
+        }
+    }
+
+    return VK_SUCCESS;
+}
+
+static VkResult InternalDestroyFrameResources(
+    VulkanContext* vulkan,
+    VulkanFrameState* frame)
+{
+    vkDestroySemaphore(vulkan->device, frame->imageAvailableSemaphore, nullptr);
+    vkDestroySemaphore(vulkan->device, frame->imageFinishedSemaphore, nullptr);
+    vkDestroyFence(vulkan->device, frame->availableFence, nullptr);
+
+    return VK_SUCCESS;
+}
+
 static VkResult InternalCreateVulkan(
     VulkanContext* vulkan,
     GLFWwindow* window,
@@ -346,8 +427,65 @@ static VkResult InternalCreateVulkan(
         }
     }
 
+    // Create main render pass.
+    {
+        VkAttachmentDescription colorAttachment = {
+            .format = vulkan->surfaceFormat.format,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+        };
+
+        VkAttachmentReference colorAttachmentRef = {
+            .attachment = 0,
+            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+        };
+
+        VkSubpassDescription subpassDesc = {
+            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            .colorAttachmentCount = 1,
+            .pColorAttachments = &colorAttachmentRef,
+            .pResolveAttachments = nullptr,
+            .pDepthStencilAttachment = nullptr,
+        };
+
+        VkSubpassDependency dependency = {
+            .srcSubpass = VK_SUBPASS_EXTERNAL,
+            .dstSubpass = 0,
+            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .srcAccessMask = 0,
+            .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        };
+
+        VkRenderPassCreateInfo renderPassInfo = {
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+            .attachmentCount = 1,
+            .pAttachments = &colorAttachment,
+            .subpassCount = 1,
+            .pSubpasses = &subpassDesc,
+            .dependencyCount = 1,
+            .pDependencies = &dependency,
+        };
+
+        result = vkCreateRenderPass(vulkan->device, &renderPassInfo, nullptr, &vulkan->mainRenderPass);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create main render pass");
+            return result;
+        }
+    }
+
     result = InternalCreatePresentationResources(vulkan);
     if (result != VK_SUCCESS) return result;
+
+    for (int index = 0; index < 2; index++) {
+        result = InternalCreateFrameResources(vulkan, &vulkan->frameStates[index]);
+        if (result != VK_SUCCESS) return result;
+    }
 
     return VK_SUCCESS;
 }
@@ -447,6 +585,8 @@ static VkResult InternalCreatePresentationResources(
         vkGetSwapchainImagesKHR(vulkan->device, vulkan->swapchain, &imageCount, images.data());
 
         vulkan->swapchainImages.clear();
+        vulkan->swapchainFramebuffers.clear();
+
         for (VkImage image : images) {
             auto imageViewInfo = VkImageViewCreateInfo {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
@@ -480,6 +620,25 @@ static VkResult InternalCreatePresentationResources(
                 .image = image,
                 .imageView = imageView,
             });
+
+            VkFramebufferCreateInfo framebufferInfo = {
+                .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+                .renderPass = vulkan->mainRenderPass,
+                .attachmentCount = 1,
+                .pAttachments = &imageView,
+                .width = vulkan->swapchainExtent.width,
+                .height = vulkan->swapchainExtent.height,
+                .layers = 1,
+            };
+
+            VkFramebuffer framebuffer;
+
+            if (vkCreateFramebuffer(vulkan->device, &framebufferInfo, nullptr, &framebuffer) != VK_SUCCESS) {
+                Errorf(vulkan, "failed to create framebuffer");
+                return result;
+            }
+
+            vulkan->swapchainFramebuffers.push_back(framebuffer);
         }
     }
 
@@ -489,6 +648,10 @@ static VkResult InternalCreatePresentationResources(
 static void InternalDestroyPresentationResources(
     VulkanContext* vulkan)
 {
+    for (VkFramebuffer framebuffer : vulkan->swapchainFramebuffers)
+        vkDestroyFramebuffer(vulkan->device, framebuffer, nullptr);
+    vulkan->swapchainFramebuffers.clear();
+
     for (VulkanImage const& image : vulkan->swapchainImages)
         vkDestroyImageView(vulkan->device, image.imageView, nullptr);
     vulkan->swapchainImages.clear();
@@ -509,8 +672,16 @@ void DestroyVulkan(VulkanContext* vulkan)
         vkDeviceWaitIdle(vulkan->device);
     }
 
+    for (int index = 0; index < 2; index++)
+        InternalDestroyFrameResources(vulkan, &vulkan->frameStates[index]);
+
     // Destroy swap chain and any other window-related resources.
     InternalDestroyPresentationResources(vulkan);
+
+    if (vulkan->mainRenderPass) {
+        vkDestroyRenderPass(vulkan->device, vulkan->mainRenderPass, nullptr);
+        vulkan->mainRenderPass = VK_NULL_HANDLE;
+    }
 
     if (vulkan->graphicsCommandPool) {
         vkDestroyCommandPool(vulkan->device, vulkan->graphicsCommandPool, nullptr);
@@ -556,4 +727,161 @@ void DestroyVulkan(VulkanContext* vulkan)
         vkDestroyInstance(vulkan->instance, nullptr);
         vulkan->instance = VK_NULL_HANDLE;
     }
+}
+
+static void InternalWaitForWindowSize(
+    VulkanContext* vulkan)
+{
+    int width = 0, height = 0;
+    glfwGetFramebufferSize(vulkan->window, &width, &height);
+    while (width == 0 || height == 0) {
+        glfwGetFramebufferSize(vulkan->window, &width, &height);
+        glfwWaitEvents();
+    }
+}
+
+VkResult BeginFrame(
+    VulkanContext* vulkan,
+    VulkanFrameState** frameOut)
+{
+    VkResult result = VK_SUCCESS;
+
+    int frameIndex = (vulkan->frameIndex + 1) % 2;
+    VulkanFrameState* frame = &vulkan->frameStates[frameIndex];
+
+    // Wait for the previous commands using this frame state to finish executing.
+    vkWaitForFences(vulkan->device, 1, &frame->availableFence, VK_TRUE, UINT64_MAX);
+
+    // Try to acquire a swap chain image for us to render to.
+    result = vkAcquireNextImageKHR(vulkan->device, vulkan->swapchain, UINT64_MAX, frame->imageAvailableSemaphore, VK_NULL_HANDLE, &frame->imageIndex);
+
+    if (result == VK_ERROR_OUT_OF_DATE_KHR || result == VK_SUBOPTIMAL_KHR) {
+        InternalWaitForWindowSize(vulkan);
+        vkDeviceWaitIdle(vulkan->device);
+        InternalDestroyPresentationResources(vulkan);
+        InternalCreatePresentationResources(vulkan);
+        result = vkAcquireNextImageKHR(vulkan->device, vulkan->swapchain, UINT64_MAX, frame->imageAvailableSemaphore, VK_NULL_HANDLE, &frame->imageIndex);
+    }
+
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to acquire swap chain image");
+        return result;
+    }
+
+    // Reset the fence to indicate that the frame state is no longer available.
+    vkResetFences(vulkan->device, 1, &frame->availableFence);
+
+    // Start graphics command buffer.
+    vkResetCommandBuffer(frame->graphicsCommandBuffer, 0);
+    auto graphicsBeginInfo = VkCommandBufferBeginInfo {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = 0,
+        .pInheritanceInfo = nullptr,
+    };
+    result = vkBeginCommandBuffer(frame->graphicsCommandBuffer, &graphicsBeginInfo);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to begin recording graphics command buffer");
+        return result;
+    }
+
+    // Start compute command buffer.
+    //vkResetCommandBuffer(frame->computeCommandBuffer, 0);
+    //auto computeBeginInfo = VkCommandBufferBeginInfo {
+    //    .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+    //    .flags = 0,
+    //    .pInheritanceInfo = nullptr,
+    //};
+    //result = vkBeginCommandBuffer(frame->computeCommandBuffer, &computeBeginInfo);
+    //if (result != VK_SUCCESS) {
+    //    Errorf(vulkan, "failed to begin recording compute command buffer");
+    //    return result;
+    //}
+
+    VkClearValue clearValues[] = {
+        { .color = {{ 0.0f, 0.0f, 0.0f, 1.0f }} },
+        { .depthStencil = { 1.0f, 0 } }
+    };
+
+    VkRenderPassBeginInfo renderPassBeginInfo = {
+        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass = vulkan->mainRenderPass,
+        .framebuffer = vulkan->swapchainFramebuffers[frame->imageIndex],
+        .renderArea = { .offset = { 0, 0 }, .extent = vulkan->swapchainExtent },
+        .clearValueCount = 2,
+        .pClearValues = clearValues,
+    };
+
+    vkCmdBeginRenderPass(frame->graphicsCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+
+    vulkan->frameIndex = frameIndex;
+    *frameOut = frame;
+
+    return VK_SUCCESS;
+}
+
+VkResult EndFrame(
+    VulkanContext* vulkan,
+    VulkanFrameState* frame)
+{
+    VkResult result = VK_SUCCESS;
+
+    vkCmdEndRenderPass(frame->graphicsCommandBuffer);
+
+    result = vkEndCommandBuffer(frame->graphicsCommandBuffer);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to end recording graphics command buffer");
+        return result;
+    }
+
+    //result = vkEndCommandBuffer(frame->computeCommandBuffer);
+    //if (result != VK_SUCCESS) {
+    //    Errorf(vulkan, "failed to end recording compute command buffer");
+    //    return result;
+    //}
+
+    VkPipelineStageFlags graphicsWaitStages[] = {
+        //VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+    };
+
+    VkSemaphore graphicsWaitSemaphores[] = {
+        //frame->computeFinishedSemaphore,
+        frame->imageAvailableSemaphore,
+    };
+
+    auto graphicsSubmitInfo = VkSubmitInfo {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = graphicsWaitSemaphores,
+        .pWaitDstStageMask = graphicsWaitStages,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &frame->graphicsCommandBuffer,
+        .signalSemaphoreCount = 1,
+        .pSignalSemaphores = &frame->imageFinishedSemaphore,
+    };
+
+    result = vkQueueSubmit(vulkan->graphicsQueue, 1, &graphicsSubmitInfo, frame->availableFence);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to submit graphics command buffer");
+        return result;
+    }
+
+    auto presentInfo = VkPresentInfoKHR {
+        .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+        .waitSemaphoreCount = 1,
+        .pWaitSemaphores = &frame->imageFinishedSemaphore,
+        .swapchainCount = 1,
+        .pSwapchains = &vulkan->swapchain,
+        .pImageIndices = &frame->imageIndex,
+        .pResults = nullptr,
+    };
+
+    result = vkQueuePresentKHR(vulkan->presentQueue, &presentInfo);
+    if (result != VK_SUCCESS) {
+        if (result != VK_ERROR_OUT_OF_DATE_KHR && result != VK_SUBOPTIMAL_KHR)
+            Errorf(vulkan, "failed to present swap chain image");
+        return result;
+    }
+
+    return VK_SUCCESS;
 }

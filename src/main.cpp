@@ -19,6 +19,15 @@ int main()
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
+
+        VkResult result = VK_SUCCESS;
+        VulkanFrameState* frame = nullptr;
+
+        result = BeginFrame(vulkan, &frame);
+        if (result != VK_SUCCESS)
+            break;
+
+        EndFrame(vulkan, frame);
     }
 
     DestroyVulkan(vulkan);
