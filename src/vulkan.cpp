@@ -1135,6 +1135,9 @@ static VkResult InternalCreateVulkanGraphicsPipeline(
         return result;
     }
 
+    vkDestroyShaderModule(vulkan->device, vertexShaderModule, nullptr);
+    vkDestroyShaderModule(vulkan->device, fragmentShaderModule, nullptr);
+
     return result;
 }
 
