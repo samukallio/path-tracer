@@ -16,6 +16,25 @@ struct VulkanImage
     VkImageTiling               tiling                      = VK_IMAGE_TILING_OPTIMAL;
 };
 
+struct VulkanGraphicsPipelineConfiguration
+{
+    using VertexFormat = std::vector<VkVertexInputAttributeDescription>;
+    using DescriptorTypes = std::vector<VkDescriptorType>;
+
+    uint32_t                    vertexSize                  = 0;
+    VertexFormat                vertexFormat                = {};
+    std::vector<char>           vertexShaderCode            = {};
+    std::vector<char>           fragmentShaderCode          = {};
+    DescriptorTypes             descriptorTypes             = {};
+};
+
+struct VulkanPipeline
+{
+    VkPipeline                  pipeline                    = VK_NULL_HANDLE;
+    VkPipelineLayout            pipelineLayout              = VK_NULL_HANDLE;
+    VkDescriptorSetLayout       descriptorSetLayout         = VK_NULL_HANDLE;
+};
+
 struct VulkanFrameState
 {
     // Fence that gets signaled when the previous commands
@@ -66,6 +85,8 @@ struct VulkanContext
     std::vector<VkImageView>    swapchainImageViews         = {};
     std::vector<VkFramebuffer>  swapchainFramebuffers       = {};
 
+    VkDescriptorPool            descriptorPool              = VK_NULL_HANDLE;
+
     VkRenderPass                mainRenderPass              = VK_NULL_HANDLE;
 
     int                         frameIndex                  = 0;
@@ -91,6 +112,14 @@ VulkanImage* CreateVulkanImage(
 void DestroyVulkanImage(
     VulkanContext* vulkan,
     VulkanImage* image);
+
+VulkanPipeline* CreateVulkanGraphicsPipeline(
+    VulkanContext* vulkan,
+    VulkanGraphicsPipelineConfiguration const& config);
+
+void DestroyVulkanGraphicsPipeline(
+    VulkanContext* vulkan,
+    VulkanPipeline* pipeline);
 
 VkResult BeginFrame(
     VulkanContext* vulkan,
