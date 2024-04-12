@@ -742,6 +742,153 @@ static void InternalWaitForWindowSize(
     }
 }
 
+static VkResult InternalCreateVulkanImage(
+    VulkanContext* vulkan,
+    VulkanImage* image,
+    VkImageUsageFlags usageFlags,
+    VkMemoryPropertyFlags memoryFlags,
+    VkImageType type,
+    VkFormat format,
+    VkExtent3D extent,
+    VkImageTiling tiling)
+{
+    VkResult result = VK_SUCCESS;
+
+    image->type = type;
+    image->format = format;
+    image->extent = extent;
+    image->tiling = tiling;
+
+    // Create the image object.
+    VkImageCreateInfo imageInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .flags = 0,
+        .imageType = type,
+        .format = format,
+        .extent = extent,
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = tiling,
+        .usage = usageFlags,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    };
+
+    result = vkCreateImage(vulkan->device, &imageInfo, nullptr, &image->image);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create image");
+        return result;
+    }
+
+    // Determine memory requirements for the image.
+    VkMemoryRequirements memoryRequirements;
+    vkGetImageMemoryRequirements(vulkan->device, image->image, &memoryRequirements);
+
+    // Find memory suitable for the image.
+    uint32_t memoryTypeIndex = 0xFFFFFFFF;
+    VkPhysicalDeviceMemoryProperties memoryProperties;
+    vkGetPhysicalDeviceMemoryProperties(vulkan->physicalDevice, &memoryProperties);
+    for (uint32_t index = 0; index < memoryProperties.memoryTypeCount; index++) {
+        if (!(memoryRequirements.memoryTypeBits & (1 << index)))
+            continue;
+        VkMemoryType& type = memoryProperties.memoryTypes[index];
+        if ((type.propertyFlags & memoryFlags) != memoryFlags)
+            continue;
+        memoryTypeIndex = index;
+        break;
+    }
+
+    // Allocate memory.
+    VkMemoryAllocateInfo memoryAllocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = memoryRequirements.size,
+        .memoryTypeIndex = memoryTypeIndex,
+    };
+
+    result = vkAllocateMemory(vulkan->device, &memoryAllocateInfo, nullptr, &image->memory);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to allocate image memory");
+        return result;
+    }
+
+    vkBindImageMemory(vulkan->device, image->image, image->memory, 0);
+
+    VkImageViewType viewType;
+
+    switch (type) {
+    case VK_IMAGE_TYPE_1D:
+        viewType = VK_IMAGE_VIEW_TYPE_1D;
+        break;
+    case VK_IMAGE_TYPE_2D:
+        viewType = VK_IMAGE_VIEW_TYPE_2D;
+        break;
+    case VK_IMAGE_TYPE_3D:
+        viewType = VK_IMAGE_VIEW_TYPE_3D;
+        break;
+    default:
+        Errorf(vulkan, "unsupported image type");
+        return VK_ERROR_UNKNOWN;
+    }
+
+    // Create image view spanning the full image.
+    VkImageViewCreateInfo imageViewInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = image->image,
+        .viewType = viewType,
+        .format = format,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+    };
+
+    result = vkCreateImageView(vulkan->device, &imageViewInfo, nullptr, &image->view);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create image view");
+        return result;
+    }
+
+    return VK_SUCCESS;
+}
+
+VulkanImage* CreateVulkanImage(
+    VulkanContext* vulkan,
+    VkImageUsageFlags usageFlags,
+    VkMemoryPropertyFlags memoryFlags,
+    VkImageType type,
+    VkFormat format,
+    VkExtent3D extent,
+    VkImageTiling tiling)
+{
+    auto image = new VulkanImage;
+
+    VkResult result = InternalCreateVulkanImage(vulkan, image, usageFlags, memoryFlags, type, format, extent, tiling);
+    if (result != VK_SUCCESS) {
+        DestroyVulkanImage(vulkan, image);
+        image = nullptr;
+    }
+
+    return image;
+}
+
+void DestroyVulkanImage(
+    VulkanContext* vulkan,
+    VulkanImage* image)
+{
+    if (image->view)
+        vkDestroyImageView(vulkan->device, image->view, nullptr);
+    if (image->image)
+        vkDestroyImage(vulkan->device, image->image, nullptr);
+    if (image->memory)
+        vkFreeMemory(vulkan->device, image->memory, nullptr);
+
+    delete image;
+}
+
 VkResult BeginFrame(
     VulkanContext* vulkan,
     VulkanFrameState** frameOut)

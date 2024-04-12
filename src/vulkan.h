@@ -8,7 +8,12 @@
 struct VulkanImage
 {
     VkImage                     image                       = VK_NULL_HANDLE;
-    VkImageView                 imageView                   = VK_NULL_HANDLE;
+    VkDeviceMemory              memory                      = VK_NULL_HANDLE;
+    VkImageView                 view                        = VK_NULL_HANDLE;
+    VkImageType                 type                        = VK_IMAGE_TYPE_1D;
+    VkFormat                    format                      = VK_FORMAT_UNDEFINED;
+    VkExtent3D                  extent                      = {};
+    VkImageTiling               tiling                      = VK_IMAGE_TILING_OPTIMAL;
 };
 
 struct VulkanFrameState
@@ -73,6 +78,19 @@ VulkanContext* CreateVulkan(
 
 void DestroyVulkan(
     VulkanContext* vulkan);
+
+VulkanImage* CreateVulkanImage(
+    VulkanContext* vulkan,
+    VkImageUsageFlags usageFlags,
+    VkMemoryPropertyFlags memoryFlags,
+    VkImageType type,
+    VkFormat format,
+    VkExtent3D extent,
+    VkImageTiling tiling);
+
+void DestroyVulkanImage(
+    VulkanContext* vulkan,
+    VulkanImage* image);
 
 VkResult BeginFrame(
     VulkanContext* vulkan,
