@@ -585,9 +585,12 @@ static VkResult InternalCreatePresentationResources(
         vkGetSwapchainImagesKHR(vulkan->device, vulkan->swapchain, &imageCount, images.data());
 
         vulkan->swapchainImages.clear();
+        vulkan->swapchainImageViews.clear();
         vulkan->swapchainFramebuffers.clear();
 
         for (VkImage image : images) {
+            vulkan->swapchainImages.push_back(image);
+
             auto imageViewInfo = VkImageViewCreateInfo {
                 .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
                 .image = image,
@@ -616,10 +619,7 @@ static VkResult InternalCreatePresentationResources(
                 return result;
             }
 
-            vulkan->swapchainImages.push_back({
-                .image = image,
-                .imageView = imageView,
-            });
+            vulkan->swapchainImageViews.push_back(imageView);
 
             VkFramebufferCreateInfo framebufferInfo = {
                 .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
@@ -633,7 +633,8 @@ static VkResult InternalCreatePresentationResources(
 
             VkFramebuffer framebuffer;
 
-            if (vkCreateFramebuffer(vulkan->device, &framebufferInfo, nullptr, &framebuffer) != VK_SUCCESS) {
+            result = vkCreateFramebuffer(vulkan->device, &framebufferInfo, nullptr, &framebuffer);
+            if (result != VK_SUCCESS) {
                 Errorf(vulkan, "failed to create framebuffer");
                 return result;
             }
@@ -652,15 +653,16 @@ static void InternalDestroyPresentationResources(
         vkDestroyFramebuffer(vulkan->device, framebuffer, nullptr);
     vulkan->swapchainFramebuffers.clear();
 
-    for (VulkanImage const& image : vulkan->swapchainImages)
-        vkDestroyImageView(vulkan->device, image.imageView, nullptr);
-    vulkan->swapchainImages.clear();
+    for (VkImageView imageView : vulkan->swapchainImageViews)
+        vkDestroyImageView(vulkan->device, imageView, nullptr);
+    vulkan->swapchainImageViews.clear();
 
     if (vulkan->swapchain) {
         vkDestroySwapchainKHR(vulkan->device, vulkan->swapchain, nullptr);
         vulkan->swapchain = nullptr;
         vulkan->swapchainExtent = {};
         vulkan->swapchainFormat = VK_FORMAT_UNDEFINED;
+        vulkan->swapchainImages.clear();
     }
 }
 

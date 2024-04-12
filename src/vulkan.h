@@ -57,7 +57,8 @@ struct VulkanContext
     VkSwapchainKHR              swapchain                   = VK_NULL_HANDLE;
     VkExtent2D                  swapchainExtent             = {};
     VkFormat                    swapchainFormat             = VK_FORMAT_UNDEFINED;
-    std::vector<VulkanImage>    swapchainImages             = {};
+    std::vector<VkImage>        swapchainImages             = {};
+    std::vector<VkImageView>    swapchainImageViews         = {};
     std::vector<VkFramebuffer>  swapchainFramebuffers       = {};
 
     VkRenderPass                mainRenderPass              = VK_NULL_HANDLE;
