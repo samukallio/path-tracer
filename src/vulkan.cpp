@@ -716,6 +716,11 @@ void DestroyVulkan(VulkanContext* vulkan)
         vulkan->mainRenderPass = VK_NULL_HANDLE;
     }
 
+    if (vulkan->descriptorPool) {
+        vkDestroyDescriptorPool(vulkan->device, vulkan->descriptorPool, nullptr);
+        vulkan->descriptorPool = VK_NULL_HANDLE;
+    }
+
     if (vulkan->graphicsCommandPool) {
         vkDestroyCommandPool(vulkan->device, vulkan->graphicsCommandPool, nullptr);
         vulkan->graphicsCommandPool = VK_NULL_HANDLE;
