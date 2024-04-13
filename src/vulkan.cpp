@@ -67,6 +67,90 @@ static void DestroyDebugUtilsMessengerEXT(
     func(instance, debugMessenger, pAllocator);
 }
 
+static VkResult InternalCreateBuffer(
+    VulkanContext* vulkan,
+    VulkanBuffer* buffer,
+    VkBufferUsageFlags usageFlags,
+    VkMemoryPropertyFlags memoryFlags,
+    VkDeviceSize size)
+{
+    VkResult result = VK_SUCCESS;
+
+    buffer->size = size;
+
+    // Create the buffer.
+    VkBufferCreateInfo bufferInfo = {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+        .size = size,
+        .usage = usageFlags,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+    };
+
+    result = vkCreateBuffer(vulkan->device, &bufferInfo, nullptr, &buffer->buffer);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create buffer");
+        return result;
+    }
+
+    // Determine memory requirements for the buffer.
+    VkMemoryRequirements memoryRequirements;
+    vkGetBufferMemoryRequirements(vulkan->device, buffer->buffer, &memoryRequirements);
+
+    // Find memory suitable for the image.
+    uint32_t memoryTypeIndex = 0xFFFFFFFF;
+    VkPhysicalDeviceMemoryProperties memoryProperties;
+    vkGetPhysicalDeviceMemoryProperties(vulkan->physicalDevice, &memoryProperties);
+    for (uint32_t index = 0; index < memoryProperties.memoryTypeCount; index++) {
+        if (!(memoryRequirements.memoryTypeBits & (1 << index)))
+            continue;
+        VkMemoryType& type = memoryProperties.memoryTypes[index];
+        if ((type.propertyFlags & memoryFlags) != memoryFlags)
+            continue;
+        memoryTypeIndex = index;
+        break;
+    }
+
+    // Allocate memory.
+    VkMemoryAllocateInfo memoryAllocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = memoryRequirements.size,
+        .memoryTypeIndex = memoryTypeIndex,
+    };
+
+    result = vkAllocateMemory(vulkan->device, &memoryAllocateInfo, nullptr, &buffer->memory);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to allocate image memory");
+        return result;
+    }
+
+    vkBindBufferMemory(vulkan->device, buffer->buffer, buffer->memory, 0);
+
+    return VK_SUCCESS;
+}
+
+static void InternalDestroyBuffer(
+    VulkanContext* vulkan,
+    VulkanBuffer* buffer)
+{
+    if (buffer->buffer)
+        vkDestroyBuffer(vulkan->device, buffer->buffer, nullptr);
+    if (buffer->memory)
+        vkFreeMemory(vulkan->device, buffer->memory, nullptr);
+}
+
+static void InternalWriteToHostVisibleBuffer(
+    VulkanContext* vulkan,
+    VulkanBuffer* buffer,
+    void const* data,
+    size_t size)
+{
+    assert(size <= buffer->size);
+    void* bufferMemory;
+    vkMapMemory(vulkan->device, buffer->memory, 0, buffer->size, 0, &bufferMemory);
+    memcpy(bufferMemory, data, size);
+    vkUnmapMemory(vulkan->device, buffer->memory);
+}
+
 static VkResult InternalCreateImage(
     VulkanContext* vulkan,
     VulkanImage* image,
@@ -517,6 +601,12 @@ static VkResult InternalCreateFrameResources(
         }
     }
 
+    InternalCreateBuffer(vulkan,
+        &frame->sceneUniformBuffer,
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        sizeof(SceneUniformBuffer));
+
     InternalCreateImage(vulkan,
         &frame->renderTarget,
         VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
@@ -550,6 +640,7 @@ static VkResult InternalDestroyFrameResources(
 {
     InternalDestroyImage(vulkan, &frame->renderTargetGraphicsCopy);
     InternalDestroyImage(vulkan, &frame->renderTarget);
+    InternalDestroyBuffer(vulkan, &frame->sceneUniformBuffer);
 
     vkDestroySemaphore(vulkan->device, frame->computeToComputeSemaphore, nullptr);
     vkDestroySemaphore(vulkan->device, frame->computeToGraphicsSemaphore, nullptr);
@@ -1301,6 +1392,7 @@ static VkResult InternalCreateVulkan(
     VulkanComputePipelineConfiguration renderConfig = {
         .computeShaderCode = RENDER_COMPUTE_SHADER,
         .descriptorTypes = {
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
         },
@@ -1474,6 +1566,12 @@ VkResult RenderFrame(
     // Reset the fence to indicate that the frame state is no longer available.
     vkResetFences(vulkan->device, 1, &frame->availableFence);
 
+    SceneUniformBuffer sceneUniformData = {
+        .frameIndex = vulkan->frameIndex,
+        .color = glm::vec4(1, 0, 1, 0),
+    };
+    InternalWriteToHostVisibleBuffer(vulkan, &frame->sceneUniformBuffer, &sceneUniformData, sizeof(SceneUniformBuffer));
+
     // --- Compute ------------------------------------------------------------
 
     // Start compute command buffer.
@@ -1490,6 +1588,12 @@ VkResult RenderFrame(
     }
 
     {
+        VkDescriptorBufferInfo sceneUniformBufferInfo = {
+            .buffer = frame->sceneUniformBuffer.buffer,
+            .offset = 0,
+            .range = frame->sceneUniformBuffer.size,
+        };
+
         VkDescriptorImageInfo srcImageInfo = {
             .sampler = nullptr,
             .imageView = frame0->renderTarget.view,
@@ -1509,13 +1613,22 @@ VkResult RenderFrame(
                 .dstBinding = 0,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .pBufferInfo = &sceneUniformBufferInfo,
+            },
+            {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = frame->computeDescriptorSet,
+                .dstBinding = 1,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
                 .pImageInfo = &srcImageInfo,
             },
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet = frame->computeDescriptorSet,
-                .dstBinding = 1,
+                .dstBinding = 2,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,

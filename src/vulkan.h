@@ -5,6 +5,20 @@
 
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
+#include <glm/glm.hpp>
+
+struct SceneUniformBuffer
+{
+    int32_t                     frameIndex                  = 0;
+    alignas(16) glm::vec4       color                       = {};
+};
+
+struct VulkanBuffer
+{
+    VkBuffer                    buffer                      = VK_NULL_HANDLE;
+    VkDeviceMemory              memory                      = VK_NULL_HANDLE;
+    VkDeviceSize                size                        = 0;
+};
 
 struct VulkanImage
 {
@@ -53,6 +67,8 @@ struct VulkanFrameState
 
     VkDescriptorSet             graphicsDescriptorSet       = VK_NULL_HANDLE;
     VkDescriptorSet             computeDescriptorSet        = VK_NULL_HANDLE;
+
+    VulkanBuffer                sceneUniformBuffer          = {};
 
     VulkanImage                 renderTarget                = {};
     VulkanImage                 renderTargetGraphicsCopy    = {};
