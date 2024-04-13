@@ -504,149 +504,235 @@ static void InternalDestroyPresentationResources(
 }
 
 static VkResult InternalCreateFrameResources(
-    VulkanContext* vulkan,
-    VulkanFrameState* frame)
+    VulkanContext* vulkan)
 {
     VkResult result = VK_SUCCESS;
 
-    auto graphicsCommandBufferAllocateInfo = VkCommandBufferAllocateInfo {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = vulkan->graphicsCommandPool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1,
-    };
+    for (int index = 0; index < 2; index++) {
+        VulkanFrameState* frame = &vulkan->frameStates[index];
 
-    result = vkAllocateCommandBuffers(vulkan->device, &graphicsCommandBufferAllocateInfo, &frame->graphicsCommandBuffer);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to allocate graphics command buffer");
-        return result;
-    }
+        frame->index = index;
+        frame->fresh = true;
 
-    auto computeCommandBufferAllocateInfo = VkCommandBufferAllocateInfo {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = vulkan->computeCommandPool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1,
-    };
-
-    result = vkAllocateCommandBuffers(vulkan->device, &computeCommandBufferAllocateInfo, &frame->computeCommandBuffer);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to allocate compute command buffer");
-        return result;
-    }
-
-    auto semaphoreInfo = VkSemaphoreCreateInfo {
-        .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
-    };
-
-    VkSemaphore* pSemaphores[] = {
-        &frame->imageAvailableSemaphore,
-        &frame->imageFinishedSemaphore,
-        &frame->computeToComputeSemaphore,
-        &frame->computeToGraphicsSemaphore,
-    };
-
-    for (VkSemaphore* pSemaphore : pSemaphores) {
-        result = vkCreateSemaphore(vulkan->device, &semaphoreInfo, nullptr, pSemaphore);
-        if (result != VK_SUCCESS) {
-            Errorf(vulkan, "failed to create semaphore");
-            return result;
-        }
-    }
-
-    auto fenceInfo = VkFenceCreateInfo {
-        .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
-        .flags = VK_FENCE_CREATE_SIGNALED_BIT,
-    };
-
-    VkFence* pFences[] = {
-        &frame->availableFence,
-    };
-
-    for (VkFence* pFence : pFences) {
-        result = vkCreateFence(vulkan->device, &fenceInfo, nullptr, pFence);
-        if (result != VK_SUCCESS) {
-            Errorf(vulkan, "failed to create semaphore");
-            return result;
-        }
-    }
-
-    {
-        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = vulkan->descriptorPool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &vulkan->renderPipeline.descriptorSetLayout,
+        auto graphicsCommandBufferAllocateInfo = VkCommandBufferAllocateInfo {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = vulkan->graphicsCommandPool,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1,
         };
 
-        result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &frame->computeDescriptorSet);
+        result = vkAllocateCommandBuffers(vulkan->device, &graphicsCommandBufferAllocateInfo, &frame->graphicsCommandBuffer);
         if (result != VK_SUCCESS) {
-            Errorf(vulkan, "failed to allocate compute descriptor set");
+            Errorf(vulkan, "failed to allocate graphics command buffer");
             return result;
         }
-    }
 
-    {
-        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = vulkan->descriptorPool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &vulkan->blitPipeline.descriptorSetLayout,
+        auto computeCommandBufferAllocateInfo = VkCommandBufferAllocateInfo {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = vulkan->computeCommandPool,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1,
         };
 
-        result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &frame->graphicsDescriptorSet);
+        result = vkAllocateCommandBuffers(vulkan->device, &computeCommandBufferAllocateInfo, &frame->computeCommandBuffer);
         if (result != VK_SUCCESS) {
-            Errorf(vulkan, "failed to allocate graphics descriptor set");
+            Errorf(vulkan, "failed to allocate compute command buffer");
             return result;
         }
+
+        auto semaphoreInfo = VkSemaphoreCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO
+        };
+
+        VkSemaphore* pSemaphores[] = {
+            &frame->imageAvailableSemaphore,
+            &frame->imageFinishedSemaphore,
+            &frame->computeToComputeSemaphore,
+            &frame->computeToGraphicsSemaphore,
+        };
+
+        for (VkSemaphore* pSemaphore : pSemaphores) {
+            result = vkCreateSemaphore(vulkan->device, &semaphoreInfo, nullptr, pSemaphore);
+            if (result != VK_SUCCESS) {
+                Errorf(vulkan, "failed to create semaphore");
+                return result;
+            }
+        }
+
+        auto fenceInfo = VkFenceCreateInfo {
+            .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO,
+            .flags = VK_FENCE_CREATE_SIGNALED_BIT,
+        };
+
+        VkFence* pFences[] = {
+            &frame->availableFence,
+        };
+
+        for (VkFence* pFence : pFences) {
+            result = vkCreateFence(vulkan->device, &fenceInfo, nullptr, pFence);
+            if (result != VK_SUCCESS) {
+                Errorf(vulkan, "failed to create semaphore");
+                return result;
+            }
+        }
+
+
+        InternalCreateBuffer(vulkan,
+            &frame->sceneUniformBuffer,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            sizeof(SceneUniformBuffer));
+
+        InternalCreateImage(vulkan,
+            &frame->renderTarget,
+            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            VK_IMAGE_TYPE_2D,
+            VK_FORMAT_R8G8B8A8_UNORM,
+            { .width = 512, .height = 512, .depth = 1 },
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_LAYOUT_GENERAL,
+            true);
+
+        InternalCreateImage(vulkan,
+            &frame->renderTargetGraphicsCopy,
+            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            VK_IMAGE_TYPE_2D,
+            VK_FORMAT_R8G8B8A8_UNORM,
+            { .width = 512, .height = 512, .depth = 1 },
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            false);
     }
 
-    InternalCreateBuffer(vulkan,
-        &frame->sceneUniformBuffer,
-        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        sizeof(SceneUniformBuffer));
+    // Allocate and initialize descriptor sets.
+    for (int index = 0; index < 2; index++) {
+        VulkanFrameState* frame0 = &vulkan->frameStates[1-index];
+        VulkanFrameState* frame = &vulkan->frameStates[index];
 
-    InternalCreateImage(vulkan,
-        &frame->renderTarget,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        VK_IMAGE_TYPE_2D,
-        VK_FORMAT_R8G8B8A8_UNORM,
-        { .width = 512, .height = 512, .depth = 1 },
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_LAYOUT_GENERAL,
-        true);
+        // Compute descriptor set.
+        {
+            VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = vulkan->descriptorPool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = &vulkan->renderPipeline.descriptorSetLayout,
+            };
 
-    InternalCreateImage(vulkan,
-        &frame->renderTargetGraphicsCopy,
-        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        VK_IMAGE_TYPE_2D,
-        VK_FORMAT_R8G8B8A8_UNORM,
-        { .width = 512, .height = 512, .depth = 1 },
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        false);
+            result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &frame->computeDescriptorSet);
+            if (result != VK_SUCCESS) {
+                Errorf(vulkan, "failed to allocate compute descriptor set");
+                return result;
+            }
 
-    frame->fresh = true;
+            VkDescriptorBufferInfo sceneUniformBufferInfo = {
+                .buffer = frame->sceneUniformBuffer.buffer,
+                .offset = 0,
+                .range = frame->sceneUniformBuffer.size,
+            };
+
+            VkDescriptorImageInfo srcImageInfo = {
+                .sampler = nullptr,
+                .imageView = frame0->renderTarget.view,
+                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+            };
+
+            VkDescriptorImageInfo dstImageInfo = {
+                .sampler = nullptr,
+                .imageView = frame->renderTarget.view,
+                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+            };
+
+            VkWriteDescriptorSet writes[] = {
+                {
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = frame->computeDescriptorSet,
+                    .dstBinding = 0,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                    .pBufferInfo = &sceneUniformBufferInfo,
+                },
+                {
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = frame->computeDescriptorSet,
+                    .dstBinding = 1,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                    .pImageInfo = &srcImageInfo,
+                },
+                {
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = frame->computeDescriptorSet,
+                    .dstBinding = 2,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                    .pImageInfo = &dstImageInfo,
+                }
+            };
+
+            vkUpdateDescriptorSets(vulkan->device, static_cast<uint32_t>(std::size(writes)), writes, 0, nullptr);
+        }
+
+        // Graphics descriptor set.
+        {
+            VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = vulkan->descriptorPool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = &vulkan->blitPipeline.descriptorSetLayout,
+            };
+
+            result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &frame->graphicsDescriptorSet);
+            if (result != VK_SUCCESS) {
+                Errorf(vulkan, "failed to allocate graphics descriptor set");
+                return result;
+            }
+
+            VkDescriptorImageInfo srcImageInfo = {
+                .sampler = vulkan->sampler,
+                .imageView = frame->renderTargetGraphicsCopy.view,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            };
+
+            VkWriteDescriptorSet writes[] = {
+                {
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = frame->graphicsDescriptorSet,
+                    .dstBinding = 0,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .pImageInfo = &srcImageInfo,
+                },
+            };
+
+            vkUpdateDescriptorSets(vulkan->device, static_cast<uint32_t>(std::size(writes)), writes, 0, nullptr);
+        }
+    }
 
     return VK_SUCCESS;
 }
 
 static VkResult InternalDestroyFrameResources(
-    VulkanContext* vulkan,
-    VulkanFrameState* frame)
+    VulkanContext* vulkan)
 {
-    InternalDestroyImage(vulkan, &frame->renderTargetGraphicsCopy);
-    InternalDestroyImage(vulkan, &frame->renderTarget);
-    InternalDestroyBuffer(vulkan, &frame->sceneUniformBuffer);
+    for (int index = 0; index < 2; index++) {
+        VulkanFrameState* frame = &vulkan->frameStates[index];
 
-    vkDestroySemaphore(vulkan->device, frame->computeToComputeSemaphore, nullptr);
-    vkDestroySemaphore(vulkan->device, frame->computeToGraphicsSemaphore, nullptr);
-    vkDestroySemaphore(vulkan->device, frame->imageAvailableSemaphore, nullptr);
-    vkDestroySemaphore(vulkan->device, frame->imageFinishedSemaphore, nullptr);
-    vkDestroyFence(vulkan->device, frame->availableFence, nullptr);
+        InternalDestroyImage(vulkan, &frame->renderTargetGraphicsCopy);
+        InternalDestroyImage(vulkan, &frame->renderTarget);
+        InternalDestroyBuffer(vulkan, &frame->sceneUniformBuffer);
+
+        vkDestroySemaphore(vulkan->device, frame->computeToComputeSemaphore, nullptr);
+        vkDestroySemaphore(vulkan->device, frame->computeToGraphicsSemaphore, nullptr);
+        vkDestroySemaphore(vulkan->device, frame->imageAvailableSemaphore, nullptr);
+        vkDestroySemaphore(vulkan->device, frame->imageFinishedSemaphore, nullptr);
+        vkDestroyFence(vulkan->device, frame->availableFence, nullptr);
+    }
 
     return VK_SUCCESS;
 }
@@ -1421,11 +1507,8 @@ static VkResult InternalCreateVulkan(
     result = InternalCreatePresentationResources(vulkan);
     if (result != VK_SUCCESS) return result;
 
-    for (int index = 0; index < 2; index++) {
-        vulkan->frameStates[index].index = index;
-        result = InternalCreateFrameResources(vulkan, &vulkan->frameStates[index]);
-        if (result != VK_SUCCESS) return result;
-    }
+    result = InternalCreateFrameResources(vulkan);
+    if (result != VK_SUCCESS) return result;
 
     return VK_SUCCESS;
 }
@@ -1453,8 +1536,7 @@ void DestroyVulkan(VulkanContext* vulkan)
         vkDeviceWaitIdle(vulkan->device);
     }
 
-    for (int index = 0; index < 2; index++)
-        InternalDestroyFrameResources(vulkan, &vulkan->frameStates[index]);
+    InternalDestroyFrameResources(vulkan);
 
     // Destroy swap chain and any other window-related resources.
     InternalDestroyPresentationResources(vulkan);
@@ -1587,71 +1669,19 @@ VkResult RenderFrame(
         return result;
     }
 
-    {
-        VkDescriptorBufferInfo sceneUniformBufferInfo = {
-            .buffer = frame->sceneUniformBuffer.buffer,
-            .offset = 0,
-            .range = frame->sceneUniformBuffer.size,
-        };
+    vkCmdBindPipeline(
+        frame->computeCommandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        vulkan->renderPipeline.pipeline);
 
-        VkDescriptorImageInfo srcImageInfo = {
-            .sampler = nullptr,
-            .imageView = frame0->renderTarget.view,
-            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        };
+    vkCmdBindDescriptorSets(
+        frame->computeCommandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        vulkan->renderPipeline.pipelineLayout,
+        0, 1, &frame->computeDescriptorSet,
+        0, nullptr);
 
-        VkDescriptorImageInfo dstImageInfo = {
-            .sampler = nullptr,
-            .imageView = frame->renderTarget.view,
-            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        };
-
-        VkWriteDescriptorSet writes[] = {
-            {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = frame->computeDescriptorSet,
-                .dstBinding = 0,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .pBufferInfo = &sceneUniformBufferInfo,
-            },
-            {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = frame->computeDescriptorSet,
-                .dstBinding = 1,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                .pImageInfo = &srcImageInfo,
-            },
-            {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = frame->computeDescriptorSet,
-                .dstBinding = 2,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                .pImageInfo = &dstImageInfo,
-            }
-        };
-
-        vkUpdateDescriptorSets(vulkan->device, static_cast<uint32_t>(std::size(writes)), writes, 0, nullptr);
-
-        vkCmdBindPipeline(
-            frame->computeCommandBuffer,
-            VK_PIPELINE_BIND_POINT_COMPUTE,
-            vulkan->renderPipeline.pipeline);
-
-        vkCmdBindDescriptorSets(
-            frame->computeCommandBuffer,
-            VK_PIPELINE_BIND_POINT_COMPUTE,
-            vulkan->renderPipeline.pipelineLayout,
-            0, 1, &frame->computeDescriptorSet,
-            0, nullptr);
-
-        vkCmdDispatch(frame->computeCommandBuffer, 512/16, 512/16, 1);
-    }
+    vkCmdDispatch(frame->computeCommandBuffer, 512/16, 512/16, 1);
 
     // Copy the render target image into the shader read copy.
     {
@@ -1833,57 +1863,35 @@ VkResult RenderFrame(
     }
 
     // Rendering
-    {
-        VkDescriptorImageInfo srcImageInfo = {
-            .sampler = vulkan->sampler,
-            .imageView = frame->renderTargetGraphicsCopy.view,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        };
+    vkCmdBindPipeline(
+        frame->graphicsCommandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        vulkan->blitPipeline.pipeline);
 
-        VkWriteDescriptorSet writes[] = {
-            {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = frame->graphicsDescriptorSet,
-                .dstBinding = 0,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .pImageInfo = &srcImageInfo,
-            },
-        };
+    vkCmdBindDescriptorSets(
+        frame->graphicsCommandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        vulkan->blitPipeline.pipelineLayout,
+        0, 1, &frame->graphicsDescriptorSet,
+        0, nullptr);
 
-        vkUpdateDescriptorSets(vulkan->device, static_cast<uint32_t>(std::size(writes)), writes, 0, nullptr);
+    VkViewport viewport = {
+        .x = 0.0f,
+        .y = 0.0f,
+        .width = static_cast<float>(vulkan->swapchainExtent.width),
+        .height = static_cast<float>(vulkan->swapchainExtent.height),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+    vkCmdSetViewport(frame->graphicsCommandBuffer, 0, 1, &viewport);
 
-        vkCmdBindPipeline(
-            frame->graphicsCommandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-            vulkan->blitPipeline.pipeline);
+    VkRect2D scissor = {
+        .offset = { 0, 0 },
+        .extent = vulkan->swapchainExtent,
+    };
+    vkCmdSetScissor(frame->graphicsCommandBuffer, 0, 1, &scissor);
 
-        vkCmdBindDescriptorSets(
-            frame->graphicsCommandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-            vulkan->blitPipeline.pipelineLayout,
-            0, 1, &frame->graphicsDescriptorSet,
-            0, nullptr);
-
-        VkViewport viewport = {
-            .x = 0.0f,
-            .y = 0.0f,
-            .width = static_cast<float>(vulkan->swapchainExtent.width),
-            .height = static_cast<float>(vulkan->swapchainExtent.height),
-            .minDepth = 0.0f,
-            .maxDepth = 1.0f,
-        };
-        vkCmdSetViewport(frame->graphicsCommandBuffer, 0, 1, &viewport);
-
-        VkRect2D scissor = {
-            .offset = { 0, 0 },
-            .extent = vulkan->swapchainExtent,
-        };
-        vkCmdSetScissor(frame->graphicsCommandBuffer, 0, 1, &scissor);
-
-        vkCmdDraw(frame->graphicsCommandBuffer, 6, 1, 0, 0);
-    }
+    vkCmdDraw(frame->graphicsCommandBuffer, 6, 1, 0, 0);
 
     vkCmdEndRenderPass(frame->graphicsCommandBuffer);
 
