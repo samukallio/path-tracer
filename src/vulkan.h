@@ -1,6 +1,7 @@
 #pragma once
 
 #include <vector>
+#include <span>
 
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
@@ -23,8 +24,8 @@ struct VulkanGraphicsPipelineConfiguration
 
     uint32_t                    vertexSize                  = 0;
     VertexFormat                vertexFormat                = {};
-    std::vector<char>           vertexShaderCode            = {};
-    std::vector<char>           fragmentShaderCode          = {};
+    std::span<uint32_t const>   vertexShaderCode            = {};
+    std::span<uint32_t const>   fragmentShaderCode          = {};
     DescriptorTypes             descriptorTypes             = {};
 };
 
@@ -32,7 +33,7 @@ struct VulkanComputePipelineConfiguration
 {
     using DescriptorTypes = std::vector<VkDescriptorType>;
 
-    std::vector<char>           computeShaderCode           = {};
+    std::span<uint32_t const>   computeShaderCode           = {};
     DescriptorTypes             descriptorTypes             = {};
 };
 
@@ -41,10 +42,14 @@ struct VulkanPipeline
     VkPipeline                  pipeline                    = VK_NULL_HANDLE;
     VkPipelineLayout            pipelineLayout              = VK_NULL_HANDLE;
     VkDescriptorSetLayout       descriptorSetLayout         = VK_NULL_HANDLE;
+    VkDescriptorSet             descriptorSets[2]           = {};
+    VkPipelineBindPoint         bindPoint                   = VK_PIPELINE_BIND_POINT_GRAPHICS;
 };
 
 struct VulkanFrameState
 {
+    uint32_t                    index                       = 0;
+
     // Fence that gets signaled when the previous commands
     // accessing the resources of this frame state have been
     // completed.
@@ -140,3 +145,8 @@ VkResult BeginFrame(
 VkResult EndFrame(
     VulkanContext* vulkan,
     VulkanFrameState* frame);
+
+void BindVulkanPipeline(
+    VulkanContext* vulkan,
+    VulkanFrameState* frame,
+    VulkanPipeline* pipeline);

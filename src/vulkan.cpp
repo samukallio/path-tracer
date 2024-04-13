@@ -514,6 +514,7 @@ static VkResult InternalCreateVulkan(
     if (result != VK_SUCCESS) return result;
 
     for (int index = 0; index < 2; index++) {
+        vulkan->frameStates[index].index = index;
         result = InternalCreateFrameResources(vulkan, &vulkan->frameStates[index]);
         if (result != VK_SUCCESS) return result;
     }
@@ -960,8 +961,8 @@ static VkResult InternalCreateVulkanGraphicsPipeline(
     // Create vertex shader module.
     VkShaderModuleCreateInfo vertexShaderModuleInfo = {
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = config.vertexShaderCode.size(),
-        .pCode = reinterpret_cast<const uint32_t*>(config.vertexShaderCode.data()),
+        .codeSize = config.vertexShaderCode.size() * sizeof(uint32_t),
+        .pCode = config.vertexShaderCode.data(),
     };
 
     VkShaderModule vertexShaderModule;
@@ -974,8 +975,8 @@ static VkResult InternalCreateVulkanGraphicsPipeline(
     // Create fragment shader module.
     VkShaderModuleCreateInfo fragmentShaderModuleInfo = {
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = config.fragmentShaderCode.size(),
-        .pCode = reinterpret_cast<const uint32_t*>(config.fragmentShaderCode.data()),
+        .codeSize = config.fragmentShaderCode.size() * sizeof(uint32_t),
+        .pCode = config.fragmentShaderCode.data(),
     };
 
     VkShaderModule fragmentShaderModule;
@@ -1019,7 +1020,7 @@ static VkResult InternalCreateVulkanGraphicsPipeline(
     };
     VkPipelineVertexInputStateCreateInfo vertexInputStateInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = 1,
+        .vertexBindingDescriptionCount = config.vertexSize > 0 ? 1u : 0u,
         .pVertexBindingDescriptions = &vertexBindingDescription,
         .vertexAttributeDescriptionCount = static_cast<uint32_t>(config.vertexFormat.size()),
         .pVertexAttributeDescriptions = config.vertexFormat.data(),
@@ -1046,7 +1047,7 @@ static VkResult InternalCreateVulkanGraphicsPipeline(
         .rasterizerDiscardEnable = VK_FALSE,
         .polygonMode = VK_POLYGON_MODE_FILL,
         .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .frontFace = VK_FRONT_FACE_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
         .depthBiasConstantFactor = 0.0f,
         .depthBiasClamp = 0.0f,
@@ -1143,6 +1144,24 @@ static VkResult InternalCreateVulkanGraphicsPipeline(
     vkDestroyShaderModule(vulkan->device, vertexShaderModule, nullptr);
     vkDestroyShaderModule(vulkan->device, fragmentShaderModule, nullptr);
 
+    // Allocate descriptor sets, one per frame state.
+    for (uint32_t index = 0; index < 2; index++) {
+        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = vulkan->descriptorPool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &pipeline->descriptorSetLayout,
+        };
+
+        result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &pipeline->descriptorSets[index]);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to allocate compute descriptor set");
+            return result;
+        }
+    }
+
+    pipeline->bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+
     return result;
 }
 
@@ -1196,8 +1215,8 @@ static VkResult InternalCreateVulkanComputePipeline(
     // Create compute shader module.
     VkShaderModuleCreateInfo computeShaderModuleInfo = {
         .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = config.computeShaderCode.size(),
-        .pCode = reinterpret_cast<const uint32_t*>(config.computeShaderCode.data()),
+        .codeSize = config.computeShaderCode.size() * sizeof(uint32_t),
+        .pCode = config.computeShaderCode.data(),
     };
 
     VkShaderModule computeShaderModule;
@@ -1242,6 +1261,24 @@ static VkResult InternalCreateVulkanComputePipeline(
     }
 
     vkDestroyShaderModule(vulkan->device, computeShaderModule, nullptr);
+
+    // Allocate descriptor sets, one per frame state.
+    for (uint32_t index = 0; index < 2; index++) {
+        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = vulkan->descriptorPool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &pipeline->descriptorSetLayout,
+        };
+
+        result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &pipeline->descriptorSets[index]);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to allocate compute descriptor set");
+            return result;
+        }
+    }
+
+    pipeline->bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
 
     return result;
 }
@@ -1417,4 +1454,40 @@ VkResult EndFrame(
     }
 
     return VK_SUCCESS;
+}
+
+void BindVulkanPipeline(
+    VulkanContext* vulkan,
+    VulkanFrameState* frame,
+    VulkanPipeline* pipeline)
+{
+    switch (pipeline->bindPoint) {
+        case VK_PIPELINE_BIND_POINT_GRAPHICS: {
+            vkCmdBindPipeline(frame->graphicsCommandBuffer, pipeline->bindPoint, pipeline->pipeline);
+            vkCmdBindDescriptorSets(frame->graphicsCommandBuffer, pipeline->bindPoint, pipeline->pipelineLayout, 0, 1, &pipeline->descriptorSets[frame->index], 0, nullptr);
+
+            VkViewport viewport = {
+                .x = 0.0f,
+                .y = 0.0f,
+                .width = static_cast<float>(vulkan->swapchainExtent.width),
+                .height = static_cast<float>(vulkan->swapchainExtent.height),
+                .minDepth = 0.0f,
+                .maxDepth = 1.0f,
+            };
+            vkCmdSetViewport(frame->graphicsCommandBuffer, 0, 1, &viewport);
+
+            VkRect2D scissor = {
+                .offset = { 0, 0 },
+                .extent = vulkan->swapchainExtent,
+            };
+            vkCmdSetScissor(frame->graphicsCommandBuffer, 0, 1, &scissor);
+
+            break;
+        }
+        case VK_PIPELINE_BIND_POINT_COMPUTE: {
+            vkCmdBindPipeline(frame->computeCommandBuffer, pipeline->bindPoint, pipeline->pipeline);
+            vkCmdBindDescriptorSets(frame->computeCommandBuffer, pipeline->bindPoint, pipeline->pipelineLayout, 0, 1, &pipeline->descriptorSets[frame->index], 0, nullptr);
+            break;
+        }
+    }
 }
