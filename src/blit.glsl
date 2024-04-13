@@ -7,6 +7,8 @@
 //     mat4 projection;
 // } frame;
 
+layout(binding = 0) uniform sampler2D textureSampler;
+
 #if VERTEX
 
 vec2 positions[6] = vec2[](
@@ -43,7 +45,7 @@ layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    outColor = vec4(fragmentUV, 0.0, 1.0);
+    outColor = texture(textureSampler, fragmentUV);
 }
 
 #endif

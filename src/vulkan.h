@@ -25,14 +25,9 @@ struct VulkanDescriptor
 
 struct VulkanPipeline
 {
-    using Bindings = std::vector<VkDescriptorSetLayoutBinding>;
-
     VkPipeline                  pipeline                    = VK_NULL_HANDLE;
     VkPipelineLayout            pipelineLayout              = VK_NULL_HANDLE;
-    Bindings                    descriptorSetLayoutBindings = {};
     VkDescriptorSetLayout       descriptorSetLayout         = VK_NULL_HANDLE;
-    VkDescriptorSet             descriptorSets[2]           = {};
-    VkPipelineBindPoint         bindPoint                   = VK_PIPELINE_BIND_POINT_GRAPHICS;
 };
 
 struct VulkanFrameState
@@ -55,6 +50,9 @@ struct VulkanFrameState
 
     VkCommandBuffer             graphicsCommandBuffer       = VK_NULL_HANDLE;
     VkCommandBuffer             computeCommandBuffer        = VK_NULL_HANDLE;
+
+    VkDescriptorSet             graphicsDescriptorSet       = VK_NULL_HANDLE;
+    VkDescriptorSet             computeDescriptorSet        = VK_NULL_HANDLE;
 
     VulkanImage                 renderTarget                = {};
     VulkanImage                 renderTargetGraphicsCopy    = {};
@@ -100,6 +98,8 @@ struct VulkanContext
 
     int                         frameIndex                  = 0;
     VulkanFrameState            frameStates[2]              = {};
+
+    VkSampler                   sampler                     = VK_NULL_HANDLE;
 
     VulkanPipeline              blitPipeline                = {};
     VulkanPipeline              renderPipeline              = {};

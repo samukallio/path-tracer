@@ -67,7 +67,7 @@ static void DestroyDebugUtilsMessengerEXT(
     func(instance, debugMessenger, pAllocator);
 }
 
-static VkResult InternalCreateVulkanImage(
+static VkResult InternalCreateImage(
     VulkanContext* vulkan,
     VulkanImage* image,
     VkImageUsageFlags usageFlags,
@@ -75,7 +75,9 @@ static VkResult InternalCreateVulkanImage(
     VkImageType type,
     VkFormat format,
     VkExtent3D extent,
-    VkImageTiling tiling)
+    VkImageTiling tiling,
+    VkImageLayout layout,
+    bool compute)
 {
     VkResult result = VK_SUCCESS;
 
@@ -177,10 +179,74 @@ static VkResult InternalCreateVulkanImage(
         return result;
     }
 
-    return VK_SUCCESS;
+    if (layout != VK_IMAGE_LAYOUT_UNDEFINED) {
+        VkCommandPool commandPool = compute
+            ? vulkan->computeCommandPool
+            : vulkan->graphicsCommandPool;
+
+        VkQueue queue = compute
+            ? vulkan->computeQueue
+            : vulkan->graphicsQueue;
+
+        VkCommandBufferAllocateInfo allocateInfo = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = commandPool,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1,
+        };
+
+        VkCommandBuffer commandBuffer;
+        vkAllocateCommandBuffers(vulkan->device, &allocateInfo, &commandBuffer);
+
+        VkCommandBufferBeginInfo beginInfo = {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        };
+        vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+        VkImageMemoryBarrier barrier = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask = 0,
+            .dstAccessMask = 0,
+            .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .newLayout = layout,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = image->image,
+            .subresourceRange = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel = 0,
+                .levelCount = 1,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+        };
+
+        vkCmdPipelineBarrier(commandBuffer,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier);
+
+        vkEndCommandBuffer(commandBuffer);
+
+        VkSubmitInfo submitInfo = {
+            .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .commandBufferCount = 1,
+            .pCommandBuffers = &commandBuffer,
+        };
+
+        vkQueueSubmit(vulkan->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(queue);
+        vkFreeCommandBuffers(vulkan->device, commandPool, 1, &commandBuffer);
+    }
+
+    return result;
 }
 
-static void InternalDestroyVulkanImage(
+static void InternalDestroyImage(
     VulkanContext* vulkan,
     VulkanImage* image)
 {
@@ -421,23 +487,57 @@ static VkResult InternalCreateFrameResources(
         }
     }
 
-    InternalCreateVulkanImage(vulkan,
+    {
+        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = vulkan->descriptorPool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &vulkan->renderPipeline.descriptorSetLayout,
+        };
+
+        result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &frame->computeDescriptorSet);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to allocate compute descriptor set");
+            return result;
+        }
+    }
+
+    {
+        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = vulkan->descriptorPool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &vulkan->blitPipeline.descriptorSetLayout,
+        };
+
+        result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &frame->graphicsDescriptorSet);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to allocate graphics descriptor set");
+            return result;
+        }
+    }
+
+    InternalCreateImage(vulkan,
         &frame->renderTarget,
         VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         VK_IMAGE_TYPE_2D,
         VK_FORMAT_R8G8B8A8_UNORM,
         { .width = 512, .height = 512, .depth = 1 },
-        VK_IMAGE_TILING_OPTIMAL);
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_LAYOUT_GENERAL,
+        true);
 
-    InternalCreateVulkanImage(vulkan,
+    InternalCreateImage(vulkan,
         &frame->renderTargetGraphicsCopy,
         VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         VK_IMAGE_TYPE_2D,
         VK_FORMAT_R8G8B8A8_UNORM,
         { .width = 512, .height = 512, .depth = 1 },
-        VK_IMAGE_TILING_OPTIMAL);
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        false);
 
     frame->fresh = true;
 
@@ -448,8 +548,8 @@ static VkResult InternalDestroyFrameResources(
     VulkanContext* vulkan,
     VulkanFrameState* frame)
 {
-    InternalDestroyVulkanImage(vulkan, &frame->renderTargetGraphicsCopy);
-    InternalDestroyVulkanImage(vulkan, &frame->renderTarget);
+    InternalDestroyImage(vulkan, &frame->renderTargetGraphicsCopy);
+    InternalDestroyImage(vulkan, &frame->renderTarget);
 
     vkDestroySemaphore(vulkan->device, frame->computeToComputeSemaphore, nullptr);
     vkDestroySemaphore(vulkan->device, frame->computeToGraphicsSemaphore, nullptr);
@@ -480,8 +580,9 @@ static VkResult InternalCreateGraphicsPipeline(
     VkResult result = VK_SUCCESS;
 
     // Create descriptor set layout.
+    std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
     for (size_t index = 0; index < config.descriptorTypes.size(); index++) {
-        pipeline->descriptorSetLayoutBindings.push_back({
+        descriptorSetLayoutBindings.push_back({
             .binding            = static_cast<uint32_t>(index),
             .descriptorType     = config.descriptorTypes[index],
             .descriptorCount    = 1,
@@ -492,8 +593,8 @@ static VkResult InternalCreateGraphicsPipeline(
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(pipeline->descriptorSetLayoutBindings.size()),
-        .pBindings = pipeline->descriptorSetLayoutBindings.data(),
+        .bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size()),
+        .pBindings = descriptorSetLayoutBindings.data(),
     };
 
     result = vkCreateDescriptorSetLayout(vulkan->device, &descriptorSetLayoutInfo, nullptr, &pipeline->descriptorSetLayout);
@@ -688,24 +789,6 @@ static VkResult InternalCreateGraphicsPipeline(
     vkDestroyShaderModule(vulkan->device, vertexShaderModule, nullptr);
     vkDestroyShaderModule(vulkan->device, fragmentShaderModule, nullptr);
 
-    // Allocate descriptor sets, one per frame state.
-    for (uint32_t index = 0; index < 2; index++) {
-        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = vulkan->descriptorPool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &pipeline->descriptorSetLayout,
-        };
-
-        result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &pipeline->descriptorSets[index]);
-        if (result != VK_SUCCESS) {
-            Errorf(vulkan, "failed to allocate compute descriptor set");
-            return result;
-        }
-    }
-
-    pipeline->bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-
     return result;
 }
 
@@ -725,8 +808,9 @@ static VkResult InternalCreateComputePipeline(
     VkResult result = VK_SUCCESS;
 
     // Create descriptor set layout.
+    std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
     for (size_t index = 0; index < config.descriptorTypes.size(); index++) {
-        pipeline->descriptorSetLayoutBindings.push_back({
+        descriptorSetLayoutBindings.push_back({
             .binding            = static_cast<uint32_t>(index),
             .descriptorType     = config.descriptorTypes[index],
             .descriptorCount    = 1,
@@ -737,8 +821,8 @@ static VkResult InternalCreateComputePipeline(
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(pipeline->descriptorSetLayoutBindings.size()),
-        .pBindings = pipeline->descriptorSetLayoutBindings.data(),
+        .bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size()),
+        .pBindings = descriptorSetLayoutBindings.data(),
     };
 
     result = vkCreateDescriptorSetLayout(vulkan->device, &descriptorSetLayoutInfo, nullptr, &pipeline->descriptorSetLayout);
@@ -796,24 +880,6 @@ static VkResult InternalCreateComputePipeline(
     }
 
     vkDestroyShaderModule(vulkan->device, computeShaderModule, nullptr);
-
-    // Allocate descriptor sets, one per frame state.
-    for (uint32_t index = 0; index < 2; index++) {
-        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = vulkan->descriptorPool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &pipeline->descriptorSetLayout,
-        };
-
-        result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &pipeline->descriptorSets[index]);
-        if (result != VK_SUCCESS) {
-            Errorf(vulkan, "failed to allocate compute descriptor set");
-            return result;
-        }
-    }
-
-    pipeline->bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
 
     return result;
 }
@@ -1205,19 +1271,38 @@ static VkResult InternalCreateVulkan(
         }
     }
 
-    result = InternalCreatePresentationResources(vulkan);
-    if (result != VK_SUCCESS) return result;
+    {
+        VkSamplerCreateInfo samplerInfo = {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_LINEAR,
+            .minFilter = VK_FILTER_LINEAR,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
+            .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .mipLodBias = 0.0f,
+            .anisotropyEnable = VK_TRUE,
+            .maxAnisotropy = vulkan->physicalDeviceProperties.limits.maxSamplerAnisotropy,
+            .compareEnable = VK_FALSE,
+            .compareOp = VK_COMPARE_OP_ALWAYS,
+            .minLod = 0.0f,
+            .maxLod = VK_LOD_CLAMP_NONE,
+            .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+            .unnormalizedCoordinates = VK_FALSE,
+        };
 
-    for (int index = 0; index < 2; index++) {
-        vulkan->frameStates[index].index = index;
-        result = InternalCreateFrameResources(vulkan, &vulkan->frameStates[index]);
-        if (result != VK_SUCCESS) return result;
+        result = vkCreateSampler(vulkan->device, &samplerInfo, nullptr, &vulkan->sampler);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create texture sampler");
+            return result;
+        }
     }
 
     VulkanComputePipelineConfiguration renderConfig = {
         .computeShaderCode = RENDER_COMPUTE_SHADER,
         .descriptorTypes = {
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
         },
     };
 
@@ -1226,7 +1311,9 @@ static VkResult InternalCreateVulkan(
         .vertexFormat = {},
         .vertexShaderCode = BLIT_VERTEX_SHADER,
         .fragmentShaderCode = BLIT_FRAGMENT_SHADER,
-        .descriptorTypes = {},
+        .descriptorTypes = {
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+        },
     };
 
     result = InternalCreateGraphicsPipeline(vulkan, &vulkan->blitPipeline, blitConfig);
@@ -1237,6 +1324,15 @@ static VkResult InternalCreateVulkan(
     result = InternalCreateComputePipeline(vulkan, &vulkan->renderPipeline, renderConfig);
     if (result != VK_SUCCESS) {
         return result;
+    }
+
+    result = InternalCreatePresentationResources(vulkan);
+    if (result != VK_SUCCESS) return result;
+
+    for (int index = 0; index < 2; index++) {
+        vulkan->frameStates[index].index = index;
+        result = InternalCreateFrameResources(vulkan, &vulkan->frameStates[index]);
+        if (result != VK_SUCCESS) return result;
     }
 
     return VK_SUCCESS;
@@ -1265,14 +1361,19 @@ void DestroyVulkan(VulkanContext* vulkan)
         vkDeviceWaitIdle(vulkan->device);
     }
 
-    InternalDestroyPipeline(vulkan, &vulkan->renderPipeline);
-    InternalDestroyPipeline(vulkan, &vulkan->blitPipeline);
-
     for (int index = 0; index < 2; index++)
         InternalDestroyFrameResources(vulkan, &vulkan->frameStates[index]);
 
     // Destroy swap chain and any other window-related resources.
     InternalDestroyPresentationResources(vulkan);
+
+    InternalDestroyPipeline(vulkan, &vulkan->renderPipeline);
+    InternalDestroyPipeline(vulkan, &vulkan->blitPipeline);
+
+    if (vulkan->sampler) {
+        vkDestroySampler(vulkan->device, vulkan->sampler, nullptr);
+        vulkan->sampler = VK_NULL_HANDLE;
+    }
 
     if (vulkan->mainRenderPass) {
         vkDestroyRenderPass(vulkan->device, vulkan->mainRenderPass, nullptr);
@@ -1349,7 +1450,6 @@ VkResult RenderFrame(
     VulkanFrameState* frame0 = &vulkan->frameStates[vulkan->frameIndex % 2];
     VulkanFrameState* frame = &vulkan->frameStates[(vulkan->frameIndex + 1) % 2];
 
-    frame->fresh = false;
     vulkan->frameIndex++;
 
     // Wait for the previous commands using this frame state to finish executing.
@@ -1374,6 +1474,8 @@ VkResult RenderFrame(
     // Reset the fence to indicate that the frame state is no longer available.
     vkResetFences(vulkan->device, 1, &frame->availableFence);
 
+    // --- Compute ------------------------------------------------------------
+
     // Start compute command buffer.
     vkResetCommandBuffer(frame->computeCommandBuffer, 0);
     auto computeBeginInfo = VkCommandBufferBeginInfo {
@@ -1385,6 +1487,139 @@ VkResult RenderFrame(
     if (result != VK_SUCCESS) {
         Errorf(vulkan, "failed to begin recording compute command buffer");
         return result;
+    }
+
+    {
+        VkDescriptorImageInfo srcImageInfo = {
+            .sampler = nullptr,
+            .imageView = frame0->renderTarget.view,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        };
+
+        VkDescriptorImageInfo dstImageInfo = {
+            .sampler = nullptr,
+            .imageView = frame->renderTarget.view,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        };
+
+        VkWriteDescriptorSet writes[] = {
+            {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = frame->computeDescriptorSet,
+                .dstBinding = 0,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = &srcImageInfo,
+            },
+            {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = frame->computeDescriptorSet,
+                .dstBinding = 1,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = &dstImageInfo,
+            }
+        };
+
+        vkUpdateDescriptorSets(vulkan->device, static_cast<uint32_t>(std::size(writes)), writes, 0, nullptr);
+
+        vkCmdBindPipeline(
+            frame->computeCommandBuffer,
+            VK_PIPELINE_BIND_POINT_COMPUTE,
+            vulkan->renderPipeline.pipeline);
+
+        vkCmdBindDescriptorSets(
+            frame->computeCommandBuffer,
+            VK_PIPELINE_BIND_POINT_COMPUTE,
+            vulkan->renderPipeline.pipelineLayout,
+            0, 1, &frame->computeDescriptorSet,
+            0, nullptr);
+
+        vkCmdDispatch(frame->computeCommandBuffer, 512/16, 512/16, 1);
+    }
+
+    // Copy the render target image into the shader read copy.
+    {
+        VkImageSubresourceRange subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        };
+
+        VkImageMemoryBarrier preTransferBarrier = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = frame->renderTarget.image,
+            .subresourceRange = subresourceRange,
+        };
+
+        vkCmdPipelineBarrier(frame->computeCommandBuffer,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &preTransferBarrier);
+
+        VkImageCopy region = {
+            .srcSubresource = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .mipLevel = 0,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+            .srcOffset = {
+                0, 0, 0
+            },
+            .dstSubresource = {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .mipLevel = 0,
+                .baseArrayLayer = 0,
+                .layerCount = 1,
+            },
+            .dstOffset = {
+                0, 0, 0
+            },
+            .extent = {
+                512, 512, 1
+            }
+        };
+
+        vkCmdCopyImage(frame->computeCommandBuffer,
+            frame->renderTarget.image,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            frame->renderTargetGraphicsCopy.image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1, &region);
+
+        VkImageMemoryBarrier postTransferBarrier = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = frame->renderTarget.image,
+            .subresourceRange = subresourceRange,
+        };
+
+        vkCmdPipelineBarrier(frame->computeCommandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &postTransferBarrier);
     }
 
     // End compute command buffer.
@@ -1420,7 +1655,7 @@ VkResult RenderFrame(
         return result;
     }
 
-    // ----------- GRAPHICS --------------------------
+    // --- Graphics -----------------------------------------------------------
 
     // Start graphics command buffer.
     vkResetCommandBuffer(frame->graphicsCommandBuffer, 0);
@@ -1435,22 +1670,139 @@ VkResult RenderFrame(
         return result;
     }
 
-    VkClearValue clearValues[] = {
-        { .color = {{ 0.0f, 1.0f, 0.0f, 1.0f }} },
-        { .depthStencil = { 1.0f, 0 } }
-    };
+    // Transition the render target copy for reading from the fragment shader.
+    {
+        VkImageSubresourceRange subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        };
 
-    VkRenderPassBeginInfo renderPassBeginInfo = {
-        .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass = vulkan->mainRenderPass,
-        .framebuffer = vulkan->swapchainFramebuffers[frame->imageIndex],
-        .renderArea = { .offset = { 0, 0 }, .extent = vulkan->swapchainExtent },
-        .clearValueCount = 2,
-        .pClearValues = clearValues,
-    };
+        VkImageMemoryBarrier barrier = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = frame->renderTargetGraphicsCopy.image,
+            .subresourceRange = subresourceRange,
+        };
 
-    vkCmdBeginRenderPass(frame->graphicsCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdPipelineBarrier(frame->graphicsCommandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier);
+    }
+
+    {
+        VkClearValue clearValues[] = {
+            { .color = {{ 0.0f, 1.0f, 0.0f, 1.0f }} },
+            { .depthStencil = { 1.0f, 0 } }
+        };
+
+        VkRenderPassBeginInfo renderPassBeginInfo = {
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .renderPass = vulkan->mainRenderPass,
+            .framebuffer = vulkan->swapchainFramebuffers[frame->imageIndex],
+            .renderArea = { .offset = { 0, 0 }, .extent = vulkan->swapchainExtent },
+            .clearValueCount = 2,
+            .pClearValues = clearValues,
+        };
+
+        vkCmdBeginRenderPass(frame->graphicsCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    }
+
+    // Rendering
+    {
+        VkDescriptorImageInfo srcImageInfo = {
+            .sampler = vulkan->sampler,
+            .imageView = frame->renderTargetGraphicsCopy.view,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+
+        VkWriteDescriptorSet writes[] = {
+            {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = frame->graphicsDescriptorSet,
+                .dstBinding = 0,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .pImageInfo = &srcImageInfo,
+            },
+        };
+
+        vkUpdateDescriptorSets(vulkan->device, static_cast<uint32_t>(std::size(writes)), writes, 0, nullptr);
+
+        vkCmdBindPipeline(
+            frame->graphicsCommandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            vulkan->blitPipeline.pipeline);
+
+        vkCmdBindDescriptorSets(
+            frame->graphicsCommandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            vulkan->blitPipeline.pipelineLayout,
+            0, 1, &frame->graphicsDescriptorSet,
+            0, nullptr);
+
+        VkViewport viewport = {
+            .x = 0.0f,
+            .y = 0.0f,
+            .width = static_cast<float>(vulkan->swapchainExtent.width),
+            .height = static_cast<float>(vulkan->swapchainExtent.height),
+            .minDepth = 0.0f,
+            .maxDepth = 1.0f,
+        };
+        vkCmdSetViewport(frame->graphicsCommandBuffer, 0, 1, &viewport);
+
+        VkRect2D scissor = {
+            .offset = { 0, 0 },
+            .extent = vulkan->swapchainExtent,
+        };
+        vkCmdSetScissor(frame->graphicsCommandBuffer, 0, 1, &scissor);
+
+        vkCmdDraw(frame->graphicsCommandBuffer, 6, 1, 0, 0);
+    }
+
     vkCmdEndRenderPass(frame->graphicsCommandBuffer);
+
+    {
+        VkImageSubresourceRange subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        };
+
+        VkImageMemoryBarrier barrier = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+            .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image = frame->renderTargetGraphicsCopy.image,
+            .subresourceRange = subresourceRange,
+        };
+
+        vkCmdPipelineBarrier(frame->graphicsCommandBuffer,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &barrier);
+    }
 
     result = vkEndCommandBuffer(frame->graphicsCommandBuffer);
     if (result != VK_SUCCESS) {
@@ -1485,7 +1837,7 @@ VkResult RenderFrame(
         return result;
     }
 
-    // ---- PRESENTATION ---------------
+    // --- Presentation -------------------------------------------------------
 
     auto presentInfo = VkPresentInfoKHR {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -1504,149 +1856,7 @@ VkResult RenderFrame(
         return result;
     }
 
-    return VK_SUCCESS;
-}
-
-void UpdateVulkanPipelineDescriptors(
-    VulkanContext* vulkan,
-    VulkanFrameState* frame,
-    VulkanPipeline* pipeline,
-    std::span<VulkanDescriptor> descriptors)
-{
-    if (pipeline->descriptorSetLayoutBindings.size() != descriptors.size()) {
-        Errorf(vulkan, "number of descriptors specified in update do not match the layout");
-        return;
-    }
-
-    std::vector<VkWriteDescriptorSet> writes;
-
-    for (size_t index = 0; index < descriptors.size(); index++) {
-        VkDescriptorSetLayoutBinding& binding = pipeline->descriptorSetLayoutBindings[index];
-        VulkanDescriptor const& descriptor = descriptors[index];
-
-        VkWriteDescriptorSet write = {
-            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-            .dstSet = pipeline->descriptorSets[frame->index],
-            .dstBinding = 0,
-            .dstArrayElement = 0,
-            .descriptorCount = 1,
-            .descriptorType = binding.descriptorType,
-        };
-
-        switch (binding.descriptorType) {
-        case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
-            write.pBufferInfo = &descriptor.buffer;
-            break;
-        case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
-        case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
-        case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
-            write.pImageInfo = &descriptor.image;
-            break;
-        }
-
-        writes.push_back(write);
-    }
-
-    vkUpdateDescriptorSets(vulkan->device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
-}
-
-void BindVulkanPipeline(
-    VulkanContext* vulkan,
-    VulkanFrameState* frame,
-    VulkanPipeline* pipeline)
-{
-    switch (pipeline->bindPoint) {
-        case VK_PIPELINE_BIND_POINT_GRAPHICS: {
-            vkCmdBindPipeline(frame->graphicsCommandBuffer, pipeline->bindPoint, pipeline->pipeline);
-            vkCmdBindDescriptorSets(frame->graphicsCommandBuffer, pipeline->bindPoint, pipeline->pipelineLayout, 0, 1, &pipeline->descriptorSets[frame->index], 0, nullptr);
-
-            VkViewport viewport = {
-                .x = 0.0f,
-                .y = 0.0f,
-                .width = static_cast<float>(vulkan->swapchainExtent.width),
-                .height = static_cast<float>(vulkan->swapchainExtent.height),
-                .minDepth = 0.0f,
-                .maxDepth = 1.0f,
-            };
-            vkCmdSetViewport(frame->graphicsCommandBuffer, 0, 1, &viewport);
-
-            VkRect2D scissor = {
-                .offset = { 0, 0 },
-                .extent = vulkan->swapchainExtent,
-            };
-            vkCmdSetScissor(frame->graphicsCommandBuffer, 0, 1, &scissor);
-
-            break;
-        }
-        case VK_PIPELINE_BIND_POINT_COMPUTE: {
-            vkCmdBindPipeline(frame->computeCommandBuffer, pipeline->bindPoint, pipeline->pipeline);
-            vkCmdBindDescriptorSets(frame->computeCommandBuffer, pipeline->bindPoint, pipeline->pipelineLayout, 0, 1, &pipeline->descriptorSets[frame->index], 0, nullptr);
-            break;
-        }
-    }
-}
-
-VkResult TransitionImageFromComputeToGraphics(
-    VulkanContext* vulkan,
-    VulkanImage* image,
-    VkImageLayout oldLayout,
-    VkImageLayout newLayout)
-{
-    // TODO: Support asynchronous compute.
-    assert(vulkan->computeQueueFamilyIndex == vulkan->graphicsQueueFamilyIndex);
-
-    VkCommandBufferAllocateInfo allocateInfo = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = vulkan->computeCommandPool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1,
-    };
-
-    VkCommandBuffer commandBuffer;
-    vkAllocateCommandBuffers(vulkan->device, &allocateInfo, &commandBuffer);
-
-    VkCommandBufferBeginInfo beginInfo = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-    };
-    vkBeginCommandBuffer(commandBuffer, &beginInfo);
-
-    VkImageMemoryBarrier barrier = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
-        .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = image->image,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1,
-        },
-    };
-
-    vkCmdPipelineBarrier(commandBuffer,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        0,
-        0, nullptr,
-        0, nullptr,
-        1, &barrier);
-
-    vkEndCommandBuffer(commandBuffer);
-
-    VkSubmitInfo submitInfo = {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &commandBuffer,
-    };
-    vkQueueSubmit(vulkan->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(vulkan->graphicsQueue);
-    vkFreeCommandBuffers(vulkan->device, vulkan->graphicsCommandPool, 1, &commandBuffer);
+    frame->fresh = false;
 
     return VK_SUCCESS;
 }
