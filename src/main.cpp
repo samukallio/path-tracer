@@ -18,6 +18,10 @@ uint32_t const BLIT_FRAGMENT_SHADER[] =
     #include "blit.fragment.inc"
 };
 
+uint32_t  const RENDER_COMPUTE_SHADER[] =
+{
+    #include "render.compute.inc"
+};
 
 int main()
 {
@@ -36,6 +40,13 @@ int main()
         { .width = 512, .height = 512, .depth = 1 },
         VK_IMAGE_TILING_OPTIMAL);
 
+    VulkanComputePipelineConfiguration renderConfig = {
+        .computeShaderCode = RENDER_COMPUTE_SHADER,
+        .descriptorTypes = {
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+        },
+    };
+
     VulkanGraphicsPipelineConfiguration blitConfig = {
         .vertexSize = 0,
         .vertexFormat = {},
@@ -45,6 +56,7 @@ int main()
     };
 
     auto blitPipeline = CreateVulkanGraphicsPipeline(vulkan, blitConfig);
+    auto renderPipeline = CreateVulkanComputePipeline(vulkan, renderConfig);
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -56,6 +68,22 @@ int main()
         if (result != VK_SUCCESS)
             break;
 
+        VulkanDescriptor renderDescriptors[] = {
+            {
+                .image = {
+                    .sampler = VK_NULL_HANDLE,
+                    .imageView = renderTargetImage->view,
+                    .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                }
+            }
+        };
+        UpdateVulkanPipelineDescriptors(vulkan, frame, renderPipeline, renderDescriptors);
+
+        BindVulkanPipeline(vulkan, frame, renderPipeline);
+        uint16_t groupCountX = 512 / 16;
+        uint16_t groupCountY = 512 / 16;
+        vkCmdDispatch(frame->computeCommandBuffer, groupCountX, groupCountY, 1);
+
         BindVulkanPipeline(vulkan, frame, blitPipeline);
         vkCmdDraw(frame->graphicsCommandBuffer, 6, 1, 0, 0);
 
@@ -64,6 +92,7 @@ int main()
 
     vkDeviceWaitIdle(vulkan->device);
 
+    DestroyVulkanPipeline(vulkan, renderPipeline);
     DestroyVulkanPipeline(vulkan, blitPipeline);
 
     DestroyVulkanImage(vulkan, renderTargetImage);

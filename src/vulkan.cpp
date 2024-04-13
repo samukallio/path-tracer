@@ -934,10 +934,8 @@ static VkResult InternalCreateVulkanGraphicsPipeline(
     VkResult result = VK_SUCCESS;
 
     // Create descriptor set layout.
-    std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
-
     for (size_t index = 0; index < config.descriptorTypes.size(); index++) {
-        descriptorSetLayoutBindings.push_back({
+        pipeline->descriptorSetLayoutBindings.push_back({
             .binding            = static_cast<uint32_t>(index),
             .descriptorType     = config.descriptorTypes[index],
             .descriptorCount    = 1,
@@ -948,8 +946,8 @@ static VkResult InternalCreateVulkanGraphicsPipeline(
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size()),
-        .pBindings = descriptorSetLayoutBindings.data(),
+        .bindingCount = static_cast<uint32_t>(pipeline->descriptorSetLayoutBindings.size()),
+        .pBindings = pipeline->descriptorSetLayoutBindings.data(),
     };
 
     result = vkCreateDescriptorSetLayout(vulkan->device, &descriptorSetLayoutInfo, nullptr, &pipeline->descriptorSetLayout);
@@ -1188,22 +1186,20 @@ static VkResult InternalCreateVulkanComputePipeline(
     VkResult result = VK_SUCCESS;
 
     // Create descriptor set layout.
-    std::vector<VkDescriptorSetLayoutBinding> descriptorSetLayoutBindings;
-
     for (size_t index = 0; index < config.descriptorTypes.size(); index++) {
-        descriptorSetLayoutBindings.push_back({
+        pipeline->descriptorSetLayoutBindings.push_back({
             .binding            = static_cast<uint32_t>(index),
             .descriptorType     = config.descriptorTypes[index],
             .descriptorCount    = 1,
-            .stageFlags         = VK_SHADER_STAGE_ALL_GRAPHICS,
+            .stageFlags         = VK_SHADER_STAGE_COMPUTE_BIT,
             .pImmutableSamplers = nullptr,
         });
     }
 
     VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(descriptorSetLayoutBindings.size()),
-        .pBindings = descriptorSetLayoutBindings.data(),
+        .bindingCount = static_cast<uint32_t>(pipeline->descriptorSetLayoutBindings.size()),
+        .pBindings = pipeline->descriptorSetLayoutBindings.data(),
     };
 
     result = vkCreateDescriptorSetLayout(vulkan->device, &descriptorSetLayoutInfo, nullptr, &pipeline->descriptorSetLayout);
@@ -1454,6 +1450,49 @@ VkResult EndFrame(
     }
 
     return VK_SUCCESS;
+}
+
+void UpdateVulkanPipelineDescriptors(
+    VulkanContext* vulkan,
+    VulkanFrameState* frame,
+    VulkanPipeline* pipeline,
+    std::span<VulkanDescriptor> descriptors)
+{
+    if (pipeline->descriptorSetLayoutBindings.size() != descriptors.size()) {
+        Errorf(vulkan, "number of descriptors specified in update do not match the layout");
+        return;
+    }
+
+    std::vector<VkWriteDescriptorSet> writes;
+
+    for (size_t index = 0; index < descriptors.size(); index++) {
+        VkDescriptorSetLayoutBinding& binding = pipeline->descriptorSetLayoutBindings[index];
+        VulkanDescriptor const& descriptor = descriptors[index];
+
+        VkWriteDescriptorSet write = {
+            .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+            .dstSet = pipeline->descriptorSets[frame->index],
+            .dstBinding = 0,
+            .dstArrayElement = 0,
+            .descriptorCount = 1,
+            .descriptorType = binding.descriptorType,
+        };
+
+        switch (binding.descriptorType) {
+        case VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER:
+            write.pBufferInfo = &descriptor.buffer;
+            break;
+        case VK_DESCRIPTOR_TYPE_STORAGE_IMAGE:
+        case VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE:
+        case VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER:
+            write.pImageInfo = &descriptor.image;
+            break;
+        }
+
+        writes.push_back(write);
+    }
+
+    vkUpdateDescriptorSets(vulkan->device, static_cast<uint32_t>(writes.size()), writes.data(), 0, nullptr);
 }
 
 void BindVulkanPipeline(

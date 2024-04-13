@@ -17,6 +17,12 @@ struct VulkanImage
     VkImageTiling               tiling                      = VK_IMAGE_TILING_OPTIMAL;
 };
 
+struct VulkanDescriptor
+{
+    VkDescriptorBufferInfo      buffer                      = {};
+    VkDescriptorImageInfo       image                       = {};
+};
+
 struct VulkanGraphicsPipelineConfiguration
 {
     using VertexFormat = std::vector<VkVertexInputAttributeDescription>;
@@ -39,8 +45,11 @@ struct VulkanComputePipelineConfiguration
 
 struct VulkanPipeline
 {
+    using Bindings = std::vector<VkDescriptorSetLayoutBinding>;
+
     VkPipeline                  pipeline                    = VK_NULL_HANDLE;
     VkPipelineLayout            pipelineLayout              = VK_NULL_HANDLE;
+    Bindings                    descriptorSetLayoutBindings = {};
     VkDescriptorSetLayout       descriptorSetLayout         = VK_NULL_HANDLE;
     VkDescriptorSet             descriptorSets[2]           = {};
     VkPipelineBindPoint         bindPoint                   = VK_PIPELINE_BIND_POINT_GRAPHICS;
@@ -145,6 +154,12 @@ VkResult BeginFrame(
 VkResult EndFrame(
     VulkanContext* vulkan,
     VulkanFrameState* frame);
+
+void UpdateVulkanPipelineDescriptors(
+    VulkanContext* vulkan,
+    VulkanFrameState* frame,
+    VulkanPipeline* pipeline,
+    std::span<VulkanDescriptor> descriptors);
 
 void BindVulkanPipeline(
     VulkanContext* vulkan,

@@ -61,3 +61,6 @@ endfunction ()
 compile_shader (path-tracer src/blit.glsl
 		VERTEX blit.vertex.inc
 		FRAGMENT blit.fragment.inc)
+
+compile_shader (path-tracer src/render.glsl
+		COMPUTE render.compute.inc)
