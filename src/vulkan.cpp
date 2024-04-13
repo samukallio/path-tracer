@@ -1,5 +1,6 @@
 #include "vulkan.h"
 
+#include <cassert>
 #include <cstdarg>
 #include <vector>
 #include <set>
@@ -10,6 +11,21 @@
 #include <GLFW/glfw3.h>
 
 #include <vulkan/vulkan.h>
+
+uint32_t const BLIT_VERTEX_SHADER[] =
+{
+    #include "blit.vertex.inc"
+};
+
+uint32_t const BLIT_FRAGMENT_SHADER[] =
+{
+    #include "blit.fragment.inc"
+};
+
+uint32_t const RENDER_COMPUTE_SHADER[] =
+{
+    #include "render.compute.inc"
+};
 
 static void Errorf(VulkanContext* vk, char const* fmt, ...)
 {
@@ -51,9 +67,291 @@ static void DestroyDebugUtilsMessengerEXT(
     func(instance, debugMessenger, pAllocator);
 }
 
-static VkResult InternalCreatePresentationResources(
-    VulkanContext* vulkan);
+static VkResult InternalCreateVulkanImage(
+    VulkanContext* vulkan,
+    VulkanImage* image,
+    VkImageUsageFlags usageFlags,
+    VkMemoryPropertyFlags memoryFlags,
+    VkImageType type,
+    VkFormat format,
+    VkExtent3D extent,
+    VkImageTiling tiling)
+{
+    VkResult result = VK_SUCCESS;
 
+    image->type = type;
+    image->format = format;
+    image->extent = extent;
+    image->tiling = tiling;
+
+    // Create the image object.
+    VkImageCreateInfo imageInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
+        .flags = 0,
+        .imageType = type,
+        .format = format,
+        .extent = extent,
+        .mipLevels = 1,
+        .arrayLayers = 1,
+        .samples = VK_SAMPLE_COUNT_1_BIT,
+        .tiling = tiling,
+        .usage = usageFlags,
+        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
+        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+    };
+
+    result = vkCreateImage(vulkan->device, &imageInfo, nullptr, &image->image);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create image");
+        return result;
+    }
+
+    // Determine memory requirements for the image.
+    VkMemoryRequirements memoryRequirements;
+    vkGetImageMemoryRequirements(vulkan->device, image->image, &memoryRequirements);
+
+    // Find memory suitable for the image.
+    uint32_t memoryTypeIndex = 0xFFFFFFFF;
+    VkPhysicalDeviceMemoryProperties memoryProperties;
+    vkGetPhysicalDeviceMemoryProperties(vulkan->physicalDevice, &memoryProperties);
+    for (uint32_t index = 0; index < memoryProperties.memoryTypeCount; index++) {
+        if (!(memoryRequirements.memoryTypeBits & (1 << index)))
+            continue;
+        VkMemoryType& type = memoryProperties.memoryTypes[index];
+        if ((type.propertyFlags & memoryFlags) != memoryFlags)
+            continue;
+        memoryTypeIndex = index;
+        break;
+    }
+
+    // Allocate memory.
+    VkMemoryAllocateInfo memoryAllocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
+        .allocationSize = memoryRequirements.size,
+        .memoryTypeIndex = memoryTypeIndex,
+    };
+
+    result = vkAllocateMemory(vulkan->device, &memoryAllocateInfo, nullptr, &image->memory);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to allocate image memory");
+        return result;
+    }
+
+    vkBindImageMemory(vulkan->device, image->image, image->memory, 0);
+
+    VkImageViewType viewType;
+
+    switch (type) {
+    case VK_IMAGE_TYPE_1D:
+        viewType = VK_IMAGE_VIEW_TYPE_1D;
+        break;
+    case VK_IMAGE_TYPE_2D:
+        viewType = VK_IMAGE_VIEW_TYPE_2D;
+        break;
+    case VK_IMAGE_TYPE_3D:
+        viewType = VK_IMAGE_VIEW_TYPE_3D;
+        break;
+    default:
+        Errorf(vulkan, "unsupported image type");
+        return VK_ERROR_UNKNOWN;
+    }
+
+    // Create image view spanning the full image.
+    VkImageViewCreateInfo imageViewInfo = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+        .image = image->image,
+        .viewType = viewType,
+        .format = format,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+    };
+
+    result = vkCreateImageView(vulkan->device, &imageViewInfo, nullptr, &image->view);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create image view");
+        return result;
+    }
+
+    return VK_SUCCESS;
+}
+
+static void InternalDestroyVulkanImage(
+    VulkanContext* vulkan,
+    VulkanImage* image)
+{
+    if (image->view)
+        vkDestroyImageView(vulkan->device, image->view, nullptr);
+    if (image->image)
+        vkDestroyImage(vulkan->device, image->image, nullptr);
+    if (image->memory)
+        vkFreeMemory(vulkan->device, image->memory, nullptr);
+}
+
+static VkResult InternalCreatePresentationResources(
+    VulkanContext* vulkan)
+{
+    VkResult result = VK_SUCCESS;
+
+    // Create the swap chain.
+    {
+        // Determine current window surface capabilities.
+        VkSurfaceCapabilitiesKHR surfaceCapabilities;
+        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan->physicalDevice, vulkan->surface, &surfaceCapabilities);
+
+        // Determine width and height of the swap chain.
+        VkExtent2D imageExtent = surfaceCapabilities.currentExtent;
+        if (imageExtent.width == 0xFFFFFFFF) {
+            int width, height;
+            glfwGetFramebufferSize(vulkan->window, &width, &height);
+            imageExtent.width = std::clamp(
+                static_cast<uint32_t>(width),
+                surfaceCapabilities.minImageExtent.width,
+                surfaceCapabilities.maxImageExtent.width);
+            imageExtent.height = std::clamp(
+                static_cast<uint32_t>(height),
+                surfaceCapabilities.minImageExtent.height,
+                surfaceCapabilities.maxImageExtent.height);
+        }
+
+        // Determine swap chain image count.
+        uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
+        if (surfaceCapabilities.maxImageCount > 0)
+            imageCount = std::min(imageCount, surfaceCapabilities.maxImageCount);
+
+        auto swapchainInfo = VkSwapchainCreateInfoKHR {
+            .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+            .surface = vulkan->surface,
+            .minImageCount = imageCount,
+            .imageFormat = vulkan->surfaceFormat.format,
+            .imageColorSpace = vulkan->surfaceFormat.colorSpace,
+            .imageExtent = imageExtent,
+            .imageArrayLayers = 1,
+            .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .preTransform = surfaceCapabilities.currentTransform,
+            .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+            .presentMode = vulkan->presentMode,
+            .clipped = VK_TRUE,
+            .oldSwapchain = VK_NULL_HANDLE,
+        };
+
+        if (vulkan->graphicsQueueFamilyIndex == vulkan->presentQueueFamilyIndex) {
+            swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
+            swapchainInfo.queueFamilyIndexCount = 0;
+            swapchainInfo.pQueueFamilyIndices = nullptr;
+        }
+        else {
+            uint32_t const queueFamilyIndices[] = {
+                vulkan->graphicsQueueFamilyIndex,
+                vulkan->presentQueueFamilyIndex
+            };
+            swapchainInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
+            swapchainInfo.queueFamilyIndexCount = 2;
+            swapchainInfo.pQueueFamilyIndices = queueFamilyIndices;
+        }
+
+        result = vkCreateSwapchainKHR(vulkan->device, &swapchainInfo, nullptr, &vulkan->swapchain);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create swap chain");
+            return result;
+        }
+
+        vulkan->swapchainExtent = imageExtent;
+        vulkan->swapchainFormat = swapchainInfo.imageFormat;
+    }
+
+    // Retrieve swap chain images.
+    {
+        uint32_t imageCount = 0;
+        vkGetSwapchainImagesKHR(vulkan->device, vulkan->swapchain, &imageCount, nullptr);
+        auto images = std::vector<VkImage>(imageCount);
+        vkGetSwapchainImagesKHR(vulkan->device, vulkan->swapchain, &imageCount, images.data());
+
+        vulkan->swapchainImages.clear();
+        vulkan->swapchainImageViews.clear();
+        vulkan->swapchainFramebuffers.clear();
+
+        for (VkImage image : images) {
+            vulkan->swapchainImages.push_back(image);
+
+            auto imageViewInfo = VkImageViewCreateInfo {
+                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+                .image = image,
+                .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                .format = vulkan->swapchainFormat,
+                .components = {
+                    .r = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .g = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .b = VK_COMPONENT_SWIZZLE_IDENTITY,
+                    .a = VK_COMPONENT_SWIZZLE_IDENTITY,
+                },
+                .subresourceRange = {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .baseMipLevel = 0,
+                    .levelCount = 1,
+                    .baseArrayLayer = 0,
+                    .layerCount = 1,
+                }
+            };
+
+            VkImageView imageView;
+
+            result = vkCreateImageView(vulkan->device, &imageViewInfo, nullptr, &imageView);
+            if (result != VK_SUCCESS) {
+                Errorf(vulkan, "failed to create image view");
+                return result;
+            }
+
+            vulkan->swapchainImageViews.push_back(imageView);
+
+            VkFramebufferCreateInfo framebufferInfo = {
+                .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+                .renderPass = vulkan->mainRenderPass,
+                .attachmentCount = 1,
+                .pAttachments = &imageView,
+                .width = vulkan->swapchainExtent.width,
+                .height = vulkan->swapchainExtent.height,
+                .layers = 1,
+            };
+
+            VkFramebuffer framebuffer;
+
+            result = vkCreateFramebuffer(vulkan->device, &framebufferInfo, nullptr, &framebuffer);
+            if (result != VK_SUCCESS) {
+                Errorf(vulkan, "failed to create framebuffer");
+                return result;
+            }
+
+            vulkan->swapchainFramebuffers.push_back(framebuffer);
+        }
+    }
+
+    return VK_SUCCESS;
+}
+
+static void InternalDestroyPresentationResources(
+    VulkanContext* vulkan)
+{
+    for (VkFramebuffer framebuffer : vulkan->swapchainFramebuffers)
+        vkDestroyFramebuffer(vulkan->device, framebuffer, nullptr);
+    vulkan->swapchainFramebuffers.clear();
+
+    for (VkImageView imageView : vulkan->swapchainImageViews)
+        vkDestroyImageView(vulkan->device, imageView, nullptr);
+    vulkan->swapchainImageViews.clear();
+
+    if (vulkan->swapchain) {
+        vkDestroySwapchainKHR(vulkan->device, vulkan->swapchain, nullptr);
+        vulkan->swapchain = nullptr;
+        vulkan->swapchainExtent = {};
+        vulkan->swapchainFormat = VK_FORMAT_UNDEFINED;
+        vulkan->swapchainImages.clear();
+    }
+}
 
 static VkResult InternalCreateFrameResources(
     VulkanContext* vulkan,
@@ -94,6 +392,8 @@ static VkResult InternalCreateFrameResources(
     VkSemaphore* pSemaphores[] = {
         &frame->imageAvailableSemaphore,
         &frame->imageFinishedSemaphore,
+        &frame->computeToComputeSemaphore,
+        &frame->computeToGraphicsSemaphore,
     };
 
     for (VkSemaphore* pSemaphore : pSemaphores) {
@@ -121,6 +421,26 @@ static VkResult InternalCreateFrameResources(
         }
     }
 
+    InternalCreateVulkanImage(vulkan,
+        &frame->renderTarget,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        VK_IMAGE_TYPE_2D,
+        VK_FORMAT_R8G8B8A8_UNORM,
+        { .width = 512, .height = 512, .depth = 1 },
+        VK_IMAGE_TILING_OPTIMAL);
+
+    InternalCreateVulkanImage(vulkan,
+        &frame->renderTargetGraphicsCopy,
+        VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        VK_IMAGE_TYPE_2D,
+        VK_FORMAT_R8G8B8A8_UNORM,
+        { .width = 512, .height = 512, .depth = 1 },
+        VK_IMAGE_TILING_OPTIMAL);
+
+    frame->fresh = true;
+
     return VK_SUCCESS;
 }
 
@@ -128,11 +448,386 @@ static VkResult InternalDestroyFrameResources(
     VulkanContext* vulkan,
     VulkanFrameState* frame)
 {
+    InternalDestroyVulkanImage(vulkan, &frame->renderTargetGraphicsCopy);
+    InternalDestroyVulkanImage(vulkan, &frame->renderTarget);
+
+    vkDestroySemaphore(vulkan->device, frame->computeToComputeSemaphore, nullptr);
+    vkDestroySemaphore(vulkan->device, frame->computeToGraphicsSemaphore, nullptr);
     vkDestroySemaphore(vulkan->device, frame->imageAvailableSemaphore, nullptr);
     vkDestroySemaphore(vulkan->device, frame->imageFinishedSemaphore, nullptr);
     vkDestroyFence(vulkan->device, frame->availableFence, nullptr);
 
     return VK_SUCCESS;
+}
+
+struct VulkanGraphicsPipelineConfiguration
+{
+    using VertexFormat = std::vector<VkVertexInputAttributeDescription>;
+    using DescriptorTypes = std::vector<VkDescriptorType>;
+
+    uint32_t                    vertexSize                  = 0;
+    VertexFormat                vertexFormat                = {};
+    std::span<uint32_t const>   vertexShaderCode            = {};
+    std::span<uint32_t const>   fragmentShaderCode          = {};
+    DescriptorTypes             descriptorTypes             = {};
+};
+
+static VkResult InternalCreateGraphicsPipeline(
+    VulkanContext* vulkan,
+    VulkanPipeline* pipeline,
+    VulkanGraphicsPipelineConfiguration const& config)
+{
+    VkResult result = VK_SUCCESS;
+
+    // Create descriptor set layout.
+    for (size_t index = 0; index < config.descriptorTypes.size(); index++) {
+        pipeline->descriptorSetLayoutBindings.push_back({
+            .binding            = static_cast<uint32_t>(index),
+            .descriptorType     = config.descriptorTypes[index],
+            .descriptorCount    = 1,
+            .stageFlags         = VK_SHADER_STAGE_ALL_GRAPHICS,
+            .pImmutableSamplers = nullptr,
+        });
+    }
+
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = static_cast<uint32_t>(pipeline->descriptorSetLayoutBindings.size()),
+        .pBindings = pipeline->descriptorSetLayoutBindings.data(),
+    };
+
+    result = vkCreateDescriptorSetLayout(vulkan->device, &descriptorSetLayoutInfo, nullptr, &pipeline->descriptorSetLayout);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create descriptor set layout");
+        return result;
+    }
+
+    // Create vertex shader module.
+    VkShaderModuleCreateInfo vertexShaderModuleInfo = {
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = config.vertexShaderCode.size() * sizeof(uint32_t),
+        .pCode = config.vertexShaderCode.data(),
+    };
+
+    VkShaderModule vertexShaderModule;
+    result = vkCreateShaderModule(vulkan->device, &vertexShaderModuleInfo, nullptr, &vertexShaderModule);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create vertex shader module");
+        return result;
+    }
+
+    // Create fragment shader module.
+    VkShaderModuleCreateInfo fragmentShaderModuleInfo = {
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = config.fragmentShaderCode.size() * sizeof(uint32_t),
+        .pCode = config.fragmentShaderCode.data(),
+    };
+
+    VkShaderModule fragmentShaderModule;
+    result = vkCreateShaderModule(vulkan->device, &fragmentShaderModuleInfo, nullptr, &fragmentShaderModule);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create fragment shader module");
+        return result;
+    }
+
+    VkPipelineShaderStageCreateInfo shaderStageInfos[] = {
+        {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_VERTEX_BIT,
+            .module = vertexShaderModule,
+            .pName = "main",
+        },
+        {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .module = fragmentShaderModule,
+            .pName = "main",
+        },
+    };
+
+    // Dynamic state.
+    VkDynamicState dynamicStates[] = {
+        VK_DYNAMIC_STATE_VIEWPORT,
+        VK_DYNAMIC_STATE_SCISSOR
+    };
+    VkPipelineDynamicStateCreateInfo dynamicStateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+        .dynamicStateCount = static_cast<uint32_t>(std::size(dynamicStates)),
+        .pDynamicStates = dynamicStates,
+    };
+
+    // Vertex input state.
+    VkVertexInputBindingDescription vertexBindingDescription = {
+        .binding = 0,
+        .stride = config.vertexSize,
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+    };
+    VkPipelineVertexInputStateCreateInfo vertexInputStateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount = config.vertexSize > 0 ? 1u : 0u,
+        .pVertexBindingDescriptions = &vertexBindingDescription,
+        .vertexAttributeDescriptionCount = static_cast<uint32_t>(config.vertexFormat.size()),
+        .pVertexAttributeDescriptions = config.vertexFormat.data(),
+    };
+
+    // Input assembler state.
+    VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+        .primitiveRestartEnable = VK_FALSE,
+    };
+
+    // Viewport state.
+    VkPipelineViewportStateCreateInfo viewportStateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+        .viewportCount = 1,
+        .scissorCount = 1,
+    };
+
+    // Rasterizer state.
+    VkPipelineRasterizationStateCreateInfo rasterizationStateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .depthClampEnable = VK_FALSE,
+        .rasterizerDiscardEnable = VK_FALSE,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .frontFace = VK_FRONT_FACE_CLOCKWISE,
+        .depthBiasEnable = VK_FALSE,
+        .depthBiasConstantFactor = 0.0f,
+        .depthBiasClamp = 0.0f,
+        .depthBiasSlopeFactor = 0.0f,
+        .lineWidth = 1.0f,
+    };
+
+    // Multisample state.
+    VkPipelineMultisampleStateCreateInfo multisampleStateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+        .sampleShadingEnable = VK_FALSE,
+        .minSampleShading = 1.0f,
+        .pSampleMask = nullptr,
+        .alphaToCoverageEnable = VK_FALSE,
+        .alphaToOneEnable = VK_FALSE,
+    };
+
+    // Depth-stencil state.
+    VkPipelineDepthStencilStateCreateInfo depthStencilStateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable = VK_FALSE,
+        .depthWriteEnable = VK_FALSE,
+        .depthCompareOp = VK_COMPARE_OP_LESS,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable = VK_FALSE,
+        .front = {},
+        .back = {},
+        .minDepthBounds = 0.0f,
+        .maxDepthBounds = 1.0f,
+    };
+
+    // Color blend state.
+    VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {
+        .blendEnable = VK_FALSE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .colorBlendOp = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .alphaBlendOp = VK_BLEND_OP_ADD,
+        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
+    };
+    VkPipelineColorBlendStateCreateInfo colorBlendStateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOpEnable = VK_FALSE,
+        .logicOp = VK_LOGIC_OP_COPY,
+        .attachmentCount = 1,
+        .pAttachments = &colorBlendAttachmentState,
+        .blendConstants = { 0, 0, 0, 0 },
+    };
+
+    // Pipeline layout.
+    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts = &pipeline->descriptorSetLayout,
+        .pushConstantRangeCount = 0,
+        .pPushConstantRanges = nullptr,
+    };
+
+    result = vkCreatePipelineLayout(vulkan->device, &pipelineLayoutCreateInfo, nullptr, &pipeline->pipelineLayout);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create pipeline layout");
+        return result;
+    }
+
+    // Create pipeline.
+    VkGraphicsPipelineCreateInfo graphicsPipelineInfo = {
+        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .stageCount = static_cast<uint32_t>(std::size(shaderStageInfos)),
+        .pStages = shaderStageInfos,
+        .pVertexInputState = &vertexInputStateInfo,
+        .pInputAssemblyState = &inputAssemblyStateInfo,
+        .pViewportState = &viewportStateInfo,
+        .pRasterizationState = &rasterizationStateInfo,
+        .pMultisampleState = &multisampleStateInfo,
+        .pDepthStencilState = &depthStencilStateInfo,
+        .pColorBlendState = &colorBlendStateInfo,
+        .pDynamicState = &dynamicStateInfo,
+        .layout = pipeline->pipelineLayout,
+        .renderPass = vulkan->mainRenderPass,
+        .subpass = 0,
+        .basePipelineHandle = VK_NULL_HANDLE,
+        .basePipelineIndex = -1,
+    };
+
+    result = vkCreateGraphicsPipelines(vulkan->device, VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, &pipeline->pipeline);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create pipeline");
+        return result;
+    }
+
+    vkDestroyShaderModule(vulkan->device, vertexShaderModule, nullptr);
+    vkDestroyShaderModule(vulkan->device, fragmentShaderModule, nullptr);
+
+    // Allocate descriptor sets, one per frame state.
+    for (uint32_t index = 0; index < 2; index++) {
+        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = vulkan->descriptorPool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &pipeline->descriptorSetLayout,
+        };
+
+        result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &pipeline->descriptorSets[index]);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to allocate compute descriptor set");
+            return result;
+        }
+    }
+
+    pipeline->bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+
+    return result;
+}
+
+struct VulkanComputePipelineConfiguration
+{
+    using DescriptorTypes = std::vector<VkDescriptorType>;
+
+    std::span<uint32_t const>   computeShaderCode           = {};
+    DescriptorTypes             descriptorTypes             = {};
+};
+
+static VkResult InternalCreateComputePipeline(
+    VulkanContext* vulkan,
+    VulkanPipeline* pipeline,
+    VulkanComputePipelineConfiguration const& config)
+{
+    VkResult result = VK_SUCCESS;
+
+    // Create descriptor set layout.
+    for (size_t index = 0; index < config.descriptorTypes.size(); index++) {
+        pipeline->descriptorSetLayoutBindings.push_back({
+            .binding            = static_cast<uint32_t>(index),
+            .descriptorType     = config.descriptorTypes[index],
+            .descriptorCount    = 1,
+            .stageFlags         = VK_SHADER_STAGE_COMPUTE_BIT,
+            .pImmutableSamplers = nullptr,
+        });
+    }
+
+    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = static_cast<uint32_t>(pipeline->descriptorSetLayoutBindings.size()),
+        .pBindings = pipeline->descriptorSetLayoutBindings.data(),
+    };
+
+    result = vkCreateDescriptorSetLayout(vulkan->device, &descriptorSetLayoutInfo, nullptr, &pipeline->descriptorSetLayout);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create descriptor set layout");
+        return result;
+    }
+
+    // Create compute shader module.
+    VkShaderModuleCreateInfo computeShaderModuleInfo = {
+        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+        .codeSize = config.computeShaderCode.size() * sizeof(uint32_t),
+        .pCode = config.computeShaderCode.data(),
+    };
+
+    VkShaderModule computeShaderModule;
+
+    result = vkCreateShaderModule(vulkan->device, &computeShaderModuleInfo, nullptr, &computeShaderModule);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create compute shader module");
+        return result;
+    }
+
+    VkPipelineShaderStageCreateInfo computeShaderStageInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
+        .module = computeShaderModule,
+        .pName = "main",
+    };
+
+    // Create pipeline layout.
+    VkPipelineLayoutCreateInfo computePipelineLayoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount = 1,
+        .pSetLayouts = &pipeline->descriptorSetLayout,
+    };
+
+    result = vkCreatePipelineLayout(vulkan->device, &computePipelineLayoutInfo, nullptr, &pipeline->pipelineLayout);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create compute pipeline layout");
+        return result;
+    }
+
+    // Create pipeline.
+    VkComputePipelineCreateInfo computePipelineInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
+        .stage = computeShaderStageInfo,
+        .layout = pipeline->pipelineLayout,
+    };
+
+    result = vkCreateComputePipelines(vulkan->device, VK_NULL_HANDLE, 1, &computePipelineInfo, nullptr, &pipeline->pipeline);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to create compute pipeline");
+        return result;
+    }
+
+    vkDestroyShaderModule(vulkan->device, computeShaderModule, nullptr);
+
+    // Allocate descriptor sets, one per frame state.
+    for (uint32_t index = 0; index < 2; index++) {
+        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = vulkan->descriptorPool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = &pipeline->descriptorSetLayout,
+        };
+
+        result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &pipeline->descriptorSets[index]);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to allocate compute descriptor set");
+            return result;
+        }
+    }
+
+    pipeline->bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
+
+    return result;
+}
+
+static void InternalDestroyPipeline(
+    VulkanContext* vulkan,
+    VulkanPipeline* pipeline)
+{
+    if (pipeline->pipeline)
+        vkDestroyPipeline(vulkan->device, pipeline->pipeline, nullptr);
+    if (pipeline->pipelineLayout)
+        vkDestroyPipelineLayout(vulkan->device, pipeline->pipelineLayout, nullptr);
+    if (pipeline->descriptorSetLayout)
+        vkDestroyDescriptorSetLayout(vulkan->device, pipeline->descriptorSetLayout, nullptr);
 }
 
 static VkResult InternalCreateVulkan(
@@ -519,6 +1214,31 @@ static VkResult InternalCreateVulkan(
         if (result != VK_SUCCESS) return result;
     }
 
+    VulkanComputePipelineConfiguration renderConfig = {
+        .computeShaderCode = RENDER_COMPUTE_SHADER,
+        .descriptorTypes = {
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+        },
+    };
+
+    VulkanGraphicsPipelineConfiguration blitConfig = {
+        .vertexSize = 0,
+        .vertexFormat = {},
+        .vertexShaderCode = BLIT_VERTEX_SHADER,
+        .fragmentShaderCode = BLIT_FRAGMENT_SHADER,
+        .descriptorTypes = {},
+    };
+
+    result = InternalCreateGraphicsPipeline(vulkan, &vulkan->blitPipeline, blitConfig);
+    if (result != VK_SUCCESS) {
+        return result;
+    }
+
+    result = InternalCreateComputePipeline(vulkan, &vulkan->renderPipeline, renderConfig);
+    if (result != VK_SUCCESS) {
+        return result;
+    }
+
     return VK_SUCCESS;
 }
 
@@ -537,167 +1257,6 @@ VulkanContext* CreateVulkan(
     return vulkan;
 }
 
-static VkResult InternalCreatePresentationResources(
-    VulkanContext* vulkan)
-{
-    VkResult result = VK_SUCCESS;
-
-    // Create the swap chain.
-    {
-        // Determine current window surface capabilities.
-        VkSurfaceCapabilitiesKHR surfaceCapabilities;
-        vkGetPhysicalDeviceSurfaceCapabilitiesKHR(vulkan->physicalDevice, vulkan->surface, &surfaceCapabilities);
-
-        // Determine width and height of the swap chain.
-        VkExtent2D imageExtent = surfaceCapabilities.currentExtent;
-        if (imageExtent.width == 0xFFFFFFFF) {
-            int width, height;
-            glfwGetFramebufferSize(vulkan->window, &width, &height);
-            imageExtent.width = std::clamp(
-                static_cast<uint32_t>(width),
-                surfaceCapabilities.minImageExtent.width,
-                surfaceCapabilities.maxImageExtent.width);
-            imageExtent.height = std::clamp(
-                static_cast<uint32_t>(height),
-                surfaceCapabilities.minImageExtent.height,
-                surfaceCapabilities.maxImageExtent.height);
-        }
-
-        // Determine swap chain image count.
-        uint32_t imageCount = surfaceCapabilities.minImageCount + 1;
-        if (surfaceCapabilities.maxImageCount > 0)
-            imageCount = std::min(imageCount, surfaceCapabilities.maxImageCount);
-
-        auto swapchainInfo = VkSwapchainCreateInfoKHR {
-            .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-            .surface = vulkan->surface,
-            .minImageCount = imageCount,
-            .imageFormat = vulkan->surfaceFormat.format,
-            .imageColorSpace = vulkan->surfaceFormat.colorSpace,
-            .imageExtent = imageExtent,
-            .imageArrayLayers = 1,
-            .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            .preTransform = surfaceCapabilities.currentTransform,
-            .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-            .presentMode = vulkan->presentMode,
-            .clipped = VK_TRUE,
-            .oldSwapchain = VK_NULL_HANDLE,
-        };
-
-        if (vulkan->graphicsQueueFamilyIndex == vulkan->presentQueueFamilyIndex) {
-            swapchainInfo.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE;
-            swapchainInfo.queueFamilyIndexCount = 0;
-            swapchainInfo.pQueueFamilyIndices = nullptr;
-        }
-        else {
-            uint32_t const queueFamilyIndices[] = {
-                vulkan->graphicsQueueFamilyIndex,
-                vulkan->presentQueueFamilyIndex
-            };
-            swapchainInfo.imageSharingMode = VK_SHARING_MODE_CONCURRENT;
-            swapchainInfo.queueFamilyIndexCount = 2;
-            swapchainInfo.pQueueFamilyIndices = queueFamilyIndices;
-        }
-
-        result = vkCreateSwapchainKHR(vulkan->device, &swapchainInfo, nullptr, &vulkan->swapchain);
-        if (result != VK_SUCCESS) {
-            Errorf(vulkan, "failed to create swap chain");
-            return result;
-        }
-
-        vulkan->swapchainExtent = imageExtent;
-        vulkan->swapchainFormat = swapchainInfo.imageFormat;
-    }
-
-    // Retrieve swap chain images.
-    {
-        uint32_t imageCount = 0;
-        vkGetSwapchainImagesKHR(vulkan->device, vulkan->swapchain, &imageCount, nullptr);
-        auto images = std::vector<VkImage>(imageCount);
-        vkGetSwapchainImagesKHR(vulkan->device, vulkan->swapchain, &imageCount, images.data());
-
-        vulkan->swapchainImages.clear();
-        vulkan->swapchainImageViews.clear();
-        vulkan->swapchainFramebuffers.clear();
-
-        for (VkImage image : images) {
-            vulkan->swapchainImages.push_back(image);
-
-            auto imageViewInfo = VkImageViewCreateInfo {
-                .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-                .image = image,
-                .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = vulkan->swapchainFormat,
-                .components = {
-                    .r = VK_COMPONENT_SWIZZLE_IDENTITY,
-                    .g = VK_COMPONENT_SWIZZLE_IDENTITY,
-                    .b = VK_COMPONENT_SWIZZLE_IDENTITY,
-                    .a = VK_COMPONENT_SWIZZLE_IDENTITY,
-                },
-                .subresourceRange = {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .baseMipLevel = 0,
-                    .levelCount = 1,
-                    .baseArrayLayer = 0,
-                    .layerCount = 1,
-                }
-            };
-
-            VkImageView imageView;
-
-            result = vkCreateImageView(vulkan->device, &imageViewInfo, nullptr, &imageView);
-            if (result != VK_SUCCESS) {
-                Errorf(vulkan, "failed to create image view");
-                return result;
-            }
-
-            vulkan->swapchainImageViews.push_back(imageView);
-
-            VkFramebufferCreateInfo framebufferInfo = {
-                .sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-                .renderPass = vulkan->mainRenderPass,
-                .attachmentCount = 1,
-                .pAttachments = &imageView,
-                .width = vulkan->swapchainExtent.width,
-                .height = vulkan->swapchainExtent.height,
-                .layers = 1,
-            };
-
-            VkFramebuffer framebuffer;
-
-            result = vkCreateFramebuffer(vulkan->device, &framebufferInfo, nullptr, &framebuffer);
-            if (result != VK_SUCCESS) {
-                Errorf(vulkan, "failed to create framebuffer");
-                return result;
-            }
-
-            vulkan->swapchainFramebuffers.push_back(framebuffer);
-        }
-    }
-
-    return VK_SUCCESS;
-}
-
-static void InternalDestroyPresentationResources(
-    VulkanContext* vulkan)
-{
-    for (VkFramebuffer framebuffer : vulkan->swapchainFramebuffers)
-        vkDestroyFramebuffer(vulkan->device, framebuffer, nullptr);
-    vulkan->swapchainFramebuffers.clear();
-
-    for (VkImageView imageView : vulkan->swapchainImageViews)
-        vkDestroyImageView(vulkan->device, imageView, nullptr);
-    vulkan->swapchainImageViews.clear();
-
-    if (vulkan->swapchain) {
-        vkDestroySwapchainKHR(vulkan->device, vulkan->swapchain, nullptr);
-        vulkan->swapchain = nullptr;
-        vulkan->swapchainExtent = {};
-        vulkan->swapchainFormat = VK_FORMAT_UNDEFINED;
-        vulkan->swapchainImages.clear();
-    }
-}
-
 void DestroyVulkan(VulkanContext* vulkan)
 {
     if (vulkan->device) {
@@ -705,6 +1264,9 @@ void DestroyVulkan(VulkanContext* vulkan)
         // before we start releasing resources.
         vkDeviceWaitIdle(vulkan->device);
     }
+
+    InternalDestroyPipeline(vulkan, &vulkan->renderPipeline);
+    InternalDestroyPipeline(vulkan, &vulkan->blitPipeline);
 
     for (int index = 0; index < 2; index++)
         InternalDestroyFrameResources(vulkan, &vulkan->frameStates[index]);
@@ -779,541 +1341,16 @@ static void InternalWaitForWindowSize(
     }
 }
 
-static VkResult InternalCreateVulkanImage(
-    VulkanContext* vulkan,
-    VulkanImage* image,
-    VkImageUsageFlags usageFlags,
-    VkMemoryPropertyFlags memoryFlags,
-    VkImageType type,
-    VkFormat format,
-    VkExtent3D extent,
-    VkImageTiling tiling)
+VkResult RenderFrame(
+    VulkanContext* vulkan)
 {
     VkResult result = VK_SUCCESS;
 
-    image->type = type;
-    image->format = format;
-    image->extent = extent;
-    image->tiling = tiling;
-
-    // Create the image object.
-    VkImageCreateInfo imageInfo = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .flags = 0,
-        .imageType = type,
-        .format = format,
-        .extent = extent,
-        .mipLevels = 1,
-        .arrayLayers = 1,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .tiling = tiling,
-        .usage = usageFlags,
-        .sharingMode = VK_SHARING_MODE_EXCLUSIVE,
-        .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-    };
-
-    result = vkCreateImage(vulkan->device, &imageInfo, nullptr, &image->image);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create image");
-        return result;
-    }
-
-    // Determine memory requirements for the image.
-    VkMemoryRequirements memoryRequirements;
-    vkGetImageMemoryRequirements(vulkan->device, image->image, &memoryRequirements);
-
-    // Find memory suitable for the image.
-    uint32_t memoryTypeIndex = 0xFFFFFFFF;
-    VkPhysicalDeviceMemoryProperties memoryProperties;
-    vkGetPhysicalDeviceMemoryProperties(vulkan->physicalDevice, &memoryProperties);
-    for (uint32_t index = 0; index < memoryProperties.memoryTypeCount; index++) {
-        if (!(memoryRequirements.memoryTypeBits & (1 << index)))
-            continue;
-        VkMemoryType& type = memoryProperties.memoryTypes[index];
-        if ((type.propertyFlags & memoryFlags) != memoryFlags)
-            continue;
-        memoryTypeIndex = index;
-        break;
-    }
-
-    // Allocate memory.
-    VkMemoryAllocateInfo memoryAllocateInfo = {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = memoryRequirements.size,
-        .memoryTypeIndex = memoryTypeIndex,
-    };
-
-    result = vkAllocateMemory(vulkan->device, &memoryAllocateInfo, nullptr, &image->memory);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to allocate image memory");
-        return result;
-    }
-
-    vkBindImageMemory(vulkan->device, image->image, image->memory, 0);
-
-    VkImageViewType viewType;
-
-    switch (type) {
-    case VK_IMAGE_TYPE_1D:
-        viewType = VK_IMAGE_VIEW_TYPE_1D;
-        break;
-    case VK_IMAGE_TYPE_2D:
-        viewType = VK_IMAGE_VIEW_TYPE_2D;
-        break;
-    case VK_IMAGE_TYPE_3D:
-        viewType = VK_IMAGE_VIEW_TYPE_3D;
-        break;
-    default:
-        Errorf(vulkan, "unsupported image type");
-        return VK_ERROR_UNKNOWN;
-    }
-
-    // Create image view spanning the full image.
-    VkImageViewCreateInfo imageViewInfo = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = image->image,
-        .viewType = viewType,
-        .format = format,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel = 0,
-            .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1,
-        },
-    };
-
-    result = vkCreateImageView(vulkan->device, &imageViewInfo, nullptr, &image->view);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create image view");
-        return result;
-    }
-
-    return VK_SUCCESS;
-}
-
-VulkanImage* CreateVulkanImage(
-    VulkanContext* vulkan,
-    VkImageUsageFlags usageFlags,
-    VkMemoryPropertyFlags memoryFlags,
-    VkImageType type,
-    VkFormat format,
-    VkExtent3D extent,
-    VkImageTiling tiling)
-{
-    auto image = new VulkanImage;
-
-    VkResult result = InternalCreateVulkanImage(vulkan, image, usageFlags, memoryFlags, type, format, extent, tiling);
-    if (result != VK_SUCCESS) {
-        DestroyVulkanImage(vulkan, image);
-        image = nullptr;
-    }
-
-    return image;
-}
-
-void DestroyVulkanImage(
-    VulkanContext* vulkan,
-    VulkanImage* image)
-{
-    if (image->view)
-        vkDestroyImageView(vulkan->device, image->view, nullptr);
-    if (image->image)
-        vkDestroyImage(vulkan->device, image->image, nullptr);
-    if (image->memory)
-        vkFreeMemory(vulkan->device, image->memory, nullptr);
-
-    delete image;
-}
-
-static VkResult InternalCreateVulkanGraphicsPipeline(
-    VulkanContext* vulkan,
-    VulkanPipeline* pipeline,
-    VulkanGraphicsPipelineConfiguration const& config)
-{
-    VkResult result = VK_SUCCESS;
-
-    // Create descriptor set layout.
-    for (size_t index = 0; index < config.descriptorTypes.size(); index++) {
-        pipeline->descriptorSetLayoutBindings.push_back({
-            .binding            = static_cast<uint32_t>(index),
-            .descriptorType     = config.descriptorTypes[index],
-            .descriptorCount    = 1,
-            .stageFlags         = VK_SHADER_STAGE_ALL_GRAPHICS,
-            .pImmutableSamplers = nullptr,
-        });
-    }
-
-    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(pipeline->descriptorSetLayoutBindings.size()),
-        .pBindings = pipeline->descriptorSetLayoutBindings.data(),
-    };
-
-    result = vkCreateDescriptorSetLayout(vulkan->device, &descriptorSetLayoutInfo, nullptr, &pipeline->descriptorSetLayout);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create descriptor set layout");
-        return result;
-    }
-
-    // Create vertex shader module.
-    VkShaderModuleCreateInfo vertexShaderModuleInfo = {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = config.vertexShaderCode.size() * sizeof(uint32_t),
-        .pCode = config.vertexShaderCode.data(),
-    };
-
-    VkShaderModule vertexShaderModule;
-    result = vkCreateShaderModule(vulkan->device, &vertexShaderModuleInfo, nullptr, &vertexShaderModule);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create vertex shader module");
-        return result;
-    }
-
-    // Create fragment shader module.
-    VkShaderModuleCreateInfo fragmentShaderModuleInfo = {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = config.fragmentShaderCode.size() * sizeof(uint32_t),
-        .pCode = config.fragmentShaderCode.data(),
-    };
-
-    VkShaderModule fragmentShaderModule;
-    result = vkCreateShaderModule(vulkan->device, &fragmentShaderModuleInfo, nullptr, &fragmentShaderModule);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create fragment shader module");
-        return result;
-    }
-
-    VkPipelineShaderStageCreateInfo shaderStageInfos[] = {
-        {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .stage = VK_SHADER_STAGE_VERTEX_BIT,
-            .module = vertexShaderModule,
-            .pName = "main",
-        },
-        {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-            .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .module = fragmentShaderModule,
-            .pName = "main",
-        },
-    };
-
-    // Dynamic state.
-    VkDynamicState dynamicStates[] = {
-        VK_DYNAMIC_STATE_VIEWPORT,
-        VK_DYNAMIC_STATE_SCISSOR
-    };
-    VkPipelineDynamicStateCreateInfo dynamicStateInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-        .dynamicStateCount = static_cast<uint32_t>(std::size(dynamicStates)),
-        .pDynamicStates = dynamicStates,
-    };
-
-    // Vertex input state.
-    VkVertexInputBindingDescription vertexBindingDescription = {
-        .binding = 0,
-        .stride = config.vertexSize,
-        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-    };
-    VkPipelineVertexInputStateCreateInfo vertexInputStateInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-        .vertexBindingDescriptionCount = config.vertexSize > 0 ? 1u : 0u,
-        .pVertexBindingDescriptions = &vertexBindingDescription,
-        .vertexAttributeDescriptionCount = static_cast<uint32_t>(config.vertexFormat.size()),
-        .pVertexAttributeDescriptions = config.vertexFormat.data(),
-    };
-
-    // Input assembler state.
-    VkPipelineInputAssemblyStateCreateInfo inputAssemblyStateInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        .primitiveRestartEnable = VK_FALSE,
-    };
-
-    // Viewport state.
-    VkPipelineViewportStateCreateInfo viewportStateInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-        .viewportCount = 1,
-        .scissorCount = 1,
-    };
-
-    // Rasterizer state.
-    VkPipelineRasterizationStateCreateInfo rasterizationStateInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-        .depthClampEnable = VK_FALSE,
-        .rasterizerDiscardEnable = VK_FALSE,
-        .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
-        .frontFace = VK_FRONT_FACE_CLOCKWISE,
-        .depthBiasEnable = VK_FALSE,
-        .depthBiasConstantFactor = 0.0f,
-        .depthBiasClamp = 0.0f,
-        .depthBiasSlopeFactor = 0.0f,
-        .lineWidth = 1.0f,
-    };
-
-    // Multisample state.
-    VkPipelineMultisampleStateCreateInfo multisampleStateInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-        .sampleShadingEnable = VK_FALSE,
-        .minSampleShading = 1.0f,
-        .pSampleMask = nullptr,
-        .alphaToCoverageEnable = VK_FALSE,
-        .alphaToOneEnable = VK_FALSE,
-    };
-
-    // Depth-stencil state.
-    VkPipelineDepthStencilStateCreateInfo depthStencilStateInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable = VK_FALSE,
-        .depthWriteEnable = VK_FALSE,
-        .depthCompareOp = VK_COMPARE_OP_LESS,
-        .depthBoundsTestEnable = VK_FALSE,
-        .stencilTestEnable = VK_FALSE,
-        .front = {},
-        .back = {},
-        .minDepthBounds = 0.0f,
-        .maxDepthBounds = 1.0f,
-    };
-
-    // Color blend state.
-    VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {
-        .blendEnable = VK_FALSE,
-        .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-        .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
-        .colorBlendOp = VK_BLEND_OP_ADD,
-        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
-        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
-        .alphaBlendOp = VK_BLEND_OP_ADD,
-        .colorWriteMask = VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT,
-    };
-    VkPipelineColorBlendStateCreateInfo colorBlendStateInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .logicOpEnable = VK_FALSE,
-        .logicOp = VK_LOGIC_OP_COPY,
-        .attachmentCount = 1,
-        .pAttachments = &colorBlendAttachmentState,
-        .blendConstants = { 0, 0, 0, 0 },
-    };
-
-    // Pipeline layout.
-    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = 1,
-        .pSetLayouts = &pipeline->descriptorSetLayout,
-        .pushConstantRangeCount = 0,
-        .pPushConstantRanges = nullptr,
-    };
-
-    result = vkCreatePipelineLayout(vulkan->device, &pipelineLayoutCreateInfo, nullptr, &pipeline->pipelineLayout);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create pipeline layout");
-        return result;
-    }
-
-    // Create pipeline.
-    VkGraphicsPipelineCreateInfo graphicsPipelineInfo = {
-        .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .stageCount = static_cast<uint32_t>(std::size(shaderStageInfos)),
-        .pStages = shaderStageInfos,
-        .pVertexInputState = &vertexInputStateInfo,
-        .pInputAssemblyState = &inputAssemblyStateInfo,
-        .pViewportState = &viewportStateInfo,
-        .pRasterizationState = &rasterizationStateInfo,
-        .pMultisampleState = &multisampleStateInfo,
-        .pDepthStencilState = &depthStencilStateInfo,
-        .pColorBlendState = &colorBlendStateInfo,
-        .pDynamicState = &dynamicStateInfo,
-        .layout = pipeline->pipelineLayout,
-        .renderPass = vulkan->mainRenderPass,
-        .subpass = 0,
-        .basePipelineHandle = VK_NULL_HANDLE,
-        .basePipelineIndex = -1,
-    };
-
-    result = vkCreateGraphicsPipelines(vulkan->device, VK_NULL_HANDLE, 1, &graphicsPipelineInfo, nullptr, &pipeline->pipeline);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create pipeline");
-        return result;
-    }
-
-    vkDestroyShaderModule(vulkan->device, vertexShaderModule, nullptr);
-    vkDestroyShaderModule(vulkan->device, fragmentShaderModule, nullptr);
-
-    // Allocate descriptor sets, one per frame state.
-    for (uint32_t index = 0; index < 2; index++) {
-        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = vulkan->descriptorPool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &pipeline->descriptorSetLayout,
-        };
-
-        result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &pipeline->descriptorSets[index]);
-        if (result != VK_SUCCESS) {
-            Errorf(vulkan, "failed to allocate compute descriptor set");
-            return result;
-        }
-    }
-
-    pipeline->bindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-
-    return result;
-}
-
-VulkanPipeline* CreateVulkanGraphicsPipeline(
-    VulkanContext* vulkan,
-    VulkanGraphicsPipelineConfiguration const& config)
-{
-    auto pipeline = new VulkanPipeline;
-
-    VkResult result = InternalCreateVulkanGraphicsPipeline(vulkan, pipeline, config);
-    if (result != VK_SUCCESS) {
-        DestroyVulkanPipeline(vulkan, pipeline);
-        pipeline = nullptr;
-    }
-
-    return pipeline;
-}
-
-static VkResult InternalCreateVulkanComputePipeline(
-    VulkanContext* vulkan,
-    VulkanPipeline* pipeline,
-    VulkanComputePipelineConfiguration const& config)
-{
-    VkResult result = VK_SUCCESS;
-
-    // Create descriptor set layout.
-    for (size_t index = 0; index < config.descriptorTypes.size(); index++) {
-        pipeline->descriptorSetLayoutBindings.push_back({
-            .binding            = static_cast<uint32_t>(index),
-            .descriptorType     = config.descriptorTypes[index],
-            .descriptorCount    = 1,
-            .stageFlags         = VK_SHADER_STAGE_COMPUTE_BIT,
-            .pImmutableSamplers = nullptr,
-        });
-    }
-
-    VkDescriptorSetLayoutCreateInfo descriptorSetLayoutInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = static_cast<uint32_t>(pipeline->descriptorSetLayoutBindings.size()),
-        .pBindings = pipeline->descriptorSetLayoutBindings.data(),
-    };
-
-    result = vkCreateDescriptorSetLayout(vulkan->device, &descriptorSetLayoutInfo, nullptr, &pipeline->descriptorSetLayout);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create descriptor set layout");
-        return result;
-    }
-
-    // Create compute shader module.
-    VkShaderModuleCreateInfo computeShaderModuleInfo = {
-        .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        .codeSize = config.computeShaderCode.size() * sizeof(uint32_t),
-        .pCode = config.computeShaderCode.data(),
-    };
-
-    VkShaderModule computeShaderModule;
-
-    result = vkCreateShaderModule(vulkan->device, &computeShaderModuleInfo, nullptr, &computeShaderModule);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create compute shader module");
-        return result;
-    }
-
-    VkPipelineShaderStageCreateInfo computeShaderStageInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
-        .stage = VK_SHADER_STAGE_COMPUTE_BIT,
-        .module = computeShaderModule,
-        .pName = "main",
-    };
-
-    // Create pipeline layout.
-    VkPipelineLayoutCreateInfo computePipelineLayoutInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = 1,
-        .pSetLayouts = &pipeline->descriptorSetLayout,
-    };
-
-    result = vkCreatePipelineLayout(vulkan->device, &computePipelineLayoutInfo, nullptr, &pipeline->pipelineLayout);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create compute pipeline layout");
-        return result;
-    }
-
-    // Create pipeline.
-    VkComputePipelineCreateInfo computePipelineInfo = {
-        .sType = VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO,
-        .stage = computeShaderStageInfo,
-        .layout = pipeline->pipelineLayout,
-    };
-
-    result = vkCreateComputePipelines(vulkan->device, VK_NULL_HANDLE, 1, &computePipelineInfo, nullptr, &pipeline->pipeline);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to create compute pipeline");
-        return result;
-    }
-
-    vkDestroyShaderModule(vulkan->device, computeShaderModule, nullptr);
-
-    // Allocate descriptor sets, one per frame state.
-    for (uint32_t index = 0; index < 2; index++) {
-        VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = vulkan->descriptorPool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &pipeline->descriptorSetLayout,
-        };
-
-        result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &pipeline->descriptorSets[index]);
-        if (result != VK_SUCCESS) {
-            Errorf(vulkan, "failed to allocate compute descriptor set");
-            return result;
-        }
-    }
-
-    pipeline->bindPoint = VK_PIPELINE_BIND_POINT_COMPUTE;
-
-    return result;
-}
-
-VulkanPipeline* CreateVulkanComputePipeline(
-    VulkanContext* vulkan,
-    VulkanComputePipelineConfiguration const& config)
-{
-    auto pipeline = new VulkanPipeline;
-
-    VkResult result = InternalCreateVulkanComputePipeline(vulkan, pipeline, config);
-    if (result != VK_SUCCESS) {
-        DestroyVulkanPipeline(vulkan, pipeline);
-        pipeline = nullptr;
-    }
-
-    return pipeline;
-}
-
-void DestroyVulkanPipeline(
-    VulkanContext* vulkan,
-    VulkanPipeline* pipeline)
-{
-    if (pipeline->pipeline)
-        vkDestroyPipeline(vulkan->device, pipeline->pipeline, nullptr);
-    if (pipeline->pipelineLayout)
-        vkDestroyPipelineLayout(vulkan->device, pipeline->pipelineLayout, nullptr);
-    if (pipeline->descriptorSetLayout)
-        vkDestroyDescriptorSetLayout(vulkan->device, pipeline->descriptorSetLayout, nullptr);
-}
-
-VkResult BeginFrame(
-    VulkanContext* vulkan,
-    VulkanFrameState** frameOut)
-{
-    VkResult result = VK_SUCCESS;
-
-    int frameIndex = (vulkan->frameIndex + 1) % 2;
-    VulkanFrameState* frame = &vulkan->frameStates[frameIndex];
+    VulkanFrameState* frame0 = &vulkan->frameStates[vulkan->frameIndex % 2];
+    VulkanFrameState* frame = &vulkan->frameStates[(vulkan->frameIndex + 1) % 2];
+
+    frame->fresh = false;
+    vulkan->frameIndex++;
 
     // Wait for the previous commands using this frame state to finish executing.
     vkWaitForFences(vulkan->device, 1, &frame->availableFence, VK_TRUE, UINT64_MAX);
@@ -1350,6 +1387,41 @@ VkResult BeginFrame(
         return result;
     }
 
+    // End compute command buffer.
+    result = vkEndCommandBuffer(frame->computeCommandBuffer);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to end recording compute command buffer");
+        return result;
+    }
+
+    VkPipelineStageFlags computeWaitStages[] = {
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+    };
+
+    VkSemaphore computeSignalSemaphores[] = {
+        frame->computeToComputeSemaphore,
+        frame->computeToGraphicsSemaphore,
+    };
+
+    auto computeSubmitInfo = VkSubmitInfo {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount = frame0->fresh ? 0u : 1u,
+        .pWaitSemaphores = &frame0->computeToComputeSemaphore,
+        .pWaitDstStageMask = computeWaitStages,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &frame->computeCommandBuffer,
+        .signalSemaphoreCount = static_cast<uint32_t>(std::size(computeSignalSemaphores)),
+        .pSignalSemaphores = computeSignalSemaphores,
+    };
+
+    result = vkQueueSubmit(vulkan->computeQueue, 1, &computeSubmitInfo, nullptr);
+    if (result != VK_SUCCESS) {
+        Errorf(vulkan, "failed to submit compute command buffer");
+        return result;
+    }
+
+    // ----------- GRAPHICS --------------------------
+
     // Start graphics command buffer.
     vkResetCommandBuffer(frame->graphicsCommandBuffer, 0);
     auto graphicsBeginInfo = VkCommandBufferBeginInfo {
@@ -1364,7 +1436,7 @@ VkResult BeginFrame(
     }
 
     VkClearValue clearValues[] = {
-        { .color = {{ 0.0f, 0.0f, 0.0f, 1.0f }} },
+        { .color = {{ 0.0f, 1.0f, 0.0f, 1.0f }} },
         { .depthStencil = { 1.0f, 0 } }
     };
 
@@ -1378,19 +1450,6 @@ VkResult BeginFrame(
     };
 
     vkCmdBeginRenderPass(frame->graphicsCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-
-    vulkan->frameIndex = frameIndex;
-    *frameOut = frame;
-
-    return VK_SUCCESS;
-}
-
-VkResult EndFrame(
-    VulkanContext* vulkan,
-    VulkanFrameState* frame)
-{
-    VkResult result = VK_SUCCESS;
-
     vkCmdEndRenderPass(frame->graphicsCommandBuffer);
 
     result = vkEndCommandBuffer(frame->graphicsCommandBuffer);
@@ -1399,25 +1458,19 @@ VkResult EndFrame(
         return result;
     }
 
-    result = vkEndCommandBuffer(frame->computeCommandBuffer);
-    if (result != VK_SUCCESS) {
-        Errorf(vulkan, "failed to end recording compute command buffer");
-        return result;
-    }
-
     VkPipelineStageFlags graphicsWaitStages[] = {
-        //VK_PIPELINE_STAGE_VERTEX_INPUT_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
         VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
     };
 
     VkSemaphore graphicsWaitSemaphores[] = {
-        //frame->computeFinishedSemaphore,
+        frame->computeToGraphicsSemaphore,
         frame->imageAvailableSemaphore,
     };
 
     auto graphicsSubmitInfo = VkSubmitInfo {
         .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .waitSemaphoreCount = 1,
+        .waitSemaphoreCount = static_cast<uint32_t>(std::size(graphicsWaitSemaphores)),
         .pWaitSemaphores = graphicsWaitSemaphores,
         .pWaitDstStageMask = graphicsWaitStages,
         .commandBufferCount = 1,
@@ -1431,6 +1484,8 @@ VkResult EndFrame(
         Errorf(vulkan, "failed to submit graphics command buffer");
         return result;
     }
+
+    // ---- PRESENTATION ---------------
 
     auto presentInfo = VkPresentInfoKHR {
         .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
@@ -1529,4 +1584,69 @@ void BindVulkanPipeline(
             break;
         }
     }
+}
+
+VkResult TransitionImageFromComputeToGraphics(
+    VulkanContext* vulkan,
+    VulkanImage* image,
+    VkImageLayout oldLayout,
+    VkImageLayout newLayout)
+{
+    // TODO: Support asynchronous compute.
+    assert(vulkan->computeQueueFamilyIndex == vulkan->graphicsQueueFamilyIndex);
+
+    VkCommandBufferAllocateInfo allocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = vulkan->computeCommandPool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(vulkan->device, &allocateInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    VkImageMemoryBarrier barrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+        .oldLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = image->image,
+        .subresourceRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+    };
+
+    vkCmdPipelineBarrier(commandBuffer,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &barrier);
+
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &commandBuffer,
+    };
+    vkQueueSubmit(vulkan->graphicsQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(vulkan->graphicsQueue);
+    vkFreeCommandBuffers(vulkan->device, vulkan->graphicsCommandPool, 1, &commandBuffer);
+
+    return VK_SUCCESS;
 }

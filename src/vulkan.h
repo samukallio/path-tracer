@@ -23,26 +23,6 @@ struct VulkanDescriptor
     VkDescriptorImageInfo       image                       = {};
 };
 
-struct VulkanGraphicsPipelineConfiguration
-{
-    using VertexFormat = std::vector<VkVertexInputAttributeDescription>;
-    using DescriptorTypes = std::vector<VkDescriptorType>;
-
-    uint32_t                    vertexSize                  = 0;
-    VertexFormat                vertexFormat                = {};
-    std::span<uint32_t const>   vertexShaderCode            = {};
-    std::span<uint32_t const>   fragmentShaderCode          = {};
-    DescriptorTypes             descriptorTypes             = {};
-};
-
-struct VulkanComputePipelineConfiguration
-{
-    using DescriptorTypes = std::vector<VkDescriptorType>;
-
-    std::span<uint32_t const>   computeShaderCode           = {};
-    DescriptorTypes             descriptorTypes             = {};
-};
-
 struct VulkanPipeline
 {
     using Bindings = std::vector<VkDescriptorSetLayoutBinding>;
@@ -58,6 +38,7 @@ struct VulkanPipeline
 struct VulkanFrameState
 {
     uint32_t                    index                       = 0;
+    bool                        fresh                       = false;
 
     // Fence that gets signaled when the previous commands
     // accessing the resources of this frame state have been
@@ -69,8 +50,14 @@ struct VulkanFrameState
     VkSemaphore                 imageAvailableSemaphore     = VK_NULL_HANDLE;
     VkSemaphore                 imageFinishedSemaphore      = VK_NULL_HANDLE;
 
+    VkSemaphore                 computeToComputeSemaphore   = VK_NULL_HANDLE;
+    VkSemaphore                 computeToGraphicsSemaphore  = VK_NULL_HANDLE;
+
     VkCommandBuffer             graphicsCommandBuffer       = VK_NULL_HANDLE;
     VkCommandBuffer             computeCommandBuffer        = VK_NULL_HANDLE;
+
+    VulkanImage                 renderTarget                = {};
+    VulkanImage                 renderTargetGraphicsCopy    = {};
 };
 
 struct VulkanContext
@@ -113,6 +100,9 @@ struct VulkanContext
 
     int                         frameIndex                  = 0;
     VulkanFrameState            frameStates[2]              = {};
+
+    VulkanPipeline              blitPipeline                = {};
+    VulkanPipeline              renderPipeline              = {};
 };
 
 VulkanContext* CreateVulkan(
@@ -122,46 +112,5 @@ VulkanContext* CreateVulkan(
 void DestroyVulkan(
     VulkanContext* vulkan);
 
-VulkanImage* CreateVulkanImage(
-    VulkanContext* vulkan,
-    VkImageUsageFlags usageFlags,
-    VkMemoryPropertyFlags memoryFlags,
-    VkImageType type,
-    VkFormat format,
-    VkExtent3D extent,
-    VkImageTiling tiling);
-
-void DestroyVulkanImage(
-    VulkanContext* vulkan,
-    VulkanImage* image);
-
-VulkanPipeline* CreateVulkanGraphicsPipeline(
-    VulkanContext* vulkan,
-    VulkanGraphicsPipelineConfiguration const& config);
-
-VulkanPipeline* CreateVulkanComputePipeline(
-    VulkanContext* vulkan,
-    VulkanComputePipelineConfiguration const& config);
-
-void DestroyVulkanPipeline(
-    VulkanContext* vulkan,
-    VulkanPipeline* pipeline);
-
-VkResult BeginFrame(
-    VulkanContext* vulkan,
-    VulkanFrameState** frameOut);
-
-VkResult EndFrame(
-    VulkanContext* vulkan,
-    VulkanFrameState* frame);
-
-void UpdateVulkanPipelineDescriptors(
-    VulkanContext* vulkan,
-    VulkanFrameState* frame,
-    VulkanPipeline* pipeline,
-    std::span<VulkanDescriptor> descriptors);
-
-void BindVulkanPipeline(
-    VulkanContext* vulkan,
-    VulkanFrameState* frame,
-    VulkanPipeline* pipeline);
+VkResult RenderFrame(
+    VulkanContext* vulkan);
