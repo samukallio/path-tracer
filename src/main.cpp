@@ -5,7 +5,7 @@
 #include <GLFW/glfw3.h>
 
 int const WINDOW_WIDTH = 1024;
-int const WINDOW_HEIGHT = 768;
+int const WINDOW_HEIGHT = 1024;
 char const* APPLICATION_NAME = "Path Tracer";
 
 int main()

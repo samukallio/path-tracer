@@ -12,6 +12,9 @@
 
 #include <vulkan/vulkan.h>
 
+uint32_t const RENDER_WIDTH = 1024;
+uint32_t const RENDER_HEIGHT = 1024;
+
 uint32_t const BLIT_VERTEX_SHADER[] =
 {
     #include "blit.vertex.inc"
@@ -589,7 +592,7 @@ static VkResult InternalCreateFrameResources(
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             VK_IMAGE_TYPE_2D,
             VK_FORMAT_R8G8B8A8_UNORM,
-            { .width = 512, .height = 512, .depth = 1 },
+            { .width = RENDER_WIDTH, .height = RENDER_HEIGHT, .depth = 1 },
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_LAYOUT_GENERAL,
             true);
@@ -600,7 +603,7 @@ static VkResult InternalCreateFrameResources(
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             VK_IMAGE_TYPE_2D,
             VK_FORMAT_R8G8B8A8_UNORM,
-            { .width = 512, .height = 512, .depth = 1 },
+            { .width = RENDER_WIDTH, .height = RENDER_HEIGHT, .depth = 1 },
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             false);
@@ -1681,7 +1684,7 @@ VkResult RenderFrame(
         0, 1, &frame->computeDescriptorSet,
         0, nullptr);
 
-    vkCmdDispatch(frame->computeCommandBuffer, 512/16, 512/16, 1);
+    vkCmdDispatch(frame->computeCommandBuffer, RENDER_WIDTH/16, RENDER_HEIGHT/16, 1);
 
     // Copy the render target image into the shader read copy.
     {
@@ -1733,7 +1736,7 @@ VkResult RenderFrame(
                 0, 0, 0
             },
             .extent = {
-                512, 512, 1
+                RENDER_WIDTH, RENDER_HEIGHT, 1
             }
         };
 
