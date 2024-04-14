@@ -18,9 +18,9 @@ layout(binding = 0) uniform SceneUniformBuffer
     vec4 color;
 } scene;
 
-layout(binding = 1, rgba8) uniform readonly image2D inputImage;
+layout(binding = 1, rgba32f) uniform readonly image2D inputImage;
 
-layout(binding = 2, rgba8) uniform writeonly image2D outputImage;
+layout(binding = 2, rgba32f) uniform writeonly image2D outputImage;
 
 layout(local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
 
