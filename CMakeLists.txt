@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.8)
 
 project (path-tracer)
 
-find_package (Vulkan REQUIRED FATAL_ERROR)
+find_package (Vulkan REQUIRED)
 find_program (glslc_executable NAMES glslc HINTS Vulkan::glslc)
 
 add_subdirectory (lib/glfw-3.4)
