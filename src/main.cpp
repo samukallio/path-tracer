@@ -17,38 +17,8 @@ int main()
 
     auto vulkan = CreateVulkan(window, APPLICATION_NAME);
 
-
-
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
-
-        //VkResult result = VK_SUCCESS;
-        //VulkanFrameState* frame = nullptr;
-
-        //result = BeginFrame(vulkan, &frame);
-        //if (result != VK_SUCCESS)
-        //    break;
-
-        //VulkanDescriptor renderDescriptors[] = {
-        //    {
-        //        .image = {
-        //            .sampler = VK_NULL_HANDLE,
-        //            .imageView = renderTargetImage->view,
-        //            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        //        }
-        //    }
-        //};
-        //UpdateVulkanPipelineDescriptors(vulkan, frame, renderPipeline, renderDescriptors);
-
-        //BindVulkanPipeline(vulkan, frame, renderPipeline);
-        //uint16_t groupCountX = 512 / 16;
-        //uint16_t groupCountY = 512 / 16;
-        //vkCmdDispatch(frame->computeCommandBuffer, groupCountX, groupCountY, 1);
-
-        //BindVulkanPipeline(vulkan, frame, blitPipeline);
-        //vkCmdDraw(frame->graphicsCommandBuffer, 6, 1, 0, 0);
-
-        //EndFrame(vulkan, frame);
 
         RenderFrame(vulkan);
     }
