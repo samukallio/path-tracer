@@ -1,5 +1,5 @@
 #include "vulkan.h"
-#include "bvh.h"
+#include "scene.h"
 
 #include <cassert>
 #include <cstdarg>
