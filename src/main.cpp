@@ -13,7 +13,7 @@ int main()
 {
     Scene scene;
 
-    LoadScene(&scene, "../bunny.obj");
+    LoadScene(&scene, "../armadillo.obj");
 
     for (MeshNode const& node : scene.meshNodes) {
         if (node.faceEndIndex > 0) {

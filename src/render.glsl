@@ -77,7 +77,7 @@ void TraceMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
     vec3 edge2 = face.position2 - face.position0;
     vec3 h = cross(ray.direction, edge2);
     float a = dot(edge1, h);
-    if (a > -0.0001 && a < 0.0001) return;
+    if (a > -1e-9 && a < +1e-9) return;
     float f = 1 / a;
     vec3 s = ray.origin - face.position0;
     float u = f * dot(s, h);
@@ -95,7 +95,7 @@ void TraceMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
 
 void TraceMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
 {
-    uint stack[16];
+    uint stack[32];
     uint depth;
 
     stack[0] = rootNodeIndex;
@@ -155,7 +155,7 @@ vec4 Trace(Ray ray)
 
         vec3 position = ray.origin + hit.time * ray.direction;
         vec3 normal = face.normal0;
-        vec3 lightPosition = vec3(5, 5, 5);
+        vec3 lightPosition = vec3(5, 5, -5);
         vec3 lightDir = normalize(lightPosition - position);
         float intensity = clamp(dot(lightDir, normal), 0, 1);
         vec3 color = intensity * vec3(1, 1, 1);
