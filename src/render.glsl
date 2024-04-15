@@ -9,6 +9,8 @@ struct Ray
 struct Hit
 {
     float   time;
+    uint    objectType;
+    uint    objectIndex;
 };
 
 struct Sphere
@@ -67,8 +69,9 @@ layout(
     local_size_z = 1)
     in;
 
-void TraceMeshFace(Ray ray, MeshFace face, inout Hit hit)
+void TraceMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
 {
+    MeshFace face = meshFaces[meshFaceIndex];
     vec3 edge1 = face.position1 - face.position0;
     vec3 edge2 = face.position2 - face.position0;
     vec3 h = cross(ray.direction, edge2);
@@ -83,7 +86,10 @@ void TraceMeshFace(Ray ray, MeshFace face, inout Hit hit)
     if (v < 0 || u + v > 1) return;
     float t = f * dot(edge2, q);
     if (t <= 0.0001) return;
-    hit.time = min(hit.time, t);
+    if (t > hit.time) return;
+    hit.time = t;
+    hit.objectType = 0;
+    hit.objectIndex = meshFaceIndex;
 }
 
 void TraceMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
@@ -127,8 +133,8 @@ void TraceMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
         if (entryTime >= hit.time) continue;
 
         if (node.faceEndIndex > 0) {
-            for (uint index = node.faceBeginOrNodeIndex; index < node.faceEndIndex; index++)
-                TraceMeshFace(ray, meshFaces[index], hit);
+            for (uint faceIndex = node.faceBeginOrNodeIndex; faceIndex < node.faceEndIndex; faceIndex++)
+                TraceMeshFace(ray, faceIndex, hit);
         }
         else {
             stack[depth++] = node.faceBeginOrNodeIndex+1;
@@ -140,11 +146,19 @@ void TraceMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
 vec4 Trace(Ray ray)
 {
     Hit hit;
-    hit.time = 10000;
+    hit.time = 1e30;
 
     TraceMesh(ray, 0, hit);
-    if (hit.time < 10000) {
-        return vec4(0, 0, 0, 1);
+    if (hit.time < 1e30) {
+        MeshFace face = meshFaces[hit.objectIndex];
+
+        vec3 position = ray.origin + hit.time * ray.direction;
+        vec3 normal = face.normal0;
+        vec3 lightPosition = vec3(5, 5, -5);
+        vec3 lightDir = normalize(lightPosition - position);
+        float intensity = clamp(dot(lightDir, normal), 0, 1);
+        vec3 color = intensity * vec3(1, 1, 1);
+        return vec4(color, 1);
     }
 
     return sceneColor;
