@@ -11,9 +11,13 @@ add_subdirectory (lib/glm-1.0.1)
 set (CMAKE_CXX_STANDARD 20)
 
 add_executable (path-tracer
+	src/common.h
 	src/main.cpp
 	src/vulkan.h
 	src/vulkan.cpp
+	src/scene.h
+	src/scene.cpp
+	src/tiny_obj_loader.h
 )
 
 target_link_libraries (path-tracer

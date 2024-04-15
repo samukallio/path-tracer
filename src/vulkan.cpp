@@ -1,4 +1,5 @@
 #include "vulkan.h"
+#include "bvh.h"
 
 #include <cassert>
 #include <cstdarg>
@@ -1484,6 +1485,8 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         },
     };
 
@@ -1538,6 +1541,9 @@ void DestroyVulkan(VulkanContext* vulkan)
         // before we start releasing resources.
         vkDeviceWaitIdle(vulkan->device);
     }
+
+    InternalDestroyBuffer(vulkan, &vulkan->meshNodeBuffer);
+    InternalDestroyBuffer(vulkan, &vulkan->meshFaceBuffer);
 
     InternalDestroyFrameResources(vulkan);
 
@@ -1617,6 +1623,95 @@ static void InternalWaitForWindowSize(
         glfwGetFramebufferSize(vulkan->window, &width, &height);
         glfwWaitEvents();
     }
+}
+
+static void InternalUpdateSceneDataDescriptors(
+    VulkanContext* vulkan)
+{
+    if (vulkan->meshFaceBuffer.buffer == VK_NULL_HANDLE)
+        return;
+
+    VkDescriptorBufferInfo meshFaceBufferInfo = {
+        .buffer = vulkan->meshFaceBuffer.buffer,
+        .offset = 0,
+        .range = vulkan->meshFaceBuffer.size,
+    };
+
+    VkDescriptorBufferInfo meshNodeBufferInfo = {
+        .buffer = vulkan->meshNodeBuffer.buffer,
+        .offset = 0,
+        .range = vulkan->meshNodeBuffer.size,
+    };
+
+    for (int index = 0; index < 2; index++) {
+        VulkanFrameState* frame = &vulkan->frameStates[index];
+
+        VkWriteDescriptorSet writes[] = {
+            {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = frame->computeDescriptorSet,
+                .dstBinding = 3,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .pBufferInfo = &meshFaceBufferInfo,
+            },
+            {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = frame->computeDescriptorSet,
+                .dstBinding = 4,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .pBufferInfo = &meshNodeBufferInfo,
+            },
+        };
+
+        vkUpdateDescriptorSets(vulkan->device, static_cast<uint32_t>(std::size(writes)), writes, 0, nullptr);
+    }
+}
+
+VkResult UploadSceneGeometry(
+    VulkanContext* vulkan,
+    Scene const* scene)
+{
+    VkResult result = VK_SUCCESS;
+
+    // Scene geometry data is shared between all frame states, so we must
+    // wait for all frames to finish rendering before we touch it.
+    vkDeviceWaitIdle(vulkan->device);
+
+    // Remove the old geometry buffers, but don't destroy them yet.
+    // We must update descriptors to point to the new buffers first.
+    VulkanBuffer meshFaceBufferOld = vulkan->meshFaceBuffer;
+    vulkan->meshFaceBuffer = VulkanBuffer {};
+    VulkanBuffer meshNodeBufferOld = vulkan->meshNodeBuffer;
+    vulkan->meshNodeBuffer = VulkanBuffer {};
+
+    size_t meshFaceBufferSize = sizeof(MeshFace) * scene->meshFaces.size();
+    result = InternalCreateBuffer(
+        vulkan,
+        &vulkan->meshFaceBuffer,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        meshFaceBufferSize);
+    InternalWriteToHostVisibleBuffer(vulkan, &vulkan->meshFaceBuffer, scene->meshFaces.data(), meshFaceBufferSize);
+
+    size_t meshNodeBufferSize = sizeof(MeshNode) * scene->meshNodes.size();
+    result = InternalCreateBuffer(
+        vulkan,
+        &vulkan->meshNodeBuffer,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        meshNodeBufferSize);
+    InternalWriteToHostVisibleBuffer(vulkan, &vulkan->meshNodeBuffer, scene->meshNodes.data(), meshNodeBufferSize);
+
+    InternalUpdateSceneDataDescriptors(vulkan);
+
+    InternalDestroyBuffer(vulkan, &meshFaceBufferOld);
+    InternalDestroyBuffer(vulkan, &meshNodeBufferOld);
+
+    return result;
 }
 
 VkResult RenderFrame(

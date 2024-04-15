@@ -3,3 +3,6 @@ build
 
 # Third-party library dependencies
 lib
+
+# Test objects
+*.obj

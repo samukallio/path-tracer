@@ -1,16 +1,19 @@
 #pragma once
 
+struct Scene;
+
+#include "common.h"
+
 #include <vector>
 #include <span>
 
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
-#include <glm/glm.hpp>
 
 struct SceneUniformBuffer
 {
     int32_t                     frameIndex                  = 0;
-    alignas(16) glm::vec4       color                       = {};
+    glm::aligned_vec4           color                       = {};
 };
 
 struct VulkanBuffer
@@ -117,6 +120,9 @@ struct VulkanContext
 
     VkSampler                   sampler                     = VK_NULL_HANDLE;
 
+    VulkanBuffer                meshFaceBuffer              = {};
+    VulkanBuffer                meshNodeBuffer              = {};
+
     VulkanPipeline              blitPipeline                = {};
     VulkanPipeline              renderPipeline              = {};
 };
@@ -127,6 +133,10 @@ VulkanContext* CreateVulkan(
 
 void DestroyVulkan(
     VulkanContext* vulkan);
+
+VkResult UploadSceneGeometry(
+    VulkanContext* vulkan,
+    Scene const* scene);
 
 VkResult RenderFrame(
     VulkanContext* vulkan);
