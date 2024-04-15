@@ -41,6 +41,7 @@ struct MeshNode
 layout(binding = 0)
 uniform SceneUniformBuffer
 {
+    mat4    viewMatrixInverse;
     int     sceneFrame;
     vec4    sceneColor;
 };
@@ -154,7 +155,7 @@ vec4 Trace(Ray ray)
 
         vec3 position = ray.origin + hit.time * ray.direction;
         vec3 normal = face.normal0;
-        vec3 lightPosition = vec3(5, 5, -5);
+        vec3 lightPosition = vec3(5, 5, 5);
         vec3 lightDir = normalize(lightPosition - position);
         float intensity = clamp(dot(lightDir, normal), 0, 1);
         vec3 color = intensity * vec3(1, 1, 1);
@@ -179,15 +180,18 @@ void main()
         return;
 
     // Point on the "virtual near plane" through which the ray passes.
-    vec3 nearPoint = vec3(
+    vec4 nearPoint = viewMatrixInverse * vec4(
         imagePositionNormalized.x - 0.5,
         0.5 - imagePositionNormalized.y,
-        1.0
+        -1.0,
+        0.0
     );
+
+    vec4 originPoint = viewMatrixInverse * vec4(0, 0, 0, 1);
 
     // Trace.
     Ray ray;
-    ray.origin = vec3(0, 0, -5);
-    ray.direction = normalize(nearPoint);
+    ray.origin = originPoint.xyz;
+    ray.direction = normalize(nearPoint).xyz;
     imageStore(outputImage, imagePosition, Trace(ray));
 }

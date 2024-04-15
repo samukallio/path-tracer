@@ -12,6 +12,7 @@ struct Scene;
 
 struct SceneUniformBuffer
 {
+    glm::mat4                   viewMatrixInverse           = {};
     int32_t                     frameIndex                  = 0;
     glm::aligned_vec4           color                       = {};
 };
@@ -139,4 +140,5 @@ VkResult UploadSceneGeometry(
     Scene const* scene);
 
 VkResult RenderFrame(
-    VulkanContext* vulkan);
+    VulkanContext* vulkan,
+    SceneUniformBuffer const* parameters);

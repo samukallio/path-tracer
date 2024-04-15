@@ -1715,7 +1715,8 @@ VkResult UploadSceneGeometry(
 }
 
 VkResult RenderFrame(
-    VulkanContext* vulkan)
+    VulkanContext* vulkan,
+    SceneUniformBuffer const* parameters)
 {
     VkResult result = VK_SUCCESS;
 
@@ -1746,11 +1747,7 @@ VkResult RenderFrame(
     // Reset the fence to indicate that the frame state is no longer available.
     vkResetFences(vulkan->device, 1, &frame->availableFence);
 
-    SceneUniformBuffer sceneUniformData = {
-        .frameIndex = vulkan->frameIndex,
-        .color = glm::vec4(1, 0, 1, 0),
-    };
-    InternalWriteToHostVisibleBuffer(vulkan, &frame->sceneUniformBuffer, &sceneUniformData, sizeof(SceneUniformBuffer));
+    InternalWriteToHostVisibleBuffer(vulkan, &frame->sceneUniformBuffer, parameters, sizeof(SceneUniformBuffer));
 
     // --- Compute ------------------------------------------------------------
 
