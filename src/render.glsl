@@ -1,5 +1,7 @@
 #version 450
 
+const float INFINITY = 1e30f;
+
 struct Ray
 {
     vec3    origin;
@@ -93,68 +95,110 @@ void TraceMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
     hit.objectIndex = meshFaceIndex;
 }
 
+float IntersectMeshNodeBounds(Ray ray, float reach, MeshNode node)
+{
+    // Compute ray time to the axis-aligned planes at the node bounding
+    // box minimum and maximum corners.
+    vec3 minimum = (node.minimum - ray.origin) / ray.direction;
+    vec3 maximum = (node.maximum - ray.origin) / ray.direction;
+
+    // For each coordinate axis, sort out which of the two coordinate
+    // planes (at bounding box min/max points) comes earlier in time and
+    // which one comes later.
+    vec3 earlier = min(minimum, maximum);
+    vec3 later = max(minimum, maximum);
+
+    // Compute the ray entry and exit times.  The ray enters the box when
+    // it has crossed all of the entry planes, so we take the maximum.
+    // Likewise, the ray has exit the box when it has exit at least one
+    // of the exit planes, so we take the minimum.
+    float entry = max(max(earlier.x, earlier.y), earlier.z);
+    float exit = min(min(later.x, later.y), later.z);
+
+    // If the exit time is greater than the entry time, then the ray has
+    // missed the box altogether.
+    if (exit < entry) return INFINITY;
+
+    // If the exit time is less than 0, then the box is behind the eye.
+    if (exit <= 0) return INFINITY;
+
+    // If the entry time is greater than previous hit time, then the box
+    // is occluded.
+    if (entry >= reach) return INFINITY;
+
+    return entry;
+}
+
 void TraceMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
 {
     uint stack[32];
-    uint depth;
+    uint depth = 0;
 
-    stack[0] = rootNodeIndex;
-    depth = 1;
+    MeshNode node = meshNodes[rootNodeIndex];
 
-    while (depth > 0) {
-        MeshNode node = meshNodes[stack[--depth]];
-
-        // Compute ray time to the axis-aligned planes at the node bounding
-        // box minimum and maximum corners.
-        vec3 minimumTime = (node.minimum - ray.origin) / ray.direction;
-        vec3 maximumTime = (node.maximum - ray.origin) / ray.direction;
-
-        // For each coordinate axis, sort out which of the two coordinate
-        // planes (at bounding box min/max points) comes earlier in time and
-        // which one comes later.
-        vec3 earlierTime = min(minimumTime, maximumTime);
-        vec3 laterTime = max(minimumTime, maximumTime);
-
-        // Compute the ray entry and exit times.  The ray enters the box when
-        // it has crossed all of the entry planes, so we take the maximum.
-        // Likewise, the ray has exit the box when it has exit at least one
-        // of the exit planes, so we take the minimum.
-        float entryTime = max(max(earlierTime.x, earlierTime.y), earlierTime.z);
-        float exitTime = min(min(laterTime.x, laterTime.y), laterTime.z);
-
-        // If the exit time is greater than the entry time, then the ray has
-        // missed the box altogether.
-        if (exitTime < entryTime) continue;
-
-        // If the exit time is less than 0, then the box is behind the eye.
-        if (exitTime <= 0) continue;
-
-        // If the entry time is greater than previous hit time, then the box
-        // is occluded.
-        if (entryTime >= hit.time) continue;
-
+    while (true) {
+        // Leaf node or internal?
         if (node.faceEndIndex > 0) {
+            // Leaf node, trace all geometry within.
             for (uint faceIndex = node.faceBeginOrNodeIndex; faceIndex < node.faceEndIndex; faceIndex++)
                 TraceMeshFace(ray, faceIndex, hit);
         }
         else {
-            stack[depth++] = node.faceBeginOrNodeIndex+1;
-            stack[depth++] = node.faceBeginOrNodeIndex;
+            // Internal node.
+            // Load the first subnode as the node to be processed next.
+            uint index = node.faceBeginOrNodeIndex;
+            node = meshNodes[index];
+            float time = IntersectMeshNodeBounds(ray, hit.time, node);
+
+            // Also load the second subnode to see if it is closer.
+            uint indexB = index + 1;
+            MeshNode nodeB = meshNodes[indexB];
+            float timeB = IntersectMeshNodeBounds(ray, hit.time, nodeB);
+
+            // If the second subnode is strictly closer than the first one,
+            // then it was definitely hit, so process it next.
+            if (time > timeB) {
+                // If the first subnode was also hit, then set it aside for later.
+                if (time < INFINITY) stack[depth++] = index;
+                node = nodeB;
+                continue;
+            }
+
+            // The first subnode is at least as close as the second one.
+            // If the second subnode was hit, then both of them were,
+            // and we should set the second one aside for later.
+            if (timeB < INFINITY) {
+                stack[depth++] = indexB;
+                continue;
+            }
+
+            // The first subnode is at least as close as the second one,
+            // and the second subnode was not hit.  If the first one was
+            // hit, then process it next.
+            if (time < INFINITY) continue;
         }
+
+        // Just processed a leaf node or an internal node with no intersecting
+        // subnodes.  If the stack is also empty, then we are done.
+        if (depth == 0) break;
+
+        // Pull a node from the stack.
+        node = meshNodes[stack[--depth]];
     }
 }
 
 vec4 Trace(Ray ray)
 {
     Hit hit;
-    hit.time = 1e30;
+    hit.time = INFINITY;
 
     TraceMesh(ray, 0, hit);
-    if (hit.time < 1e30) {
+    if (hit.time < INFINITY) {
         MeshFace face = meshFaces[hit.objectIndex];
 
         vec3 position = ray.origin + hit.time * ray.direction;
         vec3 normal = face.normal0;
+
         vec3 lightPosition = vec3(5, 5, -5);
         vec3 lightDir = normalize(lightPosition - position);
         float intensity = clamp(dot(lightDir, normal), 0, 1);
