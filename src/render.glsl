@@ -297,7 +297,7 @@ vec4 SampleSkybox(Ray ray)
 
     float x = floor(size.x * (0.5 + phi / 6.28318));
     float y = floor(size.y * (0.5 + theta / 3.14159));
-    ivec2 xy = ivec2(int(x), int(y));
+    ivec2 xy = ivec2(x, y);
 
     return imageLoad(skyboxImage, min(xy, size - 1));
 }
@@ -310,7 +310,7 @@ vec4 Trace(Ray ray)
     vec4 outputColor = vec4(0, 0, 0, 0);
     vec4 filterColor = vec4(1, 1, 1, 0);
 
-    for (uint bounce = 0; bounce < 5; bounce++) {
+    for (uint bounce = 0; bounce < 10; bounce++) {
 
         for (uint objectIndex = 0; objectIndex < objectCount; objectIndex++)
             TraceObject(ray, objectIndex, hit);
@@ -333,7 +333,7 @@ vec4 Trace(Ray ray)
 
             diffuseColor = vec4(1, 1, 1, 0);
 
-            smoothness = 0.6f;
+            smoothness = 0.7f;
         }
 
         if (hit.type == HIT_PLANE) {
@@ -349,7 +349,7 @@ vec4 Trace(Ray ray)
         vec3 specularDirection = reflect(ray.direction, normal);
 
         ray.origin = ray.origin + (hit.time - 1e-3) * ray.direction;
-        ray.direction = mix(diffuseDirection, specularDirection, smoothness);
+        ray.direction = normalize(mix(diffuseDirection, specularDirection, smoothness));
 
         filterColor *= diffuseColor;
 
@@ -374,7 +374,7 @@ void main()
     if (imagePosition.y >= imageSize_.y) return;
 
     //
-    vec2 samplePosition = imagePosition + vec2(0.5, 0.5);
+    vec2 samplePosition = imagePosition + vec2(Random0To1(), Random0To1());
     vec2 samplePositionNormalized = samplePosition / imageSize_;
 
     // Point on the "virtual near plane" through which the ray passes.

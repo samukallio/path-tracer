@@ -99,7 +99,7 @@ int main()
 
         SceneUniformBuffer parameters = {
             .viewMatrixInverse = glm::inverse(viewMatrix),
-            .nearPlaneSize = { 1.0f, WINDOW_HEIGHT / float(WINDOW_WIDTH) },
+            .nearPlaneSize = { 2, 2 * WINDOW_HEIGHT / float(WINDOW_WIDTH) },
             .frameIndex = vulkan->frameIndex,
             .clearFrame = clearFrame,
             .objectCount = static_cast<uint32_t>(scene.objects.size()),
