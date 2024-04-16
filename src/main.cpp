@@ -5,18 +5,18 @@
 
 #include <GLFW/glfw3.h>
 
-int const WINDOW_WIDTH = 1024;
-int const WINDOW_HEIGHT = 1024;
+int const WINDOW_WIDTH = 1920;
+int const WINDOW_HEIGHT = 1080;
 char const* APPLICATION_NAME = "Path Tracer";
 
 int main()
 {
     Scene scene;
 
-    LoadMesh(&scene, "../scene/armadillo.obj");
+    LoadMesh(&scene, "../scene/bunny.obj");
     LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
-    AddPlane(&scene, glm::vec3(0, 0, -1.1));
-//    AddMesh(&scene, glm::vec3(0, 0, 0), 0);
+    AddPlane(&scene, glm::vec3(0, 0, 0));
+    AddMesh(&scene, glm::vec3(0, 0, 0), 0);
 
     for (MeshNode const& node : scene.meshNodes) {
         if (node.faceEndIndex > 0) {
@@ -99,6 +99,7 @@ int main()
 
         SceneUniformBuffer parameters = {
             .viewMatrixInverse = glm::inverse(viewMatrix),
+            .nearPlaneSize = { 1.0f, WINDOW_HEIGHT / float(WINDOW_WIDTH) },
             .frameIndex = vulkan->frameIndex,
             .clearFrame = clearFrame,
             .objectCount = static_cast<uint32_t>(scene.objects.size()),

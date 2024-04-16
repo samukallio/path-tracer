@@ -13,6 +13,7 @@ struct Scene;
 struct SceneUniformBuffer
 {
     glm::mat4                   viewMatrixInverse           = {};
+    glm::vec2                   nearPlaneSize               = { 1.0f, 1.0f };
     uint32_t                    frameIndex                  = 0;
     bool                        clearFrame                  = false;
     uint32_t                    objectCount                 = {};

@@ -55,6 +55,7 @@ layout(binding = 0)
 uniform SceneUniformBuffer
 {
     mat4    viewMatrixInverse;
+    vec2    nearPlaneSize;
     uint    frameIndex;
     bool    clearFrame;
     uint    objectCount;
@@ -362,32 +363,29 @@ void main()
 {
     InitializeRandom();
 
-    // Image pixel coordinate: (0,0) to (imageSizeX, imageSizeY).
+    // Image pixel coordinate: (0,0) to (canvasSizeX, canvasSizeY).
     ivec2 imagePosition = ivec2(gl_GlobalInvocationID.xy);
-
-    // Normalized image pixel coordinate: (0,0) to (1,1).
-    vec2 imagePositionNormalized = imagePosition / vec2(imageSize(outputImage));
+    ivec2 imageSize_ = imageSize(outputImage);
 
     // Invocation may be outside the image if the image dimensions are not
     // multiples of 16 (since a workgroup is 16-by-16).  If that happens,
     // just exit immediately.
-    if (imagePositionNormalized.x >= 1 || imagePositionNormalized.y >= 1)
-        return;
+    if (imagePosition.x >= imageSize_.x) return;
+    if (imagePosition.y >= imageSize_.y) return;
+
+    //
+    vec2 samplePosition = imagePosition + vec2(0.5, 0.5);
+    vec2 samplePositionNormalized = samplePosition / imageSize_;
 
     // Point on the "virtual near plane" through which the ray passes.
-    vec4 nearPoint = viewMatrixInverse * vec4(
-        imagePositionNormalized.x - 0.5,
-        0.5 - imagePositionNormalized.y,
-        -1.0,
-        0.0
-    );
-
-    vec4 originPoint = viewMatrixInverse * vec4(0, 0, 0, 1);
+    vec2 nearPlanePosition = nearPlaneSize * vec2(
+        samplePositionNormalized.x - 0.5,
+        0.5 - samplePositionNormalized.y);
 
     // Trace.
     Ray ray;
-    ray.origin = originPoint.xyz;
-    ray.direction = normalize(nearPoint).xyz;
+    ray.origin = (viewMatrixInverse * vec4(0, 0, 0, 1)).xyz;
+    ray.direction = (viewMatrixInverse * vec4(nearPlanePosition, -1, 0)).xyz;
 
     vec4 outputValue = Trace(ray);
 
