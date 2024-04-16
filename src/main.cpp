@@ -88,7 +88,7 @@ int main()
         SceneUniformBuffer parameters = {
             .viewMatrixInverse = glm::inverse(viewMatrix),
             .frameIndex = vulkan->frameIndex,
-            .color = glm::vec4(1, 0, 1, 0),
+            .color = glm::vec4(0.2, 0.35, 0.5, 0),
         };
         RenderFrame(vulkan, &parameters);
 
