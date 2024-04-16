@@ -2,6 +2,20 @@
 
 #include "common.h"
 
+enum ObjectType : uint32_t
+{
+    OBJECT_MESH     = 0,
+    OBJECT_PLANE    = 1,
+    OBJECT_SPHERE   = 2,
+};
+
+struct Object
+{
+    glm::vec3                   origin;
+    ObjectType                  type;
+    uint32_t                    meshRootNodeIndex;
+};
+
 struct MeshNode
 {
     glm::vec3                   minimum;
@@ -21,6 +35,7 @@ struct MeshFace
 
 struct Scene
 {
+    std::vector<Object>         objects;
     std::vector<MeshFace>       meshFaces;
     std::vector<MeshNode>       meshNodes;
 
@@ -31,3 +46,5 @@ struct Scene
 
 bool LoadMesh(Scene* scene, char const* path);
 bool LoadSkybox(Scene* scene, char const* path);
+void AddMesh(Scene* scene, glm::vec3 origin, uint32_t rootNodeIndex);
+void AddPlane(Scene* scene, glm::vec3 origin);

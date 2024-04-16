@@ -301,3 +301,20 @@ bool LoadSkybox(Scene* scene, char const* path)
 
     return true;
 }
+
+void AddMesh(Scene* scene, glm::vec3 origin, uint32_t rootNodeIndex)
+{
+    scene->objects.push_back({
+        .origin = origin,
+        .type = OBJECT_MESH,
+        .meshRootNodeIndex = rootNodeIndex,
+    });
+}
+
+void AddPlane(Scene* scene, glm::vec3 origin)
+{
+    scene->objects.push_back({
+        .origin = origin,
+        .type = OBJECT_PLANE,
+    });
+}

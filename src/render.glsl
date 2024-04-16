@@ -3,24 +3,19 @@
 const float INFINITY = 1e30f;
 const float EPSILON = 1e-9f;
 
-struct Ray
+const uint HIT_MESH_FACE = 0;
+const uint HIT_PLANE = 1;
+const uint HIT_SPHERE = 2;
+
+const uint OBJECT_MESH = 0;
+const uint OBJECT_PLANE = 1;
+const uint OBJECT_SPHERE = 2;
+
+struct Object
 {
     vec3    origin;
-    vec3    direction;
-};
-
-struct Hit
-{
-    float   time;
-    uint    objectType;
-    uint    objectIndex;
-    vec3    data;
-};
-
-struct Sphere
-{
-    vec3    center;
-    float   radius;
+    uint    type;
+    uint    meshRootNodeIndex;
 };
 
 struct MeshFace
@@ -40,12 +35,27 @@ struct MeshNode
     uint    faceEndIndex;
 };
 
+struct Ray
+{
+    vec3    origin;
+    vec3    direction;
+};
+
+struct Hit
+{
+    float   time;
+    uint    type;
+    uint    index;
+    vec3    data;
+};
+
 layout(binding = 0)
 uniform SceneUniformBuffer
 {
     mat4    viewMatrixInverse;
     int     sceneFrame;
     vec4    sceneColor;
+    uint    objectCount;
 };
 
 layout(binding = 1, rgba32f)
@@ -55,18 +65,24 @@ layout(binding = 2, rgba32f)
 uniform writeonly image2D outputImage;
 
 layout(binding = 3, std140)
+readonly buffer ObjectBuffer
+{
+    Object objects[];
+};
+
+layout(binding = 4, std140)
 readonly buffer MeshFaceBuffer
 {
     MeshFace meshFaces[];
 };
 
-layout(binding = 4, std140)
+layout(binding = 5, std140)
 readonly buffer MeshNodeBuffer
 {
     MeshNode meshNodes[];
 };
 
-layout(binding = 5, rgba32f)
+layout(binding = 6, rgba32f)
 uniform readonly image2D skyboxImage;
 
 layout(
@@ -118,8 +134,8 @@ void TraceMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
 
     hit.time = t;
     hit.data = vec3(1 - beta - gamma, beta, gamma);
-    hit.objectType = 0;
-    hit.objectIndex = meshFaceIndex;
+    hit.type = HIT_MESH_FACE;
+    hit.index = meshFaceIndex;
 }
 
 float IntersectMeshNodeBounds(Ray ray, float reach, MeshNode node)
@@ -156,12 +172,12 @@ float IntersectMeshNodeBounds(Ray ray, float reach, MeshNode node)
     return entry;
 }
 
-void TraceMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
+void TraceMesh(Ray ray, Object object, inout Hit hit)
 {
     uint stack[32];
     uint depth = 0;
 
-    MeshNode node = meshNodes[rootNodeIndex];
+    MeshNode node = meshNodes[object.meshRootNodeIndex];
 
     while (true) {
         // Leaf node or internal?
@@ -214,6 +230,24 @@ void TraceMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
     }
 }
 
+void TraceObject(Ray ray, uint objectIndex, inout Hit hit)
+{
+    Object object = objects[objectIndex];
+
+    if (object.type == OBJECT_MESH)
+        TraceMesh(ray, object, hit);
+
+    if (object.type == OBJECT_PLANE) {
+        float t = (object.origin.z - ray.origin.z) / ray.direction.z;
+        if (t < 0 || t > hit.time) return;
+
+        hit.time = t;
+        hit.type = HIT_PLANE;
+        hit.index = objectIndex;
+        hit.data = vec3(fract(ray.origin.xy + ray.direction.xy * t), 0);
+    }
+}
+
 vec4 SampleSkybox(Ray ray)
 {
     float r = length(ray.direction.xy);
@@ -238,23 +272,40 @@ vec4 Trace(Ray ray)
     vec4 color = vec4(1, 1, 1, 0);
 
     for (uint bounce = 0; bounce < 5; bounce++) {
-        TraceMesh(ray, 0, hit);
 
-        if (hit.time == INFINITY) break;
+        for (uint objectIndex = 0; objectIndex < objectCount; objectIndex++)
+            TraceObject(ray, objectIndex, hit);
 
-        MeshFace face = meshFaces[hit.objectIndex];
+        if (hit.time == INFINITY) {
+            color *= SampleSkybox(ray);
+            break;
+        }
 
-        vec3 normal = face.normals[0] * hit.data.x
-                    + face.normals[1] * hit.data.y
-                    + face.normals[2] * hit.data.z;
+        if (hit.type == HIT_MESH_FACE) {
+            MeshFace face = meshFaces[hit.index];
 
-        ray.origin = ray.origin + (hit.time - 1e-3) * ray.direction;
-        ray.direction = reflect(ray.direction, normal);
+            vec3 normal = face.normals[0] * hit.data.x
+                        + face.normals[1] * hit.data.y
+                        + face.normals[2] * hit.data.z;
+
+            ray.origin = ray.origin + (hit.time - 1e-3) * ray.direction;
+            ray.direction = reflect(ray.direction, normal);
+        }
+
+        if (hit.type == HIT_PLANE) {
+            ray.origin = ray.origin + (hit.time - 1e-3) * ray.direction;
+            ray.direction = reflect(ray.direction, vec3(0, 0, 1));
+
+            if ((hit.data.x > 0.5 && hit.data.y > 0.5) || (hit.data.x <= 0.5 && hit.data.y <= 0.5))
+                color *= vec4(1.0, 0.5, 0.5, 0);
+            else
+                color *= vec4(0.5, 0.5, 1.0, 0);
+        }
 
         hit.time = INFINITY;
     }
 
-    return color * SampleSkybox(ray);
+    return color;
 }
 
 void main()

@@ -1716,6 +1716,7 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
         },
     };
@@ -1772,9 +1773,10 @@ void DestroyVulkan(VulkanContext* vulkan)
         vkDeviceWaitIdle(vulkan->device);
     }
 
-    InternalDestroyImage(vulkan, &vulkan->skyboxImage);
+    InternalDestroyBuffer(vulkan, &vulkan->objectBuffer);
     InternalDestroyBuffer(vulkan, &vulkan->meshNodeBuffer);
     InternalDestroyBuffer(vulkan, &vulkan->meshFaceBuffer);
+    InternalDestroyImage(vulkan, &vulkan->skyboxImage);
 
     InternalDestroyFrameResources(vulkan);
 
@@ -1862,6 +1864,12 @@ static void InternalUpdateSceneDataDescriptors(
     if (vulkan->meshFaceBuffer.buffer == VK_NULL_HANDLE)
         return;
 
+    VkDescriptorBufferInfo objectBufferInfo = {
+        .buffer = vulkan->objectBuffer.buffer,
+        .offset = 0,
+        .range = vulkan->objectBuffer.size,
+    };
+
     VkDescriptorBufferInfo meshFaceBufferInfo = {
         .buffer = vulkan->meshFaceBuffer.buffer,
         .offset = 0,
@@ -1891,7 +1899,7 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .pBufferInfo = &meshFaceBufferInfo,
+                .pBufferInfo = &objectBufferInfo,
             },
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -1900,12 +1908,21 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .pBufferInfo = &meshNodeBufferInfo,
+                .pBufferInfo = &meshFaceBufferInfo,
             },
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet = frame->computeDescriptorSet,
                 .dstBinding = 5,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .pBufferInfo = &meshNodeBufferInfo,
+            },
+            {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = frame->computeDescriptorSet,
+                .dstBinding = 6,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -1929,12 +1946,23 @@ VkResult UploadScene(
 
     // Remove the old resources, but don't destroy them yet.
     // We must update descriptors to point to the new ones first.
-    VulkanImage skyboxImageOld = vulkan->skyboxImage;
-    vulkan->skyboxImage = VulkanImage {};
+    VulkanBuffer objectBufferOld = vulkan->objectBuffer;
+    vulkan->objectBuffer = VulkanBuffer {};
     VulkanBuffer meshFaceBufferOld = vulkan->meshFaceBuffer;
     vulkan->meshFaceBuffer = VulkanBuffer {};
     VulkanBuffer meshNodeBufferOld = vulkan->meshNodeBuffer;
     vulkan->meshNodeBuffer = VulkanBuffer {};
+    VulkanImage skyboxImageOld = vulkan->skyboxImage;
+    vulkan->skyboxImage = VulkanImage {};
+
+    size_t objectBufferSize = sizeof(Object) * scene->objects.size();
+    result = InternalCreateBuffer(
+        vulkan,
+        &vulkan->objectBuffer,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        objectBufferSize);
+    InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->objectBuffer, scene->objects.data(), objectBufferSize);
 
     size_t meshFaceBufferSize = sizeof(MeshFace) * scene->meshFaces.size();
     result = InternalCreateBuffer(
@@ -1971,9 +1999,10 @@ VkResult UploadScene(
 
     InternalUpdateSceneDataDescriptors(vulkan);
 
+    InternalDestroyImage(vulkan, &skyboxImageOld);
     InternalDestroyBuffer(vulkan, &meshFaceBufferOld);
     InternalDestroyBuffer(vulkan, &meshNodeBufferOld);
-    InternalDestroyImage(vulkan, &skyboxImageOld);
+    InternalDestroyBuffer(vulkan, &objectBufferOld);
 
     return result;
 }

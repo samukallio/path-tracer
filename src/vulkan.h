@@ -15,6 +15,7 @@ struct SceneUniformBuffer
     glm::mat4                   viewMatrixInverse           = {};
     int32_t                     frameIndex                  = 0;
     glm::aligned_vec4           color                       = {};
+    uint32_t                    objectCount                 = {};
 };
 
 struct VulkanBuffer
@@ -121,6 +122,7 @@ struct VulkanContext
 
     VkSampler                   sampler                     = VK_NULL_HANDLE;
 
+    VulkanBuffer                objectBuffer                = {};
     VulkanBuffer                meshFaceBuffer              = {};
     VulkanBuffer                meshNodeBuffer              = {};
     VulkanImage                 skyboxImage                 = {};

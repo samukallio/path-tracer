@@ -15,6 +15,8 @@ int main()
 
     LoadMesh(&scene, "../scene/armadillo.obj");
     LoadSkybox(&scene, "../scene/SkyhighFluffycloudField4k.hdr");
+    AddPlane(&scene, glm::vec3(0, 0, -1.1));
+    AddMesh(&scene, glm::vec3(0, 0, 0), 0);
 
     for (MeshNode const& node : scene.meshNodes) {
         if (node.faceEndIndex > 0) {
@@ -90,6 +92,7 @@ int main()
             .viewMatrixInverse = glm::inverse(viewMatrix),
             .frameIndex = vulkan->frameIndex,
             .color = glm::vec4(0.2, 0.35, 0.5, 0),
+            .objectCount = static_cast<uint32_t>(scene.objects.size()),
         };
         RenderFrame(vulkan, &parameters);
 
