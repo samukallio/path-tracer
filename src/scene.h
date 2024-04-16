@@ -12,7 +12,10 @@ struct MeshNode
 
 struct MeshFace
 {
-    glm::aligned_vec3           positions[3];
+    glm::aligned_vec3           position;
+    glm::aligned_vec4           plane;
+    glm::aligned_vec3           base1;
+    glm::aligned_vec3           base2;
     glm::aligned_vec3           normals[3];
 };
 

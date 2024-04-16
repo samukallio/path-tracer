@@ -1,6 +1,7 @@
 #version 450
 
 const float INFINITY = 1e30f;
+const float EPSILON = 1e-9f;
 
 struct Ray
 {
@@ -13,6 +14,7 @@ struct Hit
     float   time;
     uint    objectType;
     uint    objectIndex;
+    vec3    data;
 };
 
 struct Sphere
@@ -23,12 +25,11 @@ struct Sphere
 
 struct MeshFace
 {
-    vec3    position0;
-    vec3    position1;
-    vec3    position2;
-    vec3    normal0;
-    vec3    normal1;
-    vec3    normal2;
+    vec3    position;
+    vec4    plane;
+    vec3    base1;
+    vec3    base2;
+    vec3    normals[3];
 };
 
 struct MeshNode
@@ -71,6 +72,7 @@ layout(
     local_size_z = 1)
     in;
 
+/*
 void TraceMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
 {
     MeshFace face = meshFaces[meshFaceIndex];
@@ -90,6 +92,29 @@ void TraceMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
     if (t <= 0.0001) return;
     if (t > hit.time) return;
     hit.time = t;
+    hit.objectType = 0;
+    hit.objectIndex = meshFaceIndex;
+}
+*/
+
+void TraceMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
+{
+    MeshFace face = meshFaces[meshFaceIndex];
+
+    float r = dot(face.plane.xyz, ray.direction);
+    if (r > -EPSILON && r < +EPSILON) return;
+
+    float t = -(dot(face.plane.xyz, ray.origin) + face.plane.w) / r;
+    if (t < 0 || t > hit.time) return;
+
+    vec3 v = ray.origin + ray.direction * t - face.position;
+    float beta = dot(face.base1, v);
+    if (beta < 0 || beta > 1) return;
+    float gamma = dot(face.base2, v);
+    if (gamma < 0 || beta + gamma > 1) return;
+
+    hit.time = t;
+    hit.data = vec3(1 - beta - gamma, beta, gamma);
     hit.objectType = 0;
     hit.objectIndex = meshFaceIndex;
 }
@@ -197,8 +222,9 @@ vec4 Trace(Ray ray)
 
         vec3 position = ray.origin + hit.time * ray.direction;
 
-        vec3 normal = normalize(cross(face.position1 - face.position0, face.position2 - face.position0));
-        //vec3 normal = face.normal0;
+        vec3 normal = face.normals[0] * hit.data.x
+                    + face.normals[1] * hit.data.y
+                    + face.normals[2] * hit.data.z;
 
         vec3 lightPosition = vec3(5, 5, -5);
         vec3 lightDir = normalize(lightPosition - position);
