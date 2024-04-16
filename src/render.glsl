@@ -320,6 +320,7 @@ vec4 Trace(Ray ray)
         }
 
         vec3 normal = vec3(0, 0, 1);
+        float smoothness = 0.0f;
         vec4 diffuseColor = vec4(0, 0, 0, 0);
 
         if (hit.type == HIT_MESH_FACE) {
@@ -330,21 +331,24 @@ vec4 Trace(Ray ray)
                    + face.normals[2] * hit.data.z;
 
             diffuseColor = vec4(1, 1, 1, 0);
+
+            smoothness = 0.6f;
         }
 
         if (hit.type == HIT_PLANE) {
             normal = vec3(0, 0, 1);
 
             if ((hit.data.x > 0.5 && hit.data.y > 0.5) || (hit.data.x <= 0.5 && hit.data.y <= 0.5))
-                diffuseColor = vec4(1.0, 0.5, 0.5, 0);
+                diffuseColor = vec4(1.0, 1.0, 1.0, 0);
             else
-                diffuseColor = vec4(0.5, 0.5, 1.0, 0);
+                diffuseColor = vec4(0.5, 0.5, 0.5, 0);
         }
 
         vec3 diffuseDirection = normalize(normal + RandomDirection());
+        vec3 specularDirection = reflect(ray.direction, normal);
 
         ray.origin = ray.origin + (hit.time - 1e-3) * ray.direction;
-        ray.direction = diffuseDirection;
+        ray.direction = mix(diffuseDirection, specularDirection, smoothness);
 
         filterColor *= diffuseColor;
 
