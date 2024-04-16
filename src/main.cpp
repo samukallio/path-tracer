@@ -65,9 +65,9 @@ int main()
 
         glm::vec3 viewMove {};
         if (glfwGetKey(window, GLFW_KEY_A))
-            viewMove -= glm::cross(viewDirection, glm::vec3(0, 1, 0));
+            viewMove -= glm::cross(viewDirection, glm::vec3(0, 0, 1));
         if (glfwGetKey(window, GLFW_KEY_D))
-            viewMove += glm::cross(viewDirection, glm::vec3(0, 1, 0));
+            viewMove += glm::cross(viewDirection, glm::vec3(0, 0, 1));
         if (glfwGetKey(window, GLFW_KEY_W))
             viewMove += viewDirection;
         if (glfwGetKey(window, GLFW_KEY_S))
@@ -80,11 +80,11 @@ int main()
             viewPitch = glm::clamp(viewPitch, -glm::pi<glm::f32>() * 0.45f, +glm::pi<glm::f32>() * 0.45f);
         }
 
-        viewDirection = glm::quat(glm::vec3(viewPitch, viewYaw, 0)) * glm::vec3(0, 0, 1);
+        viewDirection = glm::quat(glm::vec3(0, viewPitch, viewYaw)) * glm::vec3(1, 0, 0);
         viewPosition += deltaTime * viewVelocity;
         viewVelocity *= expf(-deltaTime / 0.25f);
 
-        glm::mat4 viewMatrix = glm::lookAt(viewPosition - viewDirection * 2.0f, viewPosition, glm::vec3(0, 1, 0));
+        glm::mat4 viewMatrix = glm::lookAt(viewPosition - viewDirection * 2.0f, viewPosition, glm::vec3(0, 0, 1));
 
         SceneUniformBuffer parameters = {
             .viewMatrixInverse = glm::inverse(viewMatrix),

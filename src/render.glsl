@@ -219,7 +219,7 @@ vec4 SampleSkybox(Ray ray)
     float r = length(ray.direction.xy);
 
     float phi = atan(ray.direction.x, ray.direction.y);
-    float theta = atan(ray.direction.z, r);
+    float theta = atan(-ray.direction.z, r);
 
     ivec2 size = imageSize(skyboxImage);
 
