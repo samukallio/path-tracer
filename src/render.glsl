@@ -197,7 +197,9 @@ vec4 Trace(Ray ray)
         MeshFace face = meshFaces[hit.objectIndex];
 
         vec3 position = ray.origin + hit.time * ray.direction;
-        vec3 normal = face.normal0;
+
+        vec3 normal = normalize(cross(face.position1 - face.position0, face.position2 - face.position0));
+        //vec3 normal = face.normal0;
 
         vec3 lightPosition = vec3(5, 5, -5);
         vec3 lightDir = normalize(lightPosition - position);
