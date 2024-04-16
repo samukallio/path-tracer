@@ -218,6 +218,7 @@ static VkResult InternalCreateImage(
     VkImageType type,
     VkFormat format,
     VkExtent3D extent,
+    uint32_t count,
     VkImageTiling tiling,
     VkImageLayout layout,
     bool compute)
@@ -237,7 +238,7 @@ static VkResult InternalCreateImage(
         .format = format,
         .extent = extent,
         .mipLevels = 1,
-        .arrayLayers = 1,
+        .arrayLayers = count,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = tiling,
         .usage = usageFlags,
@@ -312,7 +313,7 @@ static VkResult InternalCreateImage(
             .baseMipLevel = 0,
             .levelCount = 1,
             .baseArrayLayer = 0,
-            .layerCount = 1,
+            .layerCount = count,
         },
     };
 
@@ -361,7 +362,7 @@ static VkResult InternalCreateImage(
                 .baseMipLevel = 0,
                 .levelCount = 1,
                 .baseArrayLayer = 0,
-                .layerCount = 1,
+                .layerCount = count,
             },
         };
 
@@ -400,6 +401,173 @@ static void InternalDestroyImage(
     if (image->memory)
         vkFreeMemory(vulkan->device, image->memory, nullptr);
 }
+
+static VkResult InternalWriteToDeviceLocalImage(
+    VulkanContext* vulkan,
+    VulkanImage* image,
+    void const* data,
+    size_t size,
+    VkImageLayout newLayout)
+{
+    // Create a staging buffer and copy the data into it.
+    VulkanBuffer staging;
+    InternalCreateBuffer(vulkan,
+        &staging,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        size);
+    InternalWriteToHostVisibleBuffer(vulkan, &staging, data, size);
+
+    VkCommandBufferAllocateInfo allocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = vulkan->computeCommandPool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(vulkan->device, &allocateInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    VkBufferImageCopy region = {
+        .bufferOffset = 0,
+        .bufferRowLength = 0,
+        .bufferImageHeight = 0,
+        .imageSubresource = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mipLevel = 0,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+        .imageOffset = { 0, 0 },
+        .imageExtent = image->extent,
+    };
+
+    vkCmdCopyBufferToImage(commandBuffer,
+        staging.buffer, image->image,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        1, &region);
+
+    VkImageMemoryBarrier barrier = {
+        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image = image->image,
+        .subresourceRange =  {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel = 0,
+            .levelCount = 1,
+            .baseArrayLayer = 0,
+            .layerCount = 1,
+        },
+    };
+
+    //int32_t srcWidth = image->extent.width;
+    //int32_t srcHeight = image->extent.height;
+
+    //for (uint32_t level = 1; level < image->levelCount; level++) {
+    //    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    //    barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    //    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    //    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    //    barrier.subresourceRange.baseMipLevel = level - 1;
+
+    //    vkCmdPipelineBarrier(commandBuffer,
+    //        VK_PIPELINE_STAGE_TRANSFER_BIT,
+    //        VK_PIPELINE_STAGE_TRANSFER_BIT,
+    //        0,
+    //        0, nullptr,
+    //        0, nullptr,
+    //        1, &barrier);
+
+    //    int32_t dstWidth = std::max(1, srcWidth / 2);
+    //    int32_t dstHeight = std::max(1, srcHeight / 2);
+
+    //    VkImageBlit blit =
+    //    {
+    //        .srcSubresource =
+    //        {
+    //            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+    //            .mipLevel = level - 1,
+    //            .baseArrayLayer = 0,
+    //            .layerCount = 1,
+    //        },
+    //        .srcOffsets =
+    //        {
+    //            { 0, 0, 0 },
+    //            { srcWidth, srcHeight, 1 },
+    //        },
+    //        .dstSubresource =
+    //        {
+    //            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+    //            .mipLevel = level,
+    //            .baseArrayLayer = 0,
+    //            .layerCount = 1,
+    //        },
+    //        .dstOffsets =
+    //        {
+    //            { 0, 0, 0 },
+    //            { dstWidth, dstHeight, 1 },
+    //        },
+    //    };
+
+    //    vkCmdBlitImage(commandBuffer,
+    //        vki->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+    //        vki->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+    //        1, &blit, VK_FILTER_LINEAR);
+
+    //    barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    //    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    //    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    //    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    //    vkCmdPipelineBarrier(commandBuffer,
+    //        VK_PIPELINE_STAGE_TRANSFER_BIT,
+    //        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+    //        0,
+    //        0, nullptr,
+    //        0, nullptr,
+    //        1, &barrier);
+
+    //    srcWidth = dstWidth;
+    //    srcHeight = dstHeight;
+    //}
+
+    barrier.subresourceRange.baseMipLevel = 0; //vki->levelCount - 1;
+    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    barrier.dstAccessMask = 0;
+    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    barrier.newLayout = newLayout;
+    vkCmdPipelineBarrier(commandBuffer,
+        VK_PIPELINE_STAGE_TRANSFER_BIT,
+        VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        0,
+        0, nullptr,
+        0, nullptr,
+        1, &barrier);
+
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &commandBuffer,
+    };
+    vkQueueSubmit(vulkan->computeQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(vulkan->computeQueue);
+
+    vkFreeCommandBuffers(vulkan->device, vulkan->computeCommandPool, 1, &commandBuffer);
+
+    // Delete the staging buffer.
+    InternalDestroyBuffer(vulkan, &staging);
+
+    return VK_SUCCESS;
+}
+
 
 static VkResult InternalCreatePresentationResources(
     VulkanContext* vulkan)
@@ -649,6 +817,7 @@ static VkResult InternalCreateFrameResources(
             VK_IMAGE_TYPE_2D,
             VK_FORMAT_R32G32B32A32_SFLOAT,
             { .width = RENDER_WIDTH, .height = RENDER_HEIGHT, .depth = 1 },
+            1,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_LAYOUT_GENERAL,
             true);
@@ -660,6 +829,7 @@ static VkResult InternalCreateFrameResources(
             VK_IMAGE_TYPE_2D,
             VK_FORMAT_R32G32B32A32_SFLOAT,
             { .width = RENDER_WIDTH, .height = RENDER_HEIGHT, .depth = 1 },
+            1,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             false);
@@ -1439,6 +1609,10 @@ static VkResult InternalCreateVulkan(
                 .type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .descriptorCount = 16,
             },
+            {
+                .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .descriptorCount = 16,
+            },
         };
 
         VkDescriptorPoolCreateInfo descriptorPoolInfo = {
@@ -1542,6 +1716,7 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
         },
     };
 
@@ -1597,6 +1772,7 @@ void DestroyVulkan(VulkanContext* vulkan)
         vkDeviceWaitIdle(vulkan->device);
     }
 
+    InternalDestroyImage(vulkan, &vulkan->skyboxImage);
     InternalDestroyBuffer(vulkan, &vulkan->meshNodeBuffer);
     InternalDestroyBuffer(vulkan, &vulkan->meshFaceBuffer);
 
@@ -1698,6 +1874,12 @@ static void InternalUpdateSceneDataDescriptors(
         .range = vulkan->meshNodeBuffer.size,
     };
 
+    VkDescriptorImageInfo skyboxImageInfo = {
+        .sampler = nullptr,
+        .imageView = vulkan->skyboxImage.view,
+        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+
     for (int index = 0; index < 2; index++) {
         VulkanFrameState* frame = &vulkan->frameStates[index];
 
@@ -1720,13 +1902,22 @@ static void InternalUpdateSceneDataDescriptors(
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .pBufferInfo = &meshNodeBufferInfo,
             },
+            {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = frame->computeDescriptorSet,
+                .dstBinding = 5,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = &skyboxImageInfo,
+            },
         };
 
         vkUpdateDescriptorSets(vulkan->device, static_cast<uint32_t>(std::size(writes)), writes, 0, nullptr);
     }
 }
 
-VkResult UploadSceneGeometry(
+VkResult UploadScene(
     VulkanContext* vulkan,
     Scene const* scene)
 {
@@ -1736,8 +1927,10 @@ VkResult UploadSceneGeometry(
     // wait for all frames to finish rendering before we touch it.
     vkDeviceWaitIdle(vulkan->device);
 
-    // Remove the old geometry buffers, but don't destroy them yet.
-    // We must update descriptors to point to the new buffers first.
+    // Remove the old resources, but don't destroy them yet.
+    // We must update descriptors to point to the new ones first.
+    VulkanImage skyboxImageOld = vulkan->skyboxImage;
+    vulkan->skyboxImage = VulkanImage {};
     VulkanBuffer meshFaceBufferOld = vulkan->meshFaceBuffer;
     vulkan->meshFaceBuffer = VulkanBuffer {};
     VulkanBuffer meshNodeBufferOld = vulkan->meshNodeBuffer;
@@ -1761,10 +1954,26 @@ VkResult UploadSceneGeometry(
         meshNodeBufferSize);
     InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshNodeBuffer, scene->meshNodes.data(), meshNodeBufferSize);
 
+    size_t skyboxImageSize = scene->skyboxWidth * scene->skyboxHeight * 4 * sizeof(float);
+    result = InternalCreateImage(
+        vulkan,
+        &vulkan->skyboxImage,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        VK_IMAGE_TYPE_2D,
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        { .width = scene->skyboxWidth, .height = scene->skyboxHeight, .depth = 1 },
+        1,
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        true);
+    InternalWriteToDeviceLocalImage(vulkan, &vulkan->skyboxImage, scene->skyboxPixels, skyboxImageSize, VK_IMAGE_LAYOUT_GENERAL);
+
     InternalUpdateSceneDataDescriptors(vulkan);
 
     InternalDestroyBuffer(vulkan, &meshFaceBufferOld);
     InternalDestroyBuffer(vulkan, &meshNodeBufferOld);
+    InternalDestroyImage(vulkan, &skyboxImageOld);
 
     return result;
 }

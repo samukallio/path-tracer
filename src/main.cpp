@@ -13,7 +13,8 @@ int main()
 {
     Scene scene;
 
-    LoadScene(&scene, "../armadillo.obj");
+    LoadMesh(&scene, "../scene/armadillo.obj");
+    LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
 
     for (MeshNode const& node : scene.meshNodes) {
         if (node.faceEndIndex > 0) {
@@ -33,7 +34,7 @@ int main()
 
     auto vulkan = CreateVulkan(window, APPLICATION_NAME);
 
-    UploadSceneGeometry(vulkan, &scene);
+    UploadScene(vulkan, &scene);
 
     glm::vec3 viewPosition = { 0, 0, 0 };
     glm::vec3 viewVelocity = { 0, 0, 0 };

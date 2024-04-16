@@ -1,6 +1,9 @@
 #define TINYOBJLOADER_IMPLEMENTATION 
 #include "tiny_obj_loader.h"
 
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
+
 #include "scene.h"
 
 #include <stdio.h>
@@ -213,7 +216,7 @@ static void BuildMeshNode(MeshTreeBuildState* state, uint32_t index, uint32_t de
     BuildMeshNode(state, rightNodeIndex, depth+1);
 }
 
-bool LoadScene(Scene* scene, char const* path)
+bool LoadMesh(Scene* scene, char const* path)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -285,6 +288,16 @@ bool LoadScene(Scene* scene, char const* path)
     printf("mesh nodes: %llu\n", scene->meshNodes.size());
     printf("max depth: %lu\n", state.depth);
 
+    return true;
+}
+
+bool LoadSkybox(Scene* scene, char const* path)
+{
+    int width, height, components;
+
+    scene->skyboxPixels = stbi_loadf(path, &width, &height, &components, STBI_rgb_alpha);
+    scene->skyboxWidth = static_cast<uint32_t>(width);
+    scene->skyboxHeight = static_cast<uint32_t>(height);
 
     return true;
 }

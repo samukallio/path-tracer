@@ -123,6 +123,7 @@ struct VulkanContext
 
     VulkanBuffer                meshFaceBuffer              = {};
     VulkanBuffer                meshNodeBuffer              = {};
+    VulkanImage                 skyboxImage                 = {};
 
     VulkanPipeline              blitPipeline                = {};
     VulkanPipeline              renderPipeline              = {};
@@ -135,7 +136,7 @@ VulkanContext* CreateVulkan(
 void DestroyVulkan(
     VulkanContext* vulkan);
 
-VkResult UploadSceneGeometry(
+VkResult UploadScene(
     VulkanContext* vulkan,
     Scene const* scene);
 

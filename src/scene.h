@@ -23,6 +23,11 @@ struct Scene
 {
     std::vector<MeshFace>       meshFaces;
     std::vector<MeshNode>       meshNodes;
+
+    uint32_t                    skyboxWidth;
+    uint32_t                    skyboxHeight;
+    float*                      skyboxPixels;
 };
 
-bool LoadScene(Scene* scene, char const* path);
+bool LoadMesh(Scene* scene, char const* path);
+bool LoadSkybox(Scene* scene, char const* path);

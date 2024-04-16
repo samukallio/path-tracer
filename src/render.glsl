@@ -66,6 +66,9 @@ readonly buffer MeshNodeBuffer
     MeshNode meshNodes[];
 };
 
+layout(binding = 5, rgba32f)
+uniform readonly image2D skyboxImage;
+
 layout(
     local_size_x = 16,
     local_size_y = 16,
@@ -211,6 +214,22 @@ void TraceMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
     }
 }
 
+vec4 SampleSkybox(Ray ray)
+{
+    float r = length(ray.direction.xy);
+
+    float phi = atan(ray.direction.x, ray.direction.y);
+    float theta = atan(ray.direction.z, r);
+
+    ivec2 size = imageSize(skyboxImage);
+
+    float x = floor(size.x * (0.5 + phi / 6.28318));
+    float y = floor(size.y * (0.5 + theta / 3.14159));
+    ivec2 xy = ivec2(int(x), int(y));
+
+    return imageLoad(skyboxImage, min(xy, size - 1));
+}
+
 vec4 Trace(Ray ray)
 {
     Hit hit;
@@ -233,7 +252,7 @@ vec4 Trace(Ray ray)
         return vec4(color, 1);
     }
 
-    return sceneColor;
+    return SampleSkybox(ray);
 }
 
 void main()
