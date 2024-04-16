@@ -235,24 +235,26 @@ vec4 Trace(Ray ray)
     Hit hit;
     hit.time = INFINITY;
 
-    TraceMesh(ray, 0, hit);
-    if (hit.time < INFINITY) {
-        MeshFace face = meshFaces[hit.objectIndex];
+    vec4 color = vec4(1, 1, 1, 0);
 
-        vec3 position = ray.origin + hit.time * ray.direction;
+    for (uint bounce = 0; bounce < 5; bounce++) {
+        TraceMesh(ray, 0, hit);
+
+        if (hit.time == INFINITY) break;
+
+        MeshFace face = meshFaces[hit.objectIndex];
 
         vec3 normal = face.normals[0] * hit.data.x
                     + face.normals[1] * hit.data.y
                     + face.normals[2] * hit.data.z;
 
-        vec3 lightPosition = vec3(5, 5, -5);
-        vec3 lightDir = normalize(lightPosition - position);
-        float intensity = clamp(dot(lightDir, normal), 0, 1);
-        vec3 color = intensity * vec3(1, 1, 1);
-        return vec4(color, 1);
+        ray.origin = ray.origin + (hit.time - 1e-3) * ray.direction;
+        ray.direction = reflect(ray.direction, normal);
+
+        hit.time = INFINITY;
     }
 
-    return SampleSkybox(ray);
+    return color * SampleSkybox(ray);
 }
 
 void main()

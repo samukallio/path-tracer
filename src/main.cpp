@@ -14,7 +14,7 @@ int main()
     Scene scene;
 
     LoadMesh(&scene, "../scene/armadillo.obj");
-    LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
+    LoadSkybox(&scene, "../scene/SkyhighFluffycloudField4k.hdr");
 
     for (MeshNode const& node : scene.meshNodes) {
         if (node.faceEndIndex > 0) {
