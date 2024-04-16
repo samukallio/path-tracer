@@ -45,7 +45,12 @@ layout(location = 0) out vec4 outColor;
 
 void main()
 {
-    outColor = texture(textureSampler, fragmentUV);
+    vec4 value = texture(textureSampler, fragmentUV);
+
+    if (value.a > 0)
+        outColor = vec4(value.rgb / value.a, 0.0);
+    else
+        outColor = vec4(0, 0, 0, 0);
 }
 
 #endif

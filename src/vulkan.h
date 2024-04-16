@@ -13,8 +13,8 @@ struct Scene;
 struct SceneUniformBuffer
 {
     glm::mat4                   viewMatrixInverse           = {};
-    int32_t                     frameIndex                  = 0;
-    glm::aligned_vec4           color                       = {};
+    uint32_t                    frameIndex                  = 0;
+    bool                        clearFrame                  = false;
     uint32_t                    objectCount                 = {};
 };
 
@@ -117,7 +117,7 @@ struct VulkanContext
 
     VkRenderPass                mainRenderPass              = VK_NULL_HANDLE;
 
-    int                         frameIndex                  = 0;
+    uint32_t                    frameIndex                  = 0;
     VulkanFrameState            frameStates[2]              = {};
 
     VkSampler                   sampler                     = VK_NULL_HANDLE;

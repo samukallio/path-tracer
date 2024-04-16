@@ -2,6 +2,8 @@
 
 const float INFINITY = 1e30f;
 const float EPSILON = 1e-9f;
+const float PI = 3.141592653f;
+const float TAU = 6.283185306f;
 
 const uint HIT_MESH_FACE = 0;
 const uint HIT_PLANE = 1;
@@ -53,8 +55,8 @@ layout(binding = 0)
 uniform SceneUniformBuffer
 {
     mat4    viewMatrixInverse;
-    int     sceneFrame;
-    vec4    sceneColor;
+    uint    frameIndex;
+    bool    clearFrame;
     uint    objectCount;
 };
 
@@ -90,6 +92,41 @@ layout(
     local_size_y = 16,
     local_size_z = 1)
     in;
+
+uint randomState;
+
+void InitializeRandom()
+{
+    uvec2 xy = gl_GlobalInvocationID.xy;
+    randomState = xy.y * imageSize(inputImage).x + xy.x + frameIndex * 277803737u;
+}
+
+uint Random()
+{
+    randomState = randomState * 747796405u + 2891336453u;
+    uint s = randomState;
+    uint w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+    return (w >> 22u) ^ w;
+}
+
+float Random0To1()
+{
+    return Random() / float(0xFFFFFFFFu);
+}
+
+vec3 RandomDirection()
+{
+    float z = 2 * Random0To1() - 1;
+    float r = sqrt(1 - z * z);
+    float phi = TAU * Random0To1();
+    return vec3(r * cos(phi), r * sin(phi), z);
+}
+
+vec3 RandomHemisphereDirection(vec3 normal)
+{
+    vec3 direction = RandomDirection();
+    return direction * sign(dot(normal, direction));
+}
 
 /*
 void TraceMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
@@ -269,7 +306,8 @@ vec4 Trace(Ray ray)
     Hit hit;
     hit.time = INFINITY;
 
-    vec4 color = vec4(1, 1, 1, 0);
+    vec4 outputColor = vec4(0, 0, 0, 0);
+    vec4 filterColor = vec4(1, 1, 1, 0);
 
     for (uint bounce = 0; bounce < 5; bounce++) {
 
@@ -277,39 +315,49 @@ vec4 Trace(Ray ray)
             TraceObject(ray, objectIndex, hit);
 
         if (hit.time == INFINITY) {
-            color *= SampleSkybox(ray);
+            outputColor += filterColor * SampleSkybox(ray);
             break;
         }
+
+        vec3 normal = vec3(0, 0, 1);
+        vec4 diffuseColor = vec4(0, 0, 0, 0);
 
         if (hit.type == HIT_MESH_FACE) {
             MeshFace face = meshFaces[hit.index];
 
-            vec3 normal = face.normals[0] * hit.data.x
-                        + face.normals[1] * hit.data.y
-                        + face.normals[2] * hit.data.z;
+            normal = face.normals[0] * hit.data.x
+                   + face.normals[1] * hit.data.y
+                   + face.normals[2] * hit.data.z;
 
-            ray.origin = ray.origin + (hit.time - 1e-3) * ray.direction;
-            ray.direction = reflect(ray.direction, normal);
+            diffuseColor = vec4(1, 1, 1, 0);
         }
 
         if (hit.type == HIT_PLANE) {
-            ray.origin = ray.origin + (hit.time - 1e-3) * ray.direction;
-            ray.direction = reflect(ray.direction, vec3(0, 0, 1));
+            normal = vec3(0, 0, 1);
 
             if ((hit.data.x > 0.5 && hit.data.y > 0.5) || (hit.data.x <= 0.5 && hit.data.y <= 0.5))
-                color *= vec4(1.0, 0.5, 0.5, 0);
+                diffuseColor = vec4(1.0, 0.5, 0.5, 0);
             else
-                color *= vec4(0.5, 0.5, 1.0, 0);
+                diffuseColor = vec4(0.5, 0.5, 1.0, 0);
         }
+
+        vec3 diffuseDirection = normalize(normal + RandomDirection());
+
+        ray.origin = ray.origin + (hit.time - 1e-3) * ray.direction;
+        ray.direction = diffuseDirection;
+
+        filterColor *= diffuseColor;
 
         hit.time = INFINITY;
     }
 
-    return color;
+    return vec4(outputColor.rgb, 1);
 }
 
 void main()
 {
+    InitializeRandom();
+
     // Image pixel coordinate: (0,0) to (imageSizeX, imageSizeY).
     ivec2 imagePosition = ivec2(gl_GlobalInvocationID.xy);
 
@@ -336,5 +384,12 @@ void main()
     Ray ray;
     ray.origin = originPoint.xyz;
     ray.direction = normalize(nearPoint).xyz;
-    imageStore(outputImage, imagePosition, Trace(ray));
+
+    vec4 outputValue = Trace(ray);
+
+    if (!clearFrame) {
+        outputValue += imageLoad(inputImage, imagePosition);
+    }
+
+    imageStore(outputImage, imagePosition, outputValue);
 }

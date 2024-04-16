@@ -14,9 +14,9 @@ int main()
     Scene scene;
 
     LoadMesh(&scene, "../scene/armadillo.obj");
-    LoadSkybox(&scene, "../scene/SkyhighFluffycloudField4k.hdr");
+    LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
     AddPlane(&scene, glm::vec3(0, 0, -1.1));
-    AddMesh(&scene, glm::vec3(0, 0, 0), 0);
+//    AddMesh(&scene, glm::vec3(0, 0, 0), 0);
 
     for (MeshNode const& node : scene.meshNodes) {
         if (node.faceEndIndex > 0) {
@@ -65,6 +65,8 @@ int main()
         previousMouseX = currentMouseX;
         previousMouseY = currentMouseY;
 
+        bool clearFrame = false;
+
         glm::vec3 viewMove {};
         if (glfwGetKey(window, GLFW_KEY_A))
             viewMove -= glm::cross(viewDirection, glm::vec3(0, 0, 1));
@@ -76,22 +78,29 @@ int main()
             viewMove -= viewDirection;
         if (glm::length(viewMove) > 0)
             viewVelocity = 2.0f * glm::normalize(viewMove);
+
         if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1)) {
             viewYaw -= deltaMouseX * 0.01f;
             viewPitch += deltaMouseY * 0.01f;
             viewPitch = glm::clamp(viewPitch, -glm::pi<glm::f32>() * 0.45f, +glm::pi<glm::f32>() * 0.45f);
+            clearFrame = true;
         }
 
         viewDirection = glm::quat(glm::vec3(0, viewPitch, viewYaw)) * glm::vec3(1, 0, 0);
         viewPosition += deltaTime * viewVelocity;
-        viewVelocity *= expf(-deltaTime / 0.25f);
+        viewVelocity *= expf(-deltaTime / 0.05f);
+
+        if (glm::length(viewVelocity) < 1e-2f)
+            viewVelocity = glm::vec3(0);
+        else
+            clearFrame = true;
 
         glm::mat4 viewMatrix = glm::lookAt(viewPosition - viewDirection * 2.0f, viewPosition, glm::vec3(0, 0, 1));
 
         SceneUniformBuffer parameters = {
             .viewMatrixInverse = glm::inverse(viewMatrix),
             .frameIndex = vulkan->frameIndex,
-            .color = glm::vec4(0.2, 0.35, 0.5, 0),
+            .clearFrame = clearFrame,
             .objectCount = static_cast<uint32_t>(scene.objects.size()),
         };
         RenderFrame(vulkan, &parameters);
