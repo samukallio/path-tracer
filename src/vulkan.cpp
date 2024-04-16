@@ -155,6 +155,61 @@ static void InternalWriteToHostVisibleBuffer(
     vkUnmapMemory(vulkan->device, buffer->memory);
 }
 
+static void InternalWriteToDeviceLocalBuffer(
+    VulkanContext* vulkan,
+    VulkanBuffer* buffer,
+    void const* data,
+    size_t size)
+{
+    // Create a staging buffer and copy the data into it.
+    VulkanBuffer staging;
+    InternalCreateBuffer(vulkan,
+        &staging,
+        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        buffer->size);
+    InternalWriteToHostVisibleBuffer(vulkan, &staging, data, size);
+
+    // Now copy the data into the device local buffer.
+    VkCommandBufferAllocateInfo allocateInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+        .commandPool = vulkan->computeCommandPool,
+        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+        .commandBufferCount = 1,
+    };
+
+    VkCommandBuffer commandBuffer;
+    vkAllocateCommandBuffers(vulkan->device, &allocateInfo, &commandBuffer);
+
+    VkCommandBufferBeginInfo beginInfo = {
+        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+    };
+    vkBeginCommandBuffer(commandBuffer, &beginInfo);
+
+    VkBufferCopy region = {
+        .srcOffset = 0,
+        .dstOffset = 0,
+        .size = buffer->size,
+    };
+    vkCmdCopyBuffer(commandBuffer, staging.buffer, buffer->buffer, 1, &region);
+
+    vkEndCommandBuffer(commandBuffer);
+
+    VkSubmitInfo submitInfo = {
+        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .commandBufferCount = 1,
+        .pCommandBuffers = &commandBuffer,
+    };
+    vkQueueSubmit(vulkan->computeQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueWaitIdle(vulkan->computeQueue);
+
+    vkFreeCommandBuffers(vulkan->device, vulkan->computeCommandPool, 1, &commandBuffer);
+
+    // Delete the staging buffer.
+    InternalDestroyBuffer(vulkan, &staging);
+}
+
 static VkResult InternalCreateImage(
     VulkanContext* vulkan,
     VulkanImage* image,
@@ -1692,19 +1747,19 @@ VkResult UploadSceneGeometry(
     result = InternalCreateBuffer(
         vulkan,
         &vulkan->meshFaceBuffer,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         meshFaceBufferSize);
-    InternalWriteToHostVisibleBuffer(vulkan, &vulkan->meshFaceBuffer, scene->meshFaces.data(), meshFaceBufferSize);
+    InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshFaceBuffer, scene->meshFaces.data(), meshFaceBufferSize);
 
     size_t meshNodeBufferSize = sizeof(MeshNode) * scene->meshNodes.size();
     result = InternalCreateBuffer(
         vulkan,
         &vulkan->meshNodeBuffer,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         meshNodeBufferSize);
-    InternalWriteToHostVisibleBuffer(vulkan, &vulkan->meshNodeBuffer, scene->meshNodes.data(), meshNodeBufferSize);
+    InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshNodeBuffer, scene->meshNodes.data(), meshNodeBufferSize);
 
     InternalUpdateSceneDataDescriptors(vulkan);
 
