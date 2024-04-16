@@ -34,9 +34,8 @@ struct MeshFace
 struct MeshNode
 {
     vec3    minimum;
-    vec3    maximum;
-    uint    dummyForAlignment;
     uint    faceBeginOrNodeIndex;
+    vec3    maximum;
     uint    faceEndIndex;
 };
 

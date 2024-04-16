@@ -4,9 +4,9 @@
 
 struct MeshNode
 {
-    glm::aligned_vec3           minimum;
-    glm::aligned_vec3           maximum;
+    glm::vec3                   minimum;
     uint32_t                    faceBeginOrNodeIndex;
+    glm::vec3                   maximum;
     uint32_t                    faceEndIndex;
 };
 

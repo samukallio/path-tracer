@@ -62,7 +62,7 @@ static void BuildMeshNode(MeshTreeBuildState* state, uint32_t index, uint32_t de
     node.maximum = { -INF, -INF, -INF };
     for (uint32_t index = node.faceBeginOrNodeIndex; index < node.faceEndIndex; index++) {
         for (int j = 0; j < 3; j++) {
-            auto const& position = scene->meshFaces[index].positions[j];
+            glm::vec3 position = scene->meshFaces[index].positions[j];
             node.minimum = glm::min(node.minimum, position);
             node.maximum = glm::max(node.maximum, position);
         }
