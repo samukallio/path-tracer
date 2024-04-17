@@ -12,6 +12,7 @@ enum ObjectType : uint32_t
 struct Object
 {
     glm::vec3                   origin;
+    alignas(16) glm::vec3       scale;
     ObjectType                  type;
     uint32_t                    meshRootNodeIndex;
 };
@@ -48,3 +49,4 @@ bool LoadMesh(Scene* scene, char const* path);
 bool LoadSkybox(Scene* scene, char const* path);
 void AddMesh(Scene* scene, glm::vec3 origin, uint32_t rootNodeIndex);
 void AddPlane(Scene* scene, glm::vec3 origin);
+void AddSphere(Scene* scene, glm::vec3 origin, float radius);

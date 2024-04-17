@@ -16,6 +16,7 @@ const uint OBJECT_SPHERE = 2;
 struct Object
 {
     vec3    origin;
+    vec3    scale;
     uint    type;
     uint    meshRootNodeIndex;
 };
@@ -284,6 +285,23 @@ void TraceObject(Ray ray, uint objectIndex, inout Hit hit)
         hit.index = objectIndex;
         hit.data = vec3(fract(ray.origin.xy + ray.direction.xy * t), 0);
     }
+
+    if (object.type == OBJECT_SPHERE) {
+        vec3 vector = object.origin - ray.origin;
+        float tm = dot(ray.direction, vector);
+        float td2 = tm * tm - dot(vector, vector) + object.scale.x * object.scale.x;
+        if (td2 < 0) return;
+
+        float td = sqrt(td2);
+        float t0 = tm - td;
+        float t1 = tm + td;
+        float t = min(t0, t1);
+        if (t < 0 || t > hit.time) return;
+
+        hit.time = t;
+        hit.type = HIT_SPHERE;
+        hit.index = objectIndex;
+    }
 }
 
 vec4 SampleSkybox(Ray ray)
@@ -310,19 +328,29 @@ vec4 Trace(Ray ray)
     vec4 outputColor = vec4(0, 0, 0, 0);
     vec4 filterColor = vec4(1, 1, 1, 0);
 
-    for (uint bounce = 0; bounce < 10; bounce++) {
+    for (uint bounce = 0; bounce < 5; bounce++) {
 
         for (uint objectIndex = 0; objectIndex < objectCount; objectIndex++)
             TraceObject(ray, objectIndex, hit);
 
+        float fogFactor = 1.0;
+//        if (hit.time == INFINITY)
+//            fogFactor = 0.1;
+//        else
+//            fogFactor = 0.1 + 0.99 * exp(-hit.time / 1.0);
+//
+
         if (hit.time == INFINITY) {
-            outputColor += filterColor * SampleSkybox(ray);
+            outputColor += fogFactor * filterColor * SampleSkybox(ray);
             break;
         }
+
+        vec3 position = ray.origin + hit.time * ray.direction;
 
         vec3 normal = vec3(0, 0, 1);
         float smoothness = 0.0f;
         vec4 diffuseColor = vec4(0, 0, 0, 0);
+        vec4 emissiveColor = vec4(0, 0, 0, 0);
 
         if (hit.type == HIT_MESH_FACE) {
             MeshFace face = meshFaces[hit.index];
@@ -345,13 +373,23 @@ vec4 Trace(Ray ray)
                 diffuseColor = vec4(0.5, 0.5, 0.5, 0);
         }
 
+        if (hit.type == HIT_SPHERE) {
+            Object object = objects[hit.index];
+
+            normal = normalize(position - object.origin);
+            diffuseColor = vec4(0, 1, 0, 0);
+            emissiveColor = 25 * vec4(1, 223.0/255.0, 142.0/255.0, 0);
+            smoothness = 0.7f;
+        }
+
         vec3 diffuseDirection = normalize(normal + RandomDirection());
         vec3 specularDirection = reflect(ray.direction, normal);
 
-        ray.origin = ray.origin + (hit.time - 1e-3) * ray.direction;
         ray.direction = normalize(mix(diffuseDirection, specularDirection, smoothness));
+        ray.origin = position + 1e-3 * ray.direction;
 
-        filterColor *= diffuseColor;
+        outputColor += emissiveColor * filterColor;
+        filterColor *= diffuseColor * fogFactor;
 
         hit.time = INFINITY;
     }
@@ -385,7 +423,7 @@ void main()
     // Trace.
     Ray ray;
     ray.origin = (viewMatrixInverse * vec4(0, 0, 0, 1)).xyz;
-    ray.direction = (viewMatrixInverse * vec4(nearPlanePosition, -1, 0)).xyz;
+    ray.direction = (viewMatrixInverse * normalize(vec4(nearPlanePosition, -1, 0))).xyz;
 
     vec4 outputValue = Trace(ray);
 

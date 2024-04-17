@@ -17,6 +17,7 @@ int main()
     LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
     AddPlane(&scene, glm::vec3(0, 0, 0));
     AddMesh(&scene, glm::vec3(0, 0, 0), 0);
+    AddSphere(&scene, glm::vec3(0, -0.5, 2), 0.25);
 
     for (MeshNode const& node : scene.meshNodes) {
         if (node.faceEndIndex > 0) {

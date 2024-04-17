@@ -318,3 +318,12 @@ void AddPlane(Scene* scene, glm::vec3 origin)
         .type = OBJECT_PLANE,
     });
 }
+
+void AddSphere(Scene* scene, glm::vec3 origin, float radius)
+{
+    scene->objects.push_back({
+        .origin = origin,
+        .scale = glm::vec3(1, 1, 1) * radius,
+        .type = OBJECT_SPHERE,
+    });
+}
