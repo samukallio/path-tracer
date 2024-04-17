@@ -133,6 +133,7 @@ struct VulkanContext
     VulkanFrameState            frameStates[2]              = {};
 
     VkSampler                   sampler                     = VK_NULL_HANDLE;
+    VkSampler                   textureSampler              = VK_NULL_HANDLE;
 
     VulkanImage                 textureArray                = {};
     VulkanBuffer                materialBuffer              = {};

@@ -88,11 +88,11 @@ uniform readonly image2D inputImage;
 layout(binding = 2, rgba32f)
 uniform writeonly image2D outputImage;
 
-layout(binding = 3, rgba32f)
-uniform readonly image2D skyboxImage;
+layout(binding = 3)
+uniform sampler2D skyboxImage;
 
-layout(binding = 4, rgba8)
-uniform readonly image2DArray textureArray;
+layout(binding = 4)
+uniform sampler2DArray textureArray;
 
 layout(binding = 5, std140)
 readonly buffer MaterialBuffer
@@ -176,9 +176,10 @@ void ResolveHit(Ray ray, inout Hit hit)
 
         hit.material = materials[face.materialIndex];
 
-        ivec2 uv = ivec2(fract(hit.uv) * vec2(hit.material.albedoTextureSize - 1));
-        ivec3 uvw = ivec3(uv, hit.material.albedoTextureIndex);
-        hit.material.albedoColor *= imageLoad(textureArray, uvw).rgb;
+        vec2 uv = fract(hit.uv) * hit.material.albedoTextureSize / vec2(2048, 2048);
+        vec3 uvw = vec3(uv, hit.material.albedoTextureIndex);
+
+        hit.material.albedoColor *= textureLod(textureArray, uvw, 0).rgb;
     }
 
     if (hit.objectType == PLANE) {
@@ -379,17 +380,11 @@ void TraceObject(Ray ray, uint objectIndex, inout Hit hit)
 vec3 SampleSkybox(Ray ray)
 {
     float r = length(ray.direction.xy);
-
     float phi = atan(ray.direction.x, ray.direction.y);
     float theta = atan(-ray.direction.z, r);
 
-    ivec2 size = imageSize(skyboxImage);
-
-    float x = floor(size.x * (0.5 + phi / 6.28318));
-    float y = floor(size.y * (0.5 + theta / 3.14159));
-    ivec2 xy = ivec2(x, y);
-
-    return imageLoad(skyboxImage, min(xy, size - 1)).rgb;
+    vec2 uv = 0.5 + vec2(phi / TAU, theta / PI);
+    return textureLod(skyboxImage, uv, 0).rgb;
 }
 
 vec4 Trace(Ray ray)
@@ -505,7 +500,7 @@ void main()
     ray.origin = (viewMatrixInverse * vec4(0, 0, 0, 1)).xyz;
     ray.direction = (viewMatrixInverse * normalize(vec4(nearPlanePosition, -1, 0))).xyz;
 
-    vec4 outputValue = Trace(ray);
+    vec4 outputValue = TraceAlbedo(ray);
 
     if (clearFrame == 0) {
         outputValue += imageLoad(inputImage, imagePosition);

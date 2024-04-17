@@ -1797,6 +1797,33 @@ static VkResult InternalCreateVulkan(
         }
     }
 
+    {
+        VkSamplerCreateInfo samplerInfo = {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_LINEAR,
+            .minFilter = VK_FILTER_LINEAR,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+            .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .mipLodBias = 0.0f,
+            .anisotropyEnable = VK_FALSE,
+            .maxAnisotropy = 0.0f,
+            .compareEnable = VK_FALSE,
+            .compareOp = VK_COMPARE_OP_ALWAYS,
+            .minLod = 0.0f,
+            .maxLod = 0.0f,
+            .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+            .unnormalizedCoordinates = VK_FALSE,
+        };
+
+        result = vkCreateSampler(vulkan->device, &samplerInfo, nullptr, &vulkan->textureSampler);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create texture sampler");
+            return result;
+        }
+    }
+
     // Create ImGui resources.
     {
         ImGuiIO& io = ImGui::GetIO();
@@ -1869,8 +1896,8 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,  // sceneUniformBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // inputImage
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // outputImage
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // skyboxImage
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // textureArray
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // skyboxImage
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // textureArray
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // materialBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // objectBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // meshFaceBuffer
@@ -2027,15 +2054,15 @@ static void InternalUpdateSceneDataDescriptors(
         return;
 
     VkDescriptorImageInfo skyboxImageInfo = {
-        .sampler = nullptr,
+        .sampler = vulkan->textureSampler,
         .imageView = vulkan->skyboxImage.view,
-        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
 
     VkDescriptorImageInfo textureArrayInfo = {
-        .sampler = nullptr,
+        .sampler = vulkan->textureSampler,
         .imageView = vulkan->textureArray.view,
-        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
 
     VkDescriptorBufferInfo materialBufferInfo = {
@@ -2072,7 +2099,7 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstBinding = 3,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 .pImageInfo = &skyboxImageInfo,
             },
             {
@@ -2081,7 +2108,7 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstBinding = 4,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 .pImageInfo = &textureArrayInfo,
             },
             {
@@ -2154,7 +2181,7 @@ VkResult UploadScene(
     result = InternalCreateImage(
         vulkan,
         &vulkan->skyboxImage,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         VK_IMAGE_TYPE_2D,
         VK_FORMAT_R32G32B32A32_SFLOAT,
@@ -2169,13 +2196,13 @@ VkResult UploadScene(
         scene->skyboxWidth,
         scene->skyboxHeight,
         sizeof(glm::vec4),
-        VK_IMAGE_LAYOUT_GENERAL);
+        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
     uint32_t textureCount = static_cast<uint32_t>(scene->textures.size());
     result = InternalCreateImage(
         vulkan,
         &vulkan->textureArray,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         VK_IMAGE_TYPE_2D,
         VK_FORMAT_R8G8B8A8_UNORM,
@@ -2191,7 +2218,7 @@ VkResult UploadScene(
             index, 1,
             texture.pixels,
             texture.width, texture.height, sizeof(uint32_t),
-            VK_IMAGE_LAYOUT_GENERAL);
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
     size_t materialBufferSize = sizeof(Material) * scene->materials.size();

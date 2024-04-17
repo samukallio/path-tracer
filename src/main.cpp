@@ -15,7 +15,7 @@ int main()
     Scene scene;
 
     LoadMesh(&scene, "../scene/sponza.obj", 0.01f);
-    LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
+    LoadSkybox(&scene, "../scene/MegaSun4k.hdr");
     AddMesh(&scene, glm::vec3(0, 0, 0), 0);
     //AddPlane(&scene, glm::vec3(0, 0, -1.1));
 
