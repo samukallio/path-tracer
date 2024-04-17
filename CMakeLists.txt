@@ -18,6 +18,16 @@ add_executable (path-tracer
 	src/scene.h
 	src/scene.cpp
 	src/tiny_obj_loader.h
+	#
+	lib/imgui-1.90.5-docking/imgui.cpp
+	lib/imgui-1.90.5-docking/imgui_draw.cpp
+	lib/imgui-1.90.5-docking/imgui_tables.cpp
+	lib/imgui-1.90.5-docking/imgui_widgets.cpp
+	lib/imgui-1.90.5-docking/imgui_demo.cpp
+)
+
+target_include_directories (path-tracer
+	PRIVATE lib/imgui-1.90.5-docking
 )
 
 target_link_libraries (path-tracer
@@ -68,3 +78,7 @@ compile_shader (path-tracer src/blit.glsl
 
 compile_shader (path-tracer src/render.glsl
 		COMPUTE render.compute.inc)
+
+compile_shader (path-tracer src/imgui.glsl
+		VERTEX imgui.vertex.inc
+		FRAGMENT imgui.fragment.inc)

@@ -9,14 +9,20 @@ struct Scene;
 
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
+#include <imgui.h>
 
 struct SceneUniformBuffer
 {
     glm::mat4                   viewMatrixInverse           = {};
     glm::vec2                   nearPlaneSize               = { 1.0f, 1.0f };
     uint32_t                    frameIndex                  = 0;
-    bool                        clearFrame                  = false;
     uint32_t                    objectCount                 = {};
+    uint32_t                    clearFrame                  = 0;
+};
+
+struct ImGuiUniformBuffer
+{
+    glm::mat4                   projectionMatrix            = {};
 };
 
 struct VulkanBuffer
@@ -78,6 +84,11 @@ struct VulkanFrameState
 
     VulkanImage                 renderTarget                = {};
     VulkanImage                 renderTargetGraphicsCopy    = {};
+
+    VulkanBuffer                imguiUniformBuffer          = {};
+    VulkanBuffer                imguiIndexBuffer            = {};
+    VulkanBuffer                imguiVertexBuffer           = {};
+    VkDescriptorSet             imguiDescriptorSet          = {};
 };
 
 struct VulkanContext
@@ -131,6 +142,9 @@ struct VulkanContext
 
     VulkanPipeline              blitPipeline                = {};
     VulkanPipeline              renderPipeline              = {};
+
+    VulkanImage                 imguiTexture                = {};
+    VulkanPipeline              imguiPipeline               = {};
 };
 
 VulkanContext* CreateVulkan(
@@ -146,4 +160,5 @@ VkResult UploadScene(
 
 VkResult RenderFrame(
     VulkanContext* vulkan,
-    SceneUniformBuffer const* parameters);
+    SceneUniformBuffer const* parameters,
+    ImDrawData* imguiDrawData);

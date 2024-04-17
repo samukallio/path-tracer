@@ -248,9 +248,9 @@ bool LoadMesh(Scene* scene, char const* path)
             for (int j = 0; j < 3; j++) {
                 tinyobj::index_t const& index = shape.mesh.indices[i+j];
                 faceData.vertices[j] = {
-                    0.01f * attrib.vertices[3*index.vertex_index+0],
-                    0.01f *  -attrib.vertices[3*index.vertex_index+2],
-                    0.01f *  attrib.vertices[3*index.vertex_index+1],
+                    attrib.vertices[3*index.vertex_index+0],
+                    -attrib.vertices[3*index.vertex_index+2],
+                    attrib.vertices[3*index.vertex_index+1],
                 };
 
                 face.normals[j].x = attrib.normals[3*index.normal_index+0];

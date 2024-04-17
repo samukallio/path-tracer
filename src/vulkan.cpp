@@ -31,6 +31,16 @@ uint32_t const RENDER_COMPUTE_SHADER[] =
     #include "render.compute.inc"
 };
 
+uint32_t const IMGUI_VERTEX_SHADER[] =
+{
+    #include "imgui.vertex.inc"
+};
+
+uint32_t const IMGUI_FRAGMENT_SHADER[] =
+{
+    #include "imgui.fragment.inc"
+};
+
 static void Errorf(VulkanContext* vk, char const* fmt, ...)
 {
     va_list args;
@@ -803,7 +813,6 @@ static VkResult InternalCreateFrameResources(
             }
         }
 
-
         InternalCreateBuffer(vulkan,
             &frame->sceneUniformBuffer,
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -833,6 +842,24 @@ static VkResult InternalCreateFrameResources(
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             false);
+
+        InternalCreateBuffer(vulkan,
+            &frame->imguiUniformBuffer,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            sizeof(ImGuiUniformBuffer));
+
+        InternalCreateBuffer(vulkan,
+            &frame->imguiVertexBuffer,
+            VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            65536 * sizeof(ImDrawVert));
+
+        InternalCreateBuffer(vulkan,
+            &frame->imguiIndexBuffer,
+            VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            65536 * sizeof(uint16_t));
     }
 
     // Allocate and initialize descriptor sets.
@@ -941,6 +968,57 @@ static VkResult InternalCreateFrameResources(
 
             vkUpdateDescriptorSets(vulkan->device, static_cast<uint32_t>(std::size(writes)), writes, 0, nullptr);
         }
+
+        // ImGui descriptor set.
+        {
+            VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
+                .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+                .descriptorPool = vulkan->descriptorPool,
+                .descriptorSetCount = 1,
+                .pSetLayouts = &vulkan->imguiPipeline.descriptorSetLayout,
+            };
+
+            result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &frame->imguiDescriptorSet);
+            if (result != VK_SUCCESS) {
+                Errorf(vulkan, "failed to allocate imgui descriptor set");
+                return result;
+            }
+
+            VkDescriptorBufferInfo imguiUniformBufferInfo = {
+                .buffer = frame->imguiUniformBuffer.buffer,
+                .offset = 0,
+                .range = frame->imguiUniformBuffer.size,
+            };
+
+            VkDescriptorImageInfo imguiTextureInfo = {
+                .sampler = vulkan->sampler,
+                .imageView = vulkan->imguiTexture.view,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            };
+
+            VkWriteDescriptorSet writes[] = {
+                {
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = frame->imguiDescriptorSet,
+                    .dstBinding = 0,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                    .pBufferInfo = &imguiUniformBufferInfo,
+                },
+                {
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = frame->imguiDescriptorSet,
+                    .dstBinding = 1,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                    .pImageInfo = &imguiTextureInfo,
+                },
+            };
+
+            vkUpdateDescriptorSets(vulkan->device, static_cast<uint32_t>(std::size(writes)), writes, 0, nullptr);
+        }
     }
 
     return VK_SUCCESS;
@@ -951,6 +1029,10 @@ static VkResult InternalDestroyFrameResources(
 {
     for (int index = 0; index < 2; index++) {
         VulkanFrameState* frame = &vulkan->frameStates[index];
+
+        InternalDestroyBuffer(vulkan, &frame->imguiIndexBuffer);
+        InternalDestroyBuffer(vulkan, &frame->imguiVertexBuffer);
+        InternalDestroyBuffer(vulkan, &frame->imguiUniformBuffer);
 
         InternalDestroyImage(vulkan, &frame->renderTargetGraphicsCopy);
         InternalDestroyImage(vulkan, &frame->renderTarget);
@@ -1097,7 +1179,7 @@ static VkResult InternalCreateGraphicsPipeline(
         .depthClampEnable = VK_FALSE,
         .rasterizerDiscardEnable = VK_FALSE,
         .polygonMode = VK_POLYGON_MODE_FILL,
-        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .cullMode = VK_CULL_MODE_NONE, //BACK_BIT,
         .frontFace = VK_FRONT_FACE_CLOCKWISE,
         .depthBiasEnable = VK_FALSE,
         .depthBiasConstantFactor = 0.0f,
@@ -1133,9 +1215,9 @@ static VkResult InternalCreateGraphicsPipeline(
 
     // Color blend state.
     VkPipelineColorBlendAttachmentState colorBlendAttachmentState = {
-        .blendEnable = VK_FALSE,
-        .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
-        .dstColorBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .blendEnable = VK_TRUE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
         .colorBlendOp = VK_BLEND_OP_ADD,
         .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
         .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
@@ -1708,6 +1790,71 @@ static VkResult InternalCreateVulkan(
         }
     }
 
+    // Create ImGui resources.
+    {
+        ImGuiIO& io = ImGui::GetIO();
+
+        io.Fonts->AddFontDefault();
+        io.Fonts->Build();
+
+        unsigned char* data;
+        int width, height;
+        io.Fonts->GetTexDataAsRGBA32(&data, &width, &height);
+        size_t size = width * height * sizeof(uint32_t);
+
+        InternalCreateImage(vulkan,
+            &vulkan->imguiTexture,
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            VK_IMAGE_TYPE_2D,
+            VK_FORMAT_R8G8B8A8_SRGB,
+            { .width = (uint32_t)width, .height = (uint32_t)height, .depth = 1},
+            1,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            false);
+
+        InternalWriteToDeviceLocalImage(vulkan,
+            &vulkan->imguiTexture,
+            data, size,
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+
+        VulkanGraphicsPipelineConfiguration imguiConfig = {
+            .vertexSize = sizeof(ImDrawVert),
+            .vertexFormat = {
+                {
+                    .location = 0,
+                    .binding = 0,
+                    .format = VK_FORMAT_R32G32_SFLOAT,
+                    .offset = offsetof(ImDrawVert, pos),
+                },
+                {
+                    .location = 1,
+                    .binding = 0,
+                    .format = VK_FORMAT_R32G32_SFLOAT,
+                    .offset = offsetof(ImDrawVert, uv),
+                },
+                {
+                    .location = 2,
+                    .binding = 0,
+                    .format = VK_FORMAT_R8G8B8A8_UNORM,
+                    .offset = offsetof(ImDrawVert, col),
+                },
+            },
+            .vertexShaderCode = IMGUI_VERTEX_SHADER,
+            .fragmentShaderCode = IMGUI_FRAGMENT_SHADER,
+            .descriptorTypes = {
+                VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            },
+        };
+
+        result = InternalCreateGraphicsPipeline(vulkan, &vulkan->imguiPipeline, imguiConfig);
+        if (result != VK_SUCCESS) {
+            return result;
+        }
+    }
+
     VulkanComputePipelineConfiguration renderConfig = {
         .computeShaderCode = RENDER_COMPUTE_SHADER,
         .descriptorTypes = {
@@ -1722,6 +1869,11 @@ static VkResult InternalCreateVulkan(
         },
     };
 
+    result = InternalCreateComputePipeline(vulkan, &vulkan->renderPipeline, renderConfig);
+    if (result != VK_SUCCESS) {
+        return result;
+    }
+
     VulkanGraphicsPipelineConfiguration blitConfig = {
         .vertexSize = 0,
         .vertexFormat = {},
@@ -1733,11 +1885,6 @@ static VkResult InternalCreateVulkan(
     };
 
     result = InternalCreateGraphicsPipeline(vulkan, &vulkan->blitPipeline, blitConfig);
-    if (result != VK_SUCCESS) {
-        return result;
-    }
-
-    result = InternalCreateComputePipeline(vulkan, &vulkan->renderPipeline, renderConfig);
     if (result != VK_SUCCESS) {
         return result;
     }
@@ -1774,6 +1921,8 @@ void DestroyVulkan(VulkanContext* vulkan)
         vkDeviceWaitIdle(vulkan->device);
     }
 
+    InternalDestroyImage(vulkan, &vulkan->imguiTexture);
+
     InternalDestroyBuffer(vulkan, &vulkan->materialBuffer);
     InternalDestroyBuffer(vulkan, &vulkan->objectBuffer);
     InternalDestroyBuffer(vulkan, &vulkan->meshNodeBuffer);
@@ -1785,6 +1934,7 @@ void DestroyVulkan(VulkanContext* vulkan)
     // Destroy swap chain and any other window-related resources.
     InternalDestroyPresentationResources(vulkan);
 
+    InternalDestroyPipeline(vulkan, &vulkan->imguiPipeline);
     InternalDestroyPipeline(vulkan, &vulkan->renderPipeline);
     InternalDestroyPipeline(vulkan, &vulkan->blitPipeline);
 
@@ -2038,7 +2188,8 @@ VkResult UploadScene(
 
 VkResult RenderFrame(
     VulkanContext* vulkan,
-    SceneUniformBuffer const* parameters)
+    SceneUniformBuffer const* parameters,
+    ImDrawData* imguiDrawData)
 {
     VkResult result = VK_SUCCESS;
 
@@ -2215,6 +2366,48 @@ VkResult RenderFrame(
         return result;
     }
 
+    // --- Upload ImGui draw data ---------------------------------------------
+
+    {
+        ImGuiUniformBuffer imguiUniformBuffer;
+        float l = imguiDrawData->DisplayPos.x;
+        float r = imguiDrawData->DisplayPos.x + imguiDrawData->DisplaySize.x;
+        float t = imguiDrawData->DisplayPos.y;
+        float b = imguiDrawData->DisplayPos.y + imguiDrawData->DisplaySize.y;
+        imguiUniformBuffer.projectionMatrix = {
+            { 2.0f / (r - l),    0.0f,              0.0f, 0.0f },
+            { 0.0f,              2.0f / (b - t),    0.0f, 0.0f },
+            { 0.0f,              0.0f,              0.5f, 0.0f },
+            { (r + l) / (l - r), (t + b) / (t - b), 0.5f, 1.0f },
+        };
+        InternalWriteToHostVisibleBuffer(vulkan, &frame->imguiUniformBuffer, &imguiUniformBuffer, sizeof(ImGuiUniformBuffer));
+
+        void* vertexMemory;
+        uint32_t vertexOffset = 0;
+        vkMapMemory(vulkan->device, frame->imguiVertexBuffer.memory, 0, frame->imguiVertexBuffer.size, 0, &vertexMemory);
+        void* indexMemory;
+        uint32_t indexOffset = 0;
+        vkMapMemory(vulkan->device, frame->imguiIndexBuffer.memory, 0, frame->imguiIndexBuffer.size, 0, &indexMemory);
+
+        ImDrawVert* vertexPointer = static_cast<ImDrawVert*>(vertexMemory);
+        uint16_t* indexPointer = static_cast<uint16_t*>(indexMemory);
+
+        for (int i = 0; i < imguiDrawData->CmdListsCount; i++) {
+            ImDrawList* cmdList = imguiDrawData->CmdLists[i];
+
+            uint32_t vertexDataSize = cmdList->VtxBuffer.Size * sizeof(ImDrawVert);
+            memcpy(vertexPointer, cmdList->VtxBuffer.Data, vertexDataSize);
+            vertexPointer += cmdList->VtxBuffer.Size;
+
+            uint32_t indexDataSize = cmdList->IdxBuffer.Size * sizeof(uint16_t);
+            memcpy(indexPointer, cmdList->IdxBuffer.Data, indexDataSize);
+            indexPointer += cmdList->IdxBuffer.Size;
+        }
+
+        vkUnmapMemory(vulkan->device, frame->imguiIndexBuffer.memory);
+        vkUnmapMemory(vulkan->device, frame->imguiVertexBuffer.memory);
+    }
+
     // --- Graphics -----------------------------------------------------------
 
     // Start graphics command buffer.
@@ -2279,36 +2472,103 @@ VkResult RenderFrame(
         vkCmdBeginRenderPass(frame->graphicsCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
     }
 
-    // Rendering
-    vkCmdBindPipeline(
-        frame->graphicsCommandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        vulkan->blitPipeline.pipeline);
+    //
+    {
+        vkCmdBindPipeline(
+            frame->graphicsCommandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            vulkan->blitPipeline.pipeline);
 
-    vkCmdBindDescriptorSets(
-        frame->graphicsCommandBuffer,
-        VK_PIPELINE_BIND_POINT_GRAPHICS,
-        vulkan->blitPipeline.pipelineLayout,
-        0, 1, &frame->graphicsDescriptorSet,
-        0, nullptr);
+        vkCmdBindDescriptorSets(
+            frame->graphicsCommandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            vulkan->blitPipeline.pipelineLayout,
+            0, 1, &frame->graphicsDescriptorSet,
+            0, nullptr);
 
-    VkViewport viewport = {
-        .x = 0.0f,
-        .y = 0.0f,
-        .width = static_cast<float>(vulkan->swapchainExtent.width),
-        .height = static_cast<float>(vulkan->swapchainExtent.height),
-        .minDepth = 0.0f,
-        .maxDepth = 1.0f,
-    };
-    vkCmdSetViewport(frame->graphicsCommandBuffer, 0, 1, &viewport);
+        VkViewport viewport = {
+            .x = 0.0f,
+            .y = 0.0f,
+            .width = static_cast<float>(vulkan->swapchainExtent.width),
+            .height = static_cast<float>(vulkan->swapchainExtent.height),
+            .minDepth = 0.0f,
+            .maxDepth = 1.0f,
+        };
+        vkCmdSetViewport(frame->graphicsCommandBuffer, 0, 1, &viewport);
 
-    VkRect2D scissor = {
-        .offset = { 0, 0 },
-        .extent = vulkan->swapchainExtent,
-    };
-    vkCmdSetScissor(frame->graphicsCommandBuffer, 0, 1, &scissor);
+        VkRect2D scissor = {
+            .offset = { 0, 0 },
+            .extent = vulkan->swapchainExtent,
+        };
+        vkCmdSetScissor(frame->graphicsCommandBuffer, 0, 1, &scissor);
 
-    vkCmdDraw(frame->graphicsCommandBuffer, 6, 1, 0, 0);
+        vkCmdDraw(frame->graphicsCommandBuffer, 6, 1, 0, 0);
+    }
+
+    // Render ImGui.
+    {
+        vkCmdBindPipeline(
+            frame->graphicsCommandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            vulkan->imguiPipeline.pipeline);
+
+        vkCmdBindDescriptorSets(
+            frame->graphicsCommandBuffer,
+            VK_PIPELINE_BIND_POINT_GRAPHICS,
+            vulkan->imguiPipeline.pipelineLayout,
+            0, 1, &frame->imguiDescriptorSet,
+            0, nullptr);
+
+        VkDeviceSize offset = 0;
+        vkCmdBindVertexBuffers(
+            frame->graphicsCommandBuffer,
+            0, 1, &frame->imguiVertexBuffer.buffer, &offset);
+
+        vkCmdBindIndexBuffer(
+            frame->graphicsCommandBuffer,
+            frame->imguiIndexBuffer.buffer,
+            0, VK_INDEX_TYPE_UINT16);
+
+        VkViewport viewport = {
+            .x = 0.0f,
+            .y = 0.0f,
+            .width = static_cast<float>(vulkan->swapchainExtent.width),
+            .height = static_cast<float>(vulkan->swapchainExtent.height),
+            .minDepth = 0.0f,
+            .maxDepth = 1.0f,
+        };
+        vkCmdSetViewport(frame->graphicsCommandBuffer, 0, 1, &viewport);
+
+        uint32_t indexBase = 0;
+        uint32_t vertexBase = 0;
+
+        for (int i = 0; i < imguiDrawData->CmdListsCount; i++) {
+            ImDrawList* cmdList = imguiDrawData->CmdLists[i];
+
+            for (int j = 0; j < cmdList->CmdBuffer.Size; j++) {
+                ImDrawCmd* cmd = &cmdList->CmdBuffer[j];
+
+                int32_t x0 = static_cast<int32_t>(cmd->ClipRect.x - imguiDrawData->DisplayPos.x);
+                int32_t y0 = static_cast<int32_t>(cmd->ClipRect.y - imguiDrawData->DisplayPos.y);
+                int32_t x1 = static_cast<int32_t>(cmd->ClipRect.z - imguiDrawData->DisplayPos.x);
+                int32_t y1 = static_cast<int32_t>(cmd->ClipRect.w - imguiDrawData->DisplayPos.y);
+
+                VkRect2D scissor = {
+                    .offset = { x0, y0 },
+                    .extent = { static_cast<uint32_t>(x1 - x0), static_cast<uint32_t>(y1 - y0) },
+                };
+                vkCmdSetScissor(frame->graphicsCommandBuffer, 0, 1, &scissor);
+
+                uint32_t indexCount = cmd->ElemCount;
+                uint32_t firstIndex = indexBase + cmd->IdxOffset;
+                uint32_t vertexOffset = vertexBase + cmd->VtxOffset;
+                vkCmdDrawIndexed(frame->graphicsCommandBuffer, indexCount, 1, firstIndex, vertexOffset, 0);
+            }
+
+            indexBase += cmdList->IdxBuffer.Size;
+            vertexBase += cmdList->VtxBuffer.Size;
+        }
+    }
 
     vkCmdEndRenderPass(frame->graphicsCommandBuffer);
 

@@ -4,6 +4,7 @@
 #include "scene.h"
 
 #include <GLFW/glfw3.h>
+#include <imgui.h>
 
 int const WINDOW_WIDTH = 1920;
 int const WINDOW_HEIGHT = 1080;
@@ -16,17 +17,17 @@ int main()
     scene.materials.push_back({
         .albedoColor = { 1, 1, 1, 0 },
         .specularColor = { 1, 1, 1, 0 },
-        .emissiveColor = 50.0f * glm::vec4(1, 223.0f/255.0f, 142.0f/255.0f, 0),
+        .emissiveColor = { 0, 0, 0, 0 },
         .roughness = 1.0f,
         .specularProbability = 0.0f,
         .refractProbability = 0.0f,
         .refractIndex = 0.0f,
     });
 
-    LoadMesh(&scene, "../scene/sponza.obj");
+    LoadMesh(&scene, "../scene/bunny.obj");
     LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
     AddMesh(&scene, glm::vec3(0, 0, 0), 0);
-    //AddPlane(&scene, glm::vec3(0, 0, -1.1));
+    AddPlane(&scene, glm::vec3(0, 0, -1.1));
     AddSphere(&scene, glm::vec3(0, 0, 4), 0.25);
  
     for (MeshNode const& node : scene.meshNodes) {
@@ -38,6 +39,13 @@ int main()
             assert(node.faceBeginOrNodeIndex < scene.meshNodes.size());
         }
     }
+
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -76,21 +84,25 @@ int main()
         previousMouseX = currentMouseX;
         previousMouseY = currentMouseY;
 
+        io.MousePos.x = currentMouseX;
+        io.MousePos.y = currentMouseY;
+        io.MouseDown[0] = glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1);
+
         bool clearFrame = false;
 
-        glm::vec3 viewMove {};
-        if (glfwGetKey(window, GLFW_KEY_A))
-            viewMove -= glm::cross(viewDirection, glm::vec3(0, 0, 1));
-        if (glfwGetKey(window, GLFW_KEY_D))
-            viewMove += glm::cross(viewDirection, glm::vec3(0, 0, 1));
-        if (glfwGetKey(window, GLFW_KEY_W))
-            viewMove += viewDirection;
-        if (glfwGetKey(window, GLFW_KEY_S))
-            viewMove -= viewDirection;
-        if (glm::length(viewMove) > 0)
-            viewVelocity = 2.0f * glm::normalize(viewMove);
+        if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_2)) {
+            glm::vec3 viewMove {};
+            if (glfwGetKey(window, GLFW_KEY_A))
+                viewMove -= glm::cross(viewDirection, glm::vec3(0, 0, 1));
+            if (glfwGetKey(window, GLFW_KEY_D))
+                viewMove += glm::cross(viewDirection, glm::vec3(0, 0, 1));
+            if (glfwGetKey(window, GLFW_KEY_W))
+                viewMove += viewDirection;
+            if (glfwGetKey(window, GLFW_KEY_S))
+                viewMove -= viewDirection;
+            if (glm::length(viewMove) > 0)
+                viewVelocity = 2.0f * glm::normalize(viewMove);
 
-        if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_1)) {
             viewYaw -= deltaMouseX * 0.01f;
             viewPitch += deltaMouseY * 0.01f;
             viewPitch = glm::clamp(viewPitch, -glm::pi<glm::f32>() * 0.45f, +glm::pi<glm::f32>() * 0.45f);
@@ -108,14 +120,28 @@ int main()
 
         glm::mat4 viewMatrix = glm::lookAt(viewPosition - viewDirection * 2.0f, viewPosition, glm::vec3(0, 0, 1));
 
+        // ImGui.
+        io.DisplaySize.x = WINDOW_WIDTH;
+        io.DisplaySize.y = WINDOW_HEIGHT;
+        io.DeltaTime = deltaTime;
+
+        
+        ImGui::NewFrame();
+        ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_PassthruCentralNode);
+
+        ImGui::ShowDemoWindow();
+        ImGui::EndFrame();
+        ImGui::Render();
+
+        // Rendering.
         SceneUniformBuffer parameters = {
             .viewMatrixInverse = glm::inverse(viewMatrix),
             .nearPlaneSize = { 2, 2 * WINDOW_HEIGHT / float(WINDOW_WIDTH) },
             .frameIndex = vulkan->frameIndex,
-            .clearFrame = clearFrame,
             .objectCount = static_cast<uint32_t>(scene.objects.size()),
+            .clearFrame = clearFrame,
         };
-        RenderFrame(vulkan, &parameters);
+        RenderFrame(vulkan, &parameters, ImGui::GetDrawData());
 
         previousTime = currentTime;
     }
@@ -124,4 +150,6 @@ int main()
 
     glfwDestroyWindow(window);
     glfwTerminate();
+
+    ImGui::DestroyContext();
 }

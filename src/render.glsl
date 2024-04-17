@@ -67,8 +67,8 @@ uniform SceneUniformBuffer
     mat4    viewMatrixInverse;
     vec2    nearPlaneSize;
     uint    frameIndex;
-    bool    clearFrame;
     uint    objectCount;
+    uint    clearFrame;
 };
 
 layout(binding = 1, rgba32f)
@@ -447,7 +447,7 @@ void main()
 
     vec4 outputValue = Trace(ray);
 
-    if (!clearFrame) {
+    if (clearFrame == 0) {
         outputValue += imageLoad(inputImage, imagePosition);
     }
 
