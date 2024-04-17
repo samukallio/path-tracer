@@ -322,7 +322,7 @@ bool LoadMesh(Scene* scene, char const* path, float scale)
                 face.normals[j].z = attrib.normals[3*index.normal_index+1];
 
                 face.uvs[j].x = attrib.texcoords[2*index.texcoord_index+0];
-                face.uvs[j].y = attrib.texcoords[2*index.texcoord_index+1];
+                face.uvs[j].y = 1.0f - attrib.texcoords[2*index.texcoord_index+1];
             }
 
             face.materialIndex = shape.mesh.material_ids[i/3];

@@ -179,7 +179,7 @@ void ResolveHit(Ray ray, inout Hit hit)
         hit.materialIndex = face.materialIndex;
         hit.material = materials[face.materialIndex];
 
-        ivec2 uv = ivec2(vec2(fract(hit.uv.x), 1 - fract(hit.uv.y)) * vec2(hit.material.albedoTextureSize - 1));
+        ivec2 uv = ivec2(fract(hit.uv) * vec2(hit.material.albedoTextureSize - 1));
         ivec3 uvw = ivec3(uv, hit.material.albedoTextureIndex);
         hit.material.albedoColor = imageLoad(textureArray, uvw).rgb;
     }
