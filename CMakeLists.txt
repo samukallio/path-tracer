@@ -61,6 +61,7 @@ function (compile_shader target source)
 					-MD
 					-mfmt=num
 					-fshader-stage=${stage}
+					-O
 					-o ${output_path}
 					${CMAKE_CURRENT_SOURCE_DIR}/${source}
 			)
