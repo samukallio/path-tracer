@@ -15,6 +15,8 @@ constexpr float INF = std::numeric_limits<float>::infinity();
 struct MeshFaceBuildData
 {
     glm::vec3               vertices[3];
+    glm::vec3               normals[3];
+    glm::vec2               uvs[3];
     glm::vec3               centroid;
 };
 
@@ -95,7 +97,7 @@ static void BuildMeshNode(MeshTreeBuildState* state, uint32_t index, uint32_t de
         if (minimum == maximum) continue;
 
         // Bin the faces by their centroid points.
-        constexpr uint32_t BINS = 8;
+        constexpr uint32_t BINS = 32;
 
         struct Bin {
             Bounds bounds;
@@ -218,6 +220,23 @@ static void BuildMeshNode(MeshTreeBuildState* state, uint32_t index, uint32_t de
     BuildMeshNode(state, rightNodeIndex, depth+1);
 }
 
+uint32_t AddTextureFromFile(Scene* scene, char const* path)
+{
+    int width, height, channelsInFile;
+    stbi_uc* pixels = stbi_load(path, &width, &height, &channelsInFile, 4);
+    if (!pixels) return -1;
+
+    size_t index = scene->textures.size();
+
+    scene->textures.push_back({
+        .width = static_cast<uint32_t>(width),
+        .height = static_cast<uint32_t>(height),
+        .pixels = pixels,
+    });
+
+    return static_cast<uint32_t>(index);
+}
+
 bool LoadMesh(Scene* scene, char const* path, float scale)
 {
     tinyobj::attrib_t attrib;
@@ -236,12 +255,16 @@ bool LoadMesh(Scene* scene, char const* path, float scale)
     for (auto const& shape : shapes)
         faceCount += shape.mesh.indices.size() / 3;
 
-    scene->meshFaces.resize(faceCount);
-    state.meshFaceDatas.resize(faceCount);
+    state.meshFaceDatas.reserve(faceCount);
 
+    // Map from in-file texture name to scene texture index.
     std::unordered_map<std::string, uint32_t> textureIndexMap;
+    // Map from in-file material IDs to scene material index.
+    std::unordered_map<int, uint32_t> materialIndexMap;
 
-    for (tinyobj::material_t const& material : materials) {
+    // Scan the material definitions and build scene materials.
+    for (int materialId = 0; materialId < materials.size(); materialId++) {
+        tinyobj::material_t const& material = materials[materialId];
 
         std::string textureNames[2] = {
             material.diffuse_texname,
@@ -252,26 +275,21 @@ bool LoadMesh(Scene* scene, char const* path, float scale)
 
         for (int i = 0; i < std::size(textureNames); i++) {
             std::string const& textureName = textureNames[i];
-            if (textureIndexMap.contains(textureName)) {
+            if (!textureName.empty()) {
+                if (!textureIndexMap.contains(textureName)) {
+                    std::string texturePath = std::format("../scene/{}", textureName);
+                    textureIndexMap[textureName] = AddTextureFromFile(scene, texturePath.c_str());
+                }
                 textureIndices[i] = textureIndexMap[textureName];
-                continue;
             }
-            std::string texturePath = std::format("../scene/{}", textureName);
-            int width, height, channelsInFile;
-            stbi_uc* pixels = stbi_load(texturePath.c_str(), &width, &height, &channelsInFile, 4);
-            if (!pixels) continue;
-
-            uint32_t textureIndex = static_cast<uint32_t>(scene->textures.size());
-            scene->textures.push_back({
-                .width = static_cast<uint32_t>(width),
-                .height = static_cast<uint32_t>(height),
-                .pixels = pixels,
-            });
-            textureIndexMap[textureName] = textureIndex;
-            textureIndices[i] = textureIndex;
+            else {
+                textureIndices[i] = 0;
+            }
         }
 
-        Material m = {
+        materialIndexMap[materialId] = static_cast<uint32_t>(scene->materials.size());
+
+        scene->materials.push_back({
             .albedoColor = glm::vec4(
                 material.diffuse[0],
                 material.diffuse[1],
@@ -293,57 +311,67 @@ bool LoadMesh(Scene* scene, char const* path, float scale)
             .specularProbability = 0.0f,
             .refractProbability = 0.0f,
             .refractIndex = 0.0f,
-        };
-
-        m.albedoTextureSize.x = scene->textures[textureIndices[0]].width;
-        m.albedoTextureSize.y = scene->textures[textureIndices[0]].height;
-
-        scene->materials.push_back(m);
+            .albedoTextureSize = glm::uvec2(
+                scene->textures[textureIndices[0]].width,
+                scene->textures[textureIndices[0]].height
+            ),
+        });
     }
 
-    size_t faceIndex = 0;
+    glm::mat4 normalTransform = {
+        { 0, 1, 0, 0 },
+        { 0, 0, 1, 0 },
+        { 1, 0, 0, 0 },
+        { 0, 0, 0, 1 },
+    };
+
+    glm::mat4 vertexTransform = scale * normalTransform;
+
+    glm::mat3x2 uvTransform = {
+        { 1,  0 },
+        { 0, -1 },
+        { 0,  1 },
+    };
+
     for (tinyobj::shape_t const& shape : shapes) {
         size_t shapeIndexCount = shape.mesh.indices.size();
 
         for (size_t i = 0; i < shapeIndexCount; i += 3) {
-            MeshFace& face = scene->meshFaces[faceIndex];
-            MeshFaceBuildData& faceData = state.meshFaceDatas[faceIndex];
+            MeshFace face;
+            MeshFaceBuildData faceData;
 
             for (int j = 0; j < 3; j++) {
                 tinyobj::index_t const& index = shape.mesh.indices[i+j];
-                faceData.vertices[j] = {
-                    scale * attrib.vertices[3*index.vertex_index+2],
-                    scale * attrib.vertices[3*index.vertex_index+0],
-                    scale * attrib.vertices[3*index.vertex_index+1],
-                };
 
-                face.normals[j].x = attrib.normals[3*index.normal_index+2];
-                face.normals[j].y = attrib.normals[3*index.normal_index+0];
-                face.normals[j].z = attrib.normals[3*index.normal_index+1];
+                faceData.vertices[j] = vertexTransform * glm::vec4(
+                    attrib.vertices[3*index.vertex_index+0],
+                    attrib.vertices[3*index.vertex_index+1],
+                    attrib.vertices[3*index.vertex_index+2],
+                    1.0f);
 
-                face.uvs[j].x = attrib.texcoords[2*index.texcoord_index+0];
-                face.uvs[j].y = 1.0f - attrib.texcoords[2*index.texcoord_index+1];
+                face.normals[j] = normalTransform * glm::vec4(
+                    attrib.normals[3*index.normal_index+0],
+                    attrib.normals[3*index.normal_index+1],
+                    attrib.normals[3*index.normal_index+2],
+                    1.0f);
+
+                face.uvs[j] = uvTransform * glm::vec3(
+                    attrib.texcoords[2*index.texcoord_index+0],
+                    attrib.texcoords[2*index.texcoord_index+1],
+                    1.0f);
             }
 
-            face.materialIndex = shape.mesh.material_ids[i/3];
-
-            glm::vec3 position0 = faceData.vertices[0];
-            glm::vec3 position1 = faceData.vertices[1];
-            glm::vec3 position2 = faceData.vertices[2];
-
-            face.position = position0;
-
-            faceData.centroid = (position0 + position1 + position2) / 3.0f;
-
-            glm::vec3 ab = position1 - position0;
-            glm::vec3 ac = position2 - position0;
+            face.position = faceData.vertices[0];
+            face.materialIndex = materialIndexMap[shape.mesh.material_ids[i/3]];
 
             // Compute triangle plane.
+            glm::vec3 ab = faceData.vertices[1] - faceData.vertices[0];
+            glm::vec3 ac = faceData.vertices[2] - faceData.vertices[0];
             glm::vec3 normal = glm::normalize(glm::cross(ab, ac));
             float d = -glm::dot(normal, glm::vec3(face.position));
             face.plane = glm::vec4(normal, d);
 
-            // Compute reciprocal tangent space.
+            // Compute reciprocal basis for the tangent plane.
             float bb = glm::dot(ab, ab);
             float bc = glm::dot(ab, ac);
             float cc = glm::dot(ac, ac);
@@ -351,16 +379,17 @@ bool LoadMesh(Scene* scene, char const* path, float scale)
             face.base1 = (ab * cc - ac * bc) * idet;
             face.base2 = (ac * bb - ab * bc) * idet;
 
-            //
-            faceIndex++;
+            faceData.centroid = (faceData.vertices[0] + faceData.vertices[1] + faceData.vertices[2]) / 3.0f;
+
+            scene->meshFaces.push_back(face);
+            state.meshFaceDatas.push_back(faceData);
         }
     }
-
-    scene->meshNodes.clear();
 
     MeshNode root;
     root.faceBeginOrNodeIndex = 0;
     root.faceEndIndex = static_cast<uint32_t>(scene->meshFaces.size());
+    scene->meshNodes.clear();
     scene->meshNodes.push_back(root);
 
     BuildMeshNode(&state, 0, 0);

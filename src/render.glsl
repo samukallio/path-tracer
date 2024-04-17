@@ -67,10 +67,8 @@ struct Hit
 
     // Populated by ResolveHit()
     vec3        position;
-    vec4        albedoColor;
     vec3        normal;
     vec2        uv;
-    uint        materialIndex;
     Material    material;
 };
 
@@ -176,12 +174,11 @@ void ResolveHit(Ray ray, inout Hit hit)
                + face.uvs[1] * hit.data.y
                + face.uvs[2] * hit.data.z;
 
-        hit.materialIndex = face.materialIndex;
         hit.material = materials[face.materialIndex];
 
         ivec2 uv = ivec2(fract(hit.uv) * vec2(hit.material.albedoTextureSize - 1));
         ivec3 uvw = ivec3(uv, hit.material.albedoTextureIndex);
-        hit.material.albedoColor = imageLoad(textureArray, uvw).rgb;
+        hit.material.albedoColor *= imageLoad(textureArray, uvw).rgb;
     }
 
     if (hit.objectType == PLANE) {
@@ -189,7 +186,6 @@ void ResolveHit(Ray ray, inout Hit hit)
 
         hit.normal = vec3(0, 0, 1);
 
-        hit.materialIndex = object.materialIndex;
         hit.material = materials[object.materialIndex];
 
         if ((hit.data.x > 0.5 && hit.data.y > 0.5) || (hit.data.x <= 0.5 && hit.data.y <= 0.5))
@@ -201,7 +197,6 @@ void ResolveHit(Ray ray, inout Hit hit)
     if (hit.objectType == SPHERE) {
         Object object = objects[hit.objectIndex];
         hit.normal = normalize(hit.position - object.origin);
-        hit.materialIndex = object.materialIndex;
         hit.material = materials[object.materialIndex];
     }
 }
@@ -510,7 +505,7 @@ void main()
     ray.origin = (viewMatrixInverse * vec4(0, 0, 0, 1)).xyz;
     ray.direction = (viewMatrixInverse * normalize(vec4(nearPlanePosition, -1, 0))).xyz;
 
-    vec4 outputValue = TraceAlbedo(ray);
+    vec4 outputValue = Trace(ray);
 
     if (clearFrame == 0) {
         outputValue += imageLoad(inputImage, imagePosition);

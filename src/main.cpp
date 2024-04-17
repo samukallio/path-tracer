@@ -24,7 +24,7 @@ int main()
         .albedoColor = glm::vec3(1, 1, 1),
         .albedoTextureIndex = 0,
         .specularColor = glm::vec4(1, 1, 1, 0),
-        .emissiveColor = 25.0f * glm::vec3(1,1,1),
+        .emissiveColor = 150.0f * glm::vec3(1,243/255.0f,142/255.0f),
         .emissiveTextureIndex = 0,
         .roughness = 1.0f,
         .specularProbability = 0.0f,

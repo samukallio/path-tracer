@@ -73,6 +73,8 @@ struct Scene
     float*                      skyboxPixels;
 };
 
+uint32_t AddTextureFromFile(Scene* scene, char const* path);
+
 bool LoadMesh(Scene* scene, char const* path, float scale = 1.0f);
 bool LoadSkybox(Scene* scene, char const* path);
 void AddMesh(Scene* scene, glm::vec3 origin, uint32_t rootNodeIndex);
