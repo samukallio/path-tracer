@@ -1975,6 +1975,11 @@ void DestroyVulkan(VulkanContext* vulkan)
     InternalDestroyPipeline(vulkan, &vulkan->renderPipeline);
     InternalDestroyPipeline(vulkan, &vulkan->resolvePipeline);
 
+    if (vulkan->textureSampler) {
+        vkDestroySampler(vulkan->device, vulkan->textureSampler, nullptr);
+        vulkan->textureSampler = VK_NULL_HANDLE;
+    }
+
     if (vulkan->sampler) {
         vkDestroySampler(vulkan->device, vulkan->sampler, nullptr);
         vulkan->sampler = VK_NULL_HANDLE;
