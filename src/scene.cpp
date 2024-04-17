@@ -230,18 +230,27 @@ bool LoadMesh(Scene* scene, char const* path)
     MeshTreeBuildState state;
     state.scene = scene;
 
-    for (auto const& shape : shapes) {
-        size_t n = shape.mesh.indices.size();
-        scene->meshFaces.resize(n / 3);
-        state.meshFaceDatas.resize(n / 3);
-        for (size_t i = 0; i < n; i += 3) {
-            MeshFace& face = scene->meshFaces[i / 3];
+    size_t faceCount = 0;
+    for (auto const& shape : shapes)
+        faceCount += shape.mesh.indices.size() / 3;
+
+    scene->meshFaces.resize(faceCount);
+    state.meshFaceDatas.resize(faceCount);
+
+    size_t faceIndex = 0;
+    for (tinyobj::shape_t const& shape : shapes) {
+        size_t shapeIndexCount = shape.mesh.indices.size();
+
+        for (size_t i = 0; i < shapeIndexCount; i += 3) {
+            MeshFace& face = scene->meshFaces[faceIndex];
+            MeshFaceBuildData& faceData = state.meshFaceDatas[faceIndex];
+
             for (int j = 0; j < 3; j++) {
                 tinyobj::index_t const& index = shape.mesh.indices[i+j];
-                state.meshFaceDatas[i/3].vertices[j] = {
-                    attrib.vertices[3*index.vertex_index+0],
-                    -attrib.vertices[3*index.vertex_index+2],
-                    attrib.vertices[3*index.vertex_index+1],
+                faceData.vertices[j] = {
+                    0.01f * attrib.vertices[3*index.vertex_index+0],
+                    0.01f *  -attrib.vertices[3*index.vertex_index+2],
+                    0.01f *  attrib.vertices[3*index.vertex_index+1],
                 };
 
                 face.normals[j].x = attrib.normals[3*index.normal_index+0];
@@ -249,13 +258,13 @@ bool LoadMesh(Scene* scene, char const* path)
                 face.normals[j].z = attrib.normals[3*index.normal_index+1];
             }
 
-            glm::vec3 position0 = state.meshFaceDatas[i/3].vertices[0];
-            glm::vec3 position1 = state.meshFaceDatas[i/3].vertices[1];
-            glm::vec3 position2 = state.meshFaceDatas[i/3].vertices[2];
+            glm::vec3 position0 = faceData.vertices[0];
+            glm::vec3 position1 = faceData.vertices[1];
+            glm::vec3 position2 = faceData.vertices[2];
 
             face.position = position0;
 
-            state.meshFaceDatas[i/3].centroid = (position0 + position1 + position2) / 3.0f;
+            faceData.centroid = (position0 + position1 + position2) / 3.0f;
 
             glm::vec3 ab = position1 - position0;
             glm::vec3 ac = position2 - position0;
@@ -272,6 +281,9 @@ bool LoadMesh(Scene* scene, char const* path)
             float idet = 1.0f / (bb * cc - bc * bc);
             face.base1 = (ab * cc - ac * bc) * idet;
             face.base2 = (ac * bb - ab * bc) * idet;
+
+            //
+            faceIndex++;
         }
     }
 

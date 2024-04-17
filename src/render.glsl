@@ -344,7 +344,7 @@ vec4 Trace(Ray ray)
     vec4 outputColor = vec4(0, 0, 0, 0);
     vec4 filterColor = vec4(1, 1, 1, 0);
 
-    for (uint bounce = 0; bounce < 5; bounce++) {
+    for (uint bounce = 0; bounce < 2; bounce++) {
 
         for (uint objectIndex = 0; objectIndex < objectCount; objectIndex++) {
             TraceObject(ray, objectIndex, hit);
@@ -379,7 +379,7 @@ vec4 Trace(Ray ray)
             material.albedoColor = vec4(1, 1, 1, 0);
             material.specularColor = vec4(0, 0, 0, 0);
             material.emissiveColor = vec4(0, 0, 0, 0);
-            material.roughness = 0.0;
+            material.roughness = 1.0;
             material.specularProbability = 0.0;
             material.refractProbability = 0.0;
             material.refractIndex = 0.0;

@@ -16,18 +16,18 @@ int main()
     scene.materials.push_back({
         .albedoColor = { 1, 1, 1, 0 },
         .specularColor = { 1, 1, 1, 0 },
-        .emissiveColor = { 0, 0, 0, 0 },
-        .roughness = 0.3f,
+        .emissiveColor = 50.0f * glm::vec4(1, 223.0f/255.0f, 142.0f/255.0f, 0),
+        .roughness = 1.0f,
         .specularProbability = 0.0f,
         .refractProbability = 0.0f,
         .refractIndex = 0.0f,
     });
 
-    LoadMesh(&scene, "../scene/bunny.obj");
+    LoadMesh(&scene, "../scene/sponza.obj");
     LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
-    AddPlane(&scene, glm::vec3(0, 0, -1.1));
     AddMesh(&scene, glm::vec3(0, 0, 0), 0);
-    AddSphere(&scene, glm::vec3(0, -0.5, 2), 0.25);
+    //AddPlane(&scene, glm::vec3(0, 0, -1.1));
+    AddSphere(&scene, glm::vec3(0, 0, 4), 0.25);
  
     for (MeshNode const& node : scene.meshNodes) {
         if (node.faceEndIndex > 0) {
