@@ -123,6 +123,7 @@ struct VulkanContext
 
     VkSampler                   sampler                     = VK_NULL_HANDLE;
 
+    VulkanBuffer                materialBuffer              = {};
     VulkanBuffer                objectBuffer                = {};
     VulkanBuffer                meshFaceBuffer              = {};
     VulkanBuffer                meshNodeBuffer              = {};

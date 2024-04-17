@@ -9,20 +9,25 @@ enum ObjectType : uint32_t
     OBJECT_SPHERE   = 2,
 };
 
+struct Material
+{
+    glm::vec4                   albedoColor;
+    glm::vec4                   specularColor;
+    glm::vec4                   emissiveColor;
+    float                       roughness;
+    float                       specularProbability;
+    float                       refractProbability;
+    float                       refractIndex;
+};
+
 struct Object
 {
     glm::vec3                   origin;
-    alignas(16) glm::vec3       scale;
-    ObjectType                  type;
+    uint32_t                    type;
+    glm::vec3                   scale;
+    uint32_t                    materialIndex;
     uint32_t                    meshRootNodeIndex;
-};
-
-struct MeshNode
-{
-    glm::vec3                   minimum;
-    uint32_t                    faceBeginOrNodeIndex;
-    glm::vec3                   maximum;
-    uint32_t                    faceEndIndex;
+    uint32_t                    dummy[3];
 };
 
 struct MeshFace
@@ -34,8 +39,17 @@ struct MeshFace
     glm::aligned_vec3           normals[3];
 };
 
+struct MeshNode
+{
+    glm::vec3                   minimum;
+    uint32_t                    faceBeginOrNodeIndex;
+    glm::vec3                   maximum;
+    uint32_t                    faceEndIndex;
+};
+
 struct Scene
 {
+    std::vector<Material>       materials;
     std::vector<Object>         objects;
     std::vector<MeshFace>       meshFaces;
     std::vector<MeshNode>       meshNodes;

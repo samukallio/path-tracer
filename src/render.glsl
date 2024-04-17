@@ -5,19 +5,27 @@ const float EPSILON = 1e-9f;
 const float PI = 3.141592653f;
 const float TAU = 6.283185306f;
 
-const uint HIT_MESH_FACE = 0;
-const uint HIT_PLANE = 1;
-const uint HIT_SPHERE = 2;
+const uint MESH = 0;
+const uint PLANE = 1;
+const uint SPHERE = 2;
 
-const uint OBJECT_MESH = 0;
-const uint OBJECT_PLANE = 1;
-const uint OBJECT_SPHERE = 2;
+struct Material
+{
+    vec4    albedoColor;
+    vec4    specularColor;
+    vec4    emissiveColor;
+    float   roughness;
+    float   specularProbability;
+    float   refractProbability;
+    float   refractIndex;
+};
 
 struct Object
 {
     vec3    origin;
-    vec3    scale;
     uint    type;
+    vec3    scale;
+    uint    materialIndex;
     uint    meshRootNodeIndex;
 };
 
@@ -47,8 +55,9 @@ struct Ray
 struct Hit
 {
     float   time;
-    uint    type;
-    uint    index;
+    uint    objectType;
+    uint    objectIndex;
+    uint    elementIndex;
     vec3    data;
 };
 
@@ -69,24 +78,30 @@ layout(binding = 2, rgba32f)
 uniform writeonly image2D outputImage;
 
 layout(binding = 3, std140)
+readonly buffer MaterialBuffer
+{
+    Material materials[];
+};
+
+layout(binding = 4, std140)
 readonly buffer ObjectBuffer
 {
     Object objects[];
 };
 
-layout(binding = 4, std140)
+layout(binding = 5, std140)
 readonly buffer MeshFaceBuffer
 {
     MeshFace meshFaces[];
 };
 
-layout(binding = 5, std140)
+layout(binding = 6, std140)
 readonly buffer MeshNodeBuffer
 {
     MeshNode meshNodes[];
 };
 
-layout(binding = 6, rgba32f)
+layout(binding = 7, rgba32f)
 uniform readonly image2D skyboxImage;
 
 layout(
@@ -173,8 +188,9 @@ void TraceMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
 
     hit.time = t;
     hit.data = vec3(1 - beta - gamma, beta, gamma);
-    hit.type = HIT_MESH_FACE;
-    hit.index = meshFaceIndex;
+    hit.objectType = MESH;
+    hit.objectIndex = 0xFFFFFFFF;
+    hit.elementIndex = meshFaceIndex;
 }
 
 float IntersectMeshNodeBounds(Ray ray, float reach, MeshNode node)
@@ -273,20 +289,20 @@ void TraceObject(Ray ray, uint objectIndex, inout Hit hit)
 {
     Object object = objects[objectIndex];
 
-    if (object.type == OBJECT_MESH)
+    if (object.type == MESH)
         TraceMesh(ray, object, hit);
 
-    if (object.type == OBJECT_PLANE) {
+    if (object.type == PLANE) {
         float t = (object.origin.z - ray.origin.z) / ray.direction.z;
         if (t < 0 || t > hit.time) return;
 
         hit.time = t;
-        hit.type = HIT_PLANE;
-        hit.index = objectIndex;
+        hit.objectType = PLANE;
+        hit.objectIndex = objectIndex;
         hit.data = vec3(fract(ray.origin.xy + ray.direction.xy * t), 0);
     }
 
-    if (object.type == OBJECT_SPHERE) {
+    if (object.type == SPHERE) {
         vec3 vector = object.origin - ray.origin;
         float tm = dot(ray.direction, vector);
         float td2 = tm * tm - dot(vector, vector) + object.scale.x * object.scale.x;
@@ -299,8 +315,8 @@ void TraceObject(Ray ray, uint objectIndex, inout Hit hit)
         if (t < 0 || t > hit.time) return;
 
         hit.time = t;
-        hit.type = HIT_SPHERE;
-        hit.index = objectIndex;
+        hit.objectType = SPHERE;
+        hit.objectIndex = objectIndex;
     }
 }
 
@@ -330,8 +346,11 @@ vec4 Trace(Ray ray)
 
     for (uint bounce = 0; bounce < 5; bounce++) {
 
-        for (uint objectIndex = 0; objectIndex < objectCount; objectIndex++)
+        for (uint objectIndex = 0; objectIndex < objectCount; objectIndex++) {
             TraceObject(ray, objectIndex, hit);
+            if (hit.objectIndex == 0xFFFFFFFF)
+                hit.objectIndex = objectIndex;
+        }
 
         float fogFactor = 1.0;
 //        if (hit.time == INFINITY)
@@ -346,50 +365,51 @@ vec4 Trace(Ray ray)
         }
 
         vec3 position = ray.origin + hit.time * ray.direction;
-
         vec3 normal = vec3(0, 0, 1);
-        float smoothness = 0.0f;
-        vec4 diffuseColor = vec4(0, 0, 0, 0);
-        vec4 emissiveColor = vec4(0, 0, 0, 0);
 
-        if (hit.type == HIT_MESH_FACE) {
-            MeshFace face = meshFaces[hit.index];
+        Material material;
 
+        if (hit.objectType == MESH) {
+            MeshFace face = meshFaces[hit.elementIndex];
+            
             normal = face.normals[0] * hit.data.x
                    + face.normals[1] * hit.data.y
                    + face.normals[2] * hit.data.z;
 
-            diffuseColor = vec4(1, 1, 1, 0);
-
-            smoothness = 0.7f;
+            material.albedoColor = vec4(1, 1, 1, 0);
+            material.specularColor = vec4(0, 0, 0, 0);
+            material.emissiveColor = vec4(0, 0, 0, 0);
+            material.roughness = 0.0;
+            material.specularProbability = 0.0;
+            material.refractProbability = 0.0;
+            material.refractIndex = 0.0;
         }
 
-        if (hit.type == HIT_PLANE) {
+        if (hit.objectType == PLANE) {
+            Object object = objects[hit.objectIndex];
             normal = vec3(0, 0, 1);
+            material = materials[object.materialIndex];
 
             if ((hit.data.x > 0.5 && hit.data.y > 0.5) || (hit.data.x <= 0.5 && hit.data.y <= 0.5))
-                diffuseColor = vec4(1.0, 1.0, 1.0, 0);
+                material.albedoColor *= vec4(1.0, 1.0, 1.0, 0);
             else
-                diffuseColor = vec4(0.5, 0.5, 0.5, 0);
+                material.albedoColor *= vec4(0.5, 0.5, 0.5, 0);
         }
 
-        if (hit.type == HIT_SPHERE) {
-            Object object = objects[hit.index];
-
+        if (hit.objectType == SPHERE) {
+            Object object = objects[hit.objectIndex];
             normal = normalize(position - object.origin);
-            diffuseColor = vec4(0, 1, 0, 0);
-            emissiveColor = 25 * vec4(1, 223.0/255.0, 142.0/255.0, 0);
-            smoothness = 0.7f;
+            material = materials[object.materialIndex];
         }
 
         vec3 diffuseDirection = normalize(normal + RandomDirection());
         vec3 specularDirection = reflect(ray.direction, normal);
 
-        ray.direction = normalize(mix(diffuseDirection, specularDirection, smoothness));
+        ray.direction = normalize(mix(specularDirection, diffuseDirection, material.roughness));
         ray.origin = position + 1e-3 * ray.direction;
 
-        outputColor += emissiveColor * filterColor;
-        filterColor *= diffuseColor * fogFactor;
+        outputColor += material.emissiveColor * filterColor;
+        filterColor *= material.albedoColor * fogFactor;
 
         hit.time = INFINITY;
     }
