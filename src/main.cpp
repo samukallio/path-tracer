@@ -14,21 +14,31 @@ int main()
 {
     Scene scene;
 
+    LoadMesh(&scene, "../scene/sponza.obj", 0.01f);
+    LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
+    AddMesh(&scene, glm::vec3(0, 0, 0), 0);
+    //AddPlane(&scene, glm::vec3(0, 0, -1.1));
+
+    uint32_t lightMaterialIndex = (uint32_t)scene.materials.size();
     scene.materials.push_back({
-        .albedoColor = { 1, 1, 1, 0 },
-        .specularColor = { 1, 1, 1, 0 },
-        .emissiveColor = { 0, 0, 0, 0 },
+        .albedoColor = glm::vec3(1, 1, 1),
+        .albedoTextureIndex = 0,
+        .specularColor = glm::vec4(1, 1, 1, 0),
+        .emissiveColor = 25.0f * glm::vec3(1,1,1),
+        .emissiveTextureIndex = 0,
         .roughness = 1.0f,
         .specularProbability = 0.0f,
         .refractProbability = 0.0f,
         .refractIndex = 0.0f,
+        .albedoTextureSize = glm::uvec2(0, 0),
+        .padding = glm::uvec2(0, 0),
     });
-
-    LoadMesh(&scene, "../scene/bunny.obj");
-    LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
-    AddMesh(&scene, glm::vec3(0, 0, 0), 0);
-    AddPlane(&scene, glm::vec3(0, 0, -1.1));
-    AddSphere(&scene, glm::vec3(0, 0, 4), 0.25);
+    scene.objects.push_back({
+        .origin = glm::vec3(0, 0, 5),
+        .type = OBJECT_SPHERE,
+        .scale = 0.25f * glm::vec3(1, 1, 1),
+        .materialIndex = lightMaterialIndex,
+    });
  
     for (MeshNode const& node : scene.meshNodes) {
         if (node.faceEndIndex > 0) {
@@ -125,13 +135,23 @@ int main()
         io.DisplaySize.y = WINDOW_HEIGHT;
         io.DeltaTime = deltaTime;
 
-        
         ImGui::NewFrame();
         ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_PassthruCentralNode);
 
+        ImGui::SetNextWindowPos(ImVec2(0, 0));
+        ImGui::Begin("Statistics", nullptr,
+            ImGuiWindowFlags_NoBackground|
+            ImGuiWindowFlags_NoDecoration |
+            ImGuiWindowFlags_NoDocking |
+            ImGuiWindowFlags_NoMove);
+        ImGui::Text("Boo");
+        ImGui::End();
+
         ImGui::ShowDemoWindow();
+
         ImGui::EndFrame();
         ImGui::Render();
+
 
         // Rendering.
         SceneUniformBuffer parameters = {

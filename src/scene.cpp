@@ -6,6 +6,8 @@
 
 #include "scene.h"
 
+#include <unordered_map>
+#include <format>
 #include <stdio.h>
 
 constexpr float INF = std::numeric_limits<float>::infinity();
@@ -216,7 +218,7 @@ static void BuildMeshNode(MeshTreeBuildState* state, uint32_t index, uint32_t de
     BuildMeshNode(state, rightNodeIndex, depth+1);
 }
 
-bool LoadMesh(Scene* scene, char const* path)
+bool LoadMesh(Scene* scene, char const* path, float scale)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
@@ -224,7 +226,7 @@ bool LoadMesh(Scene* scene, char const* path)
     std::string warn;
     std::string err;
 
-    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path))
+    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path, "../scene/"))
         return false;
 
     MeshTreeBuildState state;
@@ -237,6 +239,68 @@ bool LoadMesh(Scene* scene, char const* path)
     scene->meshFaces.resize(faceCount);
     state.meshFaceDatas.resize(faceCount);
 
+    std::unordered_map<std::string, uint32_t> textureIndexMap;
+
+    for (tinyobj::material_t const& material : materials) {
+
+        std::string textureNames[2] = {
+            material.diffuse_texname,
+            material.emissive_texname,
+        };
+
+        uint32_t textureIndices[2] = {};
+
+        for (int i = 0; i < std::size(textureNames); i++) {
+            std::string const& textureName = textureNames[i];
+            if (textureIndexMap.contains(textureName)) {
+                textureIndices[i] = textureIndexMap[textureName];
+                continue;
+            }
+            std::string texturePath = std::format("../scene/{}", textureName);
+            int width, height, channelsInFile;
+            stbi_uc* pixels = stbi_load(texturePath.c_str(), &width, &height, &channelsInFile, 4);
+            if (!pixels) continue;
+
+            uint32_t textureIndex = static_cast<uint32_t>(scene->textures.size());
+            scene->textures.push_back({
+                .width = static_cast<uint32_t>(width),
+                .height = static_cast<uint32_t>(height),
+                .pixels = pixels,
+            });
+            textureIndexMap[textureName] = textureIndex;
+            textureIndices[i] = textureIndex;
+        }
+
+        Material m = {
+            .albedoColor = glm::vec4(
+                material.diffuse[0],
+                material.diffuse[1],
+                material.diffuse[2],
+                1.0),
+            .albedoTextureIndex = textureIndices[0],
+            .specularColor = glm::vec4(
+                material.specular[0],
+                material.specular[1],
+                material.specular[2],
+                1.0),
+            .emissiveColor = glm::vec4(
+                material.emission[0],
+                material.emission[1],
+                material.emission[2],
+                1.0),
+            .emissiveTextureIndex = textureIndices[1],
+            .roughness = 1.0f, //material.roughness,
+            .specularProbability = 0.0f,
+            .refractProbability = 0.0f,
+            .refractIndex = 0.0f,
+        };
+
+        m.albedoTextureSize.x = scene->textures[textureIndices[0]].width;
+        m.albedoTextureSize.y = scene->textures[textureIndices[0]].height;
+
+        scene->materials.push_back(m);
+    }
+
     size_t faceIndex = 0;
     for (tinyobj::shape_t const& shape : shapes) {
         size_t shapeIndexCount = shape.mesh.indices.size();
@@ -248,15 +312,20 @@ bool LoadMesh(Scene* scene, char const* path)
             for (int j = 0; j < 3; j++) {
                 tinyobj::index_t const& index = shape.mesh.indices[i+j];
                 faceData.vertices[j] = {
-                    attrib.vertices[3*index.vertex_index+0],
-                    -attrib.vertices[3*index.vertex_index+2],
-                    attrib.vertices[3*index.vertex_index+1],
+                    scale * attrib.vertices[3*index.vertex_index+2],
+                    scale * attrib.vertices[3*index.vertex_index+0],
+                    scale * attrib.vertices[3*index.vertex_index+1],
                 };
 
-                face.normals[j].x = attrib.normals[3*index.normal_index+0];
-                face.normals[j].y = -attrib.normals[3*index.normal_index+2];
+                face.normals[j].x = attrib.normals[3*index.normal_index+2];
+                face.normals[j].y = attrib.normals[3*index.normal_index+0];
                 face.normals[j].z = attrib.normals[3*index.normal_index+1];
+
+                face.uvs[j].x = attrib.texcoords[2*index.texcoord_index+0];
+                face.uvs[j].y = attrib.texcoords[2*index.texcoord_index+1];
             }
+
+            face.materialIndex = shape.mesh.material_ids[i/3];
 
             glm::vec3 position0 = faceData.vertices[0];
             glm::vec3 position1 = faceData.vertices[1];

@@ -16,14 +16,14 @@
 uint32_t const RENDER_WIDTH = 1920;
 uint32_t const RENDER_HEIGHT = 1080;
 
-uint32_t const BLIT_VERTEX_SHADER[] =
+uint32_t const RESOLVE_VERTEX_SHADER[] =
 {
-    #include "blit.vertex.inc"
+    #include "resolve.vertex.inc"
 };
 
-uint32_t const BLIT_FRAGMENT_SHADER[] =
+uint32_t const RESOLVE_FRAGMENT_SHADER[] =
 {
-    #include "blit.fragment.inc"
+    #include "resolve.fragment.inc"
 };
 
 uint32_t const RENDER_COMPUTE_SHADER[] =
@@ -228,7 +228,7 @@ static VkResult InternalCreateImage(
     VkImageType type,
     VkFormat format,
     VkExtent3D extent,
-    uint32_t count,
+    uint32_t layerCount,
     VkImageTiling tiling,
     VkImageLayout layout,
     bool compute)
@@ -239,6 +239,7 @@ static VkResult InternalCreateImage(
     image->format = format;
     image->extent = extent;
     image->tiling = tiling;
+    image->layerCount = layerCount;
 
     // Create the image object.
     VkImageCreateInfo imageInfo = {
@@ -248,7 +249,7 @@ static VkResult InternalCreateImage(
         .format = format,
         .extent = extent,
         .mipLevels = 1,
-        .arrayLayers = count,
+        .arrayLayers = layerCount,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = tiling,
         .usage = usageFlags,
@@ -299,10 +300,10 @@ static VkResult InternalCreateImage(
 
     switch (type) {
     case VK_IMAGE_TYPE_1D:
-        viewType = VK_IMAGE_VIEW_TYPE_1D;
+        viewType = layerCount > 1 ? VK_IMAGE_VIEW_TYPE_1D_ARRAY : VK_IMAGE_VIEW_TYPE_1D;
         break;
     case VK_IMAGE_TYPE_2D:
-        viewType = VK_IMAGE_VIEW_TYPE_2D;
+        viewType = layerCount > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
         break;
     case VK_IMAGE_TYPE_3D:
         viewType = VK_IMAGE_VIEW_TYPE_3D;
@@ -323,7 +324,7 @@ static VkResult InternalCreateImage(
             .baseMipLevel = 0,
             .levelCount = 1,
             .baseArrayLayer = 0,
-            .layerCount = count,
+            .layerCount = layerCount,
         },
     };
 
@@ -372,7 +373,7 @@ static VkResult InternalCreateImage(
                 .baseMipLevel = 0,
                 .levelCount = 1,
                 .baseArrayLayer = 0,
-                .layerCount = count,
+                .layerCount = layerCount,
             },
         };
 
@@ -415,10 +416,16 @@ static void InternalDestroyImage(
 static VkResult InternalWriteToDeviceLocalImage(
     VulkanContext* vulkan,
     VulkanImage* image,
+    uint32_t layerIndex,
+    uint32_t layerCount,
     void const* data,
-    size_t size,
+    uint32_t width,
+    uint32_t height,
+    uint32_t bytesPerPixel,
     VkImageLayout newLayout)
 {
+    size_t size = width * height * bytesPerPixel;
+
     // Create a staging buffer and copy the data into it.
     VulkanBuffer staging;
     InternalCreateBuffer(vulkan,
@@ -446,16 +453,16 @@ static VkResult InternalWriteToDeviceLocalImage(
 
     VkBufferImageCopy region = {
         .bufferOffset = 0,
-        .bufferRowLength = 0,
-        .bufferImageHeight = 0,
+        .bufferRowLength = width,
+        .bufferImageHeight = height,
         .imageSubresource = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .mipLevel = 0,
-            .baseArrayLayer = 0,
-            .layerCount = 1,
+            .baseArrayLayer = layerIndex,
+            .layerCount = layerCount,
         },
         .imageOffset = { 0, 0 },
-        .imageExtent = image->extent,
+        .imageExtent = { width, height, 1 },
     };
 
     vkCmdCopyBufferToImage(commandBuffer,
@@ -472,8 +479,8 @@ static VkResult InternalWriteToDeviceLocalImage(
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .baseMipLevel = 0,
             .levelCount = 1,
-            .baseArrayLayer = 0,
-            .layerCount = 1,
+            .baseArrayLayer = layerIndex,
+            .layerCount = layerCount,
         },
     };
 
@@ -867,7 +874,7 @@ static VkResult InternalCreateFrameResources(
         VulkanFrameState* frame0 = &vulkan->frameStates[1-index];
         VulkanFrameState* frame = &vulkan->frameStates[index];
 
-        // Compute descriptor set.
+        // Render descriptor set.
         {
             VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -876,7 +883,7 @@ static VkResult InternalCreateFrameResources(
                 .pSetLayouts = &vulkan->renderPipeline.descriptorSetLayout,
             };
 
-            result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &frame->computeDescriptorSet);
+            result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &frame->renderDescriptorSet);
             if (result != VK_SUCCESS) {
                 Errorf(vulkan, "failed to allocate compute descriptor set");
                 return result;
@@ -903,7 +910,7 @@ static VkResult InternalCreateFrameResources(
             VkWriteDescriptorSet writes[] = {
                 {
                     .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                    .dstSet = frame->computeDescriptorSet,
+                    .dstSet = frame->renderDescriptorSet,
                     .dstBinding = 0,
                     .dstArrayElement = 0,
                     .descriptorCount = 1,
@@ -912,7 +919,7 @@ static VkResult InternalCreateFrameResources(
                 },
                 {
                     .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                    .dstSet = frame->computeDescriptorSet,
+                    .dstSet = frame->renderDescriptorSet,
                     .dstBinding = 1,
                     .dstArrayElement = 0,
                     .descriptorCount = 1,
@@ -921,7 +928,7 @@ static VkResult InternalCreateFrameResources(
                 },
                 {
                     .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                    .dstSet = frame->computeDescriptorSet,
+                    .dstSet = frame->renderDescriptorSet,
                     .dstBinding = 2,
                     .dstArrayElement = 0,
                     .descriptorCount = 1,
@@ -933,16 +940,16 @@ static VkResult InternalCreateFrameResources(
             vkUpdateDescriptorSets(vulkan->device, static_cast<uint32_t>(std::size(writes)), writes, 0, nullptr);
         }
 
-        // Graphics descriptor set.
+        // Resolve descriptor set.
         {
             VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
                 .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
                 .descriptorPool = vulkan->descriptorPool,
                 .descriptorSetCount = 1,
-                .pSetLayouts = &vulkan->blitPipeline.descriptorSetLayout,
+                .pSetLayouts = &vulkan->resolvePipeline.descriptorSetLayout,
             };
 
-            result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &frame->graphicsDescriptorSet);
+            result = vkAllocateDescriptorSets(vulkan->device, &descriptorSetAllocateInfo, &frame->resolveDescriptorSet);
             if (result != VK_SUCCESS) {
                 Errorf(vulkan, "failed to allocate graphics descriptor set");
                 return result;
@@ -957,7 +964,7 @@ static VkResult InternalCreateFrameResources(
             VkWriteDescriptorSet writes[] = {
                 {
                     .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                    .dstSet = frame->graphicsDescriptorSet,
+                    .dstSet = frame->resolveDescriptorSet,
                     .dstBinding = 0,
                     .dstArrayElement = 0,
                     .descriptorCount = 1,
@@ -1816,7 +1823,8 @@ static VkResult InternalCreateVulkan(
 
         InternalWriteToDeviceLocalImage(vulkan,
             &vulkan->imguiTexture,
-            data, size,
+            0, 1,
+            data, (uint32_t)width, (uint32_t)height, sizeof(uint32_t),
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
         VulkanGraphicsPipelineConfiguration imguiConfig = {
@@ -1861,11 +1869,12 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,  // sceneUniformBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // inputImage
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // outputImage
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // skyboxImage
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // textureArray
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // materialBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // objectBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // meshFaceBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // meshNodeBuffer
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // skyboxImage
         },
     };
 
@@ -1877,14 +1886,14 @@ static VkResult InternalCreateVulkan(
     VulkanGraphicsPipelineConfiguration blitConfig = {
         .vertexSize = 0,
         .vertexFormat = {},
-        .vertexShaderCode = BLIT_VERTEX_SHADER,
-        .fragmentShaderCode = BLIT_FRAGMENT_SHADER,
+        .vertexShaderCode = RESOLVE_VERTEX_SHADER,
+        .fragmentShaderCode = RESOLVE_FRAGMENT_SHADER,
         .descriptorTypes = {
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         },
     };
 
-    result = InternalCreateGraphicsPipeline(vulkan, &vulkan->blitPipeline, blitConfig);
+    result = InternalCreateGraphicsPipeline(vulkan, &vulkan->resolvePipeline, blitConfig);
     if (result != VK_SUCCESS) {
         return result;
     }
@@ -1928,6 +1937,7 @@ void DestroyVulkan(VulkanContext* vulkan)
     InternalDestroyBuffer(vulkan, &vulkan->meshNodeBuffer);
     InternalDestroyBuffer(vulkan, &vulkan->meshFaceBuffer);
     InternalDestroyImage(vulkan, &vulkan->skyboxImage);
+    InternalDestroyImage(vulkan, &vulkan->textureArray);
 
     InternalDestroyFrameResources(vulkan);
 
@@ -1936,7 +1946,7 @@ void DestroyVulkan(VulkanContext* vulkan)
 
     InternalDestroyPipeline(vulkan, &vulkan->imguiPipeline);
     InternalDestroyPipeline(vulkan, &vulkan->renderPipeline);
-    InternalDestroyPipeline(vulkan, &vulkan->blitPipeline);
+    InternalDestroyPipeline(vulkan, &vulkan->resolvePipeline);
 
     if (vulkan->sampler) {
         vkDestroySampler(vulkan->device, vulkan->sampler, nullptr);
@@ -2016,6 +2026,18 @@ static void InternalUpdateSceneDataDescriptors(
     if (vulkan->meshFaceBuffer.buffer == VK_NULL_HANDLE)
         return;
 
+    VkDescriptorImageInfo skyboxImageInfo = {
+        .sampler = nullptr,
+        .imageView = vulkan->skyboxImage.view,
+        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+
+    VkDescriptorImageInfo textureArrayInfo = {
+        .sampler = nullptr,
+        .imageView = vulkan->textureArray.view,
+        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+
     VkDescriptorBufferInfo materialBufferInfo = {
         .buffer = vulkan->materialBuffer.buffer,
         .offset = 0,
@@ -2040,20 +2062,32 @@ static void InternalUpdateSceneDataDescriptors(
         .range = vulkan->meshNodeBuffer.size,
     };
 
-    VkDescriptorImageInfo skyboxImageInfo = {
-        .sampler = nullptr,
-        .imageView = vulkan->skyboxImage.view,
-        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-    };
-
     for (int index = 0; index < 2; index++) {
         VulkanFrameState* frame = &vulkan->frameStates[index];
 
         VkWriteDescriptorSet writes[] = {
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = frame->computeDescriptorSet,
+                .dstSet = frame->renderDescriptorSet,
                 .dstBinding = 3,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = &skyboxImageInfo,
+            },
+            {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = frame->renderDescriptorSet,
+                .dstBinding = 4,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .pImageInfo = &textureArrayInfo,
+            },
+            {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = frame->renderDescriptorSet,
+                .dstBinding = 5,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -2061,8 +2095,8 @@ static void InternalUpdateSceneDataDescriptors(
             },
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = frame->computeDescriptorSet,
-                .dstBinding = 4,
+                .dstSet = frame->renderDescriptorSet,
+                .dstBinding = 6,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -2070,8 +2104,8 @@ static void InternalUpdateSceneDataDescriptors(
             },
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = frame->computeDescriptorSet,
-                .dstBinding = 5,
+                .dstSet = frame->renderDescriptorSet,
+                .dstBinding = 7,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -2079,21 +2113,12 @@ static void InternalUpdateSceneDataDescriptors(
             },
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = frame->computeDescriptorSet,
-                .dstBinding = 6,
+                .dstSet = frame->renderDescriptorSet,
+                .dstBinding = 8,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .pBufferInfo = &meshNodeBufferInfo,
-            },
-            {
-                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet = frame->computeDescriptorSet,
-                .dstBinding = 7,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                .pImageInfo = &skyboxImageInfo,
             },
         };
 
@@ -2113,6 +2138,10 @@ VkResult UploadScene(
 
     // Remove the old resources, but don't destroy them yet.
     // We must update descriptors to point to the new ones first.
+    VulkanImage skyboxImageOld = vulkan->skyboxImage;
+    vulkan->skyboxImage = VulkanImage {};
+    VulkanImage textureArrayOld = vulkan->textureArray;
+    vulkan->textureArray = VulkanImage {};
     VulkanBuffer materialBufferOld = vulkan->materialBuffer;
     vulkan->materialBuffer = VulkanBuffer {};
     VulkanBuffer objectBufferOld = vulkan->objectBuffer;
@@ -2121,8 +2150,49 @@ VkResult UploadScene(
     vulkan->meshFaceBuffer = VulkanBuffer {};
     VulkanBuffer meshNodeBufferOld = vulkan->meshNodeBuffer;
     vulkan->meshNodeBuffer = VulkanBuffer {};
-    VulkanImage skyboxImageOld = vulkan->skyboxImage;
-    vulkan->skyboxImage = VulkanImage {};
+
+    result = InternalCreateImage(
+        vulkan,
+        &vulkan->skyboxImage,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        VK_IMAGE_TYPE_2D,
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        { .width = scene->skyboxWidth, .height = scene->skyboxHeight, .depth = 1 },
+        1,
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        true);
+    InternalWriteToDeviceLocalImage(vulkan,
+        &vulkan->skyboxImage, 0, 1,
+        scene->skyboxPixels,
+        scene->skyboxWidth,
+        scene->skyboxHeight,
+        sizeof(glm::vec4),
+        VK_IMAGE_LAYOUT_GENERAL);
+
+    uint32_t textureCount = static_cast<uint32_t>(scene->textures.size());
+    result = InternalCreateImage(
+        vulkan,
+        &vulkan->textureArray,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        VK_IMAGE_TYPE_2D,
+        VK_FORMAT_R8G8B8A8_UNORM,
+        { .width = 2048, .height = 2048, .depth = 1 },
+        textureCount,
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        true);
+    for (uint32_t index = 0; index < textureCount; index++) {
+        Image const& texture = scene->textures[index];
+        InternalWriteToDeviceLocalImage(vulkan,
+            &vulkan->textureArray,
+            index, 1,
+            texture.pixels,
+            texture.width, texture.height, sizeof(uint32_t),
+            VK_IMAGE_LAYOUT_GENERAL);
+    }
 
     size_t materialBufferSize = sizeof(Material) * scene->materials.size();
     result = InternalCreateBuffer(
@@ -2159,21 +2229,6 @@ VkResult UploadScene(
         VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
         meshNodeBufferSize);
     InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshNodeBuffer, scene->meshNodes.data(), meshNodeBufferSize);
-
-    size_t skyboxImageSize = scene->skyboxWidth * scene->skyboxHeight * 4 * sizeof(float);
-    result = InternalCreateImage(
-        vulkan,
-        &vulkan->skyboxImage,
-        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        VK_IMAGE_TYPE_2D,
-        VK_FORMAT_R32G32B32A32_SFLOAT,
-        { .width = scene->skyboxWidth, .height = scene->skyboxHeight, .depth = 1 },
-        1,
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        true);
-    InternalWriteToDeviceLocalImage(vulkan, &vulkan->skyboxImage, scene->skyboxPixels, skyboxImageSize, VK_IMAGE_LAYOUT_GENERAL);
 
     InternalUpdateSceneDataDescriptors(vulkan);
 
@@ -2246,7 +2301,7 @@ VkResult RenderFrame(
         frame->computeCommandBuffer,
         VK_PIPELINE_BIND_POINT_COMPUTE,
         vulkan->renderPipeline.pipelineLayout,
-        0, 1, &frame->computeDescriptorSet,
+        0, 1, &frame->renderDescriptorSet,
         0, nullptr);
 
     vkCmdDispatch(frame->computeCommandBuffer, RENDER_WIDTH/16, RENDER_HEIGHT/16, 1);
@@ -2477,13 +2532,13 @@ VkResult RenderFrame(
         vkCmdBindPipeline(
             frame->graphicsCommandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
-            vulkan->blitPipeline.pipeline);
+            vulkan->resolvePipeline.pipeline);
 
         vkCmdBindDescriptorSets(
             frame->graphicsCommandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
-            vulkan->blitPipeline.pipelineLayout,
-            0, 1, &frame->graphicsDescriptorSet,
+            vulkan->resolvePipeline.pipelineLayout,
+            0, 1, &frame->resolveDescriptorSet,
             0, nullptr);
 
         VkViewport viewport = {

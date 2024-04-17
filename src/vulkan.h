@@ -41,6 +41,7 @@ struct VulkanImage
     VkFormat                    format                      = VK_FORMAT_UNDEFINED;
     VkExtent3D                  extent                      = {};
     VkImageTiling               tiling                      = VK_IMAGE_TILING_OPTIMAL;
+    uint32_t                    layerCount                  = 0;
 };
 
 struct VulkanDescriptor
@@ -73,17 +74,16 @@ struct VulkanFrameState
 
     VkSemaphore                 computeToComputeSemaphore   = VK_NULL_HANDLE;
     VkSemaphore                 computeToGraphicsSemaphore  = VK_NULL_HANDLE;
-
     VkCommandBuffer             graphicsCommandBuffer       = VK_NULL_HANDLE;
     VkCommandBuffer             computeCommandBuffer        = VK_NULL_HANDLE;
-
-    VkDescriptorSet             graphicsDescriptorSet       = VK_NULL_HANDLE;
-    VkDescriptorSet             computeDescriptorSet        = VK_NULL_HANDLE;
 
     VulkanBuffer                sceneUniformBuffer          = {};
 
     VulkanImage                 renderTarget                = {};
     VulkanImage                 renderTargetGraphicsCopy    = {};
+    VkDescriptorSet             renderDescriptorSet         = VK_NULL_HANDLE;
+
+    VkDescriptorSet             resolveDescriptorSet        = VK_NULL_HANDLE;
 
     VulkanBuffer                imguiUniformBuffer          = {};
     VulkanBuffer                imguiIndexBuffer            = {};
@@ -134,13 +134,14 @@ struct VulkanContext
 
     VkSampler                   sampler                     = VK_NULL_HANDLE;
 
+    VulkanImage                 textureArray                = {};
     VulkanBuffer                materialBuffer              = {};
     VulkanBuffer                objectBuffer                = {};
     VulkanBuffer                meshFaceBuffer              = {};
     VulkanBuffer                meshNodeBuffer              = {};
     VulkanImage                 skyboxImage                 = {};
 
-    VulkanPipeline              blitPipeline                = {};
+    VulkanPipeline              resolvePipeline             = {};
     VulkanPipeline              renderPipeline              = {};
 
     VulkanImage                 imguiTexture                = {};

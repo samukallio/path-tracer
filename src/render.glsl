@@ -11,13 +11,16 @@ const uint SPHERE = 2;
 
 struct Material
 {
-    vec4    albedoColor;
+    vec3    albedoColor;
+    uint    albedoTextureIndex;
     vec4    specularColor;
-    vec4    emissiveColor;
+    vec3    emissiveColor;
+    uint    emissiveTextureIndex;
     float   roughness;
     float   specularProbability;
     float   refractProbability;
     float   refractIndex;
+    uvec2   albedoTextureSize;
 };
 
 struct Object
@@ -32,10 +35,12 @@ struct Object
 struct MeshFace
 {
     vec3    position;
+    uint    materialIndex;
     vec4    plane;
     vec3    base1;
     vec3    base2;
     vec3    normals[3];
+    vec2    uvs[3];
 };
 
 struct MeshNode
@@ -54,11 +59,19 @@ struct Ray
 
 struct Hit
 {
-    float   time;
-    uint    objectType;
-    uint    objectIndex;
-    uint    elementIndex;
-    vec3    data;
+    float       time;
+    uint        objectType;
+    uint        objectIndex;
+    uint        elementIndex;
+    vec3        data;
+
+    // Populated by ResolveHit()
+    vec3        position;
+    vec4        albedoColor;
+    vec3        normal;
+    vec2        uv;
+    uint        materialIndex;
+    Material    material;
 };
 
 layout(binding = 0)
@@ -77,32 +90,35 @@ uniform readonly image2D inputImage;
 layout(binding = 2, rgba32f)
 uniform writeonly image2D outputImage;
 
-layout(binding = 3, std140)
+layout(binding = 3, rgba32f)
+uniform readonly image2D skyboxImage;
+
+layout(binding = 4, rgba8)
+uniform readonly image2DArray textureArray;
+
+layout(binding = 5, std140)
 readonly buffer MaterialBuffer
 {
     Material materials[];
 };
 
-layout(binding = 4, std140)
+layout(binding = 6, std140)
 readonly buffer ObjectBuffer
 {
     Object objects[];
 };
 
-layout(binding = 5, std140)
+layout(binding = 7, std430)
 readonly buffer MeshFaceBuffer
 {
     MeshFace meshFaces[];
 };
 
-layout(binding = 6, std140)
+layout(binding = 8, std140)
 readonly buffer MeshNodeBuffer
 {
     MeshNode meshNodes[];
 };
-
-layout(binding = 7, rgba32f)
-uniform readonly image2D skyboxImage;
 
 layout(
     local_size_x = 16,
@@ -143,6 +159,51 @@ vec3 RandomHemisphereDirection(vec3 normal)
 {
     vec3 direction = RandomDirection();
     return direction * sign(dot(normal, direction));
+}
+
+void ResolveHit(Ray ray, inout Hit hit)
+{
+    hit.position = ray.origin + ray.direction * hit.time;
+
+    if (hit.objectType == MESH) {
+        MeshFace face = meshFaces[hit.elementIndex];
+            
+        hit.normal = face.normals[0] * hit.data.x
+                   + face.normals[1] * hit.data.y
+                   + face.normals[2] * hit.data.z;
+
+        hit.uv = face.uvs[0] * hit.data.x
+               + face.uvs[1] * hit.data.y
+               + face.uvs[2] * hit.data.z;
+
+        hit.materialIndex = face.materialIndex;
+        hit.material = materials[face.materialIndex];
+
+        ivec2 uv = ivec2(vec2(fract(hit.uv.x), 1 - fract(hit.uv.y)) * vec2(hit.material.albedoTextureSize - 1));
+        ivec3 uvw = ivec3(uv, hit.material.albedoTextureIndex);
+        hit.material.albedoColor = imageLoad(textureArray, uvw).rgb;
+    }
+
+    if (hit.objectType == PLANE) {
+        Object object = objects[hit.objectIndex];
+
+        hit.normal = vec3(0, 0, 1);
+
+        hit.materialIndex = object.materialIndex;
+        hit.material = materials[object.materialIndex];
+
+        if ((hit.data.x > 0.5 && hit.data.y > 0.5) || (hit.data.x <= 0.5 && hit.data.y <= 0.5))
+            hit.material.albedoColor *= vec3(1.0, 1.0, 1.0);
+        else
+            hit.material.albedoColor *= vec3(0.5, 0.5, 0.5);
+    }
+
+    if (hit.objectType == SPHERE) {
+        Object object = objects[hit.objectIndex];
+        hit.normal = normalize(hit.position - object.origin);
+        hit.materialIndex = object.materialIndex;
+        hit.material = materials[object.materialIndex];
+    }
 }
 
 /*
@@ -320,7 +381,7 @@ void TraceObject(Ray ray, uint objectIndex, inout Hit hit)
     }
 }
 
-vec4 SampleSkybox(Ray ray)
+vec3 SampleSkybox(Ray ray)
 {
     float r = length(ray.direction.xy);
 
@@ -333,7 +394,7 @@ vec4 SampleSkybox(Ray ray)
     float y = floor(size.y * (0.5 + theta / 3.14159));
     ivec2 xy = ivec2(x, y);
 
-    return imageLoad(skyboxImage, min(xy, size - 1));
+    return imageLoad(skyboxImage, min(xy, size - 1)).rgb;
 }
 
 vec4 Trace(Ray ray)
@@ -341,8 +402,8 @@ vec4 Trace(Ray ray)
     Hit hit;
     hit.time = INFINITY;
 
-    vec4 outputColor = vec4(0, 0, 0, 0);
-    vec4 filterColor = vec4(1, 1, 1, 0);
+    vec3 outputColor = vec3(0, 0, 0);
+    vec3 filterColor = vec3(1, 1, 1);
 
     for (uint bounce = 0; bounce < 2; bounce++) {
 
@@ -364,57 +425,61 @@ vec4 Trace(Ray ray)
             break;
         }
 
-        vec3 position = ray.origin + hit.time * ray.direction;
-        vec3 normal = vec3(0, 0, 1);
+        ResolveHit(ray, hit);
 
-        Material material;
+        vec3 diffuseDirection = normalize(hit.normal + RandomDirection());
+        vec3 specularDirection = reflect(ray.direction, hit.normal);
 
-        if (hit.objectType == MESH) {
-            MeshFace face = meshFaces[hit.elementIndex];
-            
-            normal = face.normals[0] * hit.data.x
-                   + face.normals[1] * hit.data.y
-                   + face.normals[2] * hit.data.z;
+        ray.direction = normalize(mix(specularDirection, diffuseDirection, hit.material.roughness));
+        ray.origin = hit.position + 1e-3 * ray.direction;
 
-            material.albedoColor = vec4(1, 1, 1, 0);
-            material.specularColor = vec4(0, 0, 0, 0);
-            material.emissiveColor = vec4(0, 0, 0, 0);
-            material.roughness = 1.0;
-            material.specularProbability = 0.0;
-            material.refractProbability = 0.0;
-            material.refractIndex = 0.0;
-        }
-
-        if (hit.objectType == PLANE) {
-            Object object = objects[hit.objectIndex];
-            normal = vec3(0, 0, 1);
-            material = materials[object.materialIndex];
-
-            if ((hit.data.x > 0.5 && hit.data.y > 0.5) || (hit.data.x <= 0.5 && hit.data.y <= 0.5))
-                material.albedoColor *= vec4(1.0, 1.0, 1.0, 0);
-            else
-                material.albedoColor *= vec4(0.5, 0.5, 0.5, 0);
-        }
-
-        if (hit.objectType == SPHERE) {
-            Object object = objects[hit.objectIndex];
-            normal = normalize(position - object.origin);
-            material = materials[object.materialIndex];
-        }
-
-        vec3 diffuseDirection = normalize(normal + RandomDirection());
-        vec3 specularDirection = reflect(ray.direction, normal);
-
-        ray.direction = normalize(mix(specularDirection, diffuseDirection, material.roughness));
-        ray.origin = position + 1e-3 * ray.direction;
-
-        outputColor += material.emissiveColor * filterColor;
-        filterColor *= material.albedoColor * fogFactor;
+        outputColor += hit.material.emissiveColor * filterColor;
+        filterColor *= hit.material.albedoColor * fogFactor;
 
         hit.time = INFINITY;
     }
 
     return vec4(outputColor.rgb, 1);
+}
+
+const vec3 COLORS[20] = vec3[20](
+    vec3(0.902, 0.098, 0.294),
+    vec3(0.235, 0.706, 0.294),
+    vec3(1.000, 0.882, 0.098),
+    vec3(0.263, 0.388, 0.847),
+    vec3(0.961, 0.510, 0.192),
+    vec3(0.569, 0.118, 0.706),
+    vec3(0.275, 0.941, 0.941),
+    vec3(0.941, 0.196, 0.902),
+    vec3(0.737, 0.965, 0.047),
+    vec3(0.980, 0.745, 0.745),
+    vec3(0.000, 0.502, 0.502),
+    vec3(0.902, 0.745, 1.000),
+    vec3(0.604, 0.388, 0.141),
+    vec3(1.000, 0.980, 0.784),
+    vec3(0.502, 0.000, 0.000),
+    vec3(0.667, 1.000, 0.765),
+    vec3(0.502, 0.502, 0.000),
+    vec3(1.000, 0.847, 0.694),
+    vec3(0.000, 0.000, 0.459),
+    vec3(0.502, 0.502, 0.502)
+);
+
+vec4 TraceAlbedo(Ray ray)
+{
+    Hit hit;
+    hit.time = INFINITY;
+
+    for (uint objectIndex = 0; objectIndex < objectCount; objectIndex++)
+        TraceObject(ray, objectIndex, hit);
+
+    if (hit.time == INFINITY) {
+        return vec4(SampleSkybox(ray), 1);
+    }
+
+    ResolveHit(ray, hit);
+
+    return vec4(hit.material.albedoColor, 1);
 }
 
 void main()
@@ -445,7 +510,7 @@ void main()
     ray.origin = (viewMatrixInverse * vec4(0, 0, 0, 1)).xyz;
     ray.direction = (viewMatrixInverse * normalize(vec4(nearPlanePosition, -1, 0))).xyz;
 
-    vec4 outputValue = Trace(ray);
+    vec4 outputValue = TraceAlbedo(ray);
 
     if (clearFrame == 0) {
         outputValue += imageLoad(inputImage, imagePosition);

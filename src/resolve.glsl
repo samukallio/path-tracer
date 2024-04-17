@@ -1,12 +1,5 @@
 #version 450
 
-// layout(binding = 0) uniform FrameUniformBuffer
-// {
-//     mat4 model;
-//     mat4 view;
-//     mat4 projection;
-// } frame;
-
 layout(binding = 0) uniform sampler2D textureSampler;
 
 #if VERTEX
