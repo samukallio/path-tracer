@@ -11,13 +11,39 @@ struct Scene;
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 
-struct SceneUniformBuffer
+enum RenderMode : int32_t
 {
-    glm::mat4                   viewMatrixInverse           = {};
-    glm::vec2                   nearPlaneSize               = { 1.0f, 1.0f };
+    RENDER_MODE_PATH_TRACE      = 0,
+    RENDER_MODE_ALBEDO          = 1,
+    RENDER_MODE_NORMAL          = 2,
+    RENDER_MODE_MATERIAL_INDEX  = 3,
+    RENDER_MODE_PRIMITIVE_INDEX = 4,
+};
+
+enum CameraType : int32_t
+{
+    CAMERA_TYPE_PINHOLE         = 0,
+    CAMERA_TYPE_THIN_LENS       = 1,
+};
+
+struct Camera
+{
+    CameraType                  type                        = CAMERA_TYPE_THIN_LENS;
+    float                       focalLength                 = 0.020f;
+    float                       apertureRadius              = 0.040f;
+    float                       sensorDistance              = 0.0202f;
+    glm::vec2                   sensorSize                  = { 0.032f, 0.018f };
+    glm::aligned_mat4           worldMatrix                 = {};
+};
+
+struct FrameUniformBuffer
+{
     uint32_t                    frameIndex                  = 0;
     uint32_t                    objectCount                 = {};
     uint32_t                    clearFrame                  = 0;
+    RenderMode                  renderMode                  = {};
+
+    alignas(16) Camera          camera                      = {};
 };
 
 struct ImGuiUniformBuffer
@@ -77,7 +103,7 @@ struct VulkanFrameState
     VkCommandBuffer             graphicsCommandBuffer       = VK_NULL_HANDLE;
     VkCommandBuffer             computeCommandBuffer        = VK_NULL_HANDLE;
 
-    VulkanBuffer                sceneUniformBuffer          = {};
+    VulkanBuffer                frameUniformBuffer          = {};
 
     VulkanImage                 renderTarget                = {};
     VulkanImage                 renderTargetGraphicsCopy    = {};
@@ -162,5 +188,5 @@ VkResult UploadScene(
 
 VkResult RenderFrame(
     VulkanContext* vulkan,
-    SceneUniformBuffer const* parameters,
+    FrameUniformBuffer const* parameters,
     ImDrawData* imguiDrawData);

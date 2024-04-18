@@ -9,55 +9,84 @@ const uint MESH = 0;
 const uint PLANE = 1;
 const uint SPHERE = 2;
 
-const uint CAMERA_PINHOLE = 0;
-const uint CAMERA_THIN_LENS = 1;
+const uint RENDER_MODE_PATH_TRACE = 0;
+const uint RENDER_MODE_ALBEDO = 1;
+const uint RENDER_MODE_NORMAL = 2;
+const uint RENDER_MODE_MATERIAL_INDEX = 3;
+const uint RENDER_MODE_PRIMITIVE_INDEX = 4;
+
+const uint CAMERA_TYPE_PINHOLE = 0;
+const uint CAMERA_TYPE_THIN_LENS = 1;
+
+const vec3 COLORS[20] = vec3[20](
+    vec3(0.902, 0.098, 0.294),
+    vec3(0.235, 0.706, 0.294),
+    vec3(1.000, 0.882, 0.098),
+    vec3(0.263, 0.388, 0.847),
+    vec3(0.961, 0.510, 0.192),
+    vec3(0.569, 0.118, 0.706),
+    vec3(0.275, 0.941, 0.941),
+    vec3(0.941, 0.196, 0.902),
+    vec3(0.737, 0.965, 0.047),
+    vec3(0.980, 0.745, 0.745),
+    vec3(0.000, 0.502, 0.502),
+    vec3(0.902, 0.745, 1.000),
+    vec3(0.604, 0.388, 0.141),
+    vec3(1.000, 0.980, 0.784),
+    vec3(0.502, 0.000, 0.000),
+    vec3(0.667, 1.000, 0.765),
+    vec3(0.502, 0.502, 0.000),
+    vec3(1.000, 0.847, 0.694),
+    vec3(0.000, 0.000, 0.459),
+    vec3(0.502, 0.502, 0.502)
+);
 
 struct Material
 {
-    vec3    albedoColor;
-    uint    albedoTextureIndex;
-    vec4    specularColor;
-    vec3    emissiveColor;
-    uint    emissiveTextureIndex;
-    float   roughness;
-    float   specularProbability;
-    float   refractProbability;
-    float   refractIndex;
-    uvec2   albedoTextureSize;
+    vec3        albedoColor;
+    uint        albedoTextureIndex;
+    vec4        specularColor;
+    vec3        emissiveColor;
+    uint        emissiveTextureIndex;
+    float       roughness;
+    float       specularProbability;
+    float       refractProbability;
+    float       refractIndex;
+    uvec2       albedoTextureSize;
 };
 
 struct Object
 {
-    vec3    origin;
-    uint    type;
-    vec3    scale;
-    uint    materialIndex;
-    uint    meshRootNodeIndex;
+    vec3        origin;
+    uint        type;
+    vec3        scale;
+    uint        materialIndex;
+    uint        meshRootNodeIndex;
 };
 
 struct MeshFace
 {
-    vec3    position;
-    uint    materialIndex;
-    vec4    plane;
-    vec3    base1;
-    vec3    base2;
-    vec3    normals[3];
-    vec2    uvs[3];
+    vec3        position;
+    uint        materialIndex;
+    vec4        plane;
+    vec3        base1;
+    vec3        base2;
+    vec3        normals[3];
+    vec2        uvs[3];
 };
 
 struct MeshNode
 {
-    vec3    minimum;
-    uint    faceBeginOrNodeIndex;
-    vec3    maximum;
-    uint    faceEndIndex;
+    vec3        minimum;
+    uint        faceBeginOrNodeIndex;
+    vec3        maximum;
+    uint        faceEndIndex;
 };
 
 struct Ray
 {
-    vec3    origin;
-    vec3    direction;
+    vec3        origin;
+    vec3        direction;
 };
 
 struct Hit
@@ -65,28 +94,36 @@ struct Hit
     float       time;
     uint        objectType;
     uint        objectIndex;
-    uint        elementIndex;
+    uint        primitiveIndex;
     vec3        data;
 
     // Populated by ResolveHit()
     vec3        position;
     vec3        normal;
     vec2        uv;
+    uint        materialIndex;
     Material    material;
 };
 
-layout(binding = 0)
-uniform SceneUniformBuffer
+struct Camera
 {
-    mat4    viewMatrixInverse;
-    vec2    nearPlaneSize;
-    uint    frameIndex;
-    uint    objectCount;
-    uint    clearFrame;
+    uint        type;
+    float       focalLength;
+    float       apertureRadius;
+    float       sensorDistance;
+    vec2        sensorSize;
+    mat4        worldMatrix;
+};
 
-    uint    cameraType;
-    float   cameraFocalLength;
-    float   cameraApertureRadius;
+layout(binding = 0)
+uniform FrameUniformBuffer
+{
+    uint        frameIndex;
+    uint        objectCount;
+    uint        clearFrame;
+    uint        renderMode;
+
+    Camera      camera;
 };
 
 layout(binding = 1, rgba32f)
@@ -173,75 +210,17 @@ vec3 RandomHemisphereDirection(vec3 normal)
     return direction * sign(dot(normal, direction));
 }
 
-void ResolveHit(Ray ray, inout Hit hit)
+vec3 SampleSkybox(Ray ray)
 {
-    hit.position = ray.origin + ray.direction * hit.time;
+    float r = length(ray.direction.xy);
+    float phi = atan(ray.direction.x, ray.direction.y);
+    float theta = atan(-ray.direction.z, r);
 
-    if (hit.objectType == MESH) {
-        MeshFace face = meshFaces[hit.elementIndex];
-            
-        hit.normal = face.normals[0] * hit.data.x
-                   + face.normals[1] * hit.data.y
-                   + face.normals[2] * hit.data.z;
-
-        hit.uv = face.uvs[0] * hit.data.x
-               + face.uvs[1] * hit.data.y
-               + face.uvs[2] * hit.data.z;
-
-        hit.material = materials[face.materialIndex];
-
-        vec2 uv = fract(hit.uv) * hit.material.albedoTextureSize / vec2(2048, 2048);
-        vec3 uvw = vec3(uv, hit.material.albedoTextureIndex);
-
-        hit.material.albedoColor *= textureLod(textureArray, uvw, 0).rgb;
-    }
-
-    if (hit.objectType == PLANE) {
-        Object object = objects[hit.objectIndex];
-
-        hit.normal = vec3(0, 0, 1);
-
-        hit.material = materials[object.materialIndex];
-
-        if ((hit.data.x > 0.5 && hit.data.y > 0.5) || (hit.data.x <= 0.5 && hit.data.y <= 0.5))
-            hit.material.albedoColor *= vec3(1.0, 1.0, 1.0);
-        else
-            hit.material.albedoColor *= vec3(0.5, 0.5, 0.5);
-    }
-
-    if (hit.objectType == SPHERE) {
-        Object object = objects[hit.objectIndex];
-        hit.normal = normalize(hit.position - object.origin);
-        hit.material = materials[object.materialIndex];
-    }
+    vec2 uv = 0.5 + vec2(phi / TAU, theta / PI);
+    return textureLod(skyboxImage, uv, 0).rgb;
 }
 
-/*
-void TraceMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
-{
-    MeshFace face = meshFaces[meshFaceIndex];
-    vec3 edge1 = face.position1 - face.position0;
-    vec3 edge2 = face.position2 - face.position0;
-    vec3 h = cross(ray.direction, edge2);
-    float a = dot(edge1, h);
-    if (a > -1e-9 && a < +1e-9) return;
-    float f = 1 / a;
-    vec3 s = ray.origin - face.position0;
-    float u = f * dot(s, h);
-    if (u < 0 || u > 1) return;
-    vec3 q = cross(s, edge1);
-    float v = f * dot(ray.direction, q);
-    if (v < 0 || u + v > 1) return;
-    float t = f * dot(edge2, q);
-    if (t <= 0.0001) return;
-    if (t > hit.time) return;
-    hit.time = t;
-    hit.objectType = 0;
-    hit.objectIndex = meshFaceIndex;
-}
-*/
-
-void TraceMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
+void IntersectMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
 {
     MeshFace face = meshFaces[meshFaceIndex];
 
@@ -261,7 +240,7 @@ void TraceMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
     hit.data = vec3(1 - beta - gamma, beta, gamma);
     hit.objectType = MESH;
     hit.objectIndex = 0xFFFFFFFF;
-    hit.elementIndex = meshFaceIndex;
+    hit.primitiveIndex = meshFaceIndex;
 }
 
 float IntersectMeshNodeBounds(Ray ray, float reach, MeshNode node)
@@ -298,7 +277,7 @@ float IntersectMeshNodeBounds(Ray ray, float reach, MeshNode node)
     return entry;
 }
 
-void TraceMesh(Ray ray, Object object, inout Hit hit)
+void IntersectMesh(Ray ray, Object object, inout Hit hit)
 {
     uint stack[32];
     uint depth = 0;
@@ -310,7 +289,7 @@ void TraceMesh(Ray ray, Object object, inout Hit hit)
         if (node.faceEndIndex > 0) {
             // Leaf node, trace all geometry within.
             for (uint faceIndex = node.faceBeginOrNodeIndex; faceIndex < node.faceEndIndex; faceIndex++)
-                TraceMeshFace(ray, faceIndex, hit);
+                IntersectMeshFace(ray, faceIndex, hit);
         }
         else {
             // Internal node.
@@ -356,12 +335,12 @@ void TraceMesh(Ray ray, Object object, inout Hit hit)
     }
 }
 
-void TraceObject(Ray ray, uint objectIndex, inout Hit hit)
+void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
 {
     Object object = objects[objectIndex];
 
     if (object.type == MESH)
-        TraceMesh(ray, object, hit);
+        IntersectMesh(ray, object, hit);
 
     if (object.type == PLANE) {
         float t = (object.origin.z - ray.origin.z) / ray.direction.z;
@@ -391,14 +370,61 @@ void TraceObject(Ray ray, uint objectIndex, inout Hit hit)
     }
 }
 
-vec3 SampleSkybox(Ray ray)
+void Intersect(Ray ray, inout Hit hit)
 {
-    float r = length(ray.direction.xy);
-    float phi = atan(ray.direction.x, ray.direction.y);
-    float theta = atan(-ray.direction.z, r);
+    for (uint objectIndex = 0; objectIndex < objectCount; objectIndex++) {
+        IntersectObject(ray, objectIndex, hit);
+        if (hit.objectIndex == 0xFFFFFFFF)
+                hit.objectIndex = objectIndex;
+    }
+}
 
-    vec2 uv = 0.5 + vec2(phi / TAU, theta / PI);
-    return textureLod(skyboxImage, uv, 0).rgb;
+void ResolveHit(Ray ray, inout Hit hit)
+{
+    hit.position = ray.origin + ray.direction * hit.time;
+
+    if (hit.objectType == MESH) {
+        MeshFace face = meshFaces[hit.primitiveIndex];
+            
+        hit.normal = face.normals[0] * hit.data.x
+                   + face.normals[1] * hit.data.y
+                   + face.normals[2] * hit.data.z;
+
+        hit.uv = face.uvs[0] * hit.data.x
+               + face.uvs[1] * hit.data.y
+               + face.uvs[2] * hit.data.z;
+
+        hit.materialIndex = face.materialIndex;
+        hit.material = materials[face.materialIndex];
+
+        vec2 uv = fract(hit.uv) * hit.material.albedoTextureSize / vec2(2048, 2048);
+        vec3 uvw = vec3(uv, hit.material.albedoTextureIndex);
+
+        hit.material.albedoColor *= textureLod(textureArray, uvw, 0).rgb;
+    }
+
+    if (hit.objectType == PLANE) {
+        Object object = objects[hit.objectIndex];
+
+        hit.primitiveIndex = 0;
+        hit.normal = vec3(0, 0, 1);
+
+        hit.materialIndex = object.materialIndex;
+        hit.material = materials[object.materialIndex];
+
+        if ((hit.data.x > 0.5 && hit.data.y > 0.5) || (hit.data.x <= 0.5 && hit.data.y <= 0.5))
+            hit.material.albedoColor *= vec3(1.0, 1.0, 1.0);
+        else
+            hit.material.albedoColor *= vec3(0.5, 0.5, 0.5);
+    }
+
+    if (hit.objectType == SPHERE) {
+        Object object = objects[hit.objectIndex];
+        hit.normal = normalize(hit.position - object.origin);
+        hit.materialIndex = object.materialIndex;
+        hit.primitiveIndex = 0;
+        hit.material = materials[object.materialIndex];
+    }
 }
 
 vec4 Trace(Ray ray)
@@ -410,19 +436,9 @@ vec4 Trace(Ray ray)
     vec3 filterColor = vec3(1, 1, 1);
 
     for (uint bounce = 0; bounce < 5; bounce++) {
-
-        for (uint objectIndex = 0; objectIndex < objectCount; objectIndex++) {
-            TraceObject(ray, objectIndex, hit);
-            if (hit.objectIndex == 0xFFFFFFFF)
-                hit.objectIndex = objectIndex;
-        }
+        Intersect(ray, hit);
 
         float fogFactor = 1.0;
-//        if (hit.time == INFINITY)
-//            fogFactor = 0.1;
-//        else
-//            fogFactor = 0.1 + 0.99 * exp(-hit.time / 1.0);
-//
 
         if (hit.time == INFINITY) {
             outputColor += fogFactor * filterColor * SampleSkybox(ray);
@@ -446,44 +462,48 @@ vec4 Trace(Ray ray)
     return vec4(outputColor.rgb, 1);
 }
 
-const vec3 COLORS[20] = vec3[20](
-    vec3(0.902, 0.098, 0.294),
-    vec3(0.235, 0.706, 0.294),
-    vec3(1.000, 0.882, 0.098),
-    vec3(0.263, 0.388, 0.847),
-    vec3(0.961, 0.510, 0.192),
-    vec3(0.569, 0.118, 0.706),
-    vec3(0.275, 0.941, 0.941),
-    vec3(0.941, 0.196, 0.902),
-    vec3(0.737, 0.965, 0.047),
-    vec3(0.980, 0.745, 0.745),
-    vec3(0.000, 0.502, 0.502),
-    vec3(0.902, 0.745, 1.000),
-    vec3(0.604, 0.388, 0.141),
-    vec3(1.000, 0.980, 0.784),
-    vec3(0.502, 0.000, 0.000),
-    vec3(0.667, 1.000, 0.765),
-    vec3(0.502, 0.502, 0.000),
-    vec3(1.000, 0.847, 0.694),
-    vec3(0.000, 0.000, 0.459),
-    vec3(0.502, 0.502, 0.502)
-);
-
 vec4 TraceAlbedo(Ray ray)
 {
     Hit hit;
     hit.time = INFINITY;
-
-    for (uint objectIndex = 0; objectIndex < objectCount; objectIndex++)
-        TraceObject(ray, objectIndex, hit);
-
-    if (hit.time == INFINITY) {
+    Intersect(ray, hit);
+    if (hit.time == INFINITY)
         return vec4(SampleSkybox(ray), 1);
-    }
-
     ResolveHit(ray, hit);
-
     return vec4(hit.material.albedoColor, 1);
+}
+
+vec4 TraceNormal(Ray ray)
+{
+    Hit hit;
+    hit.time = INFINITY;
+    Intersect(ray, hit);
+    if (hit.time == INFINITY)
+        return vec4(0, 0, 0, 1);
+    ResolveHit(ray, hit);
+    return vec4(0.5 * (hit.normal + 1), 1);
+}
+
+vec4 TraceMaterialIndex(Ray ray)
+{
+    Hit hit;
+    hit.time = INFINITY;
+    Intersect(ray, hit);
+    if (hit.time == INFINITY)
+        return vec4(0, 0, 0, 1);
+    ResolveHit(ray, hit);
+    return vec4(COLORS[hit.materialIndex % 20], 1);
+}
+
+vec4 TracePrimitiveIndex(Ray ray)
+{
+    Hit hit;
+    hit.time = INFINITY;
+    Intersect(ray, hit);
+    if (hit.time == INFINITY)
+        return vec4(0, 0, 0, 1);
+    ResolveHit(ray, hit);
+    return vec4(COLORS[hit.primitiveIndex % 20], 1);
 }
 
 void main()
@@ -503,41 +523,50 @@ void main()
     vec2 samplePosition = imagePosition + vec2(Random0To1(), Random0To1());
     vec2 samplePositionNormalized = samplePosition / imageSize_;
 
-    //
-    vec3 sensorPosition = vec3(
-        -0.032 * (samplePositionNormalized.x - 0.5),
-        -0.018 * (0.5 - samplePositionNormalized.y),
-        0.0202);
-
-    float focalLength = 0.020;
-    float apertureRadius = 0.040;
-
-    vec3 objectPosition = -sensorPosition * focalLength / (sensorPosition.z - focalLength);
-    vec3 aperturePosition = vec3(apertureRadius * RandomPointOnDisk(), 0);
-    vec3 rayVector = objectPosition - aperturePosition;
-
     Ray ray;
-    ray.origin = (viewMatrixInverse * vec4(aperturePosition, 1)).xyz;
-    ray.direction = normalize(viewMatrixInverse * vec4(rayVector, 0)).xyz;
 
-//    //
-//    vec2 samplePosition = imagePosition + vec2(Random0To1(), Random0To1());
-//    vec2 samplePositionNormalized = samplePosition / imageSize_;
-//
-//    // Point on the "virtual near plane" through which the ray passes.
-//    vec2 nearPlanePositionNormalized = vec2(
-//        samplePositionNormalized.x - 0.5,
-//        0.5 - samplePositionNormalized.y);
-//
-//    vec2 nearPlanePosition = nearPlaneSize * nearPlanePositionNormalized;
-//    //vec2 dxy = -2.0f * nearPlanePositionNormalized;
-//
-    // Trace.
-//    Ray ray;
-    //ray.origin = (viewMatrixInverse * vec4(0, 0, 0, 1)).xyz;
-    //ray.direction = (viewMatrixInverse * normalize(vec4(nearPlanePosition, -1, 0))).xyz;
+    if (camera.type == CAMERA_TYPE_PINHOLE) {
+        // Point on the "virtual near plane" through which the ray passes.
+        vec3 sensorPositionNormalized = vec3(
+            -camera.sensorSize.x * (samplePositionNormalized.x - 0.5),
+            -camera.sensorSize.y * (0.5 - samplePositionNormalized.y),
+            camera.sensorDistance);
+        vec3 rayVector = -sensorPositionNormalized;
 
-    vec4 outputValue = Trace(ray);
+        ray.origin = (camera.worldMatrix * vec4(0, 0, 0, 1)).xyz;
+        ray.direction = normalize(camera.worldMatrix * vec4(rayVector, 0)).xyz;
+    }
+
+    if (camera.type == CAMERA_TYPE_THIN_LENS) {
+        vec3 sensorPosition = vec3(
+            -camera.sensorSize.x * (samplePositionNormalized.x - 0.5),
+            -camera.sensorSize.y * (0.5 - samplePositionNormalized.y),
+            camera.sensorDistance);
+
+        vec3 objectPosition = -sensorPosition * camera.focalLength / (sensorPosition.z - camera.focalLength);
+        vec3 aperturePosition = vec3(camera.apertureRadius * RandomPointOnDisk(), 0);
+        vec3 rayVector = objectPosition - aperturePosition;
+
+        ray.origin = (camera.worldMatrix * vec4(aperturePosition, 1)).xyz;
+        ray.direction = normalize(camera.worldMatrix * vec4(rayVector, 0)).xyz;
+    }
+
+    vec4 outputValue;
+
+    if (renderMode == RENDER_MODE_PATH_TRACE)
+        outputValue = Trace(ray);
+
+    if (renderMode == RENDER_MODE_ALBEDO)
+        outputValue = TraceAlbedo(ray);
+
+    if (renderMode == RENDER_MODE_NORMAL)
+        outputValue = TraceNormal(ray);
+
+    if (renderMode == RENDER_MODE_MATERIAL_INDEX)
+        outputValue = TraceMaterialIndex(ray);
+
+    if (renderMode == RENDER_MODE_PRIMITIVE_INDEX)
+        outputValue = TracePrimitiveIndex(ray);
 
     if (clearFrame == 0) {
         outputValue += imageLoad(inputImage, imagePosition);

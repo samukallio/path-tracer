@@ -821,10 +821,10 @@ static VkResult InternalCreateFrameResources(
         }
 
         InternalCreateBuffer(vulkan,
-            &frame->sceneUniformBuffer,
+            &frame->frameUniformBuffer,
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            sizeof(SceneUniformBuffer));
+            sizeof(FrameUniformBuffer));
 
         InternalCreateImage(vulkan,
             &frame->renderTarget,
@@ -889,10 +889,10 @@ static VkResult InternalCreateFrameResources(
                 return result;
             }
 
-            VkDescriptorBufferInfo sceneUniformBufferInfo = {
-                .buffer = frame->sceneUniformBuffer.buffer,
+            VkDescriptorBufferInfo frameUniformBufferInfo = {
+                .buffer = frame->frameUniformBuffer.buffer,
                 .offset = 0,
-                .range = frame->sceneUniformBuffer.size,
+                .range = frame->frameUniformBuffer.size,
             };
 
             VkDescriptorImageInfo srcImageInfo = {
@@ -915,7 +915,7 @@ static VkResult InternalCreateFrameResources(
                     .dstArrayElement = 0,
                     .descriptorCount = 1,
                     .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                    .pBufferInfo = &sceneUniformBufferInfo,
+                    .pBufferInfo = &frameUniformBufferInfo,
                 },
                 {
                     .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -1043,7 +1043,7 @@ static VkResult InternalDestroyFrameResources(
 
         InternalDestroyImage(vulkan, &frame->renderTargetGraphicsCopy);
         InternalDestroyImage(vulkan, &frame->renderTarget);
-        InternalDestroyBuffer(vulkan, &frame->sceneUniformBuffer);
+        InternalDestroyBuffer(vulkan, &frame->frameUniformBuffer);
 
         vkDestroySemaphore(vulkan->device, frame->computeToComputeSemaphore, nullptr);
         vkDestroySemaphore(vulkan->device, frame->computeToGraphicsSemaphore, nullptr);
@@ -1893,7 +1893,7 @@ static VkResult InternalCreateVulkan(
     VulkanComputePipelineConfiguration renderConfig = {
         .computeShaderCode = RENDER_COMPUTE_SHADER,
         .descriptorTypes = {
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,  // sceneUniformBuffer
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,  // frameUniformBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // inputImage
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // outputImage
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // skyboxImage
@@ -2275,7 +2275,7 @@ VkResult UploadScene(
 
 VkResult RenderFrame(
     VulkanContext* vulkan,
-    SceneUniformBuffer const* parameters,
+    FrameUniformBuffer const* uniforms,
     ImDrawData* imguiDrawData)
 {
     VkResult result = VK_SUCCESS;
@@ -2307,7 +2307,7 @@ VkResult RenderFrame(
     // Reset the fence to indicate that the frame state is no longer available.
     vkResetFences(vulkan->device, 1, &frame->availableFence);
 
-    InternalWriteToHostVisibleBuffer(vulkan, &frame->sceneUniformBuffer, parameters, sizeof(SceneUniformBuffer));
+    InternalWriteToHostVisibleBuffer(vulkan, &frame->frameUniformBuffer, uniforms, sizeof(FrameUniformBuffer));
 
     // --- Compute ------------------------------------------------------------
 
