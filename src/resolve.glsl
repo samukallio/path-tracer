@@ -1,3 +1,5 @@
+// Tone mapping code taken from https://64.github.io/tonemapping/
+
 #version 450
 
 #include "common.glsl.inc"
