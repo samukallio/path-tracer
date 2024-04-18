@@ -14,31 +14,70 @@ int main()
 {
     Scene scene;
 
-    LoadMesh(&scene, "../scene/sponza.obj", 0.01f);
-    LoadSkybox(&scene, "../scene/MegaSun4k.hdr");
+    //LoadMesh(&scene, "../scene/sponza.obj", 0.01f);
+    LoadMesh(&scene, "../scene/viking_room.obj", 1.0f);
+    AddTextureFromFile(&scene, "../scene/viking_room.png");
+    AddTextureFromFile(&scene, "../scene/viking_room.png");
+    LoadSkybox(&scene, "../scene/AmbienceExposure4k.hdr");
     AddMesh(&scene, glm::vec3(0, 0, 0), 0);
     //AddPlane(&scene, glm::vec3(0, 0, -1.1));
 
-    uint32_t lightMaterialIndex = (uint32_t)scene.materials.size();
     scene.materials.push_back({
         .albedoColor = glm::vec3(1, 1, 1),
         .albedoTextureIndex = 0,
         .specularColor = glm::vec4(1, 1, 1, 0),
-        .emissiveColor = 150.0f * glm::vec3(1,243/255.0f,142/255.0f),
+        .emissiveColor = glm::vec3(0, 0, 0),
         .emissiveTextureIndex = 0,
         .roughness = 1.0f,
         .specularProbability = 0.0f,
         .refractProbability = 0.0f,
         .refractIndex = 0.0f,
-        .albedoTextureSize = glm::uvec2(0, 0),
+        .albedoTextureSize = glm::uvec2(1024, 1024),
         .padding = glm::uvec2(0, 0),
     });
-    scene.objects.push_back({
-        .origin = glm::vec3(0, 0, 5),
-        .type = OBJECT_SPHERE,
-        .scale = 0.25f * glm::vec3(1, 1, 1),
-        .materialIndex = lightMaterialIndex,
-    });
+
+    //uint32_t sphereMaterialIndex = (uint32_t)scene.materials.size();
+    //scene.materials.push_back({
+    //    .albedoColor = glm::vec3(1, 1, 1),
+    //    .albedoTextureIndex = 0,
+    //    .specularColor = glm::vec4(1, 1, 1, 0),
+    //    .emissiveColor = glm::vec3(0, 0, 0),
+    //    .emissiveTextureIndex = 0,
+    //    .roughness = 0.02f,
+    //    .specularProbability = 0.0f,
+    //    .refractProbability = 0.0f,
+    //    .refractIndex = 0.0f,
+    //    .albedoTextureSize = glm::uvec2(0, 0),
+    //    .padding = glm::uvec2(0, 0),
+    //});
+    //scene.objects.push_back({
+    //    .origin = glm::vec3(0, 0, 0.5),
+    //    .type = OBJECT_SPHERE,
+    //    .scale = 0.15f * glm::vec3(1, 1, 1),
+    //    .materialIndex = sphereMaterialIndex,
+    //});
+
+
+    //uint32_t lightMaterialIndex = (uint32_t)scene.materials.size();
+    //scene.materials.push_back({
+    //    .albedoColor = glm::vec3(1, 1, 1),
+    //    .albedoTextureIndex = 0,
+    //    .specularColor = glm::vec4(1, 1, 1, 0),
+    //    .emissiveColor = 150.0f * glm::vec3(1,243/255.0f,142/255.0f),
+    //    .emissiveTextureIndex = 0,
+    //    .roughness = 1.0f,
+    //    .specularProbability = 0.0f,
+    //    .refractProbability = 0.0f,
+    //    .refractIndex = 0.0f,
+    //    .albedoTextureSize = glm::uvec2(0, 0),
+    //    .padding = glm::uvec2(0, 0),
+    //});
+    //scene.objects.push_back({
+    //    .origin = glm::vec3(0, 0, 5),
+    //    .type = OBJECT_SPHERE,
+    //    .scale = 0.25f * glm::vec3(1, 1, 1),
+    //    .materialIndex = lightMaterialIndex,
+    //});
  
     for (MeshNode const& node : scene.meshNodes) {
         if (node.faceEndIndex > 0) {
@@ -77,6 +116,8 @@ int main()
     double previousMouseX;
     double previousMouseY;
     glfwGetCursorPos(window, &previousMouseX, &previousMouseY);
+
+    bool accumulate = true;
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -138,13 +179,18 @@ int main()
         ImGui::NewFrame();
         ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_PassthruCentralNode);
 
-        ImGui::SetNextWindowPos(ImVec2(0, 0));
-        ImGui::Begin("Statistics", nullptr,
-            ImGuiWindowFlags_NoBackground|
-            ImGuiWindowFlags_NoDecoration |
-            ImGuiWindowFlags_NoDocking |
-            ImGuiWindowFlags_NoMove);
-        ImGui::Text("Boo");
+        //ImGui::SetNextWindowPos(ImVec2(0, 0));
+        //ImGui::Begin("Statistics", nullptr,
+        //    ImGuiWindowFlags_NoBackground|
+        //    ImGuiWindowFlags_NoDecoration |
+        //    ImGuiWindowFlags_NoDocking |
+        //    ImGuiWindowFlags_NoMove);
+        //ImGui::Text("Boo");
+        //ImGui::End();
+
+        ImGui::Begin("Controls");
+        ImGui::SeparatorText("General");
+        ImGui::Checkbox("Accumulate Samples", &accumulate);
         ImGui::End();
 
         ImGui::ShowDemoWindow();
@@ -159,7 +205,7 @@ int main()
             .nearPlaneSize = { 2, 2 * WINDOW_HEIGHT / float(WINDOW_WIDTH) },
             .frameIndex = vulkan->frameIndex,
             .objectCount = static_cast<uint32_t>(scene.objects.size()),
-            .clearFrame = clearFrame,
+            .clearFrame = clearFrame || !accumulate,
         };
         RenderFrame(vulkan, &parameters, ImGui::GetDrawData());
 

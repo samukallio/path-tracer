@@ -318,12 +318,20 @@ bool LoadMesh(Scene* scene, char const* path, float scale)
         });
     }
 
+    //glm::mat4 normalTransform = {
+    //    { 0, 1, 0, 0 },
+    //    { 0, 0, 1, 0 },
+    //    { 1, 0, 0, 0 },
+    //    { 0, 0, 0, 1 },
+    //};
+
     glm::mat4 normalTransform = {
+        { 1, 0, 0, 0 },
         { 0, 1, 0, 0 },
         { 0, 0, 1, 0 },
-        { 1, 0, 0, 0 },
         { 0, 0, 0, 1 },
     };
+
 
     glm::mat4 vertexTransform = scale * normalTransform;
 

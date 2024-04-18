@@ -9,6 +9,9 @@ const uint MESH = 0;
 const uint PLANE = 1;
 const uint SPHERE = 2;
 
+const uint CAMERA_PINHOLE = 0;
+const uint CAMERA_THIN_LENS = 1;
+
 struct Material
 {
     vec3    albedoColor;
@@ -80,6 +83,10 @@ uniform SceneUniformBuffer
     uint    frameIndex;
     uint    objectCount;
     uint    clearFrame;
+
+    uint    cameraType;
+    float   cameraFocalLength;
+    float   cameraApertureRadius;
 };
 
 layout(binding = 1, rgba32f)
@@ -143,6 +150,13 @@ uint Random()
 float Random0To1()
 {
     return Random() / float(0xFFFFFFFFu);
+}
+
+vec2 RandomPointOnDisk()
+{
+    float r = sqrt(Random0To1());
+    float theta = Random0To1() * TAU;
+    return r * vec2(cos(theta), sin(theta));
 }
 
 vec3 RandomDirection()
@@ -395,7 +409,7 @@ vec4 Trace(Ray ray)
     vec3 outputColor = vec3(0, 0, 0);
     vec3 filterColor = vec3(1, 1, 1);
 
-    for (uint bounce = 0; bounce < 2; bounce++) {
+    for (uint bounce = 0; bounce < 5; bounce++) {
 
         for (uint objectIndex = 0; objectIndex < objectCount; objectIndex++) {
             TraceObject(ray, objectIndex, hit);
@@ -486,21 +500,44 @@ void main()
     if (imagePosition.x >= imageSize_.x) return;
     if (imagePosition.y >= imageSize_.y) return;
 
-    //
     vec2 samplePosition = imagePosition + vec2(Random0To1(), Random0To1());
     vec2 samplePositionNormalized = samplePosition / imageSize_;
 
-    // Point on the "virtual near plane" through which the ray passes.
-    vec2 nearPlanePosition = nearPlaneSize * vec2(
-        samplePositionNormalized.x - 0.5,
-        0.5 - samplePositionNormalized.y);
+    //
+    vec3 sensorPosition = vec3(
+        -0.032 * (samplePositionNormalized.x - 0.5),
+        -0.018 * (0.5 - samplePositionNormalized.y),
+        0.0202);
 
-    // Trace.
+    float focalLength = 0.020;
+    float apertureRadius = 0.040;
+
+    vec3 objectPosition = -sensorPosition * focalLength / (sensorPosition.z - focalLength);
+    vec3 aperturePosition = vec3(apertureRadius * RandomPointOnDisk(), 0);
+    vec3 rayVector = objectPosition - aperturePosition;
+
     Ray ray;
-    ray.origin = (viewMatrixInverse * vec4(0, 0, 0, 1)).xyz;
-    ray.direction = (viewMatrixInverse * normalize(vec4(nearPlanePosition, -1, 0))).xyz;
+    ray.origin = (viewMatrixInverse * vec4(aperturePosition, 1)).xyz;
+    ray.direction = normalize(viewMatrixInverse * vec4(rayVector, 0)).xyz;
 
-    vec4 outputValue = TraceAlbedo(ray);
+//    //
+//    vec2 samplePosition = imagePosition + vec2(Random0To1(), Random0To1());
+//    vec2 samplePositionNormalized = samplePosition / imageSize_;
+//
+//    // Point on the "virtual near plane" through which the ray passes.
+//    vec2 nearPlanePositionNormalized = vec2(
+//        samplePositionNormalized.x - 0.5,
+//        0.5 - samplePositionNormalized.y);
+//
+//    vec2 nearPlanePosition = nearPlaneSize * nearPlanePositionNormalized;
+//    //vec2 dxy = -2.0f * nearPlanePositionNormalized;
+//
+    // Trace.
+//    Ray ray;
+    //ray.origin = (viewMatrixInverse * vec4(0, 0, 0, 1)).xyz;
+    //ray.direction = (viewMatrixInverse * normalize(vec4(nearPlanePosition, -1, 0))).xyz;
+
+    vec4 outputValue = Trace(ray);
 
     if (clearFrame == 0) {
         outputValue += imageLoad(inputImage, imagePosition);
