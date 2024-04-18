@@ -414,15 +414,31 @@ vec4 Trace(Ray ray)
 
         ResolveHit(ray, hit);
 
-        vec3 diffuseDirection = normalize(hit.normal + RandomDirection());
-        vec3 specularDirection = reflect(ray.direction, hit.normal);
+        if (Random0To1() < hit.material.refractProbability) {
+            vec3 refractionDirection;
 
-        ray.direction = normalize(mix(specularDirection, diffuseDirection, hit.material.roughness));
+            if (dot(ray.direction, hit.normal) < 0)
+                refractionDirection = refract(ray.direction, hit.normal, 1.0f / hit.material.refractIndex);
+            else
+                refractionDirection = refract(ray.direction, -hit.normal, hit.material.refractIndex);
+
+            if (dot(refractionDirection, refractionDirection) > 0)
+                ray.direction = refractionDirection;
+            else
+                ray.direction = reflect(ray.direction, hit.normal);
+
+        }
+        else {
+            vec3 diffuseDirection = normalize(hit.normal + RandomDirection());
+            vec3 specularDirection = reflect(ray.direction, hit.normal);
+
+            ray.direction = normalize(mix(specularDirection, diffuseDirection, hit.material.roughness));
+
+            outputColor += hit.material.emissiveColor * filterColor;
+            filterColor *= hit.material.albedoColor * fogFactor;
+        }
+
         ray.origin = hit.position + 1e-3 * ray.direction;
-
-        outputColor += hit.material.emissiveColor * filterColor;
-        filterColor *= hit.material.albedoColor * fogFactor;
-
         hit.time = INFINITY;
     }
 
