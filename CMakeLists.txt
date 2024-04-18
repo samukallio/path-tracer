@@ -47,14 +47,14 @@ target_include_directories (path-tracer PRIVATE ${GENERATED_SOURCE_DIR})
 # contain multiple shader stages, and these are distinguished at compile
 # time by setting the VERTEX, FRAGMENT, or COMPUTE pre-processor macros.
 function (compile_shader target source)
-	cmake_parse_arguments (PARSE_ARGV 2 arg "" "VERTEX;FRAGMENT;COMPUTE" "")
+	cmake_parse_arguments (PARSE_ARGV 2 arg "" "VERTEX;FRAGMENT;COMPUTE" "DEPENDS")
 	foreach (stage vertex fragment compute)
 	string (TOUPPER ${stage} type)
 		set (output_path ${GENERATED_SOURCE_DIR}/${arg_${type}})
 		if (arg_${type})
 			add_custom_command (
 				OUTPUT ${output_path}
-				DEPENDS ${source}
+				DEPENDS ${source} ${arg_DEPENDS}
 				COMMAND
 					${glslc_executable}
 					-D${type}=1
@@ -73,13 +73,19 @@ function (compile_shader target source)
 	source_group ("Shader Files" FILES ${source})
 endfunction ()
 
+target_sources (path-tracer PRIVATE src/common.glsl.inc)
+source_group ("Shader Files" FILES src/common.glsl.inc)
+
 compile_shader (path-tracer src/resolve.glsl
 		VERTEX resolve.vertex.inc
-		FRAGMENT resolve.fragment.inc)
+		FRAGMENT resolve.fragment.inc
+		DEPENDS src/common.glsl.inc)
 
 compile_shader (path-tracer src/render.glsl
-		COMPUTE render.compute.inc)
+		COMPUTE render.compute.inc
+		DEPENDS src/common.glsl.inc)
 
 compile_shader (path-tracer src/imgui.glsl
 		VERTEX imgui.vertex.inc
 		FRAGMENT imgui.fragment.inc)
+

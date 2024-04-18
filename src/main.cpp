@@ -38,6 +38,7 @@ struct AppContext
     bool            accumulateSamples;
 
     RenderMode      renderMode;
+    ToneMapping     toneMapping;
     CameraType      cameraType;
     float           cameraFocalLengthInMM;
     float           cameraApertureRadiusInMM;
@@ -82,10 +83,28 @@ void Frame()
 
         ImGui::SeparatorText("Render Mode");
         c |= ImGui::RadioButton("Path Tracing", (int*)&app.renderMode, RENDER_MODE_PATH_TRACE);
+        ImGui::SameLine();
         c |= ImGui::RadioButton("Albedo", (int*)&app.renderMode, RENDER_MODE_ALBEDO);
+        ImGui::SameLine();
         c |= ImGui::RadioButton("Normal", (int*)&app.renderMode, RENDER_MODE_NORMAL);
         c |= ImGui::RadioButton("Material ID", (int*)&app.renderMode, RENDER_MODE_MATERIAL_INDEX);
+        ImGui::SameLine();
         c |= ImGui::RadioButton("Primitive ID", (int*)&app.renderMode, RENDER_MODE_PRIMITIVE_INDEX);
+
+        // Tone mapping operators.  Note that since tone mapping happens as
+        // a post-process operation, there is no need to reset the accumulated
+        // samples.
+        ImGui::SeparatorText("Tone Mapping");
+        ImGui::RadioButton("Clamp", (int*)&app.toneMapping.mode, TONE_MAPPING_MODE_CLAMP);
+        ImGui::SameLine();
+        ImGui::RadioButton("Reinhard", (int*)&app.toneMapping.mode, TONE_MAPPING_MODE_REINHARD);
+        ImGui::SameLine();
+        ImGui::RadioButton("Hable", (int*)&app.toneMapping.mode, TONE_MAPPING_MODE_HABLE);
+        ImGui::RadioButton("ACES", (int*)&app.toneMapping.mode, TONE_MAPPING_MODE_ACES);
+
+        if (app.toneMapping.mode == TONE_MAPPING_MODE_REINHARD) {
+            ImGui::SliderFloat("White Level", &app.toneMapping.whiteLevel, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+        }
 
         ImGui::SeparatorText("Camera");
         c |= ImGui::RadioButton("Pinhole", (int*)&app.cameraType, CAMERA_TYPE_PINHOLE);
@@ -153,6 +172,7 @@ void Frame()
         .objectCount = static_cast<uint32_t>(app.scene.objects.size()),
         .clearFrame = cameraChanged || cameraMoved || !app.accumulateSamples,
         .renderMode = app.renderMode,
+        .toneMapping = app.toneMapping,
         .camera = {
             .type = app.cameraType,
             .focalLength = app.cameraFocalLengthInMM / 1000.0f,
@@ -172,7 +192,7 @@ int main()
     LoadMesh(&scene, "../scene/viking_room.obj", 1.0f);
     AddTextureFromFile(&scene, "../scene/viking_room.png");
     AddTextureFromFile(&scene, "../scene/viking_room.png");
-    LoadSkybox(&scene, "../scene/AmbienceExposure4k.hdr");
+    LoadSkybox(&scene, "../scene/MegaSun4k.hdr");
     AddMesh(&scene, glm::vec3(0, 0, 0), 0);
     //AddPlane(&scene, glm::vec3(0, 0, -1.1));
 

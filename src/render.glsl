@@ -1,22 +1,10 @@
 #version 450
 
-const float INFINITY = 1e30f;
-const float EPSILON = 1e-9f;
-const float PI = 3.141592653f;
-const float TAU = 6.283185306f;
+#include "common.glsl.inc"
 
 const uint MESH = 0;
 const uint PLANE = 1;
 const uint SPHERE = 2;
-
-const uint RENDER_MODE_PATH_TRACE = 0;
-const uint RENDER_MODE_ALBEDO = 1;
-const uint RENDER_MODE_NORMAL = 2;
-const uint RENDER_MODE_MATERIAL_INDEX = 3;
-const uint RENDER_MODE_PRIMITIVE_INDEX = 4;
-
-const uint CAMERA_TYPE_PINHOLE = 0;
-const uint CAMERA_TYPE_THIN_LENS = 1;
 
 const vec3 COLORS[20] = vec3[20](
     vec3(0.902, 0.098, 0.294),
@@ -103,27 +91,6 @@ struct Hit
     vec2        uv;
     uint        materialIndex;
     Material    material;
-};
-
-struct Camera
-{
-    uint        type;
-    float       focalLength;
-    float       apertureRadius;
-    float       sensorDistance;
-    vec2        sensorSize;
-    mat4        worldMatrix;
-};
-
-layout(binding = 0)
-uniform FrameUniformBuffer
-{
-    uint        frameIndex;
-    uint        objectCount;
-    uint        clearFrame;
-    uint        renderMode;
-
-    Camera      camera;
 };
 
 layout(binding = 1, rgba32f)

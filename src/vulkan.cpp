@@ -955,6 +955,12 @@ static VkResult InternalCreateFrameResources(
                 return result;
             }
 
+            VkDescriptorBufferInfo frameUniformBufferInfo = {
+                .buffer = frame->frameUniformBuffer.buffer,
+                .offset = 0,
+                .range = frame->frameUniformBuffer.size,
+            };
+
             VkDescriptorImageInfo srcImageInfo = {
                 .sampler = vulkan->sampler,
                 .imageView = frame->renderTargetGraphicsCopy.view,
@@ -966,6 +972,15 @@ static VkResult InternalCreateFrameResources(
                     .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                     .dstSet = frame->resolveDescriptorSet,
                     .dstBinding = 0,
+                    .dstArrayElement = 0,
+                    .descriptorCount = 1,
+                    .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                    .pBufferInfo = &frameUniformBufferInfo,
+                },
+                {
+                    .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                    .dstSet = frame->resolveDescriptorSet,
+                    .dstBinding = 1,
                     .dstArrayElement = 0,
                     .descriptorCount = 1,
                     .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -1910,17 +1925,18 @@ static VkResult InternalCreateVulkan(
         return result;
     }
 
-    VulkanGraphicsPipelineConfiguration blitConfig = {
+    VulkanGraphicsPipelineConfiguration resolveConfig = {
         .vertexSize = 0,
         .vertexFormat = {},
         .vertexShaderCode = RESOLVE_VERTEX_SHADER,
         .fragmentShaderCode = RESOLVE_FRAGMENT_SHADER,
         .descriptorTypes = {
+            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,          // frameUniformBuffer
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         },
     };
 
-    result = InternalCreateGraphicsPipeline(vulkan, &vulkan->resolvePipeline, blitConfig);
+    result = InternalCreateGraphicsPipeline(vulkan, &vulkan->resolvePipeline, resolveConfig);
     if (result != VK_SUCCESS) {
         return result;
     }

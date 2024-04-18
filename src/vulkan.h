@@ -20,6 +20,14 @@ enum RenderMode : int32_t
     RENDER_MODE_PRIMITIVE_INDEX = 4,
 };
 
+enum ToneMappingMode : int32_t
+{
+    TONE_MAPPING_MODE_CLAMP     = 0,
+    TONE_MAPPING_MODE_REINHARD  = 1,
+    TONE_MAPPING_MODE_HABLE     = 2,
+    TONE_MAPPING_MODE_ACES      = 3,
+};
+
 enum CameraType : int32_t
 {
     CAMERA_TYPE_PINHOLE         = 0,
@@ -36,13 +44,20 @@ struct Camera
     glm::aligned_mat4           worldMatrix                 = {};
 };
 
+struct ToneMapping
+{
+    ToneMappingMode             mode                        = TONE_MAPPING_MODE_CLAMP;
+    float                       whiteLevel                  = 1.0f;
+};
+
 struct FrameUniformBuffer
 {
     uint32_t                    frameIndex                  = 0;
     uint32_t                    objectCount                 = {};
     uint32_t                    clearFrame                  = 0;
-    RenderMode                  renderMode                  = {};
-
+    RenderMode                  renderMode                  = RENDER_MODE_PATH_TRACE;
+    
+    alignas(16) ToneMapping     toneMapping                 = {};
     alignas(16) Camera          camera                      = {};
 };
 
