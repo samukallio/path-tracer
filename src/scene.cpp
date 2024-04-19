@@ -318,19 +318,19 @@ bool LoadMesh(Scene* scene, char const* path, float scale)
         });
     }
 
-    //glm::mat4 normalTransform = {
-    //    { 0, 1, 0, 0 },
-    //    { 0, 0, 1, 0 },
-    //    { 1, 0, 0, 0 },
-    //    { 0, 0, 0, 1 },
-    //};
-
     glm::mat4 normalTransform = {
-        { 1, 0, 0, 0 },
         { 0, 1, 0, 0 },
         { 0, 0, 1, 0 },
+        { 1, 0, 0, 0 },
         { 0, 0, 0, 1 },
     };
+
+    //glm::mat4 normalTransform = {
+    //    { 1, 0, 0, 0 },
+    //    { 0, 1, 0, 0 },
+    //    { 0, 0, 1, 0 },
+    //    { 0, 0, 0, 1 },
+    //};
 
 
     glm::mat4 vertexTransform = scale * normalTransform;
@@ -357,16 +357,20 @@ bool LoadMesh(Scene* scene, char const* path, float scale)
                     attrib.vertices[3*index.vertex_index+2],
                     1.0f);
 
-                face.normals[j] = normalTransform * glm::vec4(
-                    attrib.normals[3*index.normal_index+0],
-                    attrib.normals[3*index.normal_index+1],
-                    attrib.normals[3*index.normal_index+2],
-                    1.0f);
+                if (index.normal_index >= 0) {
+                    face.normals[j] = normalTransform * glm::vec4(
+                        attrib.normals[3*index.normal_index+0],
+                        attrib.normals[3*index.normal_index+1],
+                        attrib.normals[3*index.normal_index+2],
+                        1.0f);
+                }
 
-                face.uvs[j] = uvTransform * glm::vec3(
-                    attrib.texcoords[2*index.texcoord_index+0],
-                    attrib.texcoords[2*index.texcoord_index+1],
-                    1.0f);
+                if (index.texcoord_index >= 0) {
+                    face.uvs[j] = uvTransform * glm::vec3(
+                        attrib.texcoords[2*index.texcoord_index+0],
+                        attrib.texcoords[2*index.texcoord_index+1],
+                        1.0f);
+                }
             }
 
             face.position = faceData.vertices[0];

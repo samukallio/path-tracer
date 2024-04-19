@@ -6,8 +6,8 @@
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 
-int const WINDOW_WIDTH = 1920;
-int const WINDOW_HEIGHT = 1080;
+int const WINDOW_WIDTH = 2048;
+int const WINDOW_HEIGHT = 1024;
 char const* APPLICATION_NAME = "Path Tracer";
 
 struct CameraState
@@ -38,6 +38,7 @@ struct AppContext
     bool            accumulateSamples;
 
     RenderMode      renderMode;
+    uint32_t        bounceLimit = 5;
     ToneMapping     toneMapping;
     CameraType      cameraType;
     float           cameraFocalLengthInMM;
@@ -90,6 +91,8 @@ void Frame()
         c |= ImGui::RadioButton("Material ID", (int*)&app.renderMode, RENDER_MODE_MATERIAL_INDEX);
         ImGui::SameLine();
         c |= ImGui::RadioButton("Primitive ID", (int*)&app.renderMode, RENDER_MODE_PRIMITIVE_INDEX);
+
+        c |= ImGui::InputInt("Bounce Limit", (int*)&app.bounceLimit);
 
         // Tone mapping operators.  Note that since tone mapping happens as
         // a post-process operation, there is no need to reset the accumulated
@@ -172,6 +175,7 @@ void Frame()
         .objectCount = static_cast<uint32_t>(app.scene.objects.size()),
         .clearFrame = cameraChanged || cameraMoved || !app.accumulateSamples,
         .renderMode = app.renderMode,
+        .bounceLimit = app.bounceLimit,
         .toneMapping = app.toneMapping,
         .camera = {
             .type = app.cameraType,
@@ -187,15 +191,45 @@ void Frame()
 
 int main()
 {
-    //LoadMesh(&scene, "../scene/sponza.obj", 0.01f);
     Scene& scene = app.scene;
-    LoadMesh(&scene, "../scene/viking_room.obj", 1.0f);
+    LoadMesh(&scene, "../scene/tyra.obj", 1.0f);
+    //LoadMesh(&scene, "../scene/viking_room.obj", 1.0f);
     AddTextureFromFile(&scene, "../scene/viking_room.png");
     AddTextureFromFile(&scene, "../scene/viking_room.png");
-    LoadSkybox(&scene, "../scene/MegaSun4k.hdr");
-    AddMesh(&scene, glm::vec3(0, 0, 0), 0);
-    //AddPlane(&scene, glm::vec3(0, 0, -1.1));
+    LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
+    //AddMesh(&scene, glm::vec3(0, 0, 0), 0);
+    //AddPlane(&scene, glm::vec3(0, 0, 0.0f));
 
+    //scene.materials.push_back({
+    //    .albedoColor = glm::vec3(1, 1, 1),
+    //    .albedoTextureIndex = 0,
+    //    .specularColor = glm::vec4(1, 1, 1, 0),
+    //    .emissiveColor = glm::vec3(0, 0, 0),
+    //    .emissiveTextureIndex = 0,
+    //    .roughness = 1.0f,
+    //    .specularProbability = 0.0f,
+    //    .refractProbability = 0.0f,
+    //    .refractIndex = 0.0f,
+    //    .albedoTextureSize = glm::uvec2(1024, 1024),
+    //    .padding = glm::uvec2(0, 0),
+    //});
+
+    uint32_t glassMaterialIndex = (uint32_t)scene.materials.size();
+    scene.materials.push_back({
+        .albedoColor = glm::vec3(1, 1, 1),
+        .albedoTextureIndex = 0,
+        .specularColor = glm::vec4(1, 1, 1, 0),
+        .emissiveColor = glm::vec3(0, 0, 0),
+        .emissiveTextureIndex = 0,
+        .roughness = 0.15f,
+        .specularProbability = 0.0f,
+        .refractProbability = 0.0f,
+        .refractIndex = 0.0f,
+        .albedoTextureSize = glm::uvec2(0, 0),
+        .padding = glm::uvec2(0, 0),
+    });
+    
+    uint32_t diffuseMaterialIndex = (uint32_t)scene.materials.size();
     scene.materials.push_back({
         .albedoColor = glm::vec3(1, 1, 1),
         .albedoTextureIndex = 0,
@@ -206,53 +240,44 @@ int main()
         .specularProbability = 0.0f,
         .refractProbability = 0.0f,
         .refractIndex = 0.0f,
-        .albedoTextureSize = glm::uvec2(1024, 1024),
+        .albedoTextureSize = glm::uvec2(0, 0),
         .padding = glm::uvec2(0, 0),
     });
 
-    uint32_t sphereMaterialIndex = (uint32_t)scene.materials.size();
+    uint32_t lightMaterialIndex = (uint32_t)scene.materials.size();
     scene.materials.push_back({
         .albedoColor = glm::vec3(1, 1, 1),
         .albedoTextureIndex = 0,
         .specularColor = glm::vec4(1, 1, 1, 0),
-        .emissiveColor = glm::vec3(0, 0, 0),
+        .emissiveColor = 150.0f * glm::vec3(1,243/255.0f,142/255.0f),
         .emissiveTextureIndex = 0,
         .roughness = 1.0f,
         .specularProbability = 0.0f,
-        .refractProbability = 1.0f,
-        .refractIndex = 1.5f,
+        .refractProbability = 0.0f,
+        .refractIndex = 0.0f,
         .albedoTextureSize = glm::uvec2(0, 0),
         .padding = glm::uvec2(0, 0),
     });
+
     scene.objects.push_back({
-        .origin = glm::vec3(0.55f, 0.1f, 0.15f),
+        .origin = glm::vec3(0, 0, 0),
+        .type = OBJECT_MESH,
+        .materialIndex = glassMaterialIndex,
+        .meshRootNodeIndex = 0,
+    });
+    scene.objects.push_back({
+        .origin = glm::vec3(0.5f, 0.5f, 1.75f),
         .type = OBJECT_SPHERE,
-        .scale = 0.15f * glm::vec3(1, 1, 1),
-        .materialIndex = sphereMaterialIndex,
+        .scale = 0.25f * glm::vec3(1, 1, 1),
+        .materialIndex = lightMaterialIndex,
+    });
+    scene.objects.push_back({
+        .origin = glm::vec3(0, 0, -1.3),
+        .type = OBJECT_PLANE,
+        .scale = glm::vec3(1, 1, 1),
+        .materialIndex = diffuseMaterialIndex,
     });
 
-
-    //uint32_t lightMaterialIndex = (uint32_t)scene.materials.size();
-    //scene.materials.push_back({
-    //    .albedoColor = glm::vec3(1, 1, 1),
-    //    .albedoTextureIndex = 0,
-    //    .specularColor = glm::vec4(1, 1, 1, 0),
-    //    .emissiveColor = 150.0f * glm::vec3(1,243/255.0f,142/255.0f),
-    //    .emissiveTextureIndex = 0,
-    //    .roughness = 1.0f,
-    //    .specularProbability = 0.0f,
-    //    .refractProbability = 0.0f,
-    //    .refractIndex = 0.0f,
-    //    .albedoTextureSize = glm::uvec2(0, 0),
-    //    .padding = glm::uvec2(0, 0),
-    //});
-    //scene.objects.push_back({
-    //    .origin = glm::vec3(0, 0, 5),
-    //    .type = OBJECT_SPHERE,
-    //    .scale = 0.25f * glm::vec3(1, 1, 1),
-    //    .materialIndex = lightMaterialIndex,
-    //});
- 
     for (MeshNode const& node : scene.meshNodes) {
         if (node.faceEndIndex > 0) {
             assert(node.faceBeginOrNodeIndex <= scene.meshFaces.size());

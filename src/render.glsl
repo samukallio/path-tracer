@@ -367,7 +367,7 @@ void ResolveHit(Ray ray, inout Hit hit)
         vec2 uv = fract(hit.uv) * hit.material.albedoTextureSize / vec2(2048, 2048);
         vec3 uvw = vec3(uv, hit.material.albedoTextureIndex);
 
-        hit.material.albedoColor *= textureLod(textureArray, uvw, 0).rgb;
+        //hit.material.albedoColor *= textureLod(textureArray, uvw, 0).rgb;
     }
 
     if (hit.objectType == PLANE) {
@@ -402,7 +402,7 @@ vec4 Trace(Ray ray)
     vec3 outputColor = vec3(0, 0, 0);
     vec3 filterColor = vec3(1, 1, 1);
 
-    for (uint bounce = 0; bounce < 5; bounce++) {
+    for (uint bounce = 0; bounce <= bounceLimit; bounce++) {
         Intersect(ray, hit);
 
         float fogFactor = 1.0;

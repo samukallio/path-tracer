@@ -13,8 +13,8 @@
 
 #include <vulkan/vulkan.h>
 
-uint32_t const RENDER_WIDTH = 1920;
-uint32_t const RENDER_HEIGHT = 1080;
+uint32_t const RENDER_WIDTH = 2048;
+uint32_t const RENDER_HEIGHT = 1024;
 
 uint32_t const RESOLVE_VERTEX_SHADER[] =
 {

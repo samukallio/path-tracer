@@ -56,7 +56,8 @@ struct FrameUniformBuffer
     uint32_t                    objectCount                 = {};
     uint32_t                    clearFrame                  = 0;
     RenderMode                  renderMode                  = RENDER_MODE_PATH_TRACE;
-    
+    uint32_t                    bounceLimit                 = 0;
+
     alignas(16) ToneMapping     toneMapping                 = {};
     alignas(16) Camera          camera                      = {};
 };

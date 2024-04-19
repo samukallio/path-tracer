@@ -40,6 +40,7 @@ uniform FrameUniformBuffer
     uint            objectCount;
     uint            clearFrame;
     uint            renderMode;
+    uint            bounceLimit;
 
     ToneMapping     toneMapping;
     Camera          camera;
