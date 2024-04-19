@@ -2,10 +2,6 @@
 
 #include "common.glsl.inc"
 
-const uint MESH = 0;
-const uint PLANE = 1;
-const uint SPHERE = 2;
-
 const vec3 COLORS[20] = vec3[20](
     vec3(0.902, 0.098, 0.294),
     vec3(0.235, 0.706, 0.294),
@@ -28,70 +24,6 @@ const vec3 COLORS[20] = vec3[20](
     vec3(0.000, 0.000, 0.459),
     vec3(0.502, 0.502, 0.502)
 );
-
-struct Material
-{
-    vec3        albedoColor;
-    uint        albedoTextureIndex;
-    vec4        specularColor;
-    vec3        emissiveColor;
-    uint        emissiveTextureIndex;
-    float       roughness;
-    float       specularProbability;
-    float       refractProbability;
-    float       refractIndex;
-    uvec2       albedoTextureSize;
-};
-
-struct Object
-{
-    vec3        origin;
-    uint        type;
-    vec3        scale;
-    uint        materialIndex;
-    uint        meshRootNodeIndex;
-};
-
-struct MeshFace
-{
-    vec3        position;
-    uint        materialIndex;
-    vec4        plane;
-    vec3        base1;
-    vec3        base2;
-    vec3        normals[3];
-    vec2        uvs[3];
-};
-
-struct MeshNode
-{
-    vec3        minimum;
-    uint        faceBeginOrNodeIndex;
-    vec3        maximum;
-    uint        faceEndIndex;
-};
-
-struct Ray
-{
-    vec3        origin;
-    vec3        direction;
-};
-
-struct Hit
-{
-    float       time;
-    uint        objectType;
-    uint        objectIndex;
-    uint        primitiveIndex;
-    vec3        data;
-
-    // Populated by ResolveHit()
-    vec3        position;
-    vec3        normal;
-    vec2        uv;
-    uint        materialIndex;
-    Material    material;
-};
 
 layout(binding = 1, rgba32f)
 uniform readonly image2D inputImage;
@@ -205,7 +137,7 @@ void IntersectMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
 
     hit.time = t;
     hit.data = vec3(1 - beta - gamma, beta, gamma);
-    hit.objectType = MESH;
+    hit.objectType = OBJECT_TYPE_MESH;
     hit.objectIndex = 0xFFFFFFFF;
     hit.primitiveIndex = meshFaceIndex;
 }
@@ -306,20 +238,20 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
 {
     Object object = objects[objectIndex];
 
-    if (object.type == MESH)
+    if (object.type == OBJECT_TYPE_MESH)
         IntersectMesh(ray, object, hit);
 
-    if (object.type == PLANE) {
+    if (object.type == OBJECT_TYPE_PLANE) {
         float t = (object.origin.z - ray.origin.z) / ray.direction.z;
         if (t < 0 || t > hit.time) return;
 
         hit.time = t;
-        hit.objectType = PLANE;
+        hit.objectType = OBJECT_TYPE_PLANE;
         hit.objectIndex = objectIndex;
         hit.data = vec3(fract(ray.origin.xy + ray.direction.xy * t), 0);
     }
 
-    if (object.type == SPHERE) {
+    if (object.type == OBJECT_TYPE_SPHERE) {
         vec3 vector = object.origin - ray.origin;
         float tm = dot(ray.direction, vector);
         float td2 = tm * tm - dot(vector, vector) + object.scale.x * object.scale.x;
@@ -332,7 +264,7 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
         if (t < 0 || t > hit.time) return;
 
         hit.time = t;
-        hit.objectType = SPHERE;
+        hit.objectType = OBJECT_TYPE_SPHERE;
         hit.objectIndex = objectIndex;
     }
 }
@@ -350,7 +282,7 @@ void ResolveHit(Ray ray, inout Hit hit)
 {
     hit.position = ray.origin + ray.direction * hit.time;
 
-    if (hit.objectType == MESH) {
+    if (hit.objectType == OBJECT_TYPE_MESH) {
         MeshFace face = meshFaces[hit.primitiveIndex];
             
         hit.normal = face.normals[0] * hit.data.x
@@ -370,7 +302,7 @@ void ResolveHit(Ray ray, inout Hit hit)
         //hit.material.albedoColor *= textureLod(textureArray, uvw, 0).rgb;
     }
 
-    if (hit.objectType == PLANE) {
+    if (hit.objectType == OBJECT_TYPE_PLANE) {
         Object object = objects[hit.objectIndex];
 
         hit.primitiveIndex = 0;
@@ -385,7 +317,7 @@ void ResolveHit(Ray ray, inout Hit hit)
             hit.material.albedoColor *= vec3(0.5, 0.5, 0.5);
     }
 
-    if (hit.objectType == SPHERE) {
+    if (hit.objectType == OBJECT_TYPE_SPHERE) {
         Object object = objects[hit.objectIndex];
         hit.normal = normalize(hit.position - object.origin);
         hit.materialIndex = object.materialIndex;

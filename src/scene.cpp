@@ -428,7 +428,7 @@ void AddMesh(Scene* scene, glm::vec3 origin, uint32_t rootNodeIndex)
 {
     scene->objects.push_back({
         .origin = origin,
-        .type = OBJECT_MESH,
+        .type = OBJECT_TYPE_MESH,
         .meshRootNodeIndex = rootNodeIndex,
     });
 }
@@ -437,7 +437,7 @@ void AddPlane(Scene* scene, glm::vec3 origin)
 {
     scene->objects.push_back({
         .origin = origin,
-        .type = OBJECT_PLANE,
+        .type = OBJECT_TYPE_PLANE,
     });
 }
 
@@ -445,7 +445,7 @@ void AddSphere(Scene* scene, glm::vec3 origin, float radius)
 {
     scene->objects.push_back({
         .origin = origin,
-        .type = OBJECT_SPHERE,
+        .type = OBJECT_TYPE_SPHERE,
         .scale = glm::vec3(1, 1, 1) * radius,
     });
 }

@@ -14,14 +14,18 @@ const uint TONE_MAPPING_MODE_REINHARD   = 1;
 const uint TONE_MAPPING_MODE_HABLE      = 2;
 const uint TONE_MAPPING_MODE_ACES       = 3;
 
+const uint CAMERA_TYPE_PINHOLE          = 0;
+const uint CAMERA_TYPE_THIN_LENS        = 1;
+
+const uint OBJECT_TYPE_MESH             = 0;
+const uint OBJECT_TYPE_PLANE            = 1;
+const uint OBJECT_TYPE_SPHERE           = 2;
+
 struct ToneMapping
 {
     uint            mode;
     float           whiteLevel;
 };
-
-const uint CAMERA_TYPE_PINHOLE = 0;
-const uint CAMERA_TYPE_THIN_LENS = 1;
 
 struct Camera
 {
@@ -44,4 +48,68 @@ uniform FrameUniformBuffer
 
     ToneMapping     toneMapping;
     Camera          camera;
+};
+
+struct Material
+{
+    vec3            albedoColor;
+    uint            albedoTextureIndex;
+    vec4            specularColor;
+    vec3            emissiveColor;
+    uint            emissiveTextureIndex;
+    float           roughness;
+    float           specularProbability;
+    float           refractProbability;
+    float           refractIndex;
+    uvec2           albedoTextureSize;
+};
+
+struct Object
+{
+    vec3            origin;
+    uint            type;
+    vec3            scale;
+    uint            materialIndex;
+    uint            meshRootNodeIndex;
+};
+
+struct MeshFace
+{
+    vec3            position;
+    uint            materialIndex;
+    vec4            plane;
+    vec3            base1;
+    vec3            base2;
+    vec3            normals[3];
+    vec2            uvs[3];
+};
+
+struct MeshNode
+{
+    vec3            minimum;
+    uint            faceBeginOrNodeIndex;
+    vec3            maximum;
+    uint            faceEndIndex;
+};
+
+struct Ray
+{
+    vec3            origin;
+    vec3            direction;
+};
+
+struct Hit
+{
+    float           time;
+    uint            objectType;
+    uint            objectIndex;
+    uint            primitiveIndex;
+    vec3            data;
+
+    // Populated by ResolveHit()
+    vec3            position;
+    vec3            normal;
+    vec2            uv;
+    uint            materialIndex;
+    Material        material;
 };

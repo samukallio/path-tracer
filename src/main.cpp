@@ -261,19 +261,19 @@ int main()
 
     scene.objects.push_back({
         .origin = glm::vec3(0, 0, 0),
-        .type = OBJECT_MESH,
+        .type = OBJECT_TYPE_MESH,
         .materialIndex = glassMaterialIndex,
         .meshRootNodeIndex = 0,
     });
     scene.objects.push_back({
         .origin = glm::vec3(0.5f, 0.5f, 1.75f),
-        .type = OBJECT_SPHERE,
+        .type = OBJECT_TYPE_SPHERE,
         .scale = 0.25f * glm::vec3(1, 1, 1),
         .materialIndex = lightMaterialIndex,
     });
     scene.objects.push_back({
         .origin = glm::vec3(0, 0, -1.3),
-        .type = OBJECT_PLANE,
+        .type = OBJECT_TYPE_PLANE,
         .scale = glm::vec3(1, 1, 1),
         .materialIndex = diffuseMaterialIndex,
     });
