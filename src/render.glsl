@@ -466,6 +466,19 @@ void main()
         ray.direction = normalize(camera.worldMatrix * vec4(rayVector, 0)).xyz;
     }
 
+    if (camera.type == CAMERA_TYPE_360) {
+        float phi = (samplePositionNormalized.x - 0.5f) * TAU;
+        float theta = (0.5f - samplePositionNormalized.y) * PI;
+
+        vec3 rayVector = vec3(
+            cos(theta) * sin(phi),
+            sin(theta),
+            -cos(theta) * cos(phi));
+
+        ray.origin = (camera.worldMatrix * vec4(0, 0, 0, 1)).xyz;
+        ray.direction = normalize(camera.worldMatrix * vec4(rayVector, 0)).xyz;
+    }
+
     vec4 outputValue;
 
     if (renderMode == RENDER_MODE_PATH_TRACE)

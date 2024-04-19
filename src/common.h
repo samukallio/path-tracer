@@ -27,6 +27,7 @@ enum CameraType : int32_t
 {
     CAMERA_TYPE_PINHOLE         = 0,
     CAMERA_TYPE_THIN_LENS       = 1,
+    CAMERA_TYPE_360             = 2,
 };
 
 enum ObjectType : int32_t

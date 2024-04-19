@@ -113,6 +113,8 @@ void Frame()
         c |= ImGui::RadioButton("Pinhole", (int*)&app.cameraType, CAMERA_TYPE_PINHOLE);
         ImGui::SameLine();
         c |= ImGui::RadioButton("Thin Lens", (int*)&app.cameraType, CAMERA_TYPE_THIN_LENS);
+        ImGui::SameLine();
+        c |= ImGui::RadioButton("360", (int*)&app.cameraType, CAMERA_TYPE_360);
 
         if (app.cameraType == CAMERA_TYPE_PINHOLE) {
         }
