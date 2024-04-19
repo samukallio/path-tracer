@@ -82,6 +82,8 @@ void Frame()
         ImGui::NewFrame();
         ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_PassthruCentralNode);
 
+        ImGui::ShowDemoWindow();
+
         ImGui::Begin("Controls");
 
         ImGui::SeparatorText("General");
@@ -97,7 +99,9 @@ void Frame()
         ImGui::SameLine();
         c |= ImGui::RadioButton("Primitive ID", (int*)&app.renderMode, RENDER_MODE_PRIMITIVE_INDEX);
 
-        c |= ImGui::InputInt("Bounce Limit", (int*)&app.bounceLimit);
+        int bounceLimit = static_cast<int>(app.bounceLimit);
+        c |= ImGui::InputInt("Bounce Limit", &bounceLimit);
+        app.bounceLimit = std::max(1, bounceLimit);
 
         // Tone mapping operators.  Note that since tone mapping happens as
         // a post-process operation, there is no need to reset the accumulated
@@ -131,7 +135,6 @@ void Frame()
         }
 
         ImGui::End();
-        ImGui::ShowDemoWindow();
         ImGui::EndFrame();
         ImGui::Render();
 
