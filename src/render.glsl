@@ -353,16 +353,23 @@ vec4 Trace(Ray ray)
         if (Random0To1() < hit.material.refraction) {
             vec3 refractionDirection;
 
-            if (dot(ray.direction, hit.normal) < 0)
+            if (dot(ray.direction, hit.normal) < 0) {
+                // Ray is exiting the material.
                 refractionDirection = refract(ray.direction, hit.normal, 1.0f / hit.material.refractionIndex);
-            else
+            }
+            else {
+                // Ray is entering the material.
                 refractionDirection = refract(ray.direction, -hit.normal, hit.material.refractionIndex);
+            }
 
-            if (dot(refractionDirection, refractionDirection) > 0)
+            if (dot(refractionDirection, refractionDirection) > 0) {
+                // Normal refraction.
                 ray.direction = refractionDirection;
-            else
+            }
+            else {
+                // Total internal reflection.
                 ray.direction = reflect(ray.direction, hit.normal);
-
+            }
         }
         else {
             vec3 diffuseDirection = normalize(hit.normal + RandomDirection());
@@ -465,7 +472,6 @@ void main()
     Ray ray;
 
     if (cameraType == CAMERA_TYPE_PINHOLE) {
-        // Point on the "virtual near plane" through which the ray passes.
         vec3 sensorPositionNormalized = vec3(
             -cameraSensorSize.x * (samplePositionNormalized.x - 0.5),
             -cameraSensorSize.y * (0.5 - samplePositionNormalized.y),
