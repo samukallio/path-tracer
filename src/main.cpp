@@ -154,6 +154,32 @@ bool ShowRenderCameraWindow(RenderCamera& camera)
     return c;
 }
 
+bool ShowObjectPropertiesWindow()
+{
+    bool c = false;
+
+    ImGui::Begin("Object Properties");
+
+    if (app.selectedObjectIndex < 0xFFFFFFFF) {
+        Transform& transform = app.scene.objectTransforms[app.selectedObjectIndex];
+        c |= ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
+
+        glm::vec3 rotationInDegrees = transform.rotation * (360 / TAU);
+        c |= ImGui::DragFloat3("Rotation", &rotationInDegrees[0]);
+        transform.rotation = rotationInDegrees * (TAU / 360);
+
+        if (c) {
+            Object& object = app.scene.objects[app.selectedObjectIndex];
+            object.objectToWorldMatrix = glm::translate(glm::orientate4(transform.rotation), transform.position);
+            object.worldToObjectMatrix = glm::inverse(object.objectToWorldMatrix);
+        }
+    }
+
+    ImGui::End();
+
+    return c;
+}
+
 void Frame()
 {
     FrameState& previous = app.frames[(app.frameIndex + 0) % 2];
@@ -167,9 +193,12 @@ void Frame()
     float deltaMouseX = static_cast<float>(current.mouseX - previous.mouseX);
     float deltaMouseY = static_cast<float>(current.mouseY - previous.mouseY);
 
+    ImGuiIO& imGuiIO = ImGui::GetIO();
+
     // ImGui.
     bool editorCameraChanged = false;
     bool renderCameraChanged = false;
+    bool objectDataChanged = false;
     {
         bool c = false;
 
@@ -190,6 +219,7 @@ void Frame()
 
         editorCameraChanged = ShowEditorCameraWindow(app.editorCamera);
         renderCameraChanged = ShowRenderCameraWindow(app.renderCamera);
+        objectDataChanged = ShowObjectPropertiesWindow();
 
         ImGui::EndFrame();
         ImGui::Render();
@@ -205,7 +235,7 @@ void Frame()
 
         glm::vec3 forward = glm::quat(rotation) * glm::vec3(1, 0, 0);
 
-        if (glfwGetMouseButton(app.window, GLFW_MOUSE_BUTTON_2)) {
+        if (!imGuiIO.WantCaptureMouse && glfwGetMouseButton(app.window, GLFW_MOUSE_BUTTON_2)) {
             glm::vec3 delta {};
             if (glfwGetKey(app.window, GLFW_KEY_A))
                 delta -= glm::cross(forward, glm::vec3(0, 0, 1));
@@ -254,7 +284,7 @@ void Frame()
         glm::mat4 viewMatrix = glm::lookAt(camera.position - forward * 2.0f, camera.position, glm::vec3(0, 0, 1));
         glm::mat4 worldMatrix = glm::inverse(viewMatrix);
 
-        if (glfwGetMouseButton(app.window, GLFW_MOUSE_BUTTON_1)) {
+        if (!imGuiIO.WantCaptureMouse && glfwGetMouseButton(app.window, GLFW_MOUSE_BUTTON_1)) {
             glm::vec2 sensorSize = { 0.032f, 0.018f };
 
             glm::vec2 samplePositionNormalized = {
@@ -310,6 +340,10 @@ void Frame()
 
         if (app.accumulateSamples && !renderCameraChanged)
             uniforms.renderFlags |= RENDER_FLAG_ACCUMULATE;
+    }
+
+    if (objectDataChanged) {
+        UploadScene(app.vulkan, &app.scene, UPLOAD_OBJECT_DATA);
     }
 
     RenderFrame(app.vulkan, &uniforms, ImGui::GetDrawData());
@@ -534,23 +568,31 @@ int main()
     });
 
     scene.objects.push_back({
-        .origin = glm::vec3(0, 0, 0),
         .type = OBJECT_TYPE_MESH,
         .materialIndex = glassMaterialIndex,
         .meshRootNodeIndex = 0,
+        .worldToObjectMatrix = glm::mat4(1),
+        .objectToWorldMatrix = glm::mat4(1),
     });
     scene.objects.push_back({
-        .origin = glm::vec3(0.5f, 0.5f, 1.75f),
         .type = OBJECT_TYPE_SPHERE,
-        .scale = 0.25f * glm::vec3(1, 1, 1),
         .materialIndex = lightMaterialIndex,
+        .worldToObjectMatrix = glm::mat4(1),
+        .objectToWorldMatrix = glm::mat4(1),
     });
     scene.objects.push_back({
-        .origin = glm::vec3(0, 0, -1.3),
         .type = OBJECT_TYPE_PLANE,
-        .scale = glm::vec3(1, 1, 1),
         .materialIndex = diffuseMaterialIndex,
+        .worldToObjectMatrix = glm::mat4(1),
+        .objectToWorldMatrix = glm::mat4(1),
     });
+
+    for (Object const& object : scene.objects) {
+        scene.objectTransforms.push_back({
+            .position = glm::vec3(0, 0, 0),
+            .rotation = glm::vec3(0, 0, 0),
+        });
+    }
 
     for (MeshNode const& node : scene.meshNodes) {
         if (node.faceEndIndex > 0) {
@@ -576,7 +618,7 @@ int main()
     app.window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, APPLICATION_NAME, nullptr, nullptr);
     app.vulkan = CreateVulkan(app.window, APPLICATION_NAME);
 
-    UploadScene(app.vulkan, &scene);
+    UploadScene(app.vulkan, &scene, UPLOAD_ALL);
 
     app.editorCamera.position = { 0, 0, 0 };
     app.editorCamera.velocity = { 0, 0, 0 };

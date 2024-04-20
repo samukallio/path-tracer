@@ -2,9 +2,18 @@
 
 #include "common.h"
 
+struct Transform
+{
+    glm::vec3                   position;
+    glm::vec3                   rotation;
+};
+
 struct Scene
 {
     std::vector<Image>          textures;
+    std::vector<Transform>      objectTransforms;
+
+    // GPU shared data.
     std::vector<Material>       materials;
     std::vector<Object>         objects;
     std::vector<MeshFace>       meshFaces;

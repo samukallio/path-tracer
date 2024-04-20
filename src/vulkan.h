@@ -140,6 +140,16 @@ struct VulkanContext
     VulkanPipeline              imguiPipeline               = {};
 };
 
+enum UploadFlag
+{
+    UPLOAD_SKYBOX               = 1 << 0,
+    UPLOAD_TEXTURE_DATA         = 1 << 1,
+    UPLOAD_MATERIAL_DATA        = 1 << 2,
+    UPLOAD_OBJECT_DATA          = 1 << 3,
+    UPLOAD_MESH_DATA            = 1 << 4,
+    UPLOAD_ALL                  = 0xFFFFFFFF,
+};
+
 VulkanContext* CreateVulkan(
     GLFWwindow* window,
     char const* applicationName);
@@ -149,7 +159,8 @@ void DestroyVulkan(
 
 VkResult UploadScene(
     VulkanContext* vulkan,
-    Scene const* scene);
+    Scene const* scene,
+    uint32_t flags);
 
 VkResult RenderFrame(
     VulkanContext* vulkan,

@@ -421,7 +421,6 @@ bool LoadSkybox(Scene* scene, char const* path)
 void AddMesh(Scene* scene, glm::vec3 origin, uint32_t rootNodeIndex)
 {
     scene->objects.push_back({
-        .origin = origin,
         .type = OBJECT_TYPE_MESH,
         .meshRootNodeIndex = rootNodeIndex,
     });
@@ -430,7 +429,6 @@ void AddMesh(Scene* scene, glm::vec3 origin, uint32_t rootNodeIndex)
 void AddPlane(Scene* scene, glm::vec3 origin)
 {
     scene->objects.push_back({
-        .origin = origin,
         .type = OBJECT_TYPE_PLANE,
     });
 }
@@ -438,15 +436,12 @@ void AddPlane(Scene* scene, glm::vec3 origin)
 void AddSphere(Scene* scene, glm::vec3 origin, float radius)
 {
     scene->objects.push_back({
-        .origin = origin,
         .type = OBJECT_TYPE_SPHERE,
-        .scale = glm::vec3(1, 1, 1) * radius,
     });
 }
 
 // ----------------------------------------------------------------------------
 
-const float EPSILON     = 1e-9f;
 
 static void IntersectMeshFace(Scene* scene, Ray ray, uint32_t meshFaceIndex, Hit& hit)
 {
@@ -567,11 +562,14 @@ static void IntersectObject(Scene* scene, Ray const& ray, uint32_t objectIndex, 
 {
     Object object = scene->objects[objectIndex];
 
-    if (object.type == OBJECT_TYPE_MESH)
+    if (object.type == OBJECT_TYPE_MESH) {
         IntersectMesh(scene, ray, object, hit);
+        if (hit.objectIndex == 0xFFFFFFFF)
+            hit.objectIndex = objectIndex;
+    }
 
     if (object.type == OBJECT_TYPE_PLANE) {
-        float t = (object.origin.z - ray.origin.z) / ray.direction.z;
+        float t = -ray.origin.z / ray.direction.z;
         if (t < 0 || t > hit.time) return;
 
         hit.time = t;
@@ -581,9 +579,8 @@ static void IntersectObject(Scene* scene, Ray const& ray, uint32_t objectIndex, 
     }
 
     if (object.type == OBJECT_TYPE_SPHERE) {
-        glm::vec3 vector = object.origin - ray.origin;
-        float tm = glm::dot(ray.direction, vector);
-        float td2 = tm * tm - glm::dot(vector, vector) + object.scale.x * object.scale.x;
+        float tm = glm::dot(ray.direction, -ray.origin);
+        float td2 = tm * tm - glm::dot(-ray.origin, -ray.origin) + 1.0f;
         if (td2 < 0) return;
 
         float td = sqrt(td2);
@@ -598,12 +595,12 @@ static void IntersectObject(Scene* scene, Ray const& ray, uint32_t objectIndex, 
     }
 }
 
-static void Intersect(Scene* scene, Ray ray, Hit& hit)
+static void Intersect(Scene* scene, Ray const& ray, Hit& hit)
 {
     for (uint32_t objectIndex = 0; objectIndex < scene->objects.size(); objectIndex++) {
-        IntersectObject(scene, ray, objectIndex, hit);
-        if (hit.objectIndex == 0xFFFFFFFF)
-            hit.objectIndex = objectIndex;
+        Object& object = scene->objects[objectIndex];
+        Ray objectRay = TransformRay(ray, object.worldToObjectMatrix);
+        IntersectObject(scene, objectRay, objectIndex, hit);
     }
 }
 

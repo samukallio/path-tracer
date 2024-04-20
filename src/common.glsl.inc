@@ -77,11 +77,11 @@ struct Material
 
 struct Object
 {
-    vec3            origin;
     uint            type;
-    vec3            scale;
     uint            materialIndex;
     uint            meshRootNodeIndex;
+    mat4            worldToObjectMatrix;
+    mat4            objectToWorldMatrix;
 };
 
 struct MeshFace
@@ -103,12 +103,6 @@ struct MeshNode
     uint            faceEndIndex;
 };
 
-struct Ray
-{
-    vec3            origin;
-    vec3            direction;
-};
-
 struct Hit
 {
     float           time;
@@ -124,3 +118,17 @@ struct Hit
     uint            materialIndex;
     Material        material;
 };
+
+struct Ray
+{
+    vec3            origin;
+    vec3            direction;
+};
+
+Ray TransformRay(Ray ray, mat4 matrix)
+{
+    Ray r;
+    r.origin = (matrix * vec4(ray.origin, 1)).xyz;
+    r.direction = (matrix * vec4(ray.direction, 0)).xyz;
+    return r;
+}

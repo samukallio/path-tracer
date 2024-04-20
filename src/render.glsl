@@ -245,7 +245,7 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
     }
 
     if (object.type == OBJECT_TYPE_PLANE) {
-        float t = (object.origin.z - ray.origin.z) / ray.direction.z;
+        float t = - ray.origin.z / ray.direction.z;
         if (t < 0 || t > hit.time) return;
 
         hit.time = t;
@@ -256,9 +256,8 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
     }
 
     if (object.type == OBJECT_TYPE_SPHERE) {
-        vec3 vector = object.origin - ray.origin;
-        float tm = dot(ray.direction, vector);
-        float td2 = tm * tm - dot(vector, vector) + object.scale.x * object.scale.x;
+        float tm = dot(ray.direction, -ray.origin);
+        float td2 = tm * tm - dot(ray.origin, ray.origin) + 1.0f;
         if (td2 < 0) return;
 
         float td = sqrt(td2);
@@ -275,20 +274,27 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
 
 void Intersect(Ray ray, inout Hit hit)
 {
-    for (uint objectIndex = 0; objectIndex < sceneObjectCount; objectIndex++)
-        IntersectObject(ray, objectIndex, hit);
+    for (uint objectIndex = 0; objectIndex < sceneObjectCount; objectIndex++) {
+        Object object = objects[objectIndex];
+        Ray objectRay = TransformRay(ray, object.worldToObjectMatrix);
+        IntersectObject(objectRay, objectIndex, hit);
+    }
 }
 
 void ResolveHit(Ray ray, inout Hit hit)
 {
-    hit.position = ray.origin + ray.direction * hit.time;
+    Object object = objects[hit.objectIndex];
+    Ray objectRay = TransformRay(ray, object.worldToObjectMatrix);
+
+    vec3 position = objectRay.origin + objectRay.direction * hit.time;
+    vec3 normal = vec3(0, 0, 1);
 
     if (hit.objectType == OBJECT_TYPE_MESH) {
         MeshFace face = meshFaces[hit.primitiveIndex];
-            
-        hit.normal = face.normals[0] * hit.primitiveCoordinates.x
-                   + face.normals[1] * hit.primitiveCoordinates.y
-                   + face.normals[2] * hit.primitiveCoordinates.z;
+
+        normal = face.normals[0] * hit.primitiveCoordinates.x
+               + face.normals[1] * hit.primitiveCoordinates.y
+               + face.normals[2] * hit.primitiveCoordinates.z;
 
         hit.uv = face.uvs[0] * hit.primitiveCoordinates.x
                + face.uvs[1] * hit.primitiveCoordinates.y
@@ -308,7 +314,8 @@ void ResolveHit(Ray ray, inout Hit hit)
         Object object = objects[hit.objectIndex];
 
         hit.primitiveIndex = 0;
-        hit.normal = vec3(0, 0, 1);
+
+        normal = vec3(0, 0, 1);
 
         hit.materialIndex = object.materialIndex;
         hit.material = materials[object.materialIndex];
@@ -323,11 +330,24 @@ void ResolveHit(Ray ray, inout Hit hit)
 
     if (hit.objectType == OBJECT_TYPE_SPHERE) {
         Object object = objects[hit.objectIndex];
-        hit.normal = normalize(hit.position - object.origin);
+        normal = normalize(position);
         hit.materialIndex = object.materialIndex;
         hit.primitiveIndex = 0;
         hit.material = materials[object.materialIndex];
     }
+
+    hit.position = (object.objectToWorldMatrix * vec4(position, 1)).xyz;
+    hit.normal = (object.objectToWorldMatrix * vec4(normal, 0)).xyz;
+}
+
+void IntersectAndResolve(Ray ray, inout Hit hit)
+{
+    Intersect(ray, hit);
+
+    if (hit.time == INFINITY)
+        return;
+
+    ResolveHit(ray, hit);
 }
 
 vec4 Trace(Ray ray)
@@ -339,16 +359,14 @@ vec4 Trace(Ray ray)
     vec3 filterColor = vec3(1, 1, 1);
 
     for (uint bounce = 0; bounce <= renderBounceLimit; bounce++) {
-        Intersect(ray, hit);
-
         float fogFactor = 1.0;
+
+        IntersectAndResolve(ray, hit);
 
         if (hit.time == INFINITY) {
             outputColor += fogFactor * filterColor * SampleSkybox(ray);
             break;
         }
-
-        ResolveHit(ray, hit);
 
         if (Random0To1() < hit.material.refraction) {
             vec3 refractionDirection;
@@ -392,10 +410,9 @@ vec4 TraceBaseColor(Ray ray)
 {
     Hit hit;
     hit.time = INFINITY;
-    Intersect(ray, hit);
+    IntersectAndResolve(ray, hit);
     if (hit.time == INFINITY)
         return vec4(SampleSkybox(ray), 1);
-    ResolveHit(ray, hit);
     return vec4(hit.material.baseColor, 1);
 }
 
@@ -403,10 +420,9 @@ vec4 TraceNormal(Ray ray)
 {
     Hit hit;
     hit.time = INFINITY;
-    Intersect(ray, hit);
+    IntersectAndResolve(ray, hit);
     if (hit.time == INFINITY)
         return vec4(0.5 * (1 - ray.direction), 1);
-    ResolveHit(ray, hit);
     return vec4(0.5 * (hit.normal + 1), 1);
 }
 
@@ -414,10 +430,9 @@ vec4 TraceMaterialIndex(Ray ray)
 {
     Hit hit;
     hit.time = INFINITY;
-    Intersect(ray, hit);
+    IntersectAndResolve(ray, hit);
     if (hit.time == INFINITY)
         return vec4(0, 0, 0, 1);
-    ResolveHit(ray, hit);
     return vec4(COLORS[hit.materialIndex % 20], 1);
 }
 
@@ -425,10 +440,9 @@ vec4 TracePrimitiveIndex(Ray ray)
 {
     Hit hit;
     hit.time = INFINITY;
-    Intersect(ray, hit);
+    IntersectAndResolve(ray, hit);
     if (hit.time == INFINITY)
         return vec4(0, 0, 0, 1);
-    ResolveHit(ray, hit);
     return vec4(COLORS[hit.primitiveIndex % 20], 1);
 }
 
@@ -436,10 +450,9 @@ vec4 TraceEdit(Ray ray)
 {
     Hit hit;
     hit.time = INFINITY;
-    Intersect(ray, hit);
+    IntersectAndResolve(ray, hit);
     if (hit.time == INFINITY)
         return vec4(0, 0, 0, 1);
-    ResolveHit(ray, hit);
 
     float shading = dot(hit.normal, -ray.direction);
     if (hit.objectIndex == highlightObjectIndex)
@@ -476,10 +489,9 @@ void main()
             -cameraSensorSize.x * (samplePositionNormalized.x - 0.5),
             -cameraSensorSize.y * (0.5 - samplePositionNormalized.y),
             cameraSensorDistance);
-        vec3 rayVector = -sensorPositionNormalized;
 
-        ray.origin = (cameraWorldMatrix * vec4(0, 0, 0, 1)).xyz;
-        ray.direction = normalize(cameraWorldMatrix * vec4(rayVector, 0)).xyz;
+        ray.origin = vec3(0, 0, 0);
+        ray.direction = normalize(-sensorPositionNormalized);
     }
 
     if (cameraType == CAMERA_TYPE_THIN_LENS) {
@@ -489,25 +501,20 @@ void main()
             cameraSensorDistance);
 
         vec3 objectPosition = -sensorPosition * cameraFocalLength / (sensorPosition.z - cameraFocalLength);
-        vec3 aperturePosition = vec3(cameraApertureRadius * RandomPointOnDisk(), 0);
-        vec3 rayVector = objectPosition - aperturePosition;
 
-        ray.origin = (cameraWorldMatrix * vec4(aperturePosition, 1)).xyz;
-        ray.direction = normalize(cameraWorldMatrix * vec4(rayVector, 0)).xyz;
+        ray.origin = vec3(cameraApertureRadius * RandomPointOnDisk(), 0);
+        ray.direction = normalize(objectPosition - ray.origin);
     }
 
     if (cameraType == CAMERA_TYPE_360) {
         float phi = (samplePositionNormalized.x - 0.5f) * TAU;
         float theta = (0.5f - samplePositionNormalized.y) * PI;
 
-        vec3 rayVector = vec3(
-            cos(theta) * sin(phi),
-            sin(theta),
-            -cos(theta) * cos(phi));
-
-        ray.origin = (cameraWorldMatrix * vec4(0, 0, 0, 1)).xyz;
-        ray.direction = normalize(cameraWorldMatrix * vec4(rayVector, 0)).xyz;
+        ray.origin = vec3(0, 0, 0);
+        ray.direction = vec3(cos(theta) * sin(phi), sin(theta), -cos(theta) * cos(phi));
     }
+
+    ray = TransformRay(ray, cameraWorldMatrix);
 
     vec4 outputValue;
 

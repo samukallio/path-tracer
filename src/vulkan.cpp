@@ -2176,7 +2176,8 @@ static void InternalUpdateSceneDataDescriptors(
 
 VkResult UploadScene(
     VulkanContext* vulkan,
-    Scene const* scene)
+    Scene const* scene,
+    uint32_t flags)
 {
     VkResult result = VK_SUCCESS;
 
@@ -2186,97 +2187,121 @@ VkResult UploadScene(
 
     // Remove the old resources, but don't destroy them yet.
     // We must update descriptors to point to the new ones first.
-    VulkanImage skyboxImageOld = vulkan->skyboxImage;
-    vulkan->skyboxImage = VulkanImage {};
-    VulkanImage textureArrayOld = vulkan->textureArray;
-    vulkan->textureArray = VulkanImage {};
-    VulkanBuffer materialBufferOld = vulkan->materialBuffer;
-    vulkan->materialBuffer = VulkanBuffer {};
-    VulkanBuffer objectBufferOld = vulkan->objectBuffer;
-    vulkan->objectBuffer = VulkanBuffer {};
-    VulkanBuffer meshFaceBufferOld = vulkan->meshFaceBuffer;
-    vulkan->meshFaceBuffer = VulkanBuffer {};
-    VulkanBuffer meshNodeBufferOld = vulkan->meshNodeBuffer;
-    vulkan->meshNodeBuffer = VulkanBuffer {};
+    VulkanImage skyboxImageOld = {};
+    VulkanImage textureArrayOld = {};
+    VulkanBuffer materialBufferOld = {};
+    VulkanBuffer objectBufferOld = {};
+    VulkanBuffer meshFaceBufferOld = {};
+    VulkanBuffer meshNodeBufferOld = {};
 
-    result = InternalCreateImage(
-        vulkan,
-        &vulkan->skyboxImage,
-        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        VK_IMAGE_TYPE_2D,
-        VK_FORMAT_R32G32B32A32_SFLOAT,
-        { .width = scene->skyboxWidth, .height = scene->skyboxHeight, .depth = 1 },
-        1,
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        true);
-    InternalWriteToDeviceLocalImage(vulkan,
-        &vulkan->skyboxImage, 0, 1,
-        scene->skyboxPixels,
-        scene->skyboxWidth,
-        scene->skyboxHeight,
-        sizeof(glm::vec4),
-        VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+    if (flags & UPLOAD_SKYBOX) {
+        skyboxImageOld = vulkan->skyboxImage;
+        vulkan->skyboxImage = VulkanImage {};
 
-    uint32_t textureCount = static_cast<uint32_t>(scene->textures.size());
-    result = InternalCreateImage(
-        vulkan,
-        &vulkan->textureArray,
-        VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        VK_IMAGE_TYPE_2D,
-        VK_FORMAT_R8G8B8A8_UNORM,
-        { .width = 2048, .height = 2048, .depth = 1 },
-        textureCount,
-        VK_IMAGE_TILING_OPTIMAL,
-        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        true);
-    for (uint32_t index = 0; index < textureCount; index++) {
-        Image const& texture = scene->textures[index];
+        result = InternalCreateImage(
+            vulkan,
+            &vulkan->skyboxImage,
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            VK_IMAGE_TYPE_2D,
+            VK_FORMAT_R32G32B32A32_SFLOAT,
+            { .width = scene->skyboxWidth, .height = scene->skyboxHeight, .depth = 1 },
+            1,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            true);
         InternalWriteToDeviceLocalImage(vulkan,
-            &vulkan->textureArray,
-            index, 1,
-            texture.pixels,
-            texture.width, texture.height, sizeof(uint32_t),
+            &vulkan->skyboxImage, 0, 1,
+            scene->skyboxPixels,
+            scene->skyboxWidth,
+            scene->skyboxHeight,
+            sizeof(glm::vec4),
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
-    size_t materialBufferSize = sizeof(Material) * scene->materials.size();
-    result = InternalCreateBuffer(
-        vulkan,
-        &vulkan->materialBuffer,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        materialBufferSize);
-    InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->materialBuffer, scene->materials.data(), materialBufferSize);
+    if (flags & UPLOAD_TEXTURE_DATA) {
+        textureArrayOld = vulkan->textureArray;
+        vulkan->textureArray = VulkanImage {};
 
-    size_t objectBufferSize = sizeof(Object) * scene->objects.size();
-    result = InternalCreateBuffer(
-        vulkan,
-        &vulkan->objectBuffer,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        objectBufferSize);
-    InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->objectBuffer, scene->objects.data(), objectBufferSize);
+        uint32_t textureCount = static_cast<uint32_t>(scene->textures.size());
+        result = InternalCreateImage(
+            vulkan,
+            &vulkan->textureArray,
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            VK_IMAGE_TYPE_2D,
+            VK_FORMAT_R8G8B8A8_UNORM,
+            { .width = 2048, .height = 2048, .depth = 1 },
+            textureCount,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            true);
+        for (uint32_t index = 0; index < textureCount; index++) {
+            Image const& texture = scene->textures[index];
+            InternalWriteToDeviceLocalImage(vulkan,
+                &vulkan->textureArray,
+                index, 1,
+                texture.pixels,
+                texture.width, texture.height, sizeof(uint32_t),
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
+        }
+    }
 
-    size_t meshFaceBufferSize = sizeof(MeshFace) * scene->meshFaces.size();
-    result = InternalCreateBuffer(
-        vulkan,
-        &vulkan->meshFaceBuffer,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        meshFaceBufferSize);
-    InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshFaceBuffer, scene->meshFaces.data(), meshFaceBufferSize);
+    if (flags & UPLOAD_MATERIAL_DATA) {
+        materialBufferOld = vulkan->materialBuffer;
+        vulkan->materialBuffer = VulkanBuffer {};
 
-    size_t meshNodeBufferSize = sizeof(MeshNode) * scene->meshNodes.size();
-    result = InternalCreateBuffer(
-        vulkan,
-        &vulkan->meshNodeBuffer,
-        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-        meshNodeBufferSize);
-    InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshNodeBuffer, scene->meshNodes.data(), meshNodeBufferSize);
+        size_t materialBufferSize = sizeof(Material) * scene->materials.size();
+        result = InternalCreateBuffer(
+            vulkan,
+            &vulkan->materialBuffer,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            materialBufferSize);
+        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->materialBuffer, scene->materials.data(), materialBufferSize);
+    }
+
+    if (flags & UPLOAD_OBJECT_DATA) {
+        size_t objectBufferSize = sizeof(Object) * scene->objects.size();
+        if (objectBufferSize > vulkan->objectBuffer.size) {
+            objectBufferOld = vulkan->objectBuffer;
+            vulkan->objectBuffer = VulkanBuffer {};
+
+            result = InternalCreateBuffer(
+                vulkan,
+                &vulkan->objectBuffer,
+                VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                objectBufferSize);
+
+        }
+        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->objectBuffer, scene->objects.data(), objectBufferSize);
+    }
+
+    if (flags & UPLOAD_MESH_DATA) {
+        meshFaceBufferOld = vulkan->meshFaceBuffer;
+        vulkan->meshFaceBuffer = VulkanBuffer {};
+        meshNodeBufferOld = vulkan->meshNodeBuffer;
+        vulkan->meshNodeBuffer = VulkanBuffer {};
+
+        size_t meshFaceBufferSize = sizeof(MeshFace) * scene->meshFaces.size();
+        result = InternalCreateBuffer(
+            vulkan,
+            &vulkan->meshFaceBuffer,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            meshFaceBufferSize);
+        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshFaceBuffer, scene->meshFaces.data(), meshFaceBufferSize);
+
+        size_t meshNodeBufferSize = sizeof(MeshNode) * scene->meshNodes.size();
+        result = InternalCreateBuffer(
+            vulkan,
+            &vulkan->meshNodeBuffer,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            meshNodeBufferSize);
+        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshNodeBuffer, scene->meshNodes.data(), meshNodeBufferSize);
+    }
 
     InternalUpdateSceneDataDescriptors(vulkan);
 

@@ -4,13 +4,16 @@
 
 #define GLM_FORCE_SWIZZLE
 #define GLM_FORCE_ALIGNED_GENTYPES
+#define GLM_ENABLE_EXPERIMENTAL
 #include <glm/glm.hpp>
 #include <glm/gtc/type_aligned.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
+#include <glm/gtx/euler_angles.hpp>
 
-float const PI  = 3.141592653f;
-float const TAU = 6.283185306f;
+float const EPSILON     = 1e-9f;
+float const PI          = 3.141592653f;
+float const TAU         = 6.283185306f;
 
 enum RenderMode : int32_t
 {
@@ -84,11 +87,11 @@ struct alignas(16) Material
 // and must follow std430 layout rules.
 struct alignas(16) Object
 {
-    glm::vec3                   origin;
     uint32_t                    type;
-    glm::vec3                   scale;
     uint32_t                    materialIndex;
     uint32_t                    meshRootNodeIndex;
+    glm::aligned_mat4           worldToObjectMatrix;
+    glm::aligned_mat4           objectToWorldMatrix;
 };
 
 // This structure is shared between CPU and GPU,
@@ -143,6 +146,14 @@ struct Ray
     glm::vec3                   origin;
     glm::vec3                   direction;
 };
+
+inline Ray TransformRay(Ray const& ray, glm::mat4 const& matrix)
+{
+    return {
+        .origin = (matrix * glm::vec4(ray.origin, 1)).xyz(),
+        .direction = (matrix * glm::vec4(ray.direction, 0)).xyz(),
+    };
+}
 
 struct Hit
 {
