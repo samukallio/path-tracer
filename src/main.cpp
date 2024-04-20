@@ -10,15 +10,6 @@ int const WINDOW_WIDTH = 2048;
 int const WINDOW_HEIGHT = 1024;
 char const* APPLICATION_NAME = "Path Tracer";
 
-struct CameraState
-{
-    glm::vec3       position;
-    glm::vec3       velocity;
-    glm::vec3       direction;
-    float           pitch;
-    float           yaw;
-};
-
 struct FrameState
 {
     double          time;
@@ -26,30 +17,142 @@ struct FrameState
     double          mouseY;
 };
 
+struct EditorCamera
+{
+    glm::vec3       position;
+    glm::vec3       velocity;
+    glm::vec3       rotation;
+};
+
+struct RenderCamera
+{
+    RenderMode      renderMode;
+    uint32_t        bounceLimit;
+
+    ToneMappingMode toneMappingMode;
+    float           toneMappingWhiteLevel;
+
+    CameraType      type;
+    glm::vec3       position;
+    glm::vec3       velocity;
+    glm::vec3       rotation;
+    float           focalLengthInMM;
+    float           apertureRadiusInMM;
+    float           focusDistance;
+};
+
 struct AppContext
 {
     GLFWwindow*     window = nullptr;
     VulkanContext*  vulkan = nullptr;
     Scene           scene;
-    CameraState     camera;
     FrameState      frames[2];
     uint32_t        frameIndex = 0;
 
     bool            accumulateSamples;
 
-    RenderMode      renderMode;
-    uint32_t        bounceLimit = 5;
-    ToneMapping     toneMapping;
-    CameraType      cameraType;
-    float           cameraFocalLengthInMM;
-    float           cameraApertureRadiusInMM;
-    float           cameraFocusDistance;
+    EditorCamera    editorCamera;
+    RenderCamera    renderCamera;
+
+    bool            renderCameraPossessed;
+
+    uint32_t        selectedObjectIndex;
 
     double          mouseScrollPosition;
-
 };
 
 AppContext app;
+
+float RepeatRange(float value, float min, float max)
+{
+    float range = max - min;
+    return min + range * glm::fract((value + min) / range);
+}
+
+bool ShowEditorCameraWindow(EditorCamera& camera)
+{
+    bool c = false;
+
+    ImGui::Begin("Editor Camera");
+
+    c |= ImGui::InputFloat3("Position", &camera.position[0], "%.3f");
+
+    glm::vec3 cameraRotationInDegrees = camera.rotation * (360 / TAU);
+    c |= ImGui::InputFloat3("Rotation", &cameraRotationInDegrees[0], "%.3f");
+    camera.rotation = cameraRotationInDegrees * (TAU / 360);
+
+    ImGui::End();
+
+    return c;
+}
+
+bool ShowRenderCameraWindow(RenderCamera& camera)
+{
+    bool c = false;
+
+    ImGui::Begin("Render Camera");
+
+    ImGui::SeparatorText("General");
+
+    c |= ImGui::Checkbox("Accumulate Samples", &app.accumulateSamples);
+
+    ImGui::Checkbox("Possess", &app.renderCameraPossessed);
+
+    c |= ImGui::InputFloat3("Position", &camera.position[0], "%.3f");
+
+    glm::vec3 cameraRotationInDegrees = camera.rotation * (360 / TAU);
+    c |= ImGui::InputFloat3("Rotation", &cameraRotationInDegrees[0], "%.3f");
+    camera.rotation = cameraRotationInDegrees * (TAU / 360);
+
+    ImGui::SeparatorText("Render Mode");
+    c |= ImGui::RadioButton("Path Tracing", (int*)&camera.renderMode, RENDER_MODE_PATH_TRACE);
+    ImGui::SameLine();
+    c |= ImGui::RadioButton("Base Color", (int*)&camera.renderMode, RENDER_MODE_BASE_COLOR);
+    ImGui::SameLine();
+    c |= ImGui::RadioButton("Normal", (int*)&camera.renderMode, RENDER_MODE_NORMAL);
+    c |= ImGui::RadioButton("Material ID", (int*)&camera.renderMode, RENDER_MODE_MATERIAL_INDEX);
+    ImGui::SameLine();
+    c |= ImGui::RadioButton("Primitive ID", (int*)&camera.renderMode, RENDER_MODE_PRIMITIVE_INDEX);
+
+    int bounceLimit = static_cast<int>(camera.bounceLimit);
+    c |= ImGui::InputInt("Bounce Limit", &bounceLimit);
+    camera.bounceLimit = std::max(1, bounceLimit);
+
+    // Tone mapping operators.  Note that since tone mapping happens as
+    // a post-process operation, there is no need to reset the accumulated
+    // samples.
+    ImGui::SeparatorText("Tone Mapping");
+    ImGui::RadioButton("Clamp", (int*)&camera.toneMappingMode, TONE_MAPPING_MODE_CLAMP);
+    ImGui::SameLine();
+    ImGui::RadioButton("Reinhard", (int*)&camera.toneMappingMode, TONE_MAPPING_MODE_REINHARD);
+    ImGui::SameLine();
+    ImGui::RadioButton("Hable", (int*)&camera.toneMappingMode, TONE_MAPPING_MODE_HABLE);
+    ImGui::RadioButton("ACES", (int*)&camera.toneMappingMode, TONE_MAPPING_MODE_ACES);
+
+    if (camera.toneMappingMode == TONE_MAPPING_MODE_REINHARD) {
+        ImGui::SliderFloat("White Level", &camera.toneMappingWhiteLevel, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+    }
+
+    ImGui::SeparatorText("Camera");
+    c |= ImGui::RadioButton("Pinhole", (int*)&camera.type, CAMERA_TYPE_PINHOLE);
+    ImGui::SameLine();
+    c |= ImGui::RadioButton("Thin Lens", (int*)&camera.type, CAMERA_TYPE_THIN_LENS);
+    ImGui::SameLine();
+    c |= ImGui::RadioButton("360", (int*)&camera.type, CAMERA_TYPE_360);
+
+    if (camera.type == CAMERA_TYPE_PINHOLE) {
+    }
+
+    if (camera.type == CAMERA_TYPE_THIN_LENS) {
+        c |= ImGui::SliderFloat("Focal Length (mm)", &camera.focalLengthInMM, 1.0f, 50.0f);
+        c |= ImGui::SliderFloat("Aperture Radius (mm)", &camera.apertureRadiusInMM, 0.01f, 100.0f);
+        c |= ImGui::SliderFloat("Focus Distance", &camera.focusDistance, 0.01f, 1000.0f,  "%.3f", ImGuiSliderFlags_Logarithmic);
+    }
+
+    ImGui::End();
+    
+    return c;
+}
 
 void Frame()
 {
@@ -65,7 +168,8 @@ void Frame()
     float deltaMouseY = static_cast<float>(current.mouseY - previous.mouseY);
 
     // ImGui.
-    bool cameraChanged = false;
+    bool editorCameraChanged = false;
+    bool renderCameraChanged = false;
     {
         bool c = false;
 
@@ -84,118 +188,130 @@ void Frame()
 
         ImGui::ShowDemoWindow();
 
-        ImGui::Begin("Controls");
+        editorCameraChanged = ShowEditorCameraWindow(app.editorCamera);
+        renderCameraChanged = ShowRenderCameraWindow(app.renderCamera);
 
-        ImGui::SeparatorText("General");
-        ImGui::Checkbox("Accumulate Samples", &app.accumulateSamples);
-
-        ImGui::SeparatorText("Render Mode");
-        c |= ImGui::RadioButton("Path Tracing", (int*)&app.renderMode, RENDER_MODE_PATH_TRACE);
-        ImGui::SameLine();
-        c |= ImGui::RadioButton("Albedo", (int*)&app.renderMode, RENDER_MODE_ALBEDO);
-        ImGui::SameLine();
-        c |= ImGui::RadioButton("Normal", (int*)&app.renderMode, RENDER_MODE_NORMAL);
-        c |= ImGui::RadioButton("Material ID", (int*)&app.renderMode, RENDER_MODE_MATERIAL_INDEX);
-        ImGui::SameLine();
-        c |= ImGui::RadioButton("Primitive ID", (int*)&app.renderMode, RENDER_MODE_PRIMITIVE_INDEX);
-
-        int bounceLimit = static_cast<int>(app.bounceLimit);
-        c |= ImGui::InputInt("Bounce Limit", &bounceLimit);
-        app.bounceLimit = std::max(1, bounceLimit);
-
-        // Tone mapping operators.  Note that since tone mapping happens as
-        // a post-process operation, there is no need to reset the accumulated
-        // samples.
-        ImGui::SeparatorText("Tone Mapping");
-        ImGui::RadioButton("Clamp", (int*)&app.toneMapping.mode, TONE_MAPPING_MODE_CLAMP);
-        ImGui::SameLine();
-        ImGui::RadioButton("Reinhard", (int*)&app.toneMapping.mode, TONE_MAPPING_MODE_REINHARD);
-        ImGui::SameLine();
-        ImGui::RadioButton("Hable", (int*)&app.toneMapping.mode, TONE_MAPPING_MODE_HABLE);
-        ImGui::RadioButton("ACES", (int*)&app.toneMapping.mode, TONE_MAPPING_MODE_ACES);
-
-        if (app.toneMapping.mode == TONE_MAPPING_MODE_REINHARD) {
-            ImGui::SliderFloat("White Level", &app.toneMapping.whiteLevel, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-        }
-
-        ImGui::SeparatorText("Camera");
-        c |= ImGui::RadioButton("Pinhole", (int*)&app.cameraType, CAMERA_TYPE_PINHOLE);
-        ImGui::SameLine();
-        c |= ImGui::RadioButton("Thin Lens", (int*)&app.cameraType, CAMERA_TYPE_THIN_LENS);
-        ImGui::SameLine();
-        c |= ImGui::RadioButton("360", (int*)&app.cameraType, CAMERA_TYPE_360);
-
-        if (app.cameraType == CAMERA_TYPE_PINHOLE) {
-        }
-
-        if (app.cameraType == CAMERA_TYPE_THIN_LENS) {
-            c |= ImGui::SliderFloat("Focal Length (mm)", &app.cameraFocalLengthInMM, 1.0f, 50.0f);
-            c |= ImGui::SliderFloat("Aperture Radius (mm)", &app.cameraApertureRadiusInMM, 0.01f, 50.0f);
-            c |= ImGui::SliderFloat("Focus Distance", &app.cameraFocusDistance, 0.01f, 1000.0f,  "%.3f", ImGuiSliderFlags_Logarithmic);
-        }
-
-        ImGui::End();
         ImGui::EndFrame();
         ImGui::Render();
-
-        cameraChanged = c;
     }
 
     // Handle camera movement.
-    CameraState& camera = app.camera;
-    bool cameraMoved = false;
     {
+        bool editing = !app.renderCameraPossessed;
+        glm::vec3& position = editing ? app.editorCamera.position : app.renderCamera.position;
+        glm::vec3& velocity = editing ? app.editorCamera.velocity : app.renderCamera.velocity;
+        glm::vec3& rotation = editing ? app.editorCamera.rotation : app.renderCamera.rotation;
+        bool changed = editing ? editorCameraChanged : renderCameraChanged;
+
+        glm::vec3 forward = glm::quat(rotation) * glm::vec3(1, 0, 0);
+
         if (glfwGetMouseButton(app.window, GLFW_MOUSE_BUTTON_2)) {
             glm::vec3 delta {};
             if (glfwGetKey(app.window, GLFW_KEY_A))
-                delta -= glm::cross(camera.direction, glm::vec3(0, 0, 1));
+                delta -= glm::cross(forward, glm::vec3(0, 0, 1));
             if (glfwGetKey(app.window, GLFW_KEY_D))
-                delta += glm::cross(camera.direction, glm::vec3(0, 0, 1));
+                delta += glm::cross(forward, glm::vec3(0, 0, 1));
             if (glfwGetKey(app.window, GLFW_KEY_W))
-                delta += camera.direction;
+                delta += forward;
             if (glfwGetKey(app.window, GLFW_KEY_S))
-                delta -= camera.direction;
+                delta -= forward;
             if (glm::length(delta) > 0)
-                camera.velocity = 2.0f * glm::normalize(delta);
+                velocity = 2.0f * glm::normalize(delta);
 
-            camera.yaw -= deltaMouseX * 0.01f;
-            camera.pitch += deltaMouseY * 0.01f;
-            camera.pitch = glm::clamp(camera.pitch, -glm::pi<glm::f32>() * 0.45f, +glm::pi<glm::f32>() * 0.45f);
-            cameraMoved = true;
+            rotation.z -= deltaMouseX * 0.01f;
+            rotation.z = RepeatRange(rotation.z, -PI, +PI);
+            rotation.y += deltaMouseY * 0.01f;
+            rotation.y = glm::clamp(rotation.y, -0.45f * PI, +0.45f * PI);
+            changed = true;
         }
 
-        camera.direction = glm::quat(glm::vec3(0, camera.pitch, camera.yaw)) * glm::vec3(1, 0, 0);
-        camera.position += deltaTime * camera.velocity;
-        camera.velocity *= expf(-deltaTime / 0.05f);
+        position += deltaTime * velocity;
+        velocity *= expf(-deltaTime / 0.05f);
 
-        if (glm::length(camera.velocity) > 0)
-            cameraMoved = true;
+        if (glm::length(velocity) > 0)
+            changed = true;
 
-        if (glm::length(camera.velocity) < 1e-2f)
-            camera.velocity = glm::vec3(0);
+        if (glm::length(velocity) < 1e-2f)
+            velocity = glm::vec3(0);
     }
 
-    glm::mat4 viewMatrix = glm::lookAt(camera.position - camera.direction * 2.0f, camera.position, glm::vec3(0, 0, 1));
-
-    // Render frame.
-    float sensorDistance = 1.0f / (1000.0f / app.cameraFocalLengthInMM - 1.0f / app.cameraFocusDistance);
+    if (app.renderCameraPossessed) {
+        app.editorCamera.position = app.renderCamera.position;
+        app.editorCamera.rotation = app.renderCamera.rotation;
+    }
 
     FrameUniformBuffer uniforms = {
-        .frameIndex = app.frameIndex,
-        .objectCount = static_cast<uint32_t>(app.scene.objects.size()),
-        .clearFrame = cameraChanged || cameraMoved || !app.accumulateSamples,
-        .renderMode = app.renderMode,
-        .bounceLimit = app.bounceLimit,
-        .toneMapping = app.toneMapping,
-        .camera = {
-            .type = app.cameraType,
-            .focalLength = app.cameraFocalLengthInMM / 1000.0f,
-            .apertureRadius = app.cameraApertureRadiusInMM / 1000.0f,
-            .sensorDistance = sensorDistance,
-            .sensorSize = { 0.032f, 0.018f },
-            .worldMatrix = glm::inverse(viewMatrix),
-        },
+        .frameRandomSeed = app.frameIndex,
+        .sceneObjectCount = static_cast<uint32_t>(app.scene.objects.size()),
+        .renderBounceLimit = app.renderCamera.bounceLimit,
+        .toneMappingMode = app.renderCamera.toneMappingMode,
     };
+
+    if (!app.renderCameraPossessed) {
+        EditorCamera& camera = app.editorCamera;
+
+        glm::vec3 forward = glm::quat(camera.rotation) * glm::vec3(1, 0, 0);
+        glm::mat4 viewMatrix = glm::lookAt(camera.position - forward * 2.0f, camera.position, glm::vec3(0, 0, 1));
+        glm::mat4 worldMatrix = glm::inverse(viewMatrix);
+
+        if (glfwGetMouseButton(app.window, GLFW_MOUSE_BUTTON_1)) {
+            glm::vec2 sensorSize = { 0.032f, 0.018f };
+
+            glm::vec2 samplePositionNormalized = {
+                current.mouseX / WINDOW_WIDTH,
+                current.mouseY / WINDOW_HEIGHT
+            };
+
+            glm::vec3 sensorPositionNormalized = {
+                -sensorSize.x * (samplePositionNormalized.x - 0.5),
+                -sensorSize.y * (0.5 - samplePositionNormalized.y),
+                0.020f
+            };
+
+            glm::vec3 rayVector = -sensorPositionNormalized;
+
+            Ray ray;
+            ray.origin = (worldMatrix * glm::vec4(0, 0, 0, 1)).xyz;
+            ray.direction = glm::normalize(worldMatrix * glm::vec4(rayVector, 0)).xyz;
+
+            Hit hit;
+            if (Trace(&app.scene, ray, hit)) {
+                app.selectedObjectIndex = hit.objectIndex;
+            }
+        }
+
+        uniforms.renderMode = RENDER_MODE_EDIT;
+        uniforms.cameraType = CAMERA_TYPE_PINHOLE;
+        uniforms.cameraSensorDistance = 0.020f;
+        uniforms.cameraSensorSize = { 0.032f, 0.018f };
+        uniforms.cameraWorldMatrix = glm::inverse(viewMatrix);
+        uniforms.highlightObjectIndex = app.selectedObjectIndex;
+        uniforms.renderFlags = 0;
+    }
+    else {
+        RenderCamera& camera = app.renderCamera;
+
+        float sensorDistance = 1.0f / (1000.0f / camera.focalLengthInMM - 1.0f / camera.focusDistance);
+
+        glm::vec3 origin = camera.position;
+        glm::vec3 forward = glm::quat(camera.rotation) * glm::vec3(1, 0, 0);
+        glm::mat4 viewMatrix = glm::lookAt(origin - forward * 2.0f, origin, glm::vec3(0, 0, 1));
+        glm::mat4 worldMatrix = glm::inverse(viewMatrix);
+
+        uniforms.renderMode = camera.renderMode;
+        uniforms.cameraType = camera.type;
+        uniforms.cameraFocalLength = camera.focalLengthInMM / 1000.0f;
+        uniforms.cameraApertureRadius = camera.apertureRadiusInMM / 1000.0f;
+        uniforms.cameraSensorDistance = sensorDistance;
+        uniforms.cameraSensorSize = { 0.032f, 0.018f };
+        uniforms.cameraWorldMatrix = worldMatrix;
+        uniforms.highlightObjectIndex = 0xFFFFFFFF;
+        uniforms.renderFlags = RENDER_FLAG_SAMPLE_JITTER;
+
+        if (app.accumulateSamples && !renderCameraChanged)
+            uniforms.renderFlags |= RENDER_FLAG_ACCUMULATE;
+    }
+
     RenderFrame(app.vulkan, &uniforms, ImGui::GetDrawData());
 }
 
@@ -358,6 +474,7 @@ static void CharCallback(GLFWwindow* window, unsigned int codepoint)
 int main()
 {
     Scene& scene = app.scene;
+    //LoadMesh(&scene, "../scene/sponza.obj", 0.01f);
     LoadMesh(&scene, "../scene/tyra.obj", 1.0f);
     //LoadMesh(&scene, "../scene/viking_room.obj", 1.0f);
     AddTextureFromFile(&scene, "../scene/viking_room.png");
@@ -367,62 +484,53 @@ int main()
     //AddPlane(&scene, glm::vec3(0, 0, 0.0f));
 
     //scene.materials.push_back({
-    //    .albedoColor = glm::vec3(1, 1, 1),
-    //    .albedoTextureIndex = 0,
+    //    .baseColor = glm::vec3(1, 1, 1),
+    //    .baseColorTextureIndex = 0,
     //    .specularColor = glm::vec4(1, 1, 1, 0),
-    //    .emissiveColor = glm::vec3(0, 0, 0),
-    //    .emissiveTextureIndex = 0,
+    //    .emissionColor = glm::vec3(0, 0, 0),
+    //    .emissionColorTextureIndex = 0,
     //    .roughness = 1.0f,
     //    .specularProbability = 0.0f,
-    //    .refractProbability = 0.0f,
-    //    .refractIndex = 0.0f,
+    //    .refraction = 0.0f,
+    //    .refractionIndex = 0.0f,
     //    .albedoTextureSize = glm::uvec2(1024, 1024),
     //    .padding = glm::uvec2(0, 0),
     //});
 
     uint32_t glassMaterialIndex = (uint32_t)scene.materials.size();
     scene.materials.push_back({
-        .albedoColor = glm::vec3(1, 1, 1),
-        .albedoTextureIndex = 0,
-        .specularColor = glm::vec4(1, 1, 1, 0),
-        .emissiveColor = glm::vec3(0, 0, 0),
-        .emissiveTextureIndex = 0,
+        .baseColor = glm::vec3(1, 1, 1),
+        .baseColorTextureIndex = 0,
+        .emissionColor = glm::vec3(0, 0, 0),
+        .emissionColorTextureIndex = 0,
         .roughness = 0.15f,
-        .specularProbability = 0.0f,
-        .refractProbability = 0.0f,
-        .refractIndex = 0.0f,
-        .albedoTextureSize = glm::uvec2(0, 0),
-        .padding = glm::uvec2(0, 0),
+        .refraction = 0.0f,
+        .refractionIndex = 0.0f,
+        .baseColorTextureSize = glm::uvec2(0, 0),
     });
     
     uint32_t diffuseMaterialIndex = (uint32_t)scene.materials.size();
     scene.materials.push_back({
-        .albedoColor = glm::vec3(1, 1, 1),
-        .albedoTextureIndex = 0,
-        .specularColor = glm::vec4(1, 1, 1, 0),
-        .emissiveColor = glm::vec3(0, 0, 0),
-        .emissiveTextureIndex = 0,
+        .baseColor = glm::vec3(1, 1, 1),
+        .baseColorTextureIndex = 0,
+        .emissionColor = glm::vec3(0, 0, 0),
+        .emissionColorTextureIndex = 0,
         .roughness = 1.0f,
-        .specularProbability = 0.0f,
-        .refractProbability = 0.0f,
-        .refractIndex = 0.0f,
-        .albedoTextureSize = glm::uvec2(0, 0),
-        .padding = glm::uvec2(0, 0),
+        .refraction = 0.0f,
+        .refractionIndex = 0.0f,
+        .baseColorTextureSize = glm::uvec2(0, 0),
     });
 
     uint32_t lightMaterialIndex = (uint32_t)scene.materials.size();
     scene.materials.push_back({
-        .albedoColor = glm::vec3(1, 1, 1),
-        .albedoTextureIndex = 0,
-        .specularColor = glm::vec4(1, 1, 1, 0),
-        .emissiveColor = 150.0f * glm::vec3(1,243/255.0f,142/255.0f),
-        .emissiveTextureIndex = 0,
+        .baseColor = glm::vec3(1, 1, 1),
+        .baseColorTextureIndex = 0,
+        .emissionColor = 150.0f * glm::vec3(1,243/255.0f,142/255.0f),
+        .emissionColorTextureIndex = 0,
         .roughness = 1.0f,
-        .specularProbability = 0.0f,
-        .refractProbability = 0.0f,
-        .refractIndex = 0.0f,
-        .albedoTextureSize = glm::uvec2(0, 0),
-        .padding = glm::uvec2(0, 0),
+        .refraction = 0.0f,
+        .refractionIndex = 0.0f,
+        .baseColorTextureSize = glm::uvec2(0, 0),
     });
 
     scene.objects.push_back({
@@ -470,15 +578,18 @@ int main()
 
     UploadScene(app.vulkan, &scene);
 
-    app.camera.position = { 0, 0, 0 };
-    app.camera.velocity = { 0, 0, 0 };
-    app.camera.direction = { 0, 0, -1 };
-    app.camera.pitch = 0.0f;
-    app.camera.yaw = 0.0f;
+    app.editorCamera.position = { 0, 0, 0 };
+    app.editorCamera.velocity = { 0, 0, 0 };
+    app.editorCamera.rotation = { 0, 0, 0 };
 
-    app.cameraFocusDistance = 1.0f;
-    app.cameraFocalLengthInMM = 20.0f;
-    app.cameraApertureRadiusInMM = 40.0f;
+    app.renderCamera.renderMode = RENDER_MODE_NORMAL;
+    app.renderCamera.type = CAMERA_TYPE_PINHOLE;
+    app.renderCamera.position = { 0, 0, 0 };
+    app.renderCamera.rotation = { 0, 0, 0 };
+    app.renderCamera.bounceLimit = 5;
+    app.renderCamera.focusDistance = 1.0f;
+    app.renderCamera.focalLengthInMM = 20.0f;
+    app.renderCamera.apertureRadiusInMM = 40.0f;
 
     FrameState& initial = app.frames[0];
     initial.time = glfwGetTime();

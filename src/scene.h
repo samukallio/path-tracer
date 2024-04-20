@@ -22,3 +22,5 @@ bool LoadSkybox(Scene* scene, char const* path);
 void AddMesh(Scene* scene, glm::vec3 origin, uint32_t rootNodeIndex);
 void AddPlane(Scene* scene, glm::vec3 origin);
 void AddSphere(Scene* scene, glm::vec3 origin, float radius);
+
+bool Trace(Scene* scene, Ray const& ray, Hit& hit);

@@ -2,85 +2,92 @@
 
 #include <algorithm>
 
+#define GLM_FORCE_SWIZZLE
 #define GLM_FORCE_ALIGNED_GENTYPES
 #include <glm/glm.hpp>
 #include <glm/gtc/type_aligned.hpp>
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/quaternion.hpp>
 
+float const PI  = 3.141592653f;
+float const TAU = 6.283185306f;
+
 enum RenderMode : int32_t
 {
-    RENDER_MODE_PATH_TRACE      = 0,
-    RENDER_MODE_ALBEDO          = 1,
-    RENDER_MODE_NORMAL          = 2,
-    RENDER_MODE_MATERIAL_INDEX  = 3,
-    RENDER_MODE_PRIMITIVE_INDEX = 4,
+    RENDER_MODE_PATH_TRACE              = 0,
+    RENDER_MODE_BASE_COLOR              = 1,
+    RENDER_MODE_NORMAL                  = 2,
+    RENDER_MODE_MATERIAL_INDEX          = 3,
+    RENDER_MODE_PRIMITIVE_INDEX         = 4,
+    RENDER_MODE_EDIT                    = 1000,
+};
+
+enum RenderFlag : uint32_t
+{
+    RENDER_FLAG_ACCUMULATE              = 1 << 0,
+    RENDER_FLAG_SAMPLE_JITTER           = 1 << 1,
 };
 
 enum ToneMappingMode : int32_t
 {
-    TONE_MAPPING_MODE_CLAMP     = 0,
-    TONE_MAPPING_MODE_REINHARD  = 1,
-    TONE_MAPPING_MODE_HABLE     = 2,
-    TONE_MAPPING_MODE_ACES      = 3,
+    TONE_MAPPING_MODE_CLAMP             = 0,
+    TONE_MAPPING_MODE_REINHARD          = 1,
+    TONE_MAPPING_MODE_HABLE             = 2,
+    TONE_MAPPING_MODE_ACES              = 3,
 };
 
 enum CameraType : int32_t
 {
-    CAMERA_TYPE_PINHOLE         = 0,
-    CAMERA_TYPE_THIN_LENS       = 1,
-    CAMERA_TYPE_360             = 2,
+    CAMERA_TYPE_PINHOLE                 = 0,
+    CAMERA_TYPE_THIN_LENS               = 1,
+    CAMERA_TYPE_360                     = 2,
 };
 
 enum ObjectType : int32_t
 {
-    OBJECT_TYPE_MESH            = 0,
-    OBJECT_TYPE_PLANE           = 1,
-    OBJECT_TYPE_SPHERE          = 2,
+    OBJECT_TYPE_MESH                    = 0,
+    OBJECT_TYPE_PLANE                   = 1,
+    OBJECT_TYPE_SPHERE                  = 2,
 };
 
-struct Camera
+enum MaterialFlag : uint32_t
 {
-    CameraType                  type                        = CAMERA_TYPE_THIN_LENS;
-    float                       focalLength                 = 0.020f;
-    float                       apertureRadius              = 0.040f;
-    float                       sensorDistance              = 0.0202f;
-    glm::vec2                   sensorSize                  = { 0.032f, 0.018f };
-    glm::aligned_mat4           worldMatrix                 = {};
+    MATERIAL_FLAG_BASE_COLOR_TEXTURE    = 1 << 0,
+    MATERIAL_FLAG_EMISSION_TEXTURE      = 1 << 1,
+    MATERIAL_FLAG_METALLIC_TEXTURE      = 1 << 2,
+    MATERIAL_FLAG_ROUGHNESS_TEXTURE     = 1 << 3,
 };
 
-struct ToneMapping
+struct alignas(16) Material
 {
-    ToneMappingMode             mode                        = TONE_MAPPING_MODE_CLAMP;
-    float                       whiteLevel                  = 1.0f;
-};
+    glm::vec3                   baseColor;
+    uint32_t                    baseColorTextureIndex;
+    glm::vec3                   emissionColor;
+    uint32_t                    emissionColorTextureIndex;
 
-struct Material
-{
-    glm::vec3                   albedoColor;
-    uint32_t                    albedoTextureIndex;
-    glm::vec4                   specularColor;
-    glm::vec3                   emissiveColor;
-    uint32_t                    emissiveTextureIndex;
+    float                       metallic;
+    uint32_t                    metallicTextureIndex;
     float                       roughness;
-    float                       specularProbability;
-    float                       refractProbability;
-    float                       refractIndex;
-    glm::uvec2                  albedoTextureSize;
-    glm::uvec2                  padding;
+    uint32_t                    roughnessTextureIndex;
+
+    float                       refraction;
+    float                       refractionIndex;
+
+    glm::uvec2                  baseColorTextureSize;
+
+    uint32_t                    flags;
 };
 
-struct Object
+struct alignas(16) Object
 {
     glm::vec3                   origin;
     uint32_t                    type;
     glm::vec3                   scale;
     uint32_t                    materialIndex;
     uint32_t                    meshRootNodeIndex;
-    uint32_t                    dummy[3];
 };
 
-struct MeshFace
+struct alignas(16) MeshFace
 {
     glm::vec3                   position;
     uint32_t                    materialIndex;
@@ -91,7 +98,7 @@ struct MeshFace
     glm::aligned_vec2           uvs[3];
 };
 
-struct MeshNode
+struct alignas(16) MeshNode
 {
     glm::vec3                   minimum;
     uint32_t                    faceBeginOrNodeIndex;
@@ -108,12 +115,36 @@ struct Image
 
 struct FrameUniformBuffer
 {
-    uint32_t                    frameIndex                  = 0;
-    uint32_t                    objectCount                 = {};
-    uint32_t                    clearFrame                  = 0;
-    RenderMode                  renderMode                  = RENDER_MODE_PATH_TRACE;
-    uint32_t                    bounceLimit                 = 0;
+    uint32_t                    frameRandomSeed             = 0;
 
-    alignas(16) ToneMapping     toneMapping                 = {};
-    alignas(16) Camera          camera                      = {};
+    uint32_t                    sceneObjectCount            = 0;
+
+    CameraType                  cameraType                  = CAMERA_TYPE_THIN_LENS;
+    float                       cameraFocalLength           = 0.020f;
+    float                       cameraApertureRadius        = 0.040f;
+    float                       cameraSensorDistance        = 0.0202f;
+    glm::aligned_vec2           cameraSensorSize            = { 0.032f, 0.018f };
+    glm::aligned_mat4           cameraWorldMatrix           = {};
+
+    RenderMode                  renderMode                  = RENDER_MODE_PATH_TRACE;
+    uint32_t                    renderFlags                 = 0;
+    uint32_t                    renderBounceLimit           = 0;
+    uint32_t                    highlightObjectIndex        = 0xFFFFFFFF;
+
+    ToneMappingMode             toneMappingMode             = TONE_MAPPING_MODE_CLAMP;
+    float                       toneMappingWhiteLevel       = 1.0f;
+};
+
+struct Ray
+{
+    glm::vec3                   origin;
+    glm::vec3                   direction;
+};
+
+struct Hit
+{
+    float                       time;
+    ObjectType                  objectType;
+    uint32_t                    objectIndex;
+    uint32_t                    primitiveIndex;
 };

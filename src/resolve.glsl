@@ -48,7 +48,7 @@ float Luminance(vec3 color)
 vec3 ToneMapReinhard(vec3 color)
 {
     float oldL = Luminance(color);
-    float maxL = toneMapping.whiteLevel;
+    float maxL = toneMappingWhiteLevel;
     float n = oldL * (1.0f + (oldL / (maxL * maxL)));
     float newL = n / (1.0f + oldL);
     return color * newL / oldL;
@@ -98,13 +98,13 @@ void main()
     if (value.a > 0)
         color = value.rgb / value.a;
 
-    if (toneMapping.mode == TONE_MAPPING_MODE_CLAMP)
+    if (toneMappingMode == TONE_MAPPING_MODE_CLAMP)
         color = clamp(color, 0, 1);
-    if (toneMapping.mode == TONE_MAPPING_MODE_REINHARD)
+    if (toneMappingMode == TONE_MAPPING_MODE_REINHARD)
         color = ToneMapReinhard(color);
-    if (toneMapping.mode == TONE_MAPPING_MODE_HABLE)
+    if (toneMappingMode == TONE_MAPPING_MODE_HABLE)
         color = ToneMapHable(color);
-    if (toneMapping.mode == TONE_MAPPING_MODE_ACES)
+    if (toneMappingMode == TONE_MAPPING_MODE_ACES)
         color = ToneMapACES(color);
 
     outColor = vec4(color, 1);

@@ -72,7 +72,7 @@ uint randomState;
 void InitializeRandom()
 {
     uvec2 xy = gl_GlobalInvocationID.xy;
-    randomState = xy.y * imageSize(inputImage).x + xy.x + frameIndex * 277803737u;
+    randomState = xy.y * imageSize(inputImage).x + xy.x + frameRandomSeed * 277803737u;
 }
 
 uint Random()
@@ -136,10 +136,10 @@ void IntersectMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
     if (gamma < 0 || beta + gamma > 1) return;
 
     hit.time = t;
-    hit.data = vec3(1 - beta - gamma, beta, gamma);
     hit.objectType = OBJECT_TYPE_MESH;
     hit.objectIndex = 0xFFFFFFFF;
     hit.primitiveIndex = meshFaceIndex;
+    hit.primitiveCoordinates = vec3(1 - beta - gamma, beta, gamma);
 }
 
 float IntersectMeshNodeBounds(Ray ray, float reach, MeshNode node)
@@ -248,7 +248,8 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
         hit.time = t;
         hit.objectType = OBJECT_TYPE_PLANE;
         hit.objectIndex = objectIndex;
-        hit.data = vec3(fract(ray.origin.xy + ray.direction.xy * t), 0);
+        hit.primitiveIndex = 0;
+        hit.primitiveCoordinates = vec3(fract(ray.origin.xy + ray.direction.xy * t), 0);
     }
 
     if (object.type == OBJECT_TYPE_SPHERE) {
@@ -271,7 +272,7 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
 
 void Intersect(Ray ray, inout Hit hit)
 {
-    for (uint objectIndex = 0; objectIndex < objectCount; objectIndex++) {
+    for (uint objectIndex = 0; objectIndex < sceneObjectCount; objectIndex++) {
         IntersectObject(ray, objectIndex, hit);
         if (hit.objectIndex == 0xFFFFFFFF)
                 hit.objectIndex = objectIndex;
@@ -285,21 +286,21 @@ void ResolveHit(Ray ray, inout Hit hit)
     if (hit.objectType == OBJECT_TYPE_MESH) {
         MeshFace face = meshFaces[hit.primitiveIndex];
             
-        hit.normal = face.normals[0] * hit.data.x
-                   + face.normals[1] * hit.data.y
-                   + face.normals[2] * hit.data.z;
+        hit.normal = face.normals[0] * hit.primitiveCoordinates.x
+                   + face.normals[1] * hit.primitiveCoordinates.y
+                   + face.normals[2] * hit.primitiveCoordinates.z;
 
-        hit.uv = face.uvs[0] * hit.data.x
-               + face.uvs[1] * hit.data.y
-               + face.uvs[2] * hit.data.z;
+        hit.uv = face.uvs[0] * hit.primitiveCoordinates.x
+               + face.uvs[1] * hit.primitiveCoordinates.y
+               + face.uvs[2] * hit.primitiveCoordinates.z;
 
         hit.materialIndex = face.materialIndex;
         hit.material = materials[face.materialIndex];
 
-        vec2 uv = fract(hit.uv) * hit.material.albedoTextureSize / vec2(2048, 2048);
-        vec3 uvw = vec3(uv, hit.material.albedoTextureIndex);
+        vec2 uv = fract(hit.uv) * hit.material.baseColorTextureSize / vec2(2048, 2048);
+        vec3 uvw = vec3(uv, hit.material.baseColorTextureIndex);
 
-        //hit.material.albedoColor *= textureLod(textureArray, uvw, 0).rgb;
+        hit.material.baseColor *= textureLod(textureArray, uvw, 0).rgb;
     }
 
     if (hit.objectType == OBJECT_TYPE_PLANE) {
@@ -311,10 +312,12 @@ void ResolveHit(Ray ray, inout Hit hit)
         hit.materialIndex = object.materialIndex;
         hit.material = materials[object.materialIndex];
 
-        if ((hit.data.x > 0.5 && hit.data.y > 0.5) || (hit.data.x <= 0.5 && hit.data.y <= 0.5))
-            hit.material.albedoColor *= vec3(1.0, 1.0, 1.0);
+        vec3 pc = hit.primitiveCoordinates;
+
+        if ((pc.x > 0.5 && pc.y > 0.5) || (pc.x <= 0.5 && pc.y <= 0.5))
+            hit.material.baseColor *= vec3(1.0, 1.0, 1.0);
         else
-            hit.material.albedoColor *= vec3(0.5, 0.5, 0.5);
+            hit.material.baseColor *= vec3(0.5, 0.5, 0.5);
     }
 
     if (hit.objectType == OBJECT_TYPE_SPHERE) {
@@ -334,7 +337,7 @@ vec4 Trace(Ray ray)
     vec3 outputColor = vec3(0, 0, 0);
     vec3 filterColor = vec3(1, 1, 1);
 
-    for (uint bounce = 0; bounce <= bounceLimit; bounce++) {
+    for (uint bounce = 0; bounce <= renderBounceLimit; bounce++) {
         Intersect(ray, hit);
 
         float fogFactor = 1.0;
@@ -346,13 +349,13 @@ vec4 Trace(Ray ray)
 
         ResolveHit(ray, hit);
 
-        if (Random0To1() < hit.material.refractProbability) {
+        if (Random0To1() < hit.material.refraction) {
             vec3 refractionDirection;
 
             if (dot(ray.direction, hit.normal) < 0)
-                refractionDirection = refract(ray.direction, hit.normal, 1.0f / hit.material.refractIndex);
+                refractionDirection = refract(ray.direction, hit.normal, 1.0f / hit.material.refractionIndex);
             else
-                refractionDirection = refract(ray.direction, -hit.normal, hit.material.refractIndex);
+                refractionDirection = refract(ray.direction, -hit.normal, hit.material.refractionIndex);
 
             if (dot(refractionDirection, refractionDirection) > 0)
                 ray.direction = refractionDirection;
@@ -366,8 +369,8 @@ vec4 Trace(Ray ray)
 
             ray.direction = normalize(mix(specularDirection, diffuseDirection, hit.material.roughness));
 
-            outputColor += hit.material.emissiveColor * filterColor;
-            filterColor *= hit.material.albedoColor * fogFactor;
+            outputColor += hit.material.emissionColor * filterColor;
+            filterColor *= hit.material.baseColor * fogFactor;
         }
 
         ray.origin = hit.position + 1e-3 * ray.direction;
@@ -377,7 +380,7 @@ vec4 Trace(Ray ray)
     return vec4(outputColor.rgb, 1);
 }
 
-vec4 TraceAlbedo(Ray ray)
+vec4 TraceBaseColor(Ray ray)
 {
     Hit hit;
     hit.time = INFINITY;
@@ -385,7 +388,7 @@ vec4 TraceAlbedo(Ray ray)
     if (hit.time == INFINITY)
         return vec4(SampleSkybox(ray), 1);
     ResolveHit(ray, hit);
-    return vec4(hit.material.albedoColor, 1);
+    return vec4(hit.material.baseColor, 1);
 }
 
 vec4 TraceNormal(Ray ray)
@@ -394,7 +397,7 @@ vec4 TraceNormal(Ray ray)
     hit.time = INFINITY;
     Intersect(ray, hit);
     if (hit.time == INFINITY)
-        return vec4(0, 0, 0, 1);
+        return vec4(0.5 * (1 - ray.direction), 1);
     ResolveHit(ray, hit);
     return vec4(0.5 * (hit.normal + 1), 1);
 }
@@ -421,6 +424,22 @@ vec4 TracePrimitiveIndex(Ray ray)
     return vec4(COLORS[hit.primitiveIndex % 20], 1);
 }
 
+vec4 TraceEdit(Ray ray)
+{
+    Hit hit;
+    hit.time = INFINITY;
+    Intersect(ray, hit);
+    if (hit.time == INFINITY)
+        return vec4(0, 0, 0, 1);
+    ResolveHit(ray, hit);
+
+    float shading = dot(hit.normal, -ray.direction);
+    if (hit.objectIndex == highlightObjectIndex)
+        return vec4((hit.material.baseColor + vec3(1,0,0)) * shading, 1.0);
+    else
+        return vec4(hit.material.baseColor * shading, 1.0);
+}
+
 void main()
 {
     InitializeRandom();
@@ -435,38 +454,42 @@ void main()
     if (imagePosition.x >= imageSize_.x) return;
     if (imagePosition.y >= imageSize_.y) return;
 
-    vec2 samplePosition = imagePosition + vec2(Random0To1(), Random0To1());
+    vec2 samplePosition = imagePosition;
+
+    if ((renderFlags & RENDER_FLAG_SAMPLE_JITTER) != 0)
+        samplePosition += vec2(Random0To1(), Random0To1());
+
     vec2 samplePositionNormalized = samplePosition / imageSize_;
 
     Ray ray;
 
-    if (camera.type == CAMERA_TYPE_PINHOLE) {
+    if (cameraType == CAMERA_TYPE_PINHOLE) {
         // Point on the "virtual near plane" through which the ray passes.
         vec3 sensorPositionNormalized = vec3(
-            -camera.sensorSize.x * (samplePositionNormalized.x - 0.5),
-            -camera.sensorSize.y * (0.5 - samplePositionNormalized.y),
-            camera.sensorDistance);
+            -cameraSensorSize.x * (samplePositionNormalized.x - 0.5),
+            -cameraSensorSize.y * (0.5 - samplePositionNormalized.y),
+            cameraSensorDistance);
         vec3 rayVector = -sensorPositionNormalized;
 
-        ray.origin = (camera.worldMatrix * vec4(0, 0, 0, 1)).xyz;
-        ray.direction = normalize(camera.worldMatrix * vec4(rayVector, 0)).xyz;
+        ray.origin = (cameraWorldMatrix * vec4(0, 0, 0, 1)).xyz;
+        ray.direction = normalize(cameraWorldMatrix * vec4(rayVector, 0)).xyz;
     }
 
-    if (camera.type == CAMERA_TYPE_THIN_LENS) {
+    if (cameraType == CAMERA_TYPE_THIN_LENS) {
         vec3 sensorPosition = vec3(
-            -camera.sensorSize.x * (samplePositionNormalized.x - 0.5),
-            -camera.sensorSize.y * (0.5 - samplePositionNormalized.y),
-            camera.sensorDistance);
+            -cameraSensorSize.x * (samplePositionNormalized.x - 0.5),
+            -cameraSensorSize.y * (0.5 - samplePositionNormalized.y),
+            cameraSensorDistance);
 
-        vec3 objectPosition = -sensorPosition * camera.focalLength / (sensorPosition.z - camera.focalLength);
-        vec3 aperturePosition = vec3(camera.apertureRadius * RandomPointOnDisk(), 0);
+        vec3 objectPosition = -sensorPosition * cameraFocalLength / (sensorPosition.z - cameraFocalLength);
+        vec3 aperturePosition = vec3(cameraApertureRadius * RandomPointOnDisk(), 0);
         vec3 rayVector = objectPosition - aperturePosition;
 
-        ray.origin = (camera.worldMatrix * vec4(aperturePosition, 1)).xyz;
-        ray.direction = normalize(camera.worldMatrix * vec4(rayVector, 0)).xyz;
+        ray.origin = (cameraWorldMatrix * vec4(aperturePosition, 1)).xyz;
+        ray.direction = normalize(cameraWorldMatrix * vec4(rayVector, 0)).xyz;
     }
 
-    if (camera.type == CAMERA_TYPE_360) {
+    if (cameraType == CAMERA_TYPE_360) {
         float phi = (samplePositionNormalized.x - 0.5f) * TAU;
         float theta = (0.5f - samplePositionNormalized.y) * PI;
 
@@ -475,8 +498,8 @@ void main()
             sin(theta),
             -cos(theta) * cos(phi));
 
-        ray.origin = (camera.worldMatrix * vec4(0, 0, 0, 1)).xyz;
-        ray.direction = normalize(camera.worldMatrix * vec4(rayVector, 0)).xyz;
+        ray.origin = (cameraWorldMatrix * vec4(0, 0, 0, 1)).xyz;
+        ray.direction = normalize(cameraWorldMatrix * vec4(rayVector, 0)).xyz;
     }
 
     vec4 outputValue;
@@ -484,8 +507,8 @@ void main()
     if (renderMode == RENDER_MODE_PATH_TRACE)
         outputValue = Trace(ray);
 
-    if (renderMode == RENDER_MODE_ALBEDO)
-        outputValue = TraceAlbedo(ray);
+    if (renderMode == RENDER_MODE_BASE_COLOR)
+        outputValue = TraceBaseColor(ray);
 
     if (renderMode == RENDER_MODE_NORMAL)
         outputValue = TraceNormal(ray);
@@ -496,9 +519,11 @@ void main()
     if (renderMode == RENDER_MODE_PRIMITIVE_INDEX)
         outputValue = TracePrimitiveIndex(ray);
 
-    if (clearFrame == 0) {
+    if (renderMode == RENDER_MODE_EDIT)
+        outputValue = TraceEdit(ray);
+
+    if ((renderFlags & RENDER_FLAG_ACCUMULATE) != 0)
         outputValue += imageLoad(inputImage, imagePosition);
-    }
 
     imageStore(outputImage, imagePosition, outputValue);
 }
