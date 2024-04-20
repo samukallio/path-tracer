@@ -238,8 +238,11 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
 {
     Object object = objects[objectIndex];
 
-    if (object.type == OBJECT_TYPE_MESH)
+    if (object.type == OBJECT_TYPE_MESH) {
         IntersectMesh(ray, object, hit);
+        if (hit.objectIndex == 0xFFFFFFFF)
+                hit.objectIndex = objectIndex;
+    }
 
     if (object.type == OBJECT_TYPE_PLANE) {
         float t = (object.origin.z - ray.origin.z) / ray.direction.z;
@@ -272,11 +275,8 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
 
 void Intersect(Ray ray, inout Hit hit)
 {
-    for (uint objectIndex = 0; objectIndex < sceneObjectCount; objectIndex++) {
+    for (uint objectIndex = 0; objectIndex < sceneObjectCount; objectIndex++)
         IntersectObject(ray, objectIndex, hit);
-        if (hit.objectIndex == 0xFFFFFFFF)
-                hit.objectIndex = objectIndex;
-    }
 }
 
 void ResolveHit(Ray ray, inout Hit hit)
@@ -297,10 +297,11 @@ void ResolveHit(Ray ray, inout Hit hit)
         hit.materialIndex = face.materialIndex;
         hit.material = materials[face.materialIndex];
 
-        vec2 uv = fract(hit.uv) * hit.material.baseColorTextureSize / vec2(2048, 2048);
-        vec3 uvw = vec3(uv, hit.material.baseColorTextureIndex);
-
-        hit.material.baseColor *= textureLod(textureArray, uvw, 0).rgb;
+        if ((hit.material.flags & MATERIAL_FLAG_BASE_COLOR_TEXTURE) != 0) {
+            vec2 uv = fract(hit.uv) * hit.material.baseColorTextureSize / vec2(2048, 2048);
+            vec3 uvw = vec3(uv, hit.material.baseColorTextureIndex);
+            hit.material.baseColor *= textureLod(textureArray, uvw, 0).rgb;
+        }
     }
 
     if (hit.objectType == OBJECT_TYPE_PLANE) {
