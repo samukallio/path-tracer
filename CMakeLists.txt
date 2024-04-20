@@ -18,6 +18,7 @@ add_executable (path-tracer
 	src/scene.h
 	src/scene.cpp
 	src/tiny_obj_loader.h
+	src/stb_image.h
 	#
 	lib/imgui-1.90.5-docking/imgui.cpp
 	lib/imgui-1.90.5-docking/imgui_draw.cpp
