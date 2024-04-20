@@ -58,6 +58,8 @@ enum MaterialFlag : uint32_t
     MATERIAL_FLAG_ROUGHNESS_TEXTURE     = 1 << 3,
 };
 
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
 struct alignas(16) Material
 {
     glm::vec3                   baseColor;
@@ -78,6 +80,8 @@ struct alignas(16) Material
     uint32_t                    flags;
 };
 
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
 struct alignas(16) Object
 {
     glm::vec3                   origin;
@@ -87,6 +91,8 @@ struct alignas(16) Object
     uint32_t                    meshRootNodeIndex;
 };
 
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
 struct alignas(16) MeshFace
 {
     glm::vec3                   position;
@@ -98,6 +104,8 @@ struct alignas(16) MeshFace
     glm::aligned_vec2           uvs[3];
 };
 
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
 struct alignas(16) MeshNode
 {
     glm::vec3                   minimum;
@@ -106,13 +114,8 @@ struct alignas(16) MeshNode
     uint32_t                    faceEndIndex;
 };
 
-struct Image
-{
-    uint32_t                    width;
-    uint32_t                    height;
-    void const*                 pixels;
-};
-
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
 struct FrameUniformBuffer
 {
     uint32_t                    frameRandomSeed             = 0;
@@ -147,4 +150,11 @@ struct Hit
     ObjectType                  objectType;
     uint32_t                    objectIndex;
     uint32_t                    primitiveIndex;
+};
+
+struct Image
+{
+    uint32_t                    width;
+    uint32_t                    height;
+    void const*                 pixels;
 };

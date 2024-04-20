@@ -37,13 +37,13 @@ uniform sampler2D skyboxImage;
 layout(binding = 4)
 uniform sampler2DArray textureArray;
 
-layout(binding = 5, std140)
+layout(binding = 5, std430)
 readonly buffer MaterialBuffer
 {
     Material materials[];
 };
 
-layout(binding = 6, std140)
+layout(binding = 6, std430)
 readonly buffer ObjectBuffer
 {
     Object objects[];
@@ -55,7 +55,7 @@ readonly buffer MeshFaceBuffer
     MeshFace meshFaces[];
 };
 
-layout(binding = 8, std140)
+layout(binding = 8, std430)
 readonly buffer MeshNodeBuffer
 {
     MeshNode meshNodes[];
