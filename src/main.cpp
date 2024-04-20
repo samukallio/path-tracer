@@ -170,7 +170,7 @@ bool ShowObjectPropertiesWindow()
 
         if (c) {
             Object& object = app.scene.objects[app.selectedObjectIndex];
-            object.objectToWorldMatrix = glm::translate(glm::orientate4(transform.rotation), transform.position);
+            object.objectToWorldMatrix = glm::translate(glm::mat4(1), transform.position) * glm::orientate4(transform.rotation);
             object.worldToObjectMatrix = glm::inverse(object.objectToWorldMatrix);
         }
     }
