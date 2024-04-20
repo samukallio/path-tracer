@@ -69,6 +69,17 @@ float RepeatRange(float value, float min, float max)
     return min + range * glm::fract((value + min) / range);
 }
 
+static bool ImGui_DragEulerAngles(const char* label, glm::vec3* angles)
+{
+    float degrees[3];
+    for (int k = 0; k < 3; k++)
+        degrees[k] = RepeatRange((*angles)[k], -PI, +PI) * (360 / TAU);
+    bool changed = ImGui::DragFloat3(label, degrees);
+    for (int k = 0; k < 3; k++)
+        (*angles)[k] = RepeatRange(degrees[k] * (TAU / 360), -PI, +PI);
+    return changed;
+}
+
 bool ShowEditorCameraWindow(EditorCamera& camera)
 {
     bool c = false;
@@ -76,10 +87,7 @@ bool ShowEditorCameraWindow(EditorCamera& camera)
     ImGui::Begin("Editor Camera");
 
     c |= ImGui::InputFloat3("Position", &camera.position[0], "%.3f");
-
-    glm::vec3 cameraRotationInDegrees = camera.rotation * (360 / TAU);
-    c |= ImGui::InputFloat3("Rotation", &cameraRotationInDegrees[0], "%.3f");
-    camera.rotation = cameraRotationInDegrees * (TAU / 360);
+    c |= ImGui_DragEulerAngles("Rotation", &camera.rotation);
 
     ImGui::End();
 
@@ -99,10 +107,7 @@ bool ShowRenderCameraWindow(RenderCamera& camera)
     ImGui::Checkbox("Possess", &app.renderCameraPossessed);
 
     c |= ImGui::InputFloat3("Position", &camera.position[0], "%.3f");
-
-    glm::vec3 cameraRotationInDegrees = camera.rotation * (360 / TAU);
-    c |= ImGui::InputFloat3("Rotation", &cameraRotationInDegrees[0], "%.3f");
-    camera.rotation = cameraRotationInDegrees * (TAU / 360);
+    c |= ImGui_DragEulerAngles("Rotation", &camera.rotation);
 
     ImGui::SeparatorText("Render Mode");
     c |= ImGui::RadioButton("Path Tracing", (int*)&camera.renderMode, RENDER_MODE_PATH_TRACE);
@@ -163,10 +168,7 @@ bool ShowObjectPropertiesWindow()
     if (app.selectedObjectIndex < 0xFFFFFFFF) {
         Transform& transform = app.scene.objectTransforms[app.selectedObjectIndex];
         c |= ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
-
-        glm::vec3 rotationInDegrees = transform.rotation * (360 / TAU);
-        c |= ImGui::DragFloat3("Rotation", &rotationInDegrees[0]);
-        transform.rotation = rotationInDegrees * (TAU / 360);
+        c |= ImGui_DragEulerAngles("Rotation", &transform.rotation);
 
         if (c) {
             Object& object = app.scene.objects[app.selectedObjectIndex];
