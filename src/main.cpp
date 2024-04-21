@@ -532,7 +532,7 @@ int main()
         .type = OBJECT_TYPE_SPHERE,
     });
 
-    PackSceneData(&scene);
+    BakeSceneData(&scene);
 
     //LoadMesh(&scene, "../scene/tyra.obj", 1.0f);
     //LoadMesh(&scene, "../scene/viking_room.obj", 1.0f);
