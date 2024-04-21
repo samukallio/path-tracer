@@ -591,7 +591,7 @@ static void IntersectMeshFace(Scene* scene, Ray ray, uint32_t meshFaceIndex, Hit
 
     hit.time = t;
     //hit.data = vec3(1 - beta - gamma, beta, gamma);
-    hit.objectType = OBJECT_TYPE_MESH;
+    hit.objectType = OBJECT_TYPE_MESH_INSTANCE;
     hit.objectIndex = 0xFFFFFFFF;
     hit.primitiveIndex = meshFaceIndex;
 }
@@ -692,7 +692,7 @@ static void IntersectObject(Scene* scene, Ray const& ray, uint32_t objectIndex, 
 {
     PackedSceneObject object = scene->packedObjects[objectIndex];
 
-    if (object.type == OBJECT_TYPE_MESH) {
+    if (object.type == OBJECT_TYPE_MESH_INSTANCE) {
         IntersectMesh(scene, ray, object, hit);
         if (hit.objectIndex == 0xFFFFFFFF)
             hit.objectIndex = objectIndex;

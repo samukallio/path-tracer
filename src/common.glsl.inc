@@ -22,7 +22,7 @@ const uint CAMERA_TYPE_PINHOLE              = 0;
 const uint CAMERA_TYPE_THIN_LENS            = 1;
 const uint CAMERA_TYPE_360                  = 2;
 
-const uint OBJECT_TYPE_MESH                 = 0;
+const uint OBJECT_TYPE_MESH_INSTANCE        = 0;
 const uint OBJECT_TYPE_PLANE                = 1;
 const uint OBJECT_TYPE_SPHERE               = 2;
 

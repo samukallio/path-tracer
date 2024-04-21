@@ -136,7 +136,7 @@ void IntersectMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
     if (gamma < 0 || beta + gamma > 1) return;
 
     hit.time = t;
-    hit.objectType = OBJECT_TYPE_MESH;
+    hit.objectType = OBJECT_TYPE_MESH_INSTANCE;
     hit.objectIndex = 0xFFFFFFFF;
     hit.primitiveIndex = meshFaceIndex;
     hit.primitiveCoordinates = vec3(1 - beta - gamma, beta, gamma);
@@ -238,7 +238,7 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
 {
     Object object = objects[objectIndex];
 
-    if (object.type == OBJECT_TYPE_MESH) {
+    if (object.type == OBJECT_TYPE_MESH_INSTANCE) {
         IntersectMesh(ray, object, hit);
         if (hit.objectIndex == 0xFFFFFFFF)
                 hit.objectIndex = objectIndex;
@@ -289,7 +289,7 @@ void ResolveHit(Ray ray, inout Hit hit)
     vec3 position = objectRay.origin + objectRay.direction * hit.time;
     vec3 normal = vec3(0, 0, 1);
 
-    if (hit.objectType == OBJECT_TYPE_MESH) {
+    if (hit.objectType == OBJECT_TYPE_MESH_INSTANCE) {
         MeshFace face = meshFaces[hit.primitiveIndex];
 
         normal = face.normals[0] * hit.primitiveCoordinates.x

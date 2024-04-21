@@ -50,7 +50,7 @@ enum CameraType : int32_t
 
 enum ObjectType : int32_t
 {
-    OBJECT_TYPE_MESH                    = 0,
+    OBJECT_TYPE_MESH_INSTANCE           = 0,
     OBJECT_TYPE_PLANE                   = 1,
     OBJECT_TYPE_SPHERE                  = 2,
 };

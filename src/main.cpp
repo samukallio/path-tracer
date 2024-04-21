@@ -527,7 +527,7 @@ int main()
             .position = glm::vec3(0, 0, 0),
             .rotation = glm::vec3(0, 0, 0),
         },
-        .type = OBJECT_TYPE_MESH,
+        .type = OBJECT_TYPE_MESH_INSTANCE,
     });
 
     BakeSceneData(&scene);
