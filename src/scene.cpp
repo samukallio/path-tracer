@@ -407,11 +407,11 @@ void BakeSceneData(Scene* scene)
                 texture->packedImageIndex = packedImageIndex;
                 texture->packedImageMinimum = {
                     rect.x / float(ATLAS_WIDTH),
-                    rect.y / float(ATLAS_HEIGHT),
+                    (rect.y + rect.h) / float(ATLAS_HEIGHT),
                 };
                 texture->packedImageMaximum = {
                     (rect.x + rect.w) / float(ATLAS_WIDTH),
-                    (rect.y + rect.h) / float(ATLAS_HEIGHT),
+                    rect.y / float(ATLAS_HEIGHT),
                 };
 
                 for (uint32_t y = 0; y < texture->height; y++) {
