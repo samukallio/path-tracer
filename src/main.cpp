@@ -511,7 +511,14 @@ int main()
 {
     Scene& scene = app.scene;
 
-    LoadModel(&scene, "../scene/viking_room.obj", 1.0f);
+    Material* material = CreateMaterial(&scene, "viking_room");
+    material->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png");
+
+    LoadModelOptions options;
+    options.directoryPath = "../scene";
+    options.defaultMaterial = material;
+
+    LoadModel(&scene, "../scene/viking_room.obj", &options);
 
     scene.objects.push_back(new SceneObject {
         .name = "room",

@@ -66,6 +66,14 @@ Texture* LoadTexture(Scene* scene, char const* path)
     return texture;
 }
 
+Material* CreateMaterial(Scene* scene, char const* name)
+{
+    auto material = new Material;
+    material->name = name;
+    scene->materials.push_back(material);
+    return material;
+}
+
 static void BuildMeshNode(Mesh* mesh, uint32_t nodeIndex, uint32_t depth)
 {
     MeshNode& node = mesh->nodes[nodeIndex];
@@ -216,15 +224,18 @@ static void BuildMeshNode(Mesh* mesh, uint32_t nodeIndex, uint32_t depth)
     BuildMeshNode(mesh, rightNodeIndex, depth+1);
 }
 
-Mesh* LoadModel(Scene* scene, char const* path, float scale)
+Mesh* LoadModel(Scene* scene, char const* path, LoadModelOptions* options)
 {
+    LoadModelOptions defaultOptions {};
+    if (!options) options = &defaultOptions;
+
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
     std::vector<tinyobj::material_t> fileMaterials;
     std::string warn;
     std::string err;
 
-    if (!tinyobj::LoadObj(&attrib, &shapes, &fileMaterials, &warn, &err, path, "../scene/"))
+    if (!tinyobj::LoadObj(&attrib, &shapes, &fileMaterials, &warn, &err, path, options->directoryPath.c_str()))
         return nullptr;
 
     // Map from in-file texture name to scene texture.
@@ -261,7 +272,7 @@ Mesh* LoadModel(Scene* scene, char const* path, float scale)
         for (auto const& [name, ptexture] : textures) {
             if (!name.empty()) {
                 if (!textureMap.contains(name)) {
-                    std::string path = std::format("../scene/{}", name);
+                    std::string path = std::format("{}/{}", options->directoryPath, name);
                     textureMap[name] = LoadTexture(scene, path.c_str());
                 }
                 *ptexture = textureMap[name];
@@ -274,21 +285,6 @@ Mesh* LoadModel(Scene* scene, char const* path, float scale)
         materialMap.push_back(material);
         scene->materials.push_back(material);
     }
-
-    glm::mat4 normalTransform = {
-        { 0, 1, 0, 0 },
-        { 0, 0, 1, 0 },
-        { 1, 0, 0, 0 },
-        { 0, 0, 0, 1 },
-    };
-
-    glm::mat4 vertexTransform = scale * normalTransform;
-
-    glm::mat3x2 uvTransform = {
-        { 1,  0 },
-        { 0, -1 },
-        { 0,  1 },
-    };
 
     auto mesh = new Mesh;
 
@@ -308,14 +304,14 @@ Mesh* LoadModel(Scene* scene, char const* path, float scale)
             for (int j = 0; j < 3; j++) {
                 tinyobj::index_t const& index = shape.mesh.indices[i+j];
 
-                face.vertices[j] = vertexTransform * glm::vec4(
+                face.vertices[j] = options->vertexTransform * glm::vec4(
                     attrib.vertices[3*index.vertex_index+0],
                     attrib.vertices[3*index.vertex_index+1],
                     attrib.vertices[3*index.vertex_index+2],
                     1.0f);
 
                 if (index.normal_index >= 0) {
-                    face.normals[j] = normalTransform * glm::vec4(
+                    face.normals[j] = options->normalTransform * glm::vec4(
                         attrib.normals[3*index.normal_index+0],
                         attrib.normals[3*index.normal_index+1],
                         attrib.normals[3*index.normal_index+2],
@@ -323,7 +319,7 @@ Mesh* LoadModel(Scene* scene, char const* path, float scale)
                 }
 
                 if (index.texcoord_index >= 0) {
-                    face.uvs[j] = uvTransform * glm::vec3(
+                    face.uvs[j] = options->textureCoordinateTransform * glm::vec3(
                         attrib.texcoords[2*index.texcoord_index+0],
                         attrib.texcoords[2*index.texcoord_index+1],
                         1.0f);
@@ -331,7 +327,10 @@ Mesh* LoadModel(Scene* scene, char const* path, float scale)
             }
 
             int materialId = shape.mesh.material_ids[i/3];
-            face.material = materialId >= 0 ? materialMap[materialId] : nullptr;
+            if (materialId >= 0)
+                face.material = materialMap[materialId];
+            else
+                face.material = options->defaultMaterial;
 
             face.centroid = (face.vertices[0] + face.vertices[1] + face.vertices[2]) / 3.0f;
 
