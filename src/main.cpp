@@ -277,6 +277,7 @@ void Frame()
         .sceneObjectCount = static_cast<uint32_t>(app.scene.objects.size()),
         .renderBounceLimit = app.renderCamera.bounceLimit,
         .toneMappingMode = app.renderCamera.toneMappingMode,
+        .toneMappingWhiteLevel = app.renderCamera.toneMappingWhiteLevel,
     };
 
     if (!app.renderCameraPossessed) {
