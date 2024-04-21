@@ -239,7 +239,7 @@ static VkResult InternalCreateImage(
     image->format = format;
     image->extent = extent;
     image->tiling = tiling;
-    image->layerCount = layerCount;
+    image->layerCount = std::max(1u, layerCount);
 
     // Create the image object.
     VkImageCreateInfo imageInfo = {
@@ -249,7 +249,7 @@ static VkResult InternalCreateImage(
         .format = format,
         .extent = extent,
         .mipLevels = 1,
-        .arrayLayers = layerCount,
+        .arrayLayers = image->layerCount,
         .samples = VK_SAMPLE_COUNT_1_BIT,
         .tiling = tiling,
         .usage = usageFlags,
@@ -300,10 +300,10 @@ static VkResult InternalCreateImage(
 
     switch (type) {
     case VK_IMAGE_TYPE_1D:
-        viewType = layerCount > 1 ? VK_IMAGE_VIEW_TYPE_1D_ARRAY : VK_IMAGE_VIEW_TYPE_1D;
+        viewType = layerCount > 0 ? VK_IMAGE_VIEW_TYPE_1D_ARRAY : VK_IMAGE_VIEW_TYPE_1D;
         break;
     case VK_IMAGE_TYPE_2D:
-        viewType = layerCount > 1 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
+        viewType = layerCount > 0 ? VK_IMAGE_VIEW_TYPE_2D_ARRAY : VK_IMAGE_VIEW_TYPE_2D;
         break;
     case VK_IMAGE_TYPE_3D:
         viewType = VK_IMAGE_VIEW_TYPE_3D;
@@ -324,7 +324,7 @@ static VkResult InternalCreateImage(
             .baseMipLevel = 0,
             .levelCount = 1,
             .baseArrayLayer = 0,
-            .layerCount = layerCount,
+            .layerCount = image->layerCount,
         },
     };
 
@@ -373,7 +373,7 @@ static VkResult InternalCreateImage(
                 .baseMipLevel = 0,
                 .levelCount = 1,
                 .baseArrayLayer = 0,
-                .layerCount = layerCount,
+                .layerCount = image->layerCount,
             },
         };
 
@@ -833,7 +833,7 @@ static VkResult InternalCreateFrameResources(
             VK_IMAGE_TYPE_2D,
             VK_FORMAT_R32G32B32A32_SFLOAT,
             { .width = RENDER_WIDTH, .height = RENDER_HEIGHT, .depth = 1 },
-            1,
+            0,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_LAYOUT_GENERAL,
             true);
@@ -845,7 +845,7 @@ static VkResult InternalCreateFrameResources(
             VK_IMAGE_TYPE_2D,
             VK_FORMAT_R32G32B32A32_SFLOAT,
             { .width = RENDER_WIDTH, .height = RENDER_HEIGHT, .depth = 1 },
-            1,
+            0,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             false);
@@ -1858,7 +1858,7 @@ static VkResult InternalCreateVulkan(
             VK_IMAGE_TYPE_2D,
             VK_FORMAT_R8G8B8A8_SRGB,
             { .width = (uint32_t)width, .height = (uint32_t)height, .depth = 1},
-            1,
+            0,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             false);
@@ -2206,7 +2206,7 @@ VkResult UploadScene(
             VK_IMAGE_TYPE_2D,
             VK_FORMAT_R32G32B32A32_SFLOAT,
             { .width = scene->skyboxWidth, .height = scene->skyboxHeight, .depth = 1 },
-            1,
+            0,
             VK_IMAGE_TILING_OPTIMAL,
             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
             true);
@@ -2224,6 +2224,20 @@ VkResult UploadScene(
         vulkan->textureArray = VulkanImage {};
 
         uint32_t textureCount = static_cast<uint32_t>(scene->packedImages.size());
+
+        // We will create an image even if there are no textures.  This is so
+        // that we will always have something to bind for the shader.
+        VkImageLayout layout;
+        uint32_t layerCount;
+        if (textureCount > 0) {
+            layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+            layerCount = textureCount;
+        }
+        else {
+            layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+            layerCount = 1;
+        }
+
         result = InternalCreateImage(
             vulkan,
             &vulkan->textureArray,
@@ -2232,9 +2246,9 @@ VkResult UploadScene(
             VK_IMAGE_TYPE_2D,
             VK_FORMAT_R8G8B8A8_UNORM,
             { .width = 4096, .height = 4096, .depth = 1 },
-            textureCount,
+            layerCount,
             VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            layout,
             true);
         for (uint32_t index = 0; index < textureCount; index++) {
             PackedImage const& image = scene->packedImages[index];

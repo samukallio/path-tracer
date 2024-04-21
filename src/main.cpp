@@ -511,10 +511,10 @@ int main()
 {
     Scene& scene = app.scene;
 
-    LoadModel(&scene, "../scene/sponza.obj", 0.01f);
+    LoadModel(&scene, "../scene/viking_room.obj", 1.0f);
 
     scene.objects.push_back(new SceneObject {
-        .name = "sponza",
+        .name = "room",
         .parent = nullptr,
         .transform = {
             .position = glm::vec3(0, 0, 0),
@@ -522,112 +522,9 @@ int main()
         },
         .type = OBJECT_TYPE_MESH,
     });
-    scene.objects.push_back(new SceneObject {
-        .name = "sphere",
-        .parent = nullptr,
-        .transform = {
-            .position = glm::vec3(0, 0, 0),
-            .rotation = glm::vec3(0, 0, 0),
-        },
-        .type = OBJECT_TYPE_SPHERE,
-    });
 
     BakeSceneData(&scene);
-
-    //LoadMesh(&scene, "../scene/tyra.obj", 1.0f);
-    //LoadMesh(&scene, "../scene/viking_room.obj", 1.0f);
-    //AddTextureFromFile(&scene, "../scene/viking_room.png");
-    //AddTextureFromFile(&scene, "../scene/viking_room.png");
     LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
-    //AddMesh(&scene, glm::vec3(0, 0, 0), 0);
-    //AddPlane(&scene, glm::vec3(0, 0, 0.0f));
-
-    //scene.materials.push_back({
-    //    .baseColor = glm::vec3(1, 1, 1),
-    //    .baseColorTextureIndex = 0,
-    //    .specularColor = glm::vec4(1, 1, 1, 0),
-    //    .emissionColor = glm::vec3(0, 0, 0),
-    //    .emissionColorTextureIndex = 0,
-    //    .roughness = 1.0f,
-    //    .specularProbability = 0.0f,
-    //    .refraction = 0.0f,
-    //    .refractionIndex = 0.0f,
-    //    .albedoTextureSize = glm::uvec2(1024, 1024),
-    //    .padding = glm::uvec2(0, 0),
-    //});
-
-    //uint32_t glassMaterialIndex = (uint32_t)scene.materials.size();
-    //scene.materials.push_back({
-    //    .baseColor = glm::vec3(1, 1, 1),
-    //    .baseColorTextureIndex = 0,
-    //    .emissionColor = glm::vec3(0, 0, 0),
-    //    .emissionColorTextureIndex = 0,
-    //    .roughness = 0.15f,
-    //    .refraction = 0.0f,
-    //    .refractionIndex = 0.0f,
-    //    .baseColorTextureSize = glm::uvec2(0, 0),
-    //});
-    //
-    //uint32_t diffuseMaterialIndex = (uint32_t)scene.materials.size();
-    //scene.materials.push_back({
-    //    .baseColor = glm::vec3(1, 1, 1),
-    //    .baseColorTextureIndex = 0,
-    //    .emissionColor = glm::vec3(0, 0, 0),
-    //    .emissionColorTextureIndex = 0,
-    //    .roughness = 1.0f,
-    //    .refraction = 0.0f,
-    //    .refractionIndex = 0.0f,
-    //    .baseColorTextureSize = glm::uvec2(0, 0),
-    //});
-
-    //uint32_t lightMaterialIndex = (uint32_t)scene.materials.size();
-    //scene.materials.push_back({
-    //    .baseColor = glm::vec3(1, 1, 1),
-    //    .baseColorTextureIndex = 0,
-    //    .emissionColor = 150.0f * glm::vec3(1,243/255.0f,142/255.0f),
-    //    .emissionColorTextureIndex = 0,
-    //    .roughness = 1.0f,
-    //    .refraction = 0.0f,
-    //    .refractionIndex = 0.0f,
-    //    .baseColorTextureSize = glm::uvec2(0, 0),
-    //});
-
-    //scene.objects.push_back({
-    //    .type = OBJECT_TYPE_MESH,
-    //    .materialIndex = glassMaterialIndex,
-    //    .meshRootNodeIndex = 0,
-    //    .worldToObjectMatrix = glm::mat4(1),
-    //    .objectToWorldMatrix = glm::mat4(1),
-    //});
-    //scene.objects.push_back({
-    //    .type = OBJECT_TYPE_SPHERE,
-    //    .materialIndex = lightMaterialIndex,
-    //    .worldToObjectMatrix = glm::mat4(1),
-    //    .objectToWorldMatrix = glm::mat4(1),
-    //});
-    //scene.objects.push_back({
-    //    .type = OBJECT_TYPE_PLANE,
-    //    .materialIndex = diffuseMaterialIndex,
-    //    .worldToObjectMatrix = glm::mat4(1),
-    //    .objectToWorldMatrix = glm::mat4(1),
-    //});
-
-    //for (PackedSceneObject const& object : scene.objects) {
-    //    scene.objectTransforms.push_back({
-    //        .position = glm::vec3(0, 0, 0),
-    //        .rotation = glm::vec3(0, 0, 0),
-    //    });
-    //}
-
-    //for (PackedMeshNode const& node : scene.meshNodes) {
-    //    if (node.faceEndIndex > 0) {
-    //        assert(node.faceBeginOrNodeIndex <= scene.meshFaces.size());
-    //        assert(node.faceEndIndex <= scene.meshFaces.size());
-    //    }
-    //    else {
-    //        assert(node.faceBeginOrNodeIndex < scene.meshNodes.size());
-    //    }
-    //}
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();

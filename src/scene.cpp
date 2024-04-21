@@ -330,7 +330,9 @@ Mesh* LoadModel(Scene* scene, char const* path, float scale)
                 }
             }
 
-            face.material = materialMap[shape.mesh.material_ids[i/3]];
+            int materialId = shape.mesh.material_ids[i/3];
+            face.material = materialId >= 0 ? materialMap[materialId] : nullptr;
+
             face.centroid = (face.vertices[0] + face.vertices[1] + face.vertices[2]) / 3.0f;
 
             faceIndex++;
@@ -433,6 +435,22 @@ void BakeSceneData(Scene* scene)
 
     // Pack materials.
     {
+        scene->packedMaterials.clear();
+
+        // Fallback material.
+        {
+            PackedMaterial packed = {
+                .baseColor = glm::vec3(1, 1, 1),
+                .emissionColor = glm::vec3(0, 0, 0),
+                .metallic = 0.0f,
+                .roughness = 1.0f,
+                .refraction = 0.0f,
+                .refractionIndex = 1.0f,
+                .flags = 0
+            };
+            scene->packedMaterials.push_back(packed);
+        }
+
         for (Material* material : scene->materials) {
             PackedMaterial packed;
 
@@ -481,7 +499,11 @@ void BakeSceneData(Scene* scene)
                 PackedMeshFace packed;
 
                 packed.position = face.vertices[0];
-                packed.materialIndex = face.material->packedMaterialIndex;
+
+                if (face.material)
+                    packed.materialIndex = face.material->packedMaterialIndex;
+                else
+                    packed.materialIndex = 0;
 
                 glm::vec3 ab = face.vertices[1] - face.vertices[0];
                 glm::vec3 ac = face.vertices[2] - face.vertices[0];
