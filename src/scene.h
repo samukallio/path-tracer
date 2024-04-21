@@ -31,14 +31,6 @@ struct Material
     uint32_t                        packedMaterialIndex     = 0;
 };
 
-struct SceneObject
-{
-    std::string                     name;
-    SceneObject*                    parent;
-    Transform                       transform;
-    ObjectType                      type;
-};
-
 struct MeshFace
 {
     glm::vec3                       vertices[3];
@@ -63,6 +55,17 @@ struct Mesh
     std::vector<MeshFace>           faces;
     std::vector<MeshNode>           nodes;
     uint32_t                        depth;
+    uint32_t                        packedRootNodeIndex;
+};
+
+struct SceneObject
+{
+    std::string                     name;
+    SceneObject*                    parent;
+    Transform                       transform;
+    ObjectType                      type;
+    Material*                       material;
+    Mesh*                           mesh;
 };
 
 struct Scene
@@ -96,9 +99,10 @@ struct LoadModelOptions
 
 Mesh* LoadModel(Scene* scene, char const* path, LoadModelOptions* options = nullptr);
 
+bool LoadSkybox(Scene* scene, char const* path);
+
 Material* CreateMaterial(Scene* scene, char const* name);
 
-bool LoadSkybox(Scene* scene, char const* path);
 
 void BakeSceneData(Scene* scene);
 

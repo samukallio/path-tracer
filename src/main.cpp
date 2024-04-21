@@ -518,8 +518,7 @@ int main()
     LoadModelOptions options;
     options.directoryPath = "../scene";
     options.defaultMaterial = material;
-
-    LoadModel(&scene, "../scene/viking_room.obj", &options);
+    Mesh* mesh = LoadModel(&scene, "../scene/viking_room.obj", &options);
 
     scene.objects.push_back(new SceneObject {
         .name = "room",
@@ -529,6 +528,22 @@ int main()
             .rotation = glm::vec3(0, 0, 0),
         },
         .type = OBJECT_TYPE_MESH_INSTANCE,
+        .mesh = mesh,
+    });
+
+    Material* glass = CreateMaterial(&scene, "glass");
+    glass->refraction = 1.0f;
+    glass->refractionIndex = 1.5f;
+
+    scene.objects.push_back(new SceneObject {
+        .name = "sphere",
+        .parent = nullptr,
+        .transform = {
+            .position = glm::vec3(0, 0, 0),
+            .rotation = glm::vec3(0, 0, 0),
+        },
+        .type = OBJECT_TYPE_SPHERE,
+        .material = glass,
     });
 
     BakeSceneData(&scene);

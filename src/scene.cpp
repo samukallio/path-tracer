@@ -546,6 +546,8 @@ void BakeSceneData(Scene* scene)
 
                 scene->packedMeshNodes.push_back(packed);
             }
+
+            mesh->packedRootNodeIndex = nodeIndexBase;
         }
     }
 
@@ -565,8 +567,13 @@ void BakeSceneData(Scene* scene)
 
             packed.worldToObjectMatrix = glm::inverse(packed.objectToWorldMatrix);
 
-            packed.meshRootNodeIndex = 0;
-            packed.materialIndex = 0;
+            if (object->type == OBJECT_TYPE_MESH_INSTANCE && object->mesh)
+                packed.meshRootNodeIndex = object->mesh->packedRootNodeIndex;
+
+            if (object->material)
+                packed.materialIndex = object->material->packedMaterialIndex;
+            else
+                packed.materialIndex = 0;
 
             scene->packedObjects.push_back(packed);
         }
