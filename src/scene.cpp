@@ -563,7 +563,8 @@ void BakeSceneData(Scene* scene)
 
             packed.objectToWorldMatrix
                 = glm::translate(glm::mat4(1), object->transform.position)
-                * glm::orientate4(object->transform.rotation);
+                * glm::orientate4(object->transform.rotation)
+                * glm::scale(glm::mat4(1), object->transform.scale);
 
             packed.worldToObjectMatrix = glm::inverse(packed.objectToWorldMatrix);
 

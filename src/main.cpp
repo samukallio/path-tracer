@@ -169,11 +169,16 @@ bool ShowObjectPropertiesWindow()
         Transform& transform = app.scene.objects[app.selectedObjectIndex]->transform;
         c |= ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
         c |= ImGui_DragEulerAngles("Rotation", &transform.rotation);
+        c |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.01f);
 
         if (c) {
             PackedSceneObject& object = app.scene.packedObjects[app.selectedObjectIndex];
-            object.objectToWorldMatrix = glm::translate(glm::mat4(1), transform.position) * glm::orientate4(transform.rotation);
+            object.objectToWorldMatrix
+                = glm::translate(glm::mat4(1), transform.position)
+                * glm::orientate4(transform.rotation)
+                * glm::scale(glm::mat4(1), transform.scale);
             object.worldToObjectMatrix = glm::inverse(object.objectToWorldMatrix);
+
         }
     }
 
@@ -544,6 +549,16 @@ int main()
         },
         .type = OBJECT_TYPE_SPHERE,
         .material = glass,
+    });
+
+    scene.objects.push_back(new SceneObject {
+        .name = "plane",
+        .parent = nullptr,
+        .transform = {
+            .position = glm::vec3(0, 0, 0),
+            .rotation = glm::vec3(0, 0, 0),
+        },
+        .type = OBJECT_TYPE_PLANE,
     });
 
     BakeSceneData(&scene);
