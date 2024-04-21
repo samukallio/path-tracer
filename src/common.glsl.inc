@@ -35,24 +35,19 @@ layout(binding = 0)
 uniform FrameUniformBuffer
 {
     uint            frameRandomSeed;
-
     uint            sceneObjectCount;
-
     uint            cameraType;
     float           cameraFocalLength;
     float           cameraApertureRadius;
     float           cameraSensorDistance;
     vec2            cameraSensorSize;
     mat4            cameraWorldMatrix;
-
     uint            renderMode;
     uint            renderFlags;
     uint            renderBounceLimit;
     uint            highlightObjectIndex;
-
     uint            toneMappingMode;
     float           toneMappingWhiteLevel;
-
 };
 
 struct Material
@@ -61,17 +56,14 @@ struct Material
     uint            baseColorTextureIndex;
     vec3            emissionColor;
     uint            emissionColorTextureIndex;
-   
     float           metallic;
     uint            metallicTextureIndex;
     float           roughness;
     uint            roughnessTextureIndex;
-
     float           refraction;
     float           refractionIndex;
-
-    uvec2           baseColorTextureSize;
-
+    vec2            baseColorTextureMinimum;
+    vec2            baseColorTextureMaximum;
     uint            flags;
 };
 

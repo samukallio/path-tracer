@@ -304,8 +304,17 @@ void ResolveHit(Ray ray, inout Hit hit)
         hit.material = materials[face.materialIndex];
 
         if ((hit.material.flags & MATERIAL_FLAG_BASE_COLOR_TEXTURE) != 0) {
-            vec2 uv = fract(hit.uv) * hit.material.baseColorTextureSize / vec2(2048, 2048);
-            vec3 uvw = vec3(uv, hit.material.baseColorTextureIndex);
+            float u = mix(
+                hit.material.baseColorTextureMinimum.x,
+                hit.material.baseColorTextureMaximum.x,
+                fract(hit.uv.x));
+
+            float v = mix(
+                hit.material.baseColorTextureMinimum.y,
+                hit.material.baseColorTextureMaximum.y,
+                fract(hit.uv.y));
+
+            vec3 uvw = vec3(u, v, hit.material.baseColorTextureIndex);
             hit.material.baseColor *= textureLod(textureArray, uvw, 0).rgb;
         }
     }

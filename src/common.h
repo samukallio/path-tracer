@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+#include <vector>
 #include <algorithm>
 
 #define GLM_FORCE_SWIZZLE
@@ -63,31 +65,28 @@ enum MaterialFlag : uint32_t
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) Material
+struct alignas(16) PackedMaterial
 {
     glm::vec3                   baseColor;
     uint32_t                    baseColorTextureIndex;
     glm::vec3                   emissionColor;
     uint32_t                    emissionColorTextureIndex;
-
     float                       metallic;
     uint32_t                    metallicTextureIndex;
     float                       roughness;
     uint32_t                    roughnessTextureIndex;
-
     float                       refraction;
     float                       refractionIndex;
-
-    glm::uvec2                  baseColorTextureSize;
-
+    glm::aligned_vec2           baseColorTextureMinimum;
+    glm::aligned_vec2           baseColorTextureMaximum;
     uint32_t                    flags;
 };
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) Object
+struct alignas(16) PackedSceneObject
 {
-    uint32_t                    type;
+    ObjectType                  type;
     uint32_t                    materialIndex;
     uint32_t                    meshRootNodeIndex;
     glm::aligned_mat4           worldToObjectMatrix;
@@ -96,7 +95,17 @@ struct alignas(16) Object
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) MeshFace
+struct alignas(16) PackedSceneNode
+{
+    glm::vec3                   minimum;
+    uint32_t                    nodeIndices;
+    glm::vec3                   maximum;
+    uint32_t                    objectIndex;
+};
+
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
+struct alignas(16) PackedMeshFace
 {
     glm::vec3                   position;
     uint32_t                    materialIndex;
@@ -109,12 +118,20 @@ struct alignas(16) MeshFace
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) MeshNode
+struct alignas(16) PackedMeshNode
 {
+
     glm::vec3                   minimum;
     uint32_t                    faceBeginOrNodeIndex;
     glm::vec3                   maximum;
     uint32_t                    faceEndIndex;
+};
+
+struct alignas(16) PackedImage
+{
+    uint32_t                    width;
+    uint32_t                    height;
+    uint32_t const*             pixels;
 };
 
 // This structure is shared between CPU and GPU,
@@ -122,23 +139,25 @@ struct alignas(16) MeshNode
 struct FrameUniformBuffer
 {
     uint32_t                    frameRandomSeed             = 0;
-
     uint32_t                    sceneObjectCount            = 0;
-
     CameraType                  cameraType                  = CAMERA_TYPE_THIN_LENS;
     float                       cameraFocalLength           = 0.020f;
     float                       cameraApertureRadius        = 0.040f;
     float                       cameraSensorDistance        = 0.0202f;
     glm::aligned_vec2           cameraSensorSize            = { 0.032f, 0.018f };
     glm::aligned_mat4           cameraWorldMatrix           = {};
-
     RenderMode                  renderMode                  = RENDER_MODE_PATH_TRACE;
     uint32_t                    renderFlags                 = 0;
     uint32_t                    renderBounceLimit           = 0;
     uint32_t                    highlightObjectIndex        = 0xFFFFFFFF;
-
     ToneMappingMode             toneMappingMode             = TONE_MAPPING_MODE_CLAMP;
     float                       toneMappingWhiteLevel       = 1.0f;
+};
+
+struct Transform
+{
+    glm::vec3                   position;
+    glm::vec3                   rotation;
 };
 
 struct Ray
@@ -161,11 +180,4 @@ struct Hit
     ObjectType                  objectType;
     uint32_t                    objectIndex;
     uint32_t                    primitiveIndex;
-};
-
-struct Image
-{
-    uint32_t                    width;
-    uint32_t                    height;
-    void const*                 pixels;
 };

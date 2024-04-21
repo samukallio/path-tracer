@@ -1,8 +1,9 @@
 #define TINYOBJLOADER_IMPLEMENTATION 
 #include "tiny_obj_loader.h"
-
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
+#define STB_RECT_PACK_IMPLEMENTATION
+#include "stb_rect_pack.h"
 
 #include "scene.h"
 
@@ -11,21 +12,6 @@
 #include <stdio.h>
 
 constexpr float INF = std::numeric_limits<float>::infinity();
-
-struct MeshFaceBuildData
-{
-    glm::vec3               vertices[3];
-    glm::vec3               normals[3];
-    glm::vec2               uvs[3];
-    glm::vec3               centroid;
-};
-
-struct MeshTreeBuildState
-{
-    Scene*                  scene;
-    std::vector<MeshFaceBuildData> meshFaceDatas;
-    uint32_t                depth = 0;
-};
 
 struct Bounds
 {
@@ -63,19 +49,35 @@ static float HalfArea(Bounds const& box)
     return e.x * e.y + e.y * e.z + e.z * e.x;
 }
 
-static void BuildMeshNode(MeshTreeBuildState* state, uint32_t index, uint32_t depth)
+Texture* LoadTexture(Scene* scene, char const* path)
 {
-    Scene* scene = state->scene;
-    MeshNode& node = scene->meshNodes[index];
+    int width, height, channelsInFile;
+    stbi_uc* pixels = stbi_load(path, &width, &height, &channelsInFile, 4);
+    if (!pixels) return nullptr;
 
-    uint32_t faceCount = node.faceEndIndex - node.faceBeginOrNodeIndex;
+    auto texture = new Texture {
+        .name = path,
+        .width = static_cast<uint32_t>(width),
+        .height = static_cast<uint32_t>(height),
+        .pixels = reinterpret_cast<uint32_t*>(pixels),
+    };
+    scene->textures.push_back(texture);
+
+    return texture;
+}
+
+static void BuildMeshNode(Mesh* mesh, uint32_t nodeIndex, uint32_t depth)
+{
+    MeshNode& node = mesh->nodes[nodeIndex];
+
+    uint32_t faceCount = node.faceEndIndex - node.faceBeginIndex;
 
     // Compute node bounds.
     node.minimum = { +INF, +INF, +INF };
     node.maximum = { -INF, -INF, -INF };
-    for (uint32_t index = node.faceBeginOrNodeIndex; index < node.faceEndIndex; index++) {
+    for (uint32_t index = node.faceBeginIndex; index < node.faceEndIndex; index++) {
         for (int j = 0; j < 3; j++) {
-            glm::vec3 const& position = state->meshFaceDatas[index].vertices[j];
+            glm::vec3 const& position = mesh->faces[index].vertices[j];
             node.minimum = glm::min(node.minimum, position);
             node.maximum = glm::max(node.maximum, position);
         }
@@ -88,8 +90,8 @@ static void BuildMeshNode(MeshTreeBuildState* state, uint32_t index, uint32_t de
     for (int axis = 0; axis < 3; axis++) {
         // Compute centroid-based bounds for the current node.
         float minimum = +INF, maximum = -INF;
-        for (uint32_t i = node.faceBeginOrNodeIndex; i < node.faceEndIndex; i++) {
-            float centroid = state->meshFaceDatas[i].centroid[axis];
+        for (uint32_t i = node.faceBeginIndex; i < node.faceEndIndex; i++) {
+            float centroid = mesh->faces[i].centroid[axis];
             minimum = std::min(minimum, centroid);
             maximum = std::max(maximum, centroid);
         }
@@ -107,21 +109,17 @@ static void BuildMeshNode(MeshTreeBuildState* state, uint32_t index, uint32_t de
 
         float binIndexPerUnit = float(BINS) / (maximum - minimum);
 
-        for (uint32_t i = node.faceBeginOrNodeIndex; i < node.faceEndIndex; i++) {
+        for (uint32_t i = node.faceBeginIndex; i < node.faceEndIndex; i++) {
             // Compute bin index of the face centroid.
-            float centroid = state->meshFaceDatas[i].centroid[axis];
+            float centroid = mesh->faces[i].centroid[axis];
             uint32_t binIndexUnclamped = static_cast<uint32_t>(binIndexPerUnit * (centroid - minimum));
             uint32_t binIndex = std::min(binIndexUnclamped, BINS - 1);
 
             // Grow the bin to accommodate the new face.
             Bin& bin = bins[binIndex];
-            MeshFace const& face = scene->meshFaces[i];
-            Grow(bin.bounds, state->meshFaceDatas[i].vertices[0]);
-            Grow(bin.bounds, state->meshFaceDatas[i].vertices[1]);
-            Grow(bin.bounds, state->meshFaceDatas[i].vertices[2]);
-            //Grow(bin.bounds, face.positions[0]);
-            //Grow(bin.bounds, face.positions[1]);
-            //Grow(bin.bounds, face.positions[2]);
+            Grow(bin.bounds, mesh->faces[i].vertices[0]);
+            Grow(bin.bounds, mesh->faces[i].vertices[1]);
+            Grow(bin.bounds, mesh->faces[i].vertices[2]);
             bin.faceCount++;
         }
 
@@ -180,17 +178,16 @@ static void BuildMeshNode(MeshTreeBuildState* state, uint32_t index, uint32_t de
     if (splitCost >= unsplitCost) return;
 
     // Partition the faces within the node by the chosen split plane.
-    uint32_t beginIndex = node.faceBeginOrNodeIndex;
+    uint32_t beginIndex = node.faceBeginIndex;
     uint32_t endIndex = node.faceEndIndex;
     uint32_t splitIndex = beginIndex;
     uint32_t swapIndex = endIndex - 1;
     while (splitIndex < swapIndex) {
-        if (state->meshFaceDatas[splitIndex].centroid[splitAxis] < splitPosition) {
+        if (mesh->faces[splitIndex].centroid[splitAxis] < splitPosition) {
             splitIndex++;
         }
         else {
-            std::swap(scene->meshFaces[splitIndex], scene->meshFaces[swapIndex]);
-            std::swap(state->meshFaceDatas[splitIndex], state->meshFaceDatas[swapIndex]);
+            std::swap(mesh->faces[splitIndex], mesh->faces[swapIndex]);
             swapIndex--;
         }
     }
@@ -198,118 +195,84 @@ static void BuildMeshNode(MeshTreeBuildState* state, uint32_t index, uint32_t de
     if (splitIndex == beginIndex || splitIndex == endIndex)
         return;
 
-    uint32_t leftNodeIndex = static_cast<uint32_t>(scene->meshNodes.size());
+    uint32_t leftNodeIndex = static_cast<uint32_t>(mesh->nodes.size());
     uint32_t rightNodeIndex = leftNodeIndex + 1;
 
-    node.faceBeginOrNodeIndex = leftNodeIndex;
-    node.faceEndIndex = 0;
+    node.childNodeIndex = leftNodeIndex;
 
-    scene->meshNodes.push_back(MeshNode {
-        .faceBeginOrNodeIndex = beginIndex,
+    mesh->nodes.push_back({
+        .faceBeginIndex = beginIndex,
         .faceEndIndex = splitIndex,
     });
 
-    scene->meshNodes.push_back(MeshNode {
-        .faceBeginOrNodeIndex = splitIndex,
+    mesh->nodes.push_back({
+        .faceBeginIndex = splitIndex,
         .faceEndIndex = endIndex,
     });
 
-    state->depth = std::max(state->depth, depth+1);
+    mesh->depth = std::max(mesh->depth, depth+1);
 
-    BuildMeshNode(state, leftNodeIndex, depth+1);
-    BuildMeshNode(state, rightNodeIndex, depth+1);
+    BuildMeshNode(mesh, leftNodeIndex, depth+1);
+    BuildMeshNode(mesh, rightNodeIndex, depth+1);
 }
 
-uint32_t AddTextureFromFile(Scene* scene, char const* path)
-{
-    int width, height, channelsInFile;
-    stbi_uc* pixels = stbi_load(path, &width, &height, &channelsInFile, 4);
-    if (!pixels) return -1;
-
-    size_t index = scene->textures.size();
-
-    scene->textures.push_back({
-        .width = static_cast<uint32_t>(width),
-        .height = static_cast<uint32_t>(height),
-        .pixels = pixels,
-    });
-
-    return static_cast<uint32_t>(index);
-}
-
-bool LoadMesh(Scene* scene, char const* path, float scale)
+Mesh* LoadModel(Scene* scene, char const* path, float scale)
 {
     tinyobj::attrib_t attrib;
     std::vector<tinyobj::shape_t> shapes;
-    std::vector<tinyobj::material_t> materials;
+    std::vector<tinyobj::material_t> fileMaterials;
     std::string warn;
     std::string err;
 
-    if (!tinyobj::LoadObj(&attrib, &shapes, &materials, &warn, &err, path, "../scene/"))
-        return false;
+    if (!tinyobj::LoadObj(&attrib, &shapes, &fileMaterials, &warn, &err, path, "../scene/"))
+        return nullptr;
 
-    MeshTreeBuildState state;
-    state.scene = scene;
-
-    size_t faceCount = 0;
-    for (auto const& shape : shapes)
-        faceCount += shape.mesh.indices.size() / 3;
-
-    state.meshFaceDatas.reserve(faceCount);
-
-    // Map from in-file texture name to scene texture index.
-    std::unordered_map<std::string, uint32_t> textureIndexMap;
-    // Map from in-file material IDs to scene material index.
-    std::unordered_map<int, uint32_t> materialIndexMap;
+    // Map from in-file texture name to scene texture.
+    std::unordered_map<std::string, Texture*> textureMap;
+    // Map from in-file material IDs to scene material.
+    std::vector<Material*> materialMap;
 
     // Scan the material definitions and build scene materials.
-    for (int materialId = 0; materialId < materials.size(); materialId++) {
-        tinyobj::material_t const& material = materials[materialId];
+    for (int materialId = 0; materialId < fileMaterials.size(); materialId++) {
+        tinyobj::material_t const& fileMaterial = fileMaterials[materialId];
 
-        std::string textureNames[2] = {
-            material.diffuse_texname,
-            material.emissive_texname,
-        };
-
-        uint32_t textureIndices[2] = {};
-
-        for (int i = 0; i < std::size(textureNames); i++) {
-            std::string const& textureName = textureNames[i];
-            if (!textureName.empty()) {
-                if (!textureIndexMap.contains(textureName)) {
-                    std::string texturePath = std::format("../scene/{}", textureName);
-                    textureIndexMap[textureName] = AddTextureFromFile(scene, texturePath.c_str());
-                }
-                textureIndices[i] = textureIndexMap[textureName];
-            }
-            else {
-                textureIndices[i] = 0;
-            }
-        }
-
-        materialIndexMap[materialId] = static_cast<uint32_t>(scene->materials.size());
-
-        scene->materials.push_back({
+        auto material = new Material {
+            .name = fileMaterial.name,
             .baseColor = glm::vec4(
-                material.diffuse[0],
-                material.diffuse[1],
-                material.diffuse[2],
+                fileMaterial.diffuse[0],
+                fileMaterial.diffuse[1],
+                fileMaterial.diffuse[2],
                 1.0),
-            .baseColorTextureIndex = textureIndices[0],
             .emissionColor = glm::vec4(
-                material.emission[0],
-                material.emission[1],
-                material.emission[2],
+                fileMaterial.emission[0],
+                fileMaterial.emission[1],
+                fileMaterial.emission[2],
                 1.0),
-            .emissionColorTextureIndex = textureIndices[1],
             .roughness = 1.0f, //material.roughness,
             .refraction = 0.0f,
             .refractionIndex = 0.0f,
-            .baseColorTextureSize = glm::uvec2(
-                scene->textures[textureIndices[0]].width,
-                scene->textures[textureIndices[0]].height
-            ),
-        });
+        };
+
+        std::pair<std::string, Texture**> textures[] = {
+            { fileMaterial.diffuse_texname, &material->baseColorTexture },
+            { fileMaterial.emissive_texname, &material->emissionColorTexture },
+        };
+
+        for (auto const& [name, ptexture] : textures) {
+            if (!name.empty()) {
+                if (!textureMap.contains(name)) {
+                    std::string path = std::format("../scene/{}", name);
+                    textureMap[name] = LoadTexture(scene, path.c_str());
+                }
+                *ptexture = textureMap[name];
+            }
+            else {
+                *ptexture = nullptr;
+            }
+        }
+
+        materialMap.push_back(material);
+        scene->materials.push_back(material);
     }
 
     glm::mat4 normalTransform = {
@@ -319,14 +282,6 @@ bool LoadMesh(Scene* scene, char const* path, float scale)
         { 0, 0, 0, 1 },
     };
 
-    //glm::mat4 normalTransform = {
-    //    { 1, 0, 0, 0 },
-    //    { 0, 1, 0, 0 },
-    //    { 0, 0, 1, 0 },
-    //    { 0, 0, 0, 1 },
-    //};
-
-
     glm::mat4 vertexTransform = scale * normalTransform;
 
     glm::mat3x2 uvTransform = {
@@ -335,17 +290,25 @@ bool LoadMesh(Scene* scene, char const* path, float scale)
         { 0,  1 },
     };
 
+    auto mesh = new Mesh;
+
+    size_t faceCount = 0;
+    for (auto const& shape : shapes)
+        faceCount += shape.mesh.indices.size() / 3;
+
+    mesh->faces.resize(faceCount);
+
+    size_t faceIndex = 0;
     for (tinyobj::shape_t const& shape : shapes) {
         size_t shapeIndexCount = shape.mesh.indices.size();
 
         for (size_t i = 0; i < shapeIndexCount; i += 3) {
-            MeshFace face;
-            MeshFaceBuildData faceData;
+            MeshFace& face = mesh->faces[faceIndex];
 
             for (int j = 0; j < 3; j++) {
                 tinyobj::index_t const& index = shape.mesh.indices[i+j];
 
-                faceData.vertices[j] = vertexTransform * glm::vec4(
+                face.vertices[j] = vertexTransform * glm::vec4(
                     attrib.vertices[3*index.vertex_index+0],
                     attrib.vertices[3*index.vertex_index+1],
                     attrib.vertices[3*index.vertex_index+2],
@@ -367,44 +330,27 @@ bool LoadMesh(Scene* scene, char const* path, float scale)
                 }
             }
 
-            face.position = faceData.vertices[0];
-            face.materialIndex = materialIndexMap[shape.mesh.material_ids[i/3]];
+            face.material = materialMap[shape.mesh.material_ids[i/3]];
+            face.centroid = (face.vertices[0] + face.vertices[1] + face.vertices[2]) / 3.0f;
 
-            // Compute triangle plane.
-            glm::vec3 ab = faceData.vertices[1] - faceData.vertices[0];
-            glm::vec3 ac = faceData.vertices[2] - faceData.vertices[0];
-            glm::vec3 normal = glm::normalize(glm::cross(ab, ac));
-            float d = -glm::dot(normal, glm::vec3(face.position));
-            face.plane = glm::vec4(normal, d);
-
-            // Compute reciprocal basis for the tangent plane.
-            float bb = glm::dot(ab, ab);
-            float bc = glm::dot(ab, ac);
-            float cc = glm::dot(ac, ac);
-            float idet = 1.0f / (bb * cc - bc * bc);
-            face.base1 = (ab * cc - ac * bc) * idet;
-            face.base2 = (ac * bb - ab * bc) * idet;
-
-            faceData.centroid = (faceData.vertices[0] + faceData.vertices[1] + faceData.vertices[2]) / 3.0f;
-
-            scene->meshFaces.push_back(face);
-            state.meshFaceDatas.push_back(faceData);
+            faceIndex++;
         }
     }
 
-    MeshNode root;
-    root.faceBeginOrNodeIndex = 0;
-    root.faceEndIndex = static_cast<uint32_t>(scene->meshFaces.size());
-    scene->meshNodes.clear();
-    scene->meshNodes.push_back(root);
+    mesh->nodes.reserve(2 * mesh->faces.size());
 
-    BuildMeshNode(&state, 0, 0);
+    MeshNode root = {
+        .faceBeginIndex = 0,
+        .faceEndIndex = static_cast<uint32_t>(mesh->faces.size()),
+        .childNodeIndex = 0,
+    };
 
-    printf("mesh faces: %llu\n", scene->meshFaces.size());
-    printf("mesh nodes: %llu\n", scene->meshNodes.size());
-    printf("max depth: %lu\n", state.depth);
+    mesh->nodes.push_back(root);
+    BuildMeshNode(mesh, 0, 0);
 
-    return true;
+    scene->meshes.push_back(mesh);
+
+    return mesh;
 }
 
 bool LoadSkybox(Scene* scene, char const* path)
@@ -418,34 +364,197 @@ bool LoadSkybox(Scene* scene, char const* path)
     return true;
 }
 
-void AddMesh(Scene* scene, glm::vec3 origin, uint32_t rootNodeIndex)
+void BakeSceneData(Scene* scene)
 {
-    scene->objects.push_back({
-        .type = OBJECT_TYPE_MESH,
-        .meshRootNodeIndex = rootNodeIndex,
-    });
+    // Pack textures.
+    {
+        constexpr int ATLAS_WIDTH = 4096;
+        constexpr int ATLAS_HEIGHT = 4096;
+
+        std::vector<stbrp_node> nodes(ATLAS_WIDTH);
+        std::vector<stbrp_rect> rects(scene->textures.size());
+        
+        for (int k = 0; k < rects.size(); k++) {
+            Texture* texture = scene->textures[k];
+            rects[k] = {
+                .id = k,
+                .w = static_cast<int>(texture->width),
+                .h = static_cast<int>(texture->height),
+                .was_packed = 0,
+            };
+        }
+
+        scene->packedImages.clear();
+
+        while (!rects.empty()) {
+            stbrp_context context;
+            stbrp_init_target(&context, 4096, 4096, nodes.data(), static_cast<int>(nodes.size()));
+            stbrp_pack_rects(&context, rects.data(), static_cast<int>(rects.size()));
+
+            uint32_t* pixels = new uint32_t[4096 * 4096];
+
+            uint32_t packedImageIndex = static_cast<uint32_t>(scene->packedImages.size());
+
+            for (stbrp_rect& rect : rects) {
+                if (!rect.was_packed)
+                    continue;
+
+                Texture* texture = scene->textures[rect.id];
+                assert(texture->width == rect.w);
+                assert(texture->height == rect.h);
+
+                texture->packedImageIndex = packedImageIndex;
+                texture->packedImageMinimum = {
+                    rect.x / float(ATLAS_WIDTH),
+                    rect.y / float(ATLAS_HEIGHT),
+                };
+                texture->packedImageMaximum = {
+                    (rect.x + rect.w) / float(ATLAS_WIDTH),
+                    (rect.y + rect.h) / float(ATLAS_HEIGHT),
+                };
+
+                for (uint32_t y = 0; y < texture->height; y++) {
+                    uint32_t const* src = texture->pixels + y * texture->width;
+                    uint32_t* dst = pixels + (rect.y + y) * ATLAS_WIDTH + rect.x;
+                    memcpy(dst, src, texture->width * sizeof(uint32_t));
+                }
+            }
+
+            PackedImage packed = {
+                .width = ATLAS_WIDTH,
+                .height = ATLAS_HEIGHT,
+                .pixels = pixels,
+            };
+            scene->packedImages.push_back(packed);
+
+            std::erase_if(rects, [](stbrp_rect& r) { return r.was_packed; });
+        }
+    }
+
+    // Pack materials.
+    {
+        for (Material* material : scene->materials) {
+            PackedMaterial packed;
+
+            packed.flags = 0;
+
+            material->packedMaterialIndex = static_cast<uint32_t>(scene->packedMaterials.size());
+
+            if (Texture* texture = material->baseColorTexture; texture) {
+                packed.baseColorTextureIndex = texture->packedImageIndex;
+                packed.baseColorTextureMinimum = texture->packedImageMinimum;
+                packed.baseColorTextureMaximum = texture->packedImageMaximum;
+                packed.flags |= MATERIAL_FLAG_BASE_COLOR_TEXTURE;
+            }
+
+            packed.baseColor = material->baseColor;
+            packed.emissionColor = material->emissionColor;
+            packed.metallic = material->metallic;
+            packed.roughness = material->roughness;
+            packed.refraction = material->refraction;
+            packed.refractionIndex = material->refractionIndex;
+
+            scene->packedMaterials.push_back(packed);
+        }
+    }
+
+    // Pack mesh face and node data.
+    {
+        uint32_t faceCount = 0;
+        uint32_t nodeCount = 0;
+        for (Mesh* mesh : scene->meshes) {
+            faceCount += static_cast<uint32_t>(mesh->faces.size());
+            nodeCount += static_cast<uint32_t>(mesh->nodes.size());
+        }
+
+        scene->packedMeshFaces.clear();
+        scene->packedMeshFaces.reserve(faceCount);
+        scene->packedMeshNodes.clear();
+        scene->packedMeshNodes.reserve(nodeCount);
+
+        for (Mesh* mesh : scene->meshes) {
+            uint32_t faceIndexBase = static_cast<uint32_t>(scene->packedMeshFaces.size());
+            uint32_t nodeIndexBase = static_cast<uint32_t>(scene->packedMeshNodes.size());
+
+            // Build the packed mesh faces.
+            for (MeshFace const& face : mesh->faces) {
+                PackedMeshFace packed;
+
+                packed.position = face.vertices[0];
+                packed.materialIndex = face.material->packedMaterialIndex;
+
+                glm::vec3 ab = face.vertices[1] - face.vertices[0];
+                glm::vec3 ac = face.vertices[2] - face.vertices[0];
+                glm::vec3 normal = glm::normalize(glm::cross(ab, ac));
+                float d = -glm::dot(normal, glm::vec3(packed.position));
+                packed.plane = glm::vec4(normal, d);
+
+                float bb = glm::dot(ab, ab);
+                float bc = glm::dot(ab, ac);
+                float cc = glm::dot(ac, ac);
+                float idet = 1.0f / (bb * cc - bc * bc);
+                packed.base1 = (ab * cc - ac * bc) * idet;
+                packed.base2 = (ac * bb - ab * bc) * idet;
+
+                packed.normals[0] = face.normals[0];
+                packed.normals[1] = face.normals[1];
+                packed.normals[2] = face.normals[2];
+
+                packed.uvs[0] = face.uvs[0];
+                packed.uvs[1] = face.uvs[1];
+                packed.uvs[2] = face.uvs[2];
+
+                scene->packedMeshFaces.push_back(packed);
+            }
+
+            // Build the packed mesh nodes.
+            for (MeshNode const& node : mesh->nodes) {
+                PackedMeshNode packed;
+
+                packed.minimum = node.minimum;
+                packed.maximum = node.maximum;
+
+                if (node.childNodeIndex > 0) {
+                    packed.faceBeginOrNodeIndex = nodeIndexBase + node.childNodeIndex;
+                    packed.faceEndIndex = 0;
+                }
+                else {
+                    packed.faceBeginOrNodeIndex = faceIndexBase + node.faceBeginIndex;
+                    packed.faceEndIndex = faceIndexBase + node.faceEndIndex;
+                }
+
+                scene->packedMeshNodes.push_back(packed);
+            }
+        }
+    }
+
+    // Pack object data.
+    {
+        scene->packedObjects.clear();
+        scene->packedObjects.reserve(scene->objects.size());
+
+        for (SceneObject* object : scene->objects) {
+            PackedSceneObject packed;
+
+            packed.type = object->type;
+
+            packed.objectToWorldMatrix
+                = glm::translate(glm::mat4(1), object->transform.position)
+                * glm::orientate4(object->transform.rotation);
+
+            packed.worldToObjectMatrix = glm::inverse(packed.objectToWorldMatrix);
+
+            packed.meshRootNodeIndex = 0;
+            packed.materialIndex = 0;
+
+            scene->packedObjects.push_back(packed);
+        }
+    }
 }
-
-void AddPlane(Scene* scene, glm::vec3 origin)
-{
-    scene->objects.push_back({
-        .type = OBJECT_TYPE_PLANE,
-    });
-}
-
-void AddSphere(Scene* scene, glm::vec3 origin, float radius)
-{
-    scene->objects.push_back({
-        .type = OBJECT_TYPE_SPHERE,
-    });
-}
-
-// ----------------------------------------------------------------------------
-
 
 static void IntersectMeshFace(Scene* scene, Ray ray, uint32_t meshFaceIndex, Hit& hit)
 {
-    MeshFace face = scene->meshFaces[meshFaceIndex];
+    PackedMeshFace face = scene->packedMeshFaces[meshFaceIndex];
 
     float r = glm::dot(face.plane.xyz(), ray.direction);
     if (r > -EPSILON && r < +EPSILON) return;
@@ -466,7 +575,7 @@ static void IntersectMeshFace(Scene* scene, Ray ray, uint32_t meshFaceIndex, Hit
     hit.primitiveIndex = meshFaceIndex;
 }
 
-static float IntersectMeshNodeBounds(Ray ray, float reach, MeshNode const& node)
+static float IntersectMeshNodeBounds(Ray ray, float reach, PackedMeshNode const& node)
 {
     // Compute ray time to the axis-aligned planes at the node bounding
     // box minimum and maximum corners.
@@ -500,12 +609,12 @@ static float IntersectMeshNodeBounds(Ray ray, float reach, MeshNode const& node)
     return entry;
 }
 
-static void IntersectMesh(Scene* scene, Ray const& ray, Object object, Hit& hit)
+static void IntersectMesh(Scene* scene, Ray const& ray, PackedSceneObject object, Hit& hit)
 {
     uint32_t stack[32];
     uint32_t depth = 0;
 
-    MeshNode node = scene->meshNodes[object.meshRootNodeIndex];
+    PackedMeshNode node = scene->packedMeshNodes[object.meshRootNodeIndex];
 
     while (true) {
         // Leaf node or internal?
@@ -518,12 +627,12 @@ static void IntersectMesh(Scene* scene, Ray const& ray, Object object, Hit& hit)
             // Internal node.
             // Load the first subnode as the node to be processed next.
             uint32_t index = node.faceBeginOrNodeIndex;
-            node = scene->meshNodes[index];
+            node = scene->packedMeshNodes[index];
             float time = IntersectMeshNodeBounds(ray, hit.time, node);
 
             // Also load the second subnode to see if it is closer.
             uint32_t indexB = index + 1;
-            MeshNode nodeB = scene->meshNodes[indexB];
+            PackedMeshNode nodeB = scene->packedMeshNodes[indexB];
             float timeB = IntersectMeshNodeBounds(ray, hit.time, nodeB);
 
             // If the second subnode is strictly closer than the first one,
@@ -554,13 +663,13 @@ static void IntersectMesh(Scene* scene, Ray const& ray, Object object, Hit& hit)
         if (depth == 0) break;
 
         // Pull a node from the stack.
-        node = scene->meshNodes[stack[--depth]];
+        node = scene->packedMeshNodes[stack[--depth]];
     }
 }
 
 static void IntersectObject(Scene* scene, Ray const& ray, uint32_t objectIndex, Hit& hit)
 {
-    Object object = scene->objects[objectIndex];
+    PackedSceneObject object = scene->packedObjects[objectIndex];
 
     if (object.type == OBJECT_TYPE_MESH) {
         IntersectMesh(scene, ray, object, hit);
@@ -598,7 +707,7 @@ static void IntersectObject(Scene* scene, Ray const& ray, uint32_t objectIndex, 
 static void Intersect(Scene* scene, Ray const& ray, Hit& hit)
 {
     for (uint32_t objectIndex = 0; objectIndex < scene->objects.size(); objectIndex++) {
-        Object& object = scene->objects[objectIndex];
+        PackedSceneObject& object = scene->packedObjects[objectIndex];
         Ray objectRay = TransformRay(ray, object.worldToObjectMatrix);
         IntersectObject(scene, objectRay, objectIndex, hit);
     }
