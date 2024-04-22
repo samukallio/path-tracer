@@ -17,6 +17,8 @@ add_executable (path-tracer
 	src/vulkan.cpp
 	src/scene.h
 	src/scene.cpp
+	src/ui.h
+	src/ui.cpp
 	src/tiny_obj_loader.h
 	src/stb_image.h
 	src/stb_rect_pack.h

@@ -2,10 +2,10 @@
 
 #include "vulkan.h"
 #include "scene.h"
+#include "ui.h"
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
-#include <misc/cpp/imgui_stdlib.h>
 
 int const WINDOW_WIDTH = 2048;
 int const WINDOW_HEIGHT = 1024;
@@ -25,24 +25,6 @@ struct EditorCamera
     glm::vec3       rotation;
 };
 
-enum SelectionType
-{
-    SELECTION_TYPE_NONE         = 0,
-    SELECTION_TYPE_TEXTURE      = 1,
-    SELECTION_TYPE_MATERIAL     = 2,
-    SELECTION_TYPE_MESH         = 3,
-    SELECTION_TYPE_ENTITY       = 4,
-};
-
-struct Selection
-{
-    SelectionType   type        = SELECTION_TYPE_NONE;
-    Texture*        texture     = nullptr;
-    Material*       material    = nullptr;
-    Mesh*           mesh        = nullptr;
-    Entity*         entity      = nullptr;
-};
-
 struct AppContext
 {
     GLFWwindow*     window = nullptr;
@@ -51,473 +33,14 @@ struct AppContext
     FrameState      frames[2];
     uint32_t        frameIndex = 0;
 
-    bool            accumulateSamples;
-
     EditorCamera    editorCamera;
-    Camera*         activeCamera;
 
-    Selection       selection;
+    UIContext       ui;
 
     double          mouseScrollPosition;
 };
 
-
-
 AppContext app;
-
-float RepeatRange(float value, float min, float max)
-{
-    float range = max - min;
-    return min + range * glm::fract((value + min) / range);
-}
-
-static bool ImGui_DragEulerAngles(const char* label, glm::vec3* angles)
-{
-    float degrees[3];
-    for (int k = 0; k < 3; k++)
-        degrees[k] = RepeatRange((*angles)[k], -PI, +PI) * (360 / TAU);
-    bool changed = ImGui::DragFloat3(label, degrees);
-    for (int k = 0; k < 3; k++)
-        (*angles)[k] = RepeatRange(degrees[k] * (TAU / 360), -PI, +PI);
-    return changed;
-}
-
-bool ShowResourcesWindow()
-{
-    bool c = false;
-
-    ImGui::Begin("Resources");
-
-    Selection& selection = app.selection;
-    Scene& scene = app.scene;
-
-    // Textures
-    {
-        auto getter = [](void* context, int index) {
-            auto scene = static_cast<Scene*>(context);
-            if (index < 0 || index >= scene->textures.size())
-                return "";
-            return scene->textures[index]->name.c_str();
-        };
-
-        int itemIndex = -1;
-        int itemCount = static_cast<int>(scene.textures.size());
-
-        if (selection.type == SELECTION_TYPE_TEXTURE) {
-            for (int k = 0; k < itemCount; k++)
-                if (scene.textures[k] == selection.texture)
-                    itemIndex = k;
-        }
-
-        if (ImGui::ListBox("Textures", &itemIndex, getter, &scene, itemCount, 6)) {
-            selection.type = SELECTION_TYPE_TEXTURE;
-            selection.texture = scene.textures[itemIndex];
-        }
-    }
-
-    // Materials
-    {
-        auto getter = [](void* context, int index) {
-            auto scene = static_cast<Scene*>(context);
-            if (index < 0 || index >= scene->materials.size())
-                return "";
-            return scene->materials[index]->name.c_str();
-        };
-
-        int itemIndex = -1;
-        int itemCount = static_cast<int>(scene.materials.size());
-
-        if (selection.type == SELECTION_TYPE_MATERIAL) {
-            for (int k = 0; k < itemCount; k++)
-                if (scene.materials[k] == selection.material)
-                    itemIndex = k;
-        }
-
-        if (ImGui::ListBox("Materials", &itemIndex, getter, &scene, itemCount, 6)) {
-            selection.type = SELECTION_TYPE_MATERIAL;
-            selection.material = scene.materials[itemIndex];
-        }
-    }
-
-    // Meshes
-    {
-        auto getter = [](void* context, int index) {
-            auto scene = static_cast<Scene*>(context);
-            if (index < 0 || index >= scene->meshes.size())
-                return "";
-            return scene->meshes[index]->name.c_str();
-        };
-
-        int itemIndex = -1;
-        int itemCount = static_cast<int>(scene.meshes.size());
-
-        if (selection.type == SELECTION_TYPE_MESH) {
-            for (int k = 0; k < itemCount; k++)
-                if (scene.meshes[k] == selection.mesh)
-                    itemIndex = k;
-        }
-
-        if (ImGui::ListBox("Meshes", &itemIndex, getter, &scene, itemCount, 6)) {
-            selection.type = SELECTION_TYPE_MESH;
-            selection.mesh = scene.meshes[itemIndex];
-        }
-    }
-
-    ImGui::End();
-
-    return c;
-}
-
-template<typename ResourceT>
-bool ResourceSelectorDropDown(
-    char const* label,
-    std::vector<ResourceT*>& resources,
-    ResourceT** resourcePtr)
-{
-    auto getter = [](void* context, int index) {
-        auto& resources = *static_cast<std::vector<ResourceT*>*>(context);
-        if (index <= 0)
-            return "(none)";
-        if (index > resources.size())
-            return "";
-        return resources[index-1]->name.c_str();
-    };
-
-    int itemIndex = 0;
-    int itemCount = static_cast<int>(resources.size()) + 1;
-
-    for (int k = 0; k < itemCount-1; k++)
-        if (resources[k] == *resourcePtr)
-            itemIndex = k + 1;
-
-    bool changed = ImGui::Combo(label, &itemIndex, getter, &resources, itemCount, 6);
-
-    if (changed) {
-        if (itemIndex == 0)
-            *resourcePtr = nullptr;
-        else
-            *resourcePtr = resources[itemIndex-1];
-    }
-
-    return changed;
-}
-
-bool TextureInspector(Texture* texture)
-{
-    Scene& scene = app.scene;
-
-    if (!texture) return false;
-
-    ImGui::PushID(texture);
-
-    ImGui::SeparatorText("Texture");
-
-    ImGui::InputText("Name", &texture->name);
-    ImGui::LabelText("Size", "%u x %u", texture->width, texture->height);
-
-    ImGui::PopID();
-
-    return false;
-}
-
-bool MaterialInspector(Material* material, bool referenced = false)
-{
-    Scene& scene = app.scene;
-
-    if (!material) return false;
-
-    ImGui::PushID(material);
-
-    if (referenced) {
-        char title[256];
-        snprintf(title, 256, "Material: %s", material->name.c_str());
-        ImGui::SeparatorText(title);
-    }
-    else {
-        ImGui::SeparatorText("Material");
-        ImGui::InputText("Name", &material->name);
-    }
-
-    bool c = false;
-    c |= ImGui::ColorEdit3("Base Color", &material->baseColor[0]);
-    c |= ResourceSelectorDropDown("Base Color Texture", scene.textures, &material->baseColorTexture);
-    c |= ImGui::ColorEdit3("Emission Color", &material->emissionColor[0]);
-    c |= ImGui::DragFloat("Emission Power", &material->emissionPower, 1.0f, 0.0f, 100.0f);
-    c |= ResourceSelectorDropDown("Emission Color Texture", scene.textures, &material->emissionColorTexture);
-    c |= ImGui::DragFloat("Metallic", &material->metallic, 0.01f, 0.0f, 1.0f);
-    c |= ResourceSelectorDropDown("Metallic Texture", scene.textures, &material->metallicTexture);
-    c |= ImGui::DragFloat("Roughness", &material->roughness, 0.01f, 0.0f, 1.0f);
-    c |= ResourceSelectorDropDown("Roughness Texture", scene.textures, &material->roughnessTexture);
-    c |= ImGui::DragFloat("Refraction Probability", &material->refraction, 0.01f, 0.0f, 1.0f);
-    c |= ImGui::DragFloat("Refraction Index", &material->refractionIndex, 0.001f, 2.0f);
-    if (c) scene.dirtyFlags |= SCENE_DIRTY_MATERIALS;
-
-    ImGui::PopID();
-
-    return c;
-}
-
-bool MeshInspector(Mesh* mesh, bool referenced = false)
-{
-    Scene& scene = app.scene;
-
-    if (!mesh) return false;
-
-    ImGui::PushID(mesh);
-
-    if (referenced) {
-        char title[256];
-        snprintf(title, 256, "Mesh: %s", mesh->name.c_str());
-        ImGui::SeparatorText(title);
-    }
-    else {
-        ImGui::SeparatorText("Mesh");
-        ImGui::InputText("Name", &mesh->name);
-    }
-
-    bool c = false;
-
-    for (size_t k = 0; k < mesh->materials.size(); k++) {
-        ImGui::PushID(static_cast<int>(k));
-
-        char title[32];
-        sprintf_s(title, "Material %llu", k);
-        c |= ResourceSelectorDropDown(title, scene.materials, &mesh->materials[k]);
-
-        ImGui::Spacing();
-        MaterialInspector(mesh->materials[k], true);
-
-        ImGui::PopID();
-    }
-
-    if (c) scene.dirtyFlags |= SCENE_DIRTY_MESHES;
-
-    ImGui::PopID();
-
-    return c;
-}
-
-bool CameraInspector(Camera* camera)
-{
-    bool c = false;
-
-    ImGui::SeparatorText("General");
-
-    c |= ImGui::Checkbox("Accumulate Samples", &app.accumulateSamples);
-
-    if (app.activeCamera == camera) {
-        bool active = true;
-        ImGui::Checkbox("Possess", &active);
-        if (!active) app.activeCamera = nullptr;
-    }
-    else {
-        bool active = false;
-        ImGui::Checkbox("Possess", &active);
-        if (active) app.activeCamera = camera;
-    }
-    
-
-    //c |= ImGui::DragFloat3("Position", &camera->position[0], 0.1f);
-    //c |= ImGui_DragEulerAngles("Rotation", &camera->rotation);
-
-    ImGui::SeparatorText("Render Mode");
-    c |= ImGui::RadioButton("Path Tracing", (int*)&camera->renderMode, RENDER_MODE_PATH_TRACE);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("Base Color", (int*)&camera->renderMode, RENDER_MODE_BASE_COLOR);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("Normal", (int*)&camera->renderMode, RENDER_MODE_NORMAL);
-    c |= ImGui::RadioButton("Material ID", (int*)&camera->renderMode, RENDER_MODE_MATERIAL_INDEX);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("Primitive ID", (int*)&camera->renderMode, RENDER_MODE_PRIMITIVE_INDEX);
-
-    int bounceLimit = static_cast<int>(camera->bounceLimit);
-    c |= ImGui::InputInt("Bounce Limit", &bounceLimit);
-    camera->bounceLimit = std::max(1, bounceLimit);
-
-    // Tone mapping operators.  Note that since tone mapping happens as
-    // a post-process operation, there is no need to reset the accumulated
-    // samples.
-    ImGui::SeparatorText("Tone Mapping");
-    ImGui::RadioButton("Clamp", (int*)&camera->toneMappingMode, TONE_MAPPING_MODE_CLAMP);
-    ImGui::SameLine();
-    ImGui::RadioButton("Reinhard", (int*)&camera->toneMappingMode, TONE_MAPPING_MODE_REINHARD);
-    ImGui::SameLine();
-    ImGui::RadioButton("Hable", (int*)&camera->toneMappingMode, TONE_MAPPING_MODE_HABLE);
-    ImGui::RadioButton("ACES", (int*)&camera->toneMappingMode, TONE_MAPPING_MODE_ACES);
-
-    if (camera->toneMappingMode == TONE_MAPPING_MODE_REINHARD) {
-        ImGui::SliderFloat("White Level", &camera->toneMappingWhiteLevel, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-    }
-
-    ImGui::SeparatorText("Camera");
-    c |= ImGui::RadioButton("Pinhole", (int*)&camera->model, CAMERA_MODEL_PINHOLE);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("Thin Lens", (int*)&camera->model, CAMERA_MODEL_THIN_LENS);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("360", (int*)&camera->model, CAMERA_MODEL_360);
-
-    if (camera->model == CAMERA_MODEL_PINHOLE) {
-    }
-
-    if (camera->model == CAMERA_MODEL_THIN_LENS) {
-        c |= ImGui::SliderFloat("Focal Length (mm)", &camera->focalLengthInMM, 1.0f, 50.0f);
-        c |= ImGui::SliderFloat("Aperture Radius (mm)", &camera->apertureRadiusInMM, 0.01f, 100.0f);
-        c |= ImGui::SliderFloat("Focus Distance", &camera->focusDistance, 0.01f, 1000.0f,  "%.3f", ImGuiSliderFlags_Logarithmic);
-    }
-    
-    return c;
-}
-
-bool EntityInspector(Entity* entity)
-{
-    Scene& scene = app.scene;
-
-    if (!entity) return false;
-
-    ImGui::PushID(entity);
-
-    switch (entity->type) {
-        case ENTITY_TYPE_ROOT:
-            ImGui::SeparatorText("Scene Root");
-            break;
-        case ENTITY_TYPE_CAMERA:
-            ImGui::SeparatorText("Camera");
-            break;
-        case ENTITY_TYPE_MESH_INSTANCE:
-            ImGui::SeparatorText("Mesh Instance");
-            break;
-        case ENTITY_TYPE_PLANE:
-            ImGui::SeparatorText("Plane");
-            break;
-        case ENTITY_TYPE_SPHERE:
-            ImGui::SeparatorText("Sphere");
-            break;
-        default:
-            ImGui::SeparatorText("(unknown)");
-            break;
-    }
-
-    bool c = false;
-
-    if (entity->type != ENTITY_TYPE_ROOT) {
-        ImGui::InputText("Name", &entity->name);
-
-        Transform& transform = entity->transform;
-        c |= ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
-        c |= ImGui_DragEulerAngles("Rotation", &transform.rotation);
-
-        if (entity->type != ENTITY_TYPE_CAMERA) {
-            c |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.01f);
-        }
-    }
-
-    switch (entity->type) {
-        case ENTITY_TYPE_ROOT: {
-            auto root = static_cast<Root*>(entity);
-            ImGui::DragFloat("Scattering Rate", &root->scatterRate, 0.001f, 0.00001f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-            break;
-        }
-        case ENTITY_TYPE_CAMERA: {
-            CameraInspector(static_cast<Camera*>(entity));
-            break;
-        }
-        case ENTITY_TYPE_MESH_INSTANCE: {
-            auto instance = static_cast<MeshInstance*>(entity);
-            c |= ResourceSelectorDropDown("Mesh", scene.meshes, &instance->mesh);
-            ImGui::Spacing();
-            MeshInspector(instance->mesh, true);
-            break;
-        }
-        case ENTITY_TYPE_PLANE: {
-            auto plane = static_cast<Plane*>(entity);
-            c |= ResourceSelectorDropDown("Material", scene.materials, &plane->material);
-            ImGui::Spacing();
-            MaterialInspector(plane->material, true);
-            break;
-        }
-        case ENTITY_TYPE_SPHERE: {
-            auto sphere = static_cast<Sphere*>(entity);
-            c |= ResourceSelectorDropDown("Material", scene.materials, &sphere->material);
-            ImGui::Spacing();
-            MaterialInspector(sphere->material, true);
-            break;
-        }
-    }
-
-    if (c) scene.dirtyFlags |= SCENE_DIRTY_OBJECTS;
-
-    ImGui::PopID();
-
-    return c;
-}
-
-void EntityTreeNode(Entity* entity)
-{
-    Selection& selection = app.selection;
-
-    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnDoubleClick;
-
-    if (entity->children.empty())
-        flags |= ImGuiTreeNodeFlags_Leaf;
-
-    if (entity->type == ENTITY_TYPE_ROOT)
-        flags |= ImGuiTreeNodeFlags_DefaultOpen;
-
-    if (selection.type == SELECTION_TYPE_ENTITY && selection.entity == entity)
-        flags |= ImGuiTreeNodeFlags_Selected;
-
-    if (ImGui::TreeNodeEx(entity->name.c_str(), flags)) {
-        if (ImGui::IsItemClicked()) {
-            selection.type = SELECTION_TYPE_ENTITY;
-            selection.entity = entity;
-        }
-
-        for (Entity* child : entity->children)
-            EntityTreeNode(child);
-
-        ImGui::TreePop();
-    }
-}
-
-void ShowSceneHierarchyWindow()
-{
-    Scene& scene = app.scene;
-
-    ImGui::Begin("Scene Hierarchy");
-
-    EntityTreeNode(&scene.root);
-
-    ImGui::End();
-}
-
-bool ShowInspectorWindow()
-{
-    bool c = false;
-
-    ImGui::Begin("Inspector");
-
-    Scene& scene = app.scene;
-    Selection& selection = app.selection;
-
-    switch (selection.type) {
-        case SELECTION_TYPE_TEXTURE:
-            TextureInspector(selection.texture);
-            break;
-        case SELECTION_TYPE_MATERIAL:
-            MaterialInspector(selection.material);
-            break;
-        case SELECTION_TYPE_MESH:
-            MeshInspector(selection.mesh);
-            break;
-        case SELECTION_TYPE_ENTITY:
-            EntityInspector(selection.entity);
-            break;
-    }
-
-    ImGui::End();
-
-    return c;
-}
 
 void Frame()
 {
@@ -535,8 +58,6 @@ void Frame()
     ImGuiIO& imGuiIO = ImGui::GetIO();
 
     // ImGui.
-    bool editorCameraChanged = false;
-    bool renderCameraChanged = false;
     {
         bool c = false;
 
@@ -555,22 +76,21 @@ void Frame()
 
         ImGui::ShowDemoWindow();
 
-        ShowInspectorWindow();
-        ShowResourcesWindow();
-        ShowSceneHierarchyWindow();
+        ShowInspectorWindow(&app.ui);
+        ShowResourcesWindow(&app.ui);
+        ShowSceneHierarchyWindow(&app.ui);
 
         ImGui::EndFrame();
         ImGui::Render();
     }
 
     // Handle camera movement.
-    bool cameraMoved = false;
     {
-        bool editing = !app.activeCamera;
-        glm::vec3& position = editing ? app.editorCamera.position : app.activeCamera->transform.position;
-        glm::vec3& velocity = editing ? app.editorCamera.velocity : app.activeCamera->velocity;
-        glm::vec3& rotation = editing ? app.editorCamera.rotation : app.activeCamera->transform.rotation;
-        bool changed = editing ? editorCameraChanged : renderCameraChanged;
+        bool editing = !app.ui.camera;
+        glm::vec3& position = editing ? app.editorCamera.position : app.ui.camera->transform.position;
+        glm::vec3& velocity = editing ? app.editorCamera.velocity : app.ui.camera->velocity;
+        glm::vec3& rotation = editing ? app.editorCamera.rotation : app.ui.camera->transform.rotation;
+        bool changed = false;
 
         glm::vec3 forward = glm::quat(rotation) * glm::vec3(1, 0, 0);
 
@@ -603,17 +123,11 @@ void Frame()
         if (glm::length(velocity) < 1e-2f)
             velocity = glm::vec3(0);
 
-        if (changed) cameraMoved = true;
-    }
-
-    if (app.activeCamera) {
-        app.editorCamera.position = app.activeCamera->transform.position;
-        app.editorCamera.rotation = app.activeCamera->transform.rotation;
-
-        if (cameraMoved)
-            renderCameraChanged = true;
-        if (app.scene.dirtyFlags != 0)
-            renderCameraChanged = true;
+        if (changed && app.ui.camera) {
+            app.scene.dirtyFlags |= SCENE_DIRTY_CAMERAS;
+            app.editorCamera.position = app.ui.camera->transform.position;
+            app.editorCamera.rotation = app.ui.camera->transform.rotation;
+        }
     }
 
     FrameUniformBuffer uniforms = {
@@ -621,7 +135,7 @@ void Frame()
         .sceneScatterRate = app.scene.root.scatterRate,
     };
 
-    if (!app.activeCamera) {
+    if (!app.ui.camera) {
         EditorCamera& camera = app.editorCamera;
 
         glm::vec3 forward = glm::quat(camera.rotation) * glm::vec3(1, 0, 0);
@@ -650,10 +164,10 @@ void Frame()
 
             Hit hit;
             if (Trace(&app.scene, ray, hit)) {
-                app.selection.type = SELECTION_TYPE_ENTITY;
+                app.ui.selectionType = SELECTION_TYPE_ENTITY;
                 for (Entity* entity : app.scene.root.children)
                     if (entity->packedObjectIndex == hit.objectIndex)
-                        app.selection.entity = entity;
+                        app.ui.entity = entity;
             }
         }
 
@@ -668,13 +182,13 @@ void Frame()
         uniforms.toneMappingMode = TONE_MAPPING_MODE_CLAMP;
         uniforms.toneMappingWhiteLevel = 1.0f;
 
-        if (app.selection.type == SELECTION_TYPE_ENTITY)
-            uniforms.highlightObjectIndex = app.selection.entity->packedObjectIndex;
+        if (app.ui.selectionType == SELECTION_TYPE_ENTITY)
+            uniforms.highlightObjectIndex = app.ui.entity->packedObjectIndex;
         else
             uniforms.highlightObjectIndex = 0xFFFFFFFF;
     }
     else {
-        Camera* camera = app.activeCamera;
+        Camera* camera = app.ui.camera;
 
         float sensorDistance = 1.0f / (1000.0f / camera->focalLengthInMM - 1.0f / camera->focusDistance);
 
@@ -693,12 +207,11 @@ void Frame()
         uniforms.highlightObjectIndex = 0xFFFFFFFF;
         uniforms.renderFlags = RENDER_FLAG_SAMPLE_JITTER;
 
-        uniforms.renderBounceLimit = app.activeCamera->bounceLimit;
-        uniforms.toneMappingMode = app.activeCamera->toneMappingMode;
-        uniforms.toneMappingWhiteLevel = app.activeCamera->toneMappingWhiteLevel;
+        uniforms.renderBounceLimit = app.ui.camera->bounceLimit;
+        uniforms.toneMappingMode = app.ui.camera->toneMappingMode;
+        uniforms.toneMappingWhiteLevel = app.ui.camera->toneMappingWhiteLevel;
 
-
-        if (app.accumulateSamples && !renderCameraChanged)
+        if (camera->accumulateSamples && app.scene.dirtyFlags == 0)
             uniforms.renderFlags |= RENDER_FLAG_ACCUMULATE;
     }
 
@@ -870,7 +383,8 @@ int main()
 {
     Scene& scene = app.scene;
 
-    app.activeCamera = nullptr;
+    app.ui.camera = nullptr;
+    app.ui.scene = &app.scene;
 
     scene.root.name = "Root";
 

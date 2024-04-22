@@ -183,3 +183,9 @@ struct Hit
     uint32_t                    objectIndex;
     uint32_t                    primitiveIndex;
 };
+
+inline float RepeatRange(float value, float min, float max)
+{
+    float range = max - min;
+    return min + range * glm::fract((value + min) / range);
+}

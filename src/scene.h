@@ -90,6 +90,7 @@ struct Camera : Entity
     RenderMode                      renderMode;
     uint32_t                        bounceLimit;
 
+    bool                            accumulateSamples;
     ToneMappingMode                 toneMappingMode;
     float                           toneMappingWhiteLevel;
 
@@ -150,6 +151,7 @@ enum SceneDirtyFlag
     SCENE_DIRTY_MATERIALS           = 1 << 2,
     SCENE_DIRTY_OBJECTS             = 1 << 3,
     SCENE_DIRTY_MESHES              = 1 << 4,
+    SCENE_DIRTY_CAMERAS             = 1 << 5,
     SCENE_DIRTY_ALL                 = 0xFFFFFFFF,
 };
 
