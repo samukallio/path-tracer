@@ -244,7 +244,24 @@ static void EntityInspector(UIContext* context, Entity* entity)
         c |= DragEulerAngles("Rotation", &transform.rotation);
 
         if (entity->type != ENTITY_TYPE_CAMERA) {
-            c |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.01f);
+            glm::vec3 scale = transform.scale;
+            if (ImGui::DragFloat3("Scale", &scale[0], 0.01f)) {
+                if (transform.scaleIsUniform) {
+                    for (int i = 0; i < 3; i++) {
+                        if (scale[i] == transform.scale[i])
+                            continue;
+                        scale = glm::vec3(1) * scale[i];
+                        break;
+                    }
+                }
+                c = true;
+            }
+            if (ImGui::Checkbox("Scale Uniform", &transform.scaleIsUniform)) {
+                if (transform.scaleIsUniform)
+                    scale = glm::vec3(1) * glm::pow(scale.x * scale.y * scale.z, 1.f/3);
+                c = true;
+            }
+            transform.scale = scale;
         }
     }
 
