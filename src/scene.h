@@ -91,7 +91,7 @@ struct Camera : Entity
     ToneMappingMode                 toneMappingMode;
     float                           toneMappingWhiteLevel;
 
-    CameraType                      type;
+    CameraModel                     model;
     glm::vec3                       velocity;
     float                           focalLengthInMM;
     float                           apertureRadiusInMM;

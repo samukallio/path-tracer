@@ -18,9 +18,9 @@ const uint TONE_MAPPING_MODE_REINHARD       = 1;
 const uint TONE_MAPPING_MODE_HABLE          = 2;
 const uint TONE_MAPPING_MODE_ACES           = 3;
 
-const uint CAMERA_TYPE_PINHOLE              = 0;
-const uint CAMERA_TYPE_THIN_LENS            = 1;
-const uint CAMERA_TYPE_360                  = 2;
+const uint CAMERA_MODEL_PINHOLE             = 0;
+const uint CAMERA_MODEL_THIN_LENS           = 1;
+const uint CAMERA_MODEL_360                 = 2;
 
 const uint OBJECT_TYPE_MESH_INSTANCE        = 0;
 const uint OBJECT_TYPE_PLANE                = 1;
@@ -36,7 +36,7 @@ uniform FrameUniformBuffer
 {
     uint            frameRandomSeed;
     uint            sceneObjectCount;
-    uint            cameraType;
+    uint            cameraModel;
     float           cameraFocalLength;
     float           cameraApertureRadius;
     float           cameraSensorDistance;

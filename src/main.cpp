@@ -364,16 +364,16 @@ bool CameraInspector(Camera* camera)
     }
 
     ImGui::SeparatorText("Camera");
-    c |= ImGui::RadioButton("Pinhole", (int*)&camera->type, CAMERA_TYPE_PINHOLE);
+    c |= ImGui::RadioButton("Pinhole", (int*)&camera->model, CAMERA_MODEL_PINHOLE);
     ImGui::SameLine();
-    c |= ImGui::RadioButton("Thin Lens", (int*)&camera->type, CAMERA_TYPE_THIN_LENS);
+    c |= ImGui::RadioButton("Thin Lens", (int*)&camera->model, CAMERA_MODEL_THIN_LENS);
     ImGui::SameLine();
-    c |= ImGui::RadioButton("360", (int*)&camera->type, CAMERA_TYPE_360);
+    c |= ImGui::RadioButton("360", (int*)&camera->model, CAMERA_MODEL_360);
 
-    if (camera->type == CAMERA_TYPE_PINHOLE) {
+    if (camera->model == CAMERA_MODEL_PINHOLE) {
     }
 
-    if (camera->type == CAMERA_TYPE_THIN_LENS) {
+    if (camera->model == CAMERA_MODEL_THIN_LENS) {
         c |= ImGui::SliderFloat("Focal Length (mm)", &camera->focalLengthInMM, 1.0f, 50.0f);
         c |= ImGui::SliderFloat("Aperture Radius (mm)", &camera->apertureRadiusInMM, 0.01f, 100.0f);
         c |= ImGui::SliderFloat("Focus Distance", &camera->focusDistance, 0.01f, 1000.0f,  "%.3f", ImGuiSliderFlags_Logarithmic);
@@ -670,7 +670,7 @@ void Frame()
         }
 
         uniforms.renderMode = RENDER_MODE_EDIT;
-        uniforms.cameraType = CAMERA_TYPE_PINHOLE;
+        uniforms.cameraModel = CAMERA_MODEL_PINHOLE;
         uniforms.cameraSensorDistance = 0.020f;
         uniforms.cameraSensorSize = { 0.032f, 0.018f };
         uniforms.cameraWorldMatrix = glm::inverse(viewMatrix);
@@ -696,7 +696,7 @@ void Frame()
         glm::mat4 worldMatrix = glm::inverse(viewMatrix);
 
         uniforms.renderMode = camera->renderMode;
-        uniforms.cameraType = camera->type;
+        uniforms.cameraModel = camera->model;
         uniforms.cameraFocalLength = camera->focalLengthInMM / 1000.0f;
         uniforms.cameraApertureRadius = camera->apertureRadiusInMM / 1000.0f;
         uniforms.cameraSensorDistance = sensorDistance;
@@ -938,7 +938,7 @@ int main()
     auto camera = new Camera;
     camera->name = "Camera";
     camera->renderMode = RENDER_MODE_NORMAL;
-    camera->type = CAMERA_TYPE_PINHOLE;
+    camera->model = CAMERA_MODEL_PINHOLE;
     camera->transform.position = { 0, 0, 0 };
     camera->transform.rotation = { 0, 0, 0 };
     camera->velocity = { 0, 0, 0 };

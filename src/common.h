@@ -41,11 +41,11 @@ enum ToneMappingMode : int32_t
     TONE_MAPPING_MODE_ACES              = 3,
 };
 
-enum CameraType : int32_t
+enum CameraModel : int32_t
 {
-    CAMERA_TYPE_PINHOLE                 = 0,
-    CAMERA_TYPE_THIN_LENS               = 1,
-    CAMERA_TYPE_360                     = 2,
+    CAMERA_MODEL_PINHOLE                = 0,
+    CAMERA_MODEL_THIN_LENS              = 1,
+    CAMERA_MODEL_360                    = 2,
 };
 
 enum ObjectType : int32_t
@@ -140,7 +140,7 @@ struct FrameUniformBuffer
 {
     uint32_t                    frameRandomSeed             = 0;
     uint32_t                    sceneObjectCount            = 0;
-    CameraType                  cameraType                  = CAMERA_TYPE_THIN_LENS;
+    CameraModel                 cameraModel                 = CAMERA_MODEL_THIN_LENS;
     float                       cameraFocalLength           = 0.020f;
     float                       cameraApertureRadius        = 0.040f;
     float                       cameraSensorDistance        = 0.0202f;

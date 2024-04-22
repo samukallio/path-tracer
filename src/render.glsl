@@ -493,7 +493,7 @@ void main()
 
     Ray ray;
 
-    if (cameraType == CAMERA_TYPE_PINHOLE) {
+    if (cameraModel == CAMERA_MODEL_PINHOLE) {
         vec3 sensorPositionNormalized = vec3(
             -cameraSensorSize.x * (samplePositionNormalized.x - 0.5),
             -cameraSensorSize.y * (0.5 - samplePositionNormalized.y),
@@ -503,7 +503,7 @@ void main()
         ray.direction = normalize(-sensorPositionNormalized);
     }
 
-    if (cameraType == CAMERA_TYPE_THIN_LENS) {
+    if (cameraModel == CAMERA_MODEL_THIN_LENS) {
         vec3 sensorPosition = vec3(
             -cameraSensorSize.x * (samplePositionNormalized.x - 0.5),
             -cameraSensorSize.y * (0.5 - samplePositionNormalized.y),
@@ -515,7 +515,7 @@ void main()
         ray.direction = normalize(objectPosition - ray.origin);
     }
 
-    if (cameraType == CAMERA_TYPE_360) {
+    if (cameraModel == CAMERA_MODEL_360) {
         float phi = (samplePositionNormalized.x - 0.5f) * TAU;
         float theta = (0.5f - samplePositionNormalized.y) * PI;
 
