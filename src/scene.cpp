@@ -588,20 +588,23 @@ uint32_t BakeSceneData(Scene* scene)
 
             switch (entity->type) {
                 case ENTITY_TYPE_MESH_INSTANCE: {
-                    if (!entity->mesh) continue;
-                    packed.meshRootNodeIndex = entity->mesh->packedRootNodeIndex;
+                    auto instance = static_cast<MeshInstance*>(entity);
+                    if (!instance->mesh) continue;
+                    packed.meshRootNodeIndex = instance->mesh->packedRootNodeIndex;
                     packed.type = OBJECT_TYPE_MESH_INSTANCE;
                     break;
                 }
                 case ENTITY_TYPE_PLANE: {
-                    if (entity->material)
-                        packed.materialIndex = entity->material->packedMaterialIndex;
+                    auto plane = static_cast<Plane*>(entity);
+                    if (plane->material)
+                        packed.materialIndex = plane->material->packedMaterialIndex;
                     packed.type = OBJECT_TYPE_PLANE;
                     break;
                 }
                 case ENTITY_TYPE_SPHERE: {
-                    if (entity->material)
-                        packed.materialIndex = entity->material->packedMaterialIndex;
+                    auto sphere = static_cast<Sphere*>(entity);
+                    if (sphere->material)
+                        packed.materialIndex = sphere->material->packedMaterialIndex;
                     packed.type = OBJECT_TYPE_SPHERE;
                     break;
                 }

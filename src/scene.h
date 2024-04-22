@@ -74,10 +74,8 @@ struct Entity
     std::string                     name;
     EntityType                      type;
     Transform                       transform;
-    Material*                       material;
-    Mesh*                           mesh;
-    uint32_t                        packedObjectIndex;
     std::vector<Entity*>            children;
+    uint32_t                        packedObjectIndex;
 };
 
 struct Root : Entity
@@ -86,17 +84,40 @@ struct Root : Entity
 
 struct Camera : Entity
 {
-    RenderMode      renderMode;
-    uint32_t        bounceLimit;
+    RenderMode                      renderMode;
+    uint32_t                        bounceLimit;
 
-    ToneMappingMode toneMappingMode;
-    float           toneMappingWhiteLevel;
+    ToneMappingMode                 toneMappingMode;
+    float                           toneMappingWhiteLevel;
 
-    CameraType      type;
-    glm::vec3       velocity;
-    float           focalLengthInMM;
-    float           apertureRadiusInMM;
-    float           focusDistance;
+    CameraType                      type;
+    glm::vec3                       velocity;
+    float                           focalLengthInMM;
+    float                           apertureRadiusInMM;
+    float                           focusDistance;
+
+    Camera() { ((Entity*)this)->type = ENTITY_TYPE_CAMERA; }
+};
+
+struct MeshInstance : Entity
+{
+    Mesh*                           mesh = nullptr;
+
+    MeshInstance() { type = ENTITY_TYPE_MESH_INSTANCE; }
+};
+
+struct Plane : Entity
+{
+    Material*                       material = nullptr;
+
+    Plane() { type = ENTITY_TYPE_PLANE; }
+};
+
+struct Sphere : Entity
+{
+    Material*                       material = nullptr;
+
+    Sphere() { type = ENTITY_TYPE_SPHERE; }
 };
 
 struct Scene

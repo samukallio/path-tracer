@@ -434,16 +434,24 @@ bool EntityInspector(Entity* entity)
             break;
         }
         case ENTITY_TYPE_MESH_INSTANCE: {
-            c |= ResourceSelectorDropDown("Mesh", scene.meshes, &entity->mesh);
+            auto instance = static_cast<MeshInstance*>(entity);
+            c |= ResourceSelectorDropDown("Mesh", scene.meshes, &instance->mesh);
             ImGui::Spacing();
-            MeshInspector(entity->mesh, true);
+            MeshInspector(instance->mesh, true);
             break;
         }
-        case ENTITY_TYPE_PLANE:
-        case ENTITY_TYPE_SPHERE: {
-            c |= ResourceSelectorDropDown("Material", scene.materials, &entity->material);
+        case ENTITY_TYPE_PLANE: {
+            auto plane = static_cast<Plane*>(entity);
+            c |= ResourceSelectorDropDown("Material", scene.materials, &plane->material);
             ImGui::Spacing();
-            MaterialInspector(entity->material, true);
+            MaterialInspector(plane->material, true);
+            break;
+        }
+        case ENTITY_TYPE_SPHERE: {
+            auto sphere = static_cast<Sphere*>(entity);
+            c |= ResourceSelectorDropDown("Material", scene.materials, &sphere->material);
+            ImGui::Spacing();
+            MaterialInspector(sphere->material, true);
             break;
         }
     }
@@ -887,38 +895,23 @@ int main()
     options.defaultMaterial = material;
     Mesh* mesh = LoadModel(&scene, "../scene/viking_room.obj", &options);
 
-    scene.root.children.push_back(new Entity {
-        .name = "room",
-        .type = ENTITY_TYPE_MESH_INSTANCE,
-        .transform = {
-            .position = glm::vec3(0, 0, 0),
-            .rotation = glm::vec3(0, 0, 0),
-        },
-        .mesh = mesh,
-    });
+    auto room = new MeshInstance;
+    room->name = "Room";
+    room->mesh = mesh;
+    scene.root.children.push_back(room);
 
     Material* glass = CreateMaterial(&scene, "glass");
     glass->refraction = 1.0f;
     glass->refractionIndex = 1.5f;
 
-    scene.root.children.push_back(new Entity {
-        .name = "sphere",
-        .type = ENTITY_TYPE_SPHERE,
-        .transform = {
-            .position = glm::vec3(0, 0, 0),
-            .rotation = glm::vec3(0, 0, 0),
-        },
-        .material = glass,
-    });
+    auto sphere = new Sphere;
+    sphere->name = "Sphere";
+    sphere->material = glass;
+    scene.root.children.push_back(sphere);
 
-    scene.root.children.push_back(new Entity {
-        .name = "plane",
-        .type = ENTITY_TYPE_PLANE,
-        .transform = {
-            .position = glm::vec3(0, 0, 0),
-            .rotation = glm::vec3(0, 0, 0),
-        },
-    });
+    auto plane = new Plane;
+    plane->name = "Plane";
+    scene.root.children.push_back(plane);
 
     BakeSceneData(&scene);
     LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
