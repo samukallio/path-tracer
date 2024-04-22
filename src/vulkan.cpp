@@ -2177,7 +2177,7 @@ static void InternalUpdateSceneDataDescriptors(
 VkResult UploadScene(
     VulkanContext* vulkan,
     Scene const* scene,
-    uint32_t flags)
+    uint32_t dirtyFlags)
 {
     VkResult result = VK_SUCCESS;
 
@@ -2194,7 +2194,7 @@ VkResult UploadScene(
     VulkanBuffer meshFaceBufferOld = {};
     VulkanBuffer meshNodeBufferOld = {};
 
-    if (flags & UPLOAD_SKYBOX) {
+    if (dirtyFlags & SCENE_DIRTY_SKYBOX) {
         skyboxImageOld = vulkan->skyboxImage;
         vulkan->skyboxImage = VulkanImage {};
 
@@ -2219,7 +2219,7 @@ VkResult UploadScene(
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
     }
 
-    if (flags & UPLOAD_TEXTURE_DATA) {
+    if (dirtyFlags & SCENE_DIRTY_TEXTURES) {
         textureArrayOld = vulkan->textureArray;
         vulkan->textureArray = VulkanImage {};
 
@@ -2261,7 +2261,7 @@ VkResult UploadScene(
         }
     }
 
-    if (flags & UPLOAD_MATERIAL_DATA) {
+    if (dirtyFlags & SCENE_DIRTY_MATERIALS) {
         materialBufferOld = vulkan->materialBuffer;
         vulkan->materialBuffer = VulkanBuffer {};
 
@@ -2275,7 +2275,7 @@ VkResult UploadScene(
         InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->materialBuffer, scene->packedMaterials.data(), materialBufferSize);
     }
 
-    if (flags & UPLOAD_OBJECT_DATA) {
+    if (dirtyFlags & SCENE_DIRTY_OBJECTS) {
         size_t objectBufferSize = sizeof(PackedSceneObject) * scene->packedObjects.size();
         if (objectBufferSize > vulkan->objectBuffer.size) {
             objectBufferOld = vulkan->objectBuffer;
@@ -2292,7 +2292,7 @@ VkResult UploadScene(
         InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->objectBuffer, scene->packedObjects.data(), objectBufferSize);
     }
 
-    if (flags & UPLOAD_MESH_DATA) {
+    if (dirtyFlags & SCENE_DIRTY_MESHES) {
         meshFaceBufferOld = vulkan->meshFaceBuffer;
         vulkan->meshFaceBuffer = VulkanBuffer {};
         meshNodeBufferOld = vulkan->meshNodeBuffer;

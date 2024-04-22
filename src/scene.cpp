@@ -63,6 +63,8 @@ Texture* LoadTexture(Scene* scene, char const* path)
     };
     scene->textures.push_back(texture);
 
+    scene->dirtyFlags |= SCENE_DIRTY_TEXTURES;
+
     return texture;
 }
 
@@ -71,6 +73,9 @@ Material* CreateMaterial(Scene* scene, char const* name)
     auto material = new Material;
     material->name = name;
     scene->materials.push_back(material);
+
+    scene->dirtyFlags |= SCENE_DIRTY_MATERIALS;
+
     return material;
 }
 
@@ -351,6 +356,9 @@ Mesh* LoadModel(Scene* scene, char const* path, LoadModelOptions* options)
 
     scene->meshes.push_back(mesh);
 
+    scene->dirtyFlags |= SCENE_DIRTY_MATERIALS;
+    scene->dirtyFlags |= SCENE_DIRTY_MESHES;
+
     return mesh;
 }
 
@@ -362,13 +370,17 @@ bool LoadSkybox(Scene* scene, char const* path)
     scene->skyboxWidth = static_cast<uint32_t>(width);
     scene->skyboxHeight = static_cast<uint32_t>(height);
 
+    scene->dirtyFlags |= SCENE_DIRTY_SKYBOX;
+
     return true;
 }
 
-void BakeSceneData(Scene* scene)
+uint32_t BakeSceneData(Scene* scene)
 {
+    uint32_t dirtyFlags = scene->dirtyFlags;
+
     // Pack textures.
-    {
+    if (dirtyFlags & SCENE_DIRTY_TEXTURES) {
         constexpr int ATLAS_WIDTH = 4096;
         constexpr int ATLAS_HEIGHT = 4096;
 
@@ -430,10 +442,12 @@ void BakeSceneData(Scene* scene)
 
             std::erase_if(rects, [](stbrp_rect& r) { return r.was_packed; });
         }
+
+        dirtyFlags |= SCENE_DIRTY_MATERIALS;
     }
 
     // Pack materials.
-    {
+    if (dirtyFlags & SCENE_DIRTY_MATERIALS) {
         scene->packedMaterials.clear();
 
         // Fallback material.
@@ -473,10 +487,13 @@ void BakeSceneData(Scene* scene)
 
             scene->packedMaterials.push_back(packed);
         }
+
+        dirtyFlags |= SCENE_DIRTY_MESHES;
+        dirtyFlags |= SCENE_DIRTY_OBJECTS;
     }
 
     // Pack mesh face and node data.
-    {
+    if (dirtyFlags & SCENE_DIRTY_MESHES) {
         uint32_t faceCount = 0;
         uint32_t nodeCount = 0;
         for (Mesh* mesh : scene->meshes) {
@@ -549,10 +566,12 @@ void BakeSceneData(Scene* scene)
 
             mesh->packedRootNodeIndex = nodeIndexBase;
         }
+
+        dirtyFlags |= SCENE_DIRTY_OBJECTS;
     }
 
     // Pack object data.
-    {
+    if (dirtyFlags & SCENE_DIRTY_OBJECTS) {
         scene->packedObjects.clear();
         scene->packedObjects.reserve(scene->objects.size());
 
@@ -579,6 +598,10 @@ void BakeSceneData(Scene* scene)
             scene->packedObjects.push_back(packed);
         }
     }
+
+    scene->dirtyFlags = 0;
+
+    return dirtyFlags;
 }
 
 static void IntersectMeshFace(Scene* scene, Ray ray, uint32_t meshFaceIndex, Hit& hit)

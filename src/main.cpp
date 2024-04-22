@@ -171,15 +171,7 @@ bool ShowObjectPropertiesWindow()
         c |= ImGui_DragEulerAngles("Rotation", &transform.rotation);
         c |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.01f);
 
-        if (c) {
-            PackedSceneObject& object = app.scene.packedObjects[app.selectedObjectIndex];
-            object.objectToWorldMatrix
-                = glm::translate(glm::mat4(1), transform.position)
-                * glm::orientate4(transform.rotation)
-                * glm::scale(glm::mat4(1), transform.scale);
-            object.worldToObjectMatrix = glm::inverse(object.objectToWorldMatrix);
-
-        }
+        app.scene.dirtyFlags |= SCENE_DIRTY_OBJECTS;
     }
 
     ImGui::End();
@@ -351,7 +343,8 @@ void Frame()
     }
 
     if (objectDataChanged) {
-        UploadScene(app.vulkan, &app.scene, UPLOAD_OBJECT_DATA);
+        uint32_t dirtyFlags = BakeSceneData(&app.scene);
+        UploadScene(app.vulkan, &app.scene, dirtyFlags);
     }
 
     RenderFrame(app.vulkan, &uniforms, ImGui::GetDrawData());
@@ -578,7 +571,7 @@ int main()
     app.window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, APPLICATION_NAME, nullptr, nullptr);
     app.vulkan = CreateVulkan(app.window, APPLICATION_NAME);
 
-    UploadScene(app.vulkan, &scene, UPLOAD_ALL);
+    UploadScene(app.vulkan, &scene, SCENE_DIRTY_ALL);
 
     app.editorCamera.position = { 0, 0, 0 };
     app.editorCamera.velocity = { 0, 0, 0 };

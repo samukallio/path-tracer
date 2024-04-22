@@ -84,6 +84,18 @@ struct Scene
     uint32_t                        skyboxWidth;
     uint32_t                        skyboxHeight;
     float*                          skyboxPixels;
+
+    uint32_t                        dirtyFlags;
+};
+
+enum SceneDirtyFlag
+{
+    SCENE_DIRTY_SKYBOX              = 1 << 0,
+    SCENE_DIRTY_TEXTURES            = 1 << 1,
+    SCENE_DIRTY_MATERIALS           = 1 << 2,
+    SCENE_DIRTY_OBJECTS             = 1 << 3,
+    SCENE_DIRTY_MESHES              = 1 << 4,
+    SCENE_DIRTY_ALL                 = 0xFFFFFFFF,
 };
 
 Texture* LoadTexture(Scene* scene, char const* path);
@@ -103,7 +115,6 @@ bool LoadSkybox(Scene* scene, char const* path);
 
 Material* CreateMaterial(Scene* scene, char const* name);
 
-
-void BakeSceneData(Scene* scene);
+uint32_t BakeSceneData(Scene* scene);
 
 bool Trace(Scene* scene, Ray const& ray, Hit& hit);
