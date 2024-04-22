@@ -82,20 +82,6 @@ static bool ImGui_DragEulerAngles(const char* label, glm::vec3* angles)
     return changed;
 }
 
-bool ShowEditorCameraWindow(EditorCamera& camera)
-{
-    bool c = false;
-
-    ImGui::Begin("Editor Camera");
-
-    c |= ImGui::InputFloat3("Position", &camera.position[0], "%.3f");
-    c |= ImGui_DragEulerAngles("Rotation", &camera.rotation);
-
-    ImGui::End();
-
-    return c;
-}
-
 bool ShowResourcesWindow()
 {
     bool c = false;
@@ -567,7 +553,6 @@ void Frame()
 
         ImGui::ShowDemoWindow();
 
-        editorCameraChanged = ShowEditorCameraWindow(app.editorCamera);
         ShowInspectorWindow();
         ShowResourcesWindow();
         ShowSceneHierarchyWindow();
