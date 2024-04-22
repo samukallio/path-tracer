@@ -49,14 +49,14 @@ static float HalfArea(Bounds const& box)
     return e.x * e.y + e.y * e.z + e.z * e.x;
 }
 
-Texture* LoadTexture(Scene* scene, char const* path)
+Texture* LoadTexture(Scene* scene, char const* path, char const* name)
 {
     int width, height, channelsInFile;
     stbi_uc* pixels = stbi_load(path, &width, &height, &channelsInFile, 4);
     if (!pixels) return nullptr;
 
     auto texture = new Texture {
-        .name = path,
+        .name = name ? name : path,
         .width = static_cast<uint32_t>(width),
         .height = static_cast<uint32_t>(height),
         .pixels = reinterpret_cast<uint32_t*>(pixels),
@@ -244,7 +244,7 @@ Mesh* LoadModel(Scene* scene, char const* path, LoadModelOptions* options)
         return nullptr;
 
     auto mesh = new Mesh;
-    mesh->name = path;
+    mesh->name = options->name ? options->name : path;
 
     // Map from in-file texture name to scene texture.
     std::unordered_map<std::string, Texture*> textureMap;
@@ -280,7 +280,7 @@ Mesh* LoadModel(Scene* scene, char const* path, LoadModelOptions* options)
             if (!name.empty()) {
                 if (!textureMap.contains(name)) {
                     std::string path = std::format("{}/{}", options->directoryPath, name);
-                    textureMap[name] = LoadTexture(scene, path.c_str());
+                    textureMap[name] = LoadTexture(scene, path.c_str(), name.c_str());
                 }
                 *ptexture = textureMap[name];
             }

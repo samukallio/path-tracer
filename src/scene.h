@@ -155,10 +155,11 @@ enum SceneDirtyFlag
     SCENE_DIRTY_ALL                 = 0xFFFFFFFF,
 };
 
-Texture* LoadTexture(Scene* scene, char const* path);
+Texture* LoadTexture(Scene* scene, char const* path, char const* name = nullptr);
 
 struct LoadModelOptions
 {
+    char const*     name                        = nullptr;
     Material*       defaultMaterial             = nullptr;
     std::string     directoryPath               = ".";
     glm::mat4       vertexTransform             = glm::mat4(1);

@@ -389,9 +389,10 @@ int main()
     scene.root.name = "Root";
 
     Material* material = CreateMaterial(&scene, "viking_room");
-    material->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png");
+    material->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png", "viking_room.png");
 
     LoadModelOptions options;
+    options.name = "viking_room.obj";
     options.directoryPath = "../scene";
     options.defaultMaterial = material;
     Mesh* mesh = LoadModel(&scene, "../scene/viking_room.obj", &options);
