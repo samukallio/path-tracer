@@ -413,6 +413,8 @@ bool EntityInspector(Entity* entity)
 
     switch (entity->type) {
         case ENTITY_TYPE_ROOT: {
+            auto root = static_cast<Root*>(entity);
+            ImGui::DragFloat("Scattering Rate", &root->scatterRate, 0.001f, 0.00001f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
             break;
         }
         case ENTITY_TYPE_CAMERA: {
@@ -616,6 +618,7 @@ void Frame()
 
     FrameUniformBuffer uniforms = {
         .frameRandomSeed = app.frameIndex,
+        .sceneScatterRate = app.scene.root.scatterRate,
     };
 
     if (!app.activeCamera) {

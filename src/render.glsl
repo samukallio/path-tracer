@@ -361,21 +361,34 @@ void IntersectAndResolve(Ray ray, inout Hit hit)
 
 vec4 Trace(Ray ray)
 {
-    Hit hit;
-    hit.time = INFINITY;
-
     vec3 outputColor = vec3(0, 0, 0);
     vec3 filterColor = vec3(1, 1, 1);
 
     for (uint bounce = 0; bounce <= renderBounceLimit; bounce++) {
-        float fogFactor = 1.0;
+        float scatterTime = INFINITY;
 
-        IntersectAndResolve(ray, hit);
-
-        if (hit.time == INFINITY) {
-            outputColor += fogFactor * filterColor * SampleSkybox(ray);
-            break;
+        if (sceneScatterRate > 0) {
+            scatterTime = -log(Random0To1()) / sceneScatterRate;
         }
+
+        Hit hit;
+        hit.time = scatterTime;
+
+        Intersect(ray, hit);
+
+        if (hit.time == scatterTime) {
+            if (scatterTime < INFINITY) {
+                ray.origin = ray.origin + ray.direction * scatterTime;
+                ray.direction = RandomDirection();
+                continue;
+            }
+            else {
+                outputColor += filterColor * SampleSkybox(ray);
+                break;
+            }
+        }
+
+        ResolveHit(ray, hit);
 
         if (Random0To1() < hit.material.refraction) {
             vec3 refractionDirection;
@@ -405,11 +418,10 @@ vec4 Trace(Ray ray)
             ray.direction = normalize(mix(specularDirection, diffuseDirection, hit.material.roughness));
 
             outputColor += hit.material.emissionColor * filterColor;
-            filterColor *= hit.material.baseColor * fogFactor;
+            filterColor *= hit.material.baseColor;
         }
 
         ray.origin = hit.position + 1e-3 * ray.direction;
-        hit.time = INFINITY;
     }
 
     return vec4(outputColor.rgb, 1);

@@ -140,6 +140,7 @@ struct FrameUniformBuffer
 {
     uint32_t                    frameRandomSeed             = 0;
     uint32_t                    sceneObjectCount            = 0;
+    float                       sceneScatterRate            = 0.0f;
     CameraModel                 cameraModel                 = CAMERA_MODEL_THIN_LENS;
     float                       cameraFocalLength           = 0.020f;
     float                       cameraApertureRadius        = 0.040f;

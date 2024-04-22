@@ -36,6 +36,7 @@ uniform FrameUniformBuffer
 {
     uint            frameRandomSeed;
     uint            sceneObjectCount;
+    float           sceneScatterRate;
     uint            cameraModel;
     float           cameraFocalLength;
     float           cameraApertureRadius;

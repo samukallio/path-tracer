@@ -80,6 +80,8 @@ struct Entity
 
 struct Root : Entity
 {
+    float                           scatterRate = 0.0f;
+
     Root() { type = ENTITY_TYPE_ROOT; }
 };
 
