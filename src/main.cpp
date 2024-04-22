@@ -25,23 +25,6 @@ struct EditorCamera
     glm::vec3       rotation;
 };
 
-struct RenderCamera
-{
-    RenderMode      renderMode;
-    uint32_t        bounceLimit;
-
-    ToneMappingMode toneMappingMode;
-    float           toneMappingWhiteLevel;
-
-    CameraType      type;
-    glm::vec3       position;
-    glm::vec3       velocity;
-    glm::vec3       rotation;
-    float           focalLengthInMM;
-    float           apertureRadiusInMM;
-    float           focusDistance;
-};
-
 enum SelectionType
 {
     SELECTION_TYPE_NONE         = 0,
@@ -71,9 +54,7 @@ struct AppContext
     bool            accumulateSamples;
 
     EditorCamera    editorCamera;
-    RenderCamera    renderCamera;
-
-    bool            renderCameraPossessed;
+    Camera*         activeCamera;
 
     Selection       selection;
 
@@ -112,71 +93,6 @@ bool ShowEditorCameraWindow(EditorCamera& camera)
 
     ImGui::End();
 
-    return c;
-}
-
-bool ShowRenderCameraWindow(RenderCamera& camera)
-{
-    bool c = false;
-
-    ImGui::Begin("Render Camera");
-
-    ImGui::SeparatorText("General");
-
-    c |= ImGui::Checkbox("Accumulate Samples", &app.accumulateSamples);
-
-    ImGui::Checkbox("Possess", &app.renderCameraPossessed);
-
-    c |= ImGui::DragFloat3("Position", &camera.position[0], 0.1f);
-    c |= ImGui_DragEulerAngles("Rotation", &camera.rotation);
-
-    ImGui::SeparatorText("Render Mode");
-    c |= ImGui::RadioButton("Path Tracing", (int*)&camera.renderMode, RENDER_MODE_PATH_TRACE);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("Base Color", (int*)&camera.renderMode, RENDER_MODE_BASE_COLOR);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("Normal", (int*)&camera.renderMode, RENDER_MODE_NORMAL);
-    c |= ImGui::RadioButton("Material ID", (int*)&camera.renderMode, RENDER_MODE_MATERIAL_INDEX);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("Primitive ID", (int*)&camera.renderMode, RENDER_MODE_PRIMITIVE_INDEX);
-
-    int bounceLimit = static_cast<int>(camera.bounceLimit);
-    c |= ImGui::InputInt("Bounce Limit", &bounceLimit);
-    camera.bounceLimit = std::max(1, bounceLimit);
-
-    // Tone mapping operators.  Note that since tone mapping happens as
-    // a post-process operation, there is no need to reset the accumulated
-    // samples.
-    ImGui::SeparatorText("Tone Mapping");
-    ImGui::RadioButton("Clamp", (int*)&camera.toneMappingMode, TONE_MAPPING_MODE_CLAMP);
-    ImGui::SameLine();
-    ImGui::RadioButton("Reinhard", (int*)&camera.toneMappingMode, TONE_MAPPING_MODE_REINHARD);
-    ImGui::SameLine();
-    ImGui::RadioButton("Hable", (int*)&camera.toneMappingMode, TONE_MAPPING_MODE_HABLE);
-    ImGui::RadioButton("ACES", (int*)&camera.toneMappingMode, TONE_MAPPING_MODE_ACES);
-
-    if (camera.toneMappingMode == TONE_MAPPING_MODE_REINHARD) {
-        ImGui::SliderFloat("White Level", &camera.toneMappingWhiteLevel, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-    }
-
-    ImGui::SeparatorText("Camera");
-    c |= ImGui::RadioButton("Pinhole", (int*)&camera.type, CAMERA_TYPE_PINHOLE);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("Thin Lens", (int*)&camera.type, CAMERA_TYPE_THIN_LENS);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("360", (int*)&camera.type, CAMERA_TYPE_360);
-
-    if (camera.type == CAMERA_TYPE_PINHOLE) {
-    }
-
-    if (camera.type == CAMERA_TYPE_THIN_LENS) {
-        c |= ImGui::SliderFloat("Focal Length (mm)", &camera.focalLengthInMM, 1.0f, 50.0f);
-        c |= ImGui::SliderFloat("Aperture Radius (mm)", &camera.apertureRadiusInMM, 0.01f, 100.0f);
-        c |= ImGui::SliderFloat("Focus Distance", &camera.focusDistance, 0.01f, 1000.0f,  "%.3f", ImGuiSliderFlags_Logarithmic);
-    }
-
-    ImGui::End();
-    
     return c;
 }
 
@@ -284,7 +200,7 @@ bool ResourceSelectorDropDown(
     int itemIndex = 0;
     int itemCount = static_cast<int>(resources.size()) + 1;
 
-    for (int k = 0; k < itemCount; k++)
+    for (int k = 0; k < itemCount-1; k++)
         if (resources[k] == *resourcePtr)
             itemIndex = k + 1;
 
@@ -395,6 +311,77 @@ bool MeshInspector(Mesh* mesh, bool referenced = false)
     return c;
 }
 
+bool CameraInspector(Camera* camera)
+{
+    bool c = false;
+
+    ImGui::SeparatorText("General");
+
+    c |= ImGui::Checkbox("Accumulate Samples", &app.accumulateSamples);
+
+    if (app.activeCamera == camera) {
+        bool active = true;
+        ImGui::Checkbox("Possess", &active);
+        if (!active) app.activeCamera = nullptr;
+    }
+    else {
+        bool active = false;
+        ImGui::Checkbox("Possess", &active);
+        if (active) app.activeCamera = camera;
+    }
+    
+
+    //c |= ImGui::DragFloat3("Position", &camera->position[0], 0.1f);
+    //c |= ImGui_DragEulerAngles("Rotation", &camera->rotation);
+
+    ImGui::SeparatorText("Render Mode");
+    c |= ImGui::RadioButton("Path Tracing", (int*)&camera->renderMode, RENDER_MODE_PATH_TRACE);
+    ImGui::SameLine();
+    c |= ImGui::RadioButton("Base Color", (int*)&camera->renderMode, RENDER_MODE_BASE_COLOR);
+    ImGui::SameLine();
+    c |= ImGui::RadioButton("Normal", (int*)&camera->renderMode, RENDER_MODE_NORMAL);
+    c |= ImGui::RadioButton("Material ID", (int*)&camera->renderMode, RENDER_MODE_MATERIAL_INDEX);
+    ImGui::SameLine();
+    c |= ImGui::RadioButton("Primitive ID", (int*)&camera->renderMode, RENDER_MODE_PRIMITIVE_INDEX);
+
+    int bounceLimit = static_cast<int>(camera->bounceLimit);
+    c |= ImGui::InputInt("Bounce Limit", &bounceLimit);
+    camera->bounceLimit = std::max(1, bounceLimit);
+
+    // Tone mapping operators.  Note that since tone mapping happens as
+    // a post-process operation, there is no need to reset the accumulated
+    // samples.
+    ImGui::SeparatorText("Tone Mapping");
+    ImGui::RadioButton("Clamp", (int*)&camera->toneMappingMode, TONE_MAPPING_MODE_CLAMP);
+    ImGui::SameLine();
+    ImGui::RadioButton("Reinhard", (int*)&camera->toneMappingMode, TONE_MAPPING_MODE_REINHARD);
+    ImGui::SameLine();
+    ImGui::RadioButton("Hable", (int*)&camera->toneMappingMode, TONE_MAPPING_MODE_HABLE);
+    ImGui::RadioButton("ACES", (int*)&camera->toneMappingMode, TONE_MAPPING_MODE_ACES);
+
+    if (camera->toneMappingMode == TONE_MAPPING_MODE_REINHARD) {
+        ImGui::SliderFloat("White Level", &camera->toneMappingWhiteLevel, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+    }
+
+    ImGui::SeparatorText("Camera");
+    c |= ImGui::RadioButton("Pinhole", (int*)&camera->type, CAMERA_TYPE_PINHOLE);
+    ImGui::SameLine();
+    c |= ImGui::RadioButton("Thin Lens", (int*)&camera->type, CAMERA_TYPE_THIN_LENS);
+    ImGui::SameLine();
+    c |= ImGui::RadioButton("360", (int*)&camera->type, CAMERA_TYPE_360);
+
+    if (camera->type == CAMERA_TYPE_PINHOLE) {
+    }
+
+    if (camera->type == CAMERA_TYPE_THIN_LENS) {
+        c |= ImGui::SliderFloat("Focal Length (mm)", &camera->focalLengthInMM, 1.0f, 50.0f);
+        c |= ImGui::SliderFloat("Aperture Radius (mm)", &camera->apertureRadiusInMM, 0.01f, 100.0f);
+        c |= ImGui::SliderFloat("Focus Distance", &camera->focusDistance, 0.01f, 1000.0f,  "%.3f", ImGuiSliderFlags_Logarithmic);
+    }
+    
+    return c;
+}
+
 bool EntityInspector(Entity* entity)
 {
     Scene& scene = app.scene;
@@ -404,8 +391,11 @@ bool EntityInspector(Entity* entity)
     ImGui::PushID(entity);
 
     switch (entity->type) {
-        case ENTITY_TYPE_SCENE:
-            ImGui::SeparatorText("Scene");
+        case ENTITY_TYPE_ROOT:
+            ImGui::SeparatorText("Scene Root");
+            break;
+        case ENTITY_TYPE_CAMERA:
+            ImGui::SeparatorText("Camera");
             break;
         case ENTITY_TYPE_MESH_INSTANCE:
             ImGui::SeparatorText("Mesh Instance");
@@ -423,17 +413,24 @@ bool EntityInspector(Entity* entity)
 
     bool c = false;
 
-    if (entity->type != ENTITY_TYPE_SCENE) {
+    if (entity->type != ENTITY_TYPE_ROOT) {
         ImGui::InputText("Name", &entity->name);
 
         Transform& transform = entity->transform;
         c |= ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
         c |= ImGui_DragEulerAngles("Rotation", &transform.rotation);
-        c |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.01f);
+
+        if (entity->type != ENTITY_TYPE_CAMERA) {
+            c |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.01f);
+        }
     }
 
     switch (entity->type) {
-        case ENTITY_TYPE_SCENE: {
+        case ENTITY_TYPE_ROOT: {
+            break;
+        }
+        case ENTITY_TYPE_CAMERA: {
+            CameraInspector(static_cast<Camera*>(entity));
             break;
         }
         case ENTITY_TYPE_MESH_INSTANCE: {
@@ -467,7 +464,7 @@ void EntityTreeNode(Entity* entity)
     if (entity->children.empty())
         flags |= ImGuiTreeNodeFlags_Leaf;
 
-    if (entity->type == ENTITY_TYPE_SCENE)
+    if (entity->type == ENTITY_TYPE_ROOT)
         flags |= ImGuiTreeNodeFlags_DefaultOpen;
 
     if (selection.type == SELECTION_TYPE_ENTITY && selection.entity == entity)
@@ -563,7 +560,6 @@ void Frame()
         ImGui::ShowDemoWindow();
 
         editorCameraChanged = ShowEditorCameraWindow(app.editorCamera);
-        renderCameraChanged = ShowRenderCameraWindow(app.renderCamera);
         ShowInspectorWindow();
         ShowResourcesWindow();
         ShowSceneHierarchyWindow();
@@ -575,10 +571,10 @@ void Frame()
     // Handle camera movement.
     bool cameraMoved = false;
     {
-        bool editing = !app.renderCameraPossessed;
-        glm::vec3& position = editing ? app.editorCamera.position : app.renderCamera.position;
-        glm::vec3& velocity = editing ? app.editorCamera.velocity : app.renderCamera.velocity;
-        glm::vec3& rotation = editing ? app.editorCamera.rotation : app.renderCamera.rotation;
+        bool editing = !app.activeCamera;
+        glm::vec3& position = editing ? app.editorCamera.position : app.activeCamera->transform.position;
+        glm::vec3& velocity = editing ? app.editorCamera.velocity : app.activeCamera->velocity;
+        glm::vec3& rotation = editing ? app.editorCamera.rotation : app.activeCamera->transform.rotation;
         bool changed = editing ? editorCameraChanged : renderCameraChanged;
 
         glm::vec3 forward = glm::quat(rotation) * glm::vec3(1, 0, 0);
@@ -615,9 +611,9 @@ void Frame()
         if (changed) cameraMoved = true;
     }
 
-    if (app.renderCameraPossessed) {
-        app.editorCamera.position = app.renderCamera.position;
-        app.editorCamera.rotation = app.renderCamera.rotation;
+    if (app.activeCamera) {
+        app.editorCamera.position = app.activeCamera->transform.position;
+        app.editorCamera.rotation = app.activeCamera->transform.rotation;
 
         if (cameraMoved)
             renderCameraChanged = true;
@@ -627,12 +623,9 @@ void Frame()
 
     FrameUniformBuffer uniforms = {
         .frameRandomSeed = app.frameIndex,
-        .renderBounceLimit = app.renderCamera.bounceLimit,
-        .toneMappingMode = app.renderCamera.toneMappingMode,
-        .toneMappingWhiteLevel = app.renderCamera.toneMappingWhiteLevel,
     };
 
-    if (!app.renderCameraPossessed) {
+    if (!app.activeCamera) {
         EditorCamera& camera = app.editorCamera;
 
         glm::vec3 forward = glm::quat(camera.rotation) * glm::vec3(1, 0, 0);
@@ -675,30 +668,39 @@ void Frame()
         uniforms.cameraWorldMatrix = glm::inverse(viewMatrix);
         uniforms.renderFlags = 0;
 
+        uniforms.renderBounceLimit = 0;
+        uniforms.toneMappingMode = TONE_MAPPING_MODE_CLAMP;
+        uniforms.toneMappingWhiteLevel = 1.0f;
+
         if (app.selection.type == SELECTION_TYPE_ENTITY)
             uniforms.highlightObjectIndex = app.selection.entity->packedObjectIndex;
         else
             uniforms.highlightObjectIndex = 0xFFFFFFFF;
     }
     else {
-        RenderCamera& camera = app.renderCamera;
+        Camera* camera = app.activeCamera;
 
-        float sensorDistance = 1.0f / (1000.0f / camera.focalLengthInMM - 1.0f / camera.focusDistance);
+        float sensorDistance = 1.0f / (1000.0f / camera->focalLengthInMM - 1.0f / camera->focusDistance);
 
-        glm::vec3 origin = camera.position;
-        glm::vec3 forward = glm::quat(camera.rotation) * glm::vec3(1, 0, 0);
+        glm::vec3 origin = camera->transform.position;
+        glm::vec3 forward = glm::quat(camera->transform.rotation) * glm::vec3(1, 0, 0);
         glm::mat4 viewMatrix = glm::lookAt(origin - forward * 2.0f, origin, glm::vec3(0, 0, 1));
         glm::mat4 worldMatrix = glm::inverse(viewMatrix);
 
-        uniforms.renderMode = camera.renderMode;
-        uniforms.cameraType = camera.type;
-        uniforms.cameraFocalLength = camera.focalLengthInMM / 1000.0f;
-        uniforms.cameraApertureRadius = camera.apertureRadiusInMM / 1000.0f;
+        uniforms.renderMode = camera->renderMode;
+        uniforms.cameraType = camera->type;
+        uniforms.cameraFocalLength = camera->focalLengthInMM / 1000.0f;
+        uniforms.cameraApertureRadius = camera->apertureRadiusInMM / 1000.0f;
         uniforms.cameraSensorDistance = sensorDistance;
         uniforms.cameraSensorSize = { 0.032f, 0.018f };
         uniforms.cameraWorldMatrix = worldMatrix;
         uniforms.highlightObjectIndex = 0xFFFFFFFF;
         uniforms.renderFlags = RENDER_FLAG_SAMPLE_JITTER;
+
+        uniforms.renderBounceLimit = app.activeCamera->bounceLimit;
+        uniforms.toneMappingMode = app.activeCamera->toneMappingMode;
+        uniforms.toneMappingWhiteLevel = app.activeCamera->toneMappingWhiteLevel;
+
 
         if (app.accumulateSamples && !renderCameraChanged)
             uniforms.renderFlags |= RENDER_FLAG_ACCUMULATE;
@@ -872,8 +874,10 @@ int main()
 {
     Scene& scene = app.scene;
 
-    scene.root.name = "Scene";
-    scene.root.type = ENTITY_TYPE_SCENE;
+    app.activeCamera = nullptr;
+
+    scene.root.name = "Root";
+    scene.root.type = ENTITY_TYPE_ROOT;
 
     Material* material = CreateMaterial(&scene, "viking_room");
     material->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png");
@@ -939,14 +943,19 @@ int main()
     app.editorCamera.velocity = { 0, 0, 0 };
     app.editorCamera.rotation = { 0, 0, 0 };
 
-    app.renderCamera.renderMode = RENDER_MODE_NORMAL;
-    app.renderCamera.type = CAMERA_TYPE_PINHOLE;
-    app.renderCamera.position = { 0, 0, 0 };
-    app.renderCamera.rotation = { 0, 0, 0 };
-    app.renderCamera.bounceLimit = 5;
-    app.renderCamera.focusDistance = 1.0f;
-    app.renderCamera.focalLengthInMM = 20.0f;
-    app.renderCamera.apertureRadiusInMM = 40.0f;
+    auto camera = new Camera;
+    camera->name = "Camera";
+    ((Entity*)camera)->type = ENTITY_TYPE_CAMERA;
+    camera->renderMode = RENDER_MODE_NORMAL;
+    camera->type = CAMERA_TYPE_PINHOLE;
+    camera->transform.position = { 0, 0, 0 };
+    camera->transform.rotation = { 0, 0, 0 };
+    camera->velocity = { 0, 0, 0 };
+    camera->bounceLimit = 5;
+    camera->focusDistance = 1.0f;
+    camera->focalLengthInMM = 20.0f;
+    camera->apertureRadiusInMM = 40.0f;
+    scene.root.children.push_back(camera);
 
     FrameState& initial = app.frames[0];
     initial.time = glfwGetTime();

@@ -62,7 +62,7 @@ struct Mesh
 
 enum EntityType
 {
-    ENTITY_TYPE_SCENE               = 0,
+    ENTITY_TYPE_ROOT                = 0,
     ENTITY_TYPE_CAMERA              = 1,
     ENTITY_TYPE_MESH_INSTANCE       = 2,
     ENTITY_TYPE_PLANE               = 3,
@@ -80,9 +80,28 @@ struct Entity
     std::vector<Entity*>            children;
 };
 
+struct Root : Entity
+{
+};
+
+struct Camera : Entity
+{
+    RenderMode      renderMode;
+    uint32_t        bounceLimit;
+
+    ToneMappingMode toneMappingMode;
+    float           toneMappingWhiteLevel;
+
+    CameraType      type;
+    glm::vec3       velocity;
+    float           focalLengthInMM;
+    float           apertureRadiusInMM;
+    float           focusDistance;
+};
+
 struct Scene
 {
-    Entity                          root;
+    Root                            root;
     std::vector<Mesh*>              meshes;
     std::vector<Material*>          materials;
     std::vector<Texture*>           textures;
