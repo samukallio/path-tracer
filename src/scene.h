@@ -66,6 +66,7 @@ struct SceneObject
     ObjectType                      type;
     Material*                       material;
     Mesh*                           mesh;
+    uint32_t                        packedObjectIndex;
 };
 
 struct Scene

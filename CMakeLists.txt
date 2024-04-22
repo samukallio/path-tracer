@@ -26,6 +26,7 @@ add_executable (path-tracer
 	lib/imgui-1.90.5-docking/imgui_tables.cpp
 	lib/imgui-1.90.5-docking/imgui_widgets.cpp
 	lib/imgui-1.90.5-docking/imgui_demo.cpp
+	lib/imgui-1.90.5-docking/misc/cpp/imgui_stdlib.cpp
 )
 
 target_include_directories (path-tracer

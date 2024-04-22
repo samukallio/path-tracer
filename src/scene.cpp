@@ -293,6 +293,8 @@ Mesh* LoadModel(Scene* scene, char const* path, LoadModelOptions* options)
 
     auto mesh = new Mesh;
 
+    mesh->name = path;
+
     size_t faceCount = 0;
     for (auto const& shape : shapes)
         faceCount += shape.mesh.indices.size() / 3;
@@ -594,6 +596,8 @@ uint32_t BakeSceneData(Scene* scene)
                 packed.materialIndex = object->material->packedMaterialIndex;
             else
                 packed.materialIndex = 0;
+
+            object->packedObjectIndex = static_cast<uint32_t>(scene->packedObjects.size());
 
             scene->packedObjects.push_back(packed);
         }

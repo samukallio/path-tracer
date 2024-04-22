@@ -5,6 +5,7 @@
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
+#include <misc/cpp/imgui_stdlib.h>
 
 int const WINDOW_WIDTH = 2048;
 int const WINDOW_HEIGHT = 1024;
@@ -41,6 +42,24 @@ struct RenderCamera
     float           focusDistance;
 };
 
+enum SelectionType
+{
+    SELECTION_TYPE_NONE         = 0,
+    SELECTION_TYPE_TEXTURE      = 1,
+    SELECTION_TYPE_MATERIAL     = 2,
+    SELECTION_TYPE_MESH         = 3,
+    SELECTION_TYPE_OBJECT       = 4,
+};
+
+struct Selection
+{
+    SelectionType   type        = SELECTION_TYPE_NONE;
+    Texture*        texture     = nullptr;
+    Material*       material    = nullptr;
+    Mesh*           mesh        = nullptr;
+    SceneObject*    object      = nullptr;
+};
+
 struct AppContext
 {
     GLFWwindow*     window = nullptr;
@@ -56,10 +75,12 @@ struct AppContext
 
     bool            renderCameraPossessed;
 
-    uint32_t        selectedObjectIndex;
+    Selection       selection;
 
     double          mouseScrollPosition;
 };
+
+
 
 AppContext app;
 
@@ -159,19 +180,175 @@ bool ShowRenderCameraWindow(RenderCamera& camera)
     return c;
 }
 
-bool ShowObjectPropertiesWindow()
+bool ShowResourcesWindow()
 {
     bool c = false;
 
-    ImGui::Begin("Object Properties");
+    ImGui::Begin("Resources");
 
-    if (app.selectedObjectIndex < 0xFFFFFFFF) {
-        Transform& transform = app.scene.objects[app.selectedObjectIndex]->transform;
-        c |= ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
-        c |= ImGui_DragEulerAngles("Rotation", &transform.rotation);
-        c |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.01f);
+    Selection& selection = app.selection;
+    Scene& scene = app.scene;
 
-        app.scene.dirtyFlags |= SCENE_DIRTY_OBJECTS;
+    // Textures
+    {
+        auto getter = [](void* context, int index) {
+            auto scene = static_cast<Scene*>(context);
+            if (index < 0 || index >= scene->textures.size())
+                return "";
+            return scene->textures[index]->name.c_str();
+        };
+
+        int itemIndex = -1;
+        int itemCount = static_cast<int>(scene.textures.size());
+
+        if (selection.type == SELECTION_TYPE_TEXTURE) {
+            for (int k = 0; k < itemCount; k++)
+                if (scene.textures[k] == selection.texture)
+                    itemIndex = k;
+        }
+
+        if (ImGui::ListBox("Textures", &itemIndex, getter, &scene, itemCount, 6)) {
+            selection.type = SELECTION_TYPE_TEXTURE;
+            selection.texture = scene.textures[itemIndex];
+        }
+    }
+
+    // Materials
+    {
+        auto getter = [](void* context, int index) {
+            auto scene = static_cast<Scene*>(context);
+            if (index < 0 || index >= scene->materials.size())
+                return "";
+            return scene->materials[index]->name.c_str();
+        };
+
+        int itemIndex = -1;
+        int itemCount = static_cast<int>(scene.materials.size());
+
+        if (selection.type == SELECTION_TYPE_MATERIAL) {
+            for (int k = 0; k < itemCount; k++)
+                if (scene.materials[k] == selection.material)
+                    itemIndex = k;
+        }
+
+        if (ImGui::ListBox("Materials", &itemIndex, getter, &scene, itemCount, 6)) {
+            selection.type = SELECTION_TYPE_MATERIAL;
+            selection.material = scene.materials[itemIndex];
+        }
+    }
+
+    // Meshes
+    {
+        auto getter = [](void* context, int index) {
+            auto scene = static_cast<Scene*>(context);
+            if (index < 0 || index >= scene->meshes.size())
+                return "";
+            return scene->meshes[index]->name.c_str();
+        };
+
+        int itemIndex = -1;
+        int itemCount = static_cast<int>(scene.meshes.size());
+
+        if (selection.type == SELECTION_TYPE_MESH) {
+            for (int k = 0; k < itemCount; k++)
+                if (scene.meshes[k] == selection.mesh)
+                    itemIndex = k;
+        }
+
+        if (ImGui::ListBox("Meshes", &itemIndex, getter, &scene, itemCount, 6)) {
+            selection.type = SELECTION_TYPE_MESH;
+            selection.mesh = scene.meshes[itemIndex];
+        }
+    }
+
+    ImGui::End();
+
+    return c;
+}
+
+bool TextureCombo(char const* label, Texture** texturePtr)
+{
+    Scene& scene = app.scene;
+
+    auto getter = [](void* context, int index) {
+        auto scene = static_cast<Scene*>(context);
+        if (index <= 0)
+            return "(none)";
+        if (index > scene->textures.size())
+            return "";
+        return scene->textures[index-1]->name.c_str();
+    };
+
+    int itemIndex = 0;
+    int itemCount = static_cast<int>(scene.textures.size()) + 1;
+
+    for (int k = 0; k < itemCount; k++)
+        if (scene.textures[k] == *texturePtr)
+            itemIndex = k + 1;
+
+    bool changed = ImGui::Combo(label, &itemIndex, getter, &scene, itemCount, 6);
+
+    if (changed) {
+        if (itemIndex == 0)
+            *texturePtr = nullptr;
+        else
+            *texturePtr = scene.textures[itemIndex-1];
+    }
+
+    return changed;
+}
+
+bool ShowInspectorWindow()
+{
+    bool c = false;
+
+    ImGui::Begin("Inspector");
+
+    Scene& scene = app.scene;
+    Selection& selection = app.selection;
+
+    switch (selection.type) {
+        case SELECTION_TYPE_TEXTURE: {
+            Texture* t = selection.texture;
+            bool c = false;
+            ImGui::InputText("Name", &t->name);
+            break;
+        }
+
+        case SELECTION_TYPE_MATERIAL: {
+            Material* m = selection.material;
+            bool c = false;
+            ImGui::InputText("Name", &m->name);
+            c |= ImGui::ColorEdit3("Base Color", &m->baseColor[0]);
+            c |= TextureCombo("Base Color Texture", &m->baseColorTexture);
+            c |= ImGui::ColorEdit3("Emission Color", &m->emissionColor[0]);
+            c |= TextureCombo("Emission Color Texture", &m->emissionColorTexture);
+            c |= ImGui::DragFloat("Metallic", &m->metallic, 0.01f, 0.0f, 1.0f);
+            c |= TextureCombo("Metallic Texture", &m->metallicTexture);
+            c |= ImGui::DragFloat("Roughness", &m->roughness, 0.01f, 0.0f, 1.0f);
+            c |= TextureCombo("Roughness Texture", &m->roughnessTexture);
+            c |= ImGui::DragFloat("Refraction Probability", &m->refraction, 0.01f, 0.0f, 1.0f);
+            c |= ImGui::DragFloat("Refraction Index", &m->refractionIndex, 0.001f, 2.0f);
+            if (c) scene.dirtyFlags |= SCENE_DIRTY_MATERIALS;
+            break;
+        }
+
+        case SELECTION_TYPE_MESH: {
+            Mesh* m = selection.mesh;
+            bool c = false;
+            ImGui::InputText("Name", &m->name);
+            break;
+        }
+
+        case SELECTION_TYPE_OBJECT: {
+            bool c = false;
+            Transform& transform = selection.object->transform;
+            c |= ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
+            c |= ImGui_DragEulerAngles("Rotation", &transform.rotation);
+            c |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.01f);
+            if (c) app.scene.dirtyFlags |= SCENE_DIRTY_OBJECTS;
+            break;
+        }
     }
 
     ImGui::End();
@@ -218,7 +395,8 @@ void Frame()
 
         editorCameraChanged = ShowEditorCameraWindow(app.editorCamera);
         renderCameraChanged = ShowRenderCameraWindow(app.renderCamera);
-        objectDataChanged = ShowObjectPropertiesWindow();
+        objectDataChanged = ShowInspectorWindow();
+        ShowResourcesWindow();
 
         ImGui::EndFrame();
         ImGui::Render();
@@ -306,7 +484,10 @@ void Frame()
 
             Hit hit;
             if (Trace(&app.scene, ray, hit)) {
-                app.selectedObjectIndex = hit.objectIndex;
+                app.selection.type = SELECTION_TYPE_OBJECT;
+                for (SceneObject* object : app.scene.objects)
+                    if (object->packedObjectIndex == hit.objectIndex)
+                        app.selection.object = object;
             }
         }
 
@@ -315,8 +496,12 @@ void Frame()
         uniforms.cameraSensorDistance = 0.020f;
         uniforms.cameraSensorSize = { 0.032f, 0.018f };
         uniforms.cameraWorldMatrix = glm::inverse(viewMatrix);
-        uniforms.highlightObjectIndex = app.selectedObjectIndex;
         uniforms.renderFlags = 0;
+
+        if (app.selection.type == SELECTION_TYPE_OBJECT)
+            uniforms.highlightObjectIndex = app.selection.object->packedObjectIndex;
+        else
+            uniforms.highlightObjectIndex = 0xFFFFFFFF;
     }
     else {
         RenderCamera& camera = app.renderCamera;
@@ -342,10 +527,8 @@ void Frame()
             uniforms.renderFlags |= RENDER_FLAG_ACCUMULATE;
     }
 
-    if (objectDataChanged) {
-        uint32_t dirtyFlags = BakeSceneData(&app.scene);
-        UploadScene(app.vulkan, &app.scene, dirtyFlags);
-    }
+    uint32_t dirtyFlags = BakeSceneData(&app.scene);
+    UploadScene(app.vulkan, &app.scene, dirtyFlags);
 
     RenderFrame(app.vulkan, &uniforms, ImGui::GetDrawData());
 }
