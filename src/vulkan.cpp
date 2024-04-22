@@ -13,8 +13,8 @@
 
 #include <vulkan/vulkan.h>
 
-uint32_t const RENDER_WIDTH = 2048;
-uint32_t const RENDER_HEIGHT = 1024;
+uint32_t const RENDER_WIDTH = 1920;
+uint32_t const RENDER_HEIGHT = 1080;
 
 uint32_t const RESOLVE_VERTEX_SHADER[] =
 {
@@ -2391,8 +2391,9 @@ VkResult RenderFrame(
         0, 1, &frame->renderDescriptorSet,
         0, nullptr);
 
-    uint32_t groupCountX = RENDER_WIDTH / (16 * uniforms->renderSampleBlockSize);
-    uint32_t groupCountY = RENDER_HEIGHT / (16 * uniforms->renderSampleBlockSize);
+    uint32_t groupPixelSize = 16 * uniforms->renderSampleBlockSize;
+    uint32_t groupCountX = (RENDER_WIDTH + groupPixelSize - 1) / groupPixelSize;
+    uint32_t groupCountY = (RENDER_HEIGHT + groupPixelSize - 1) / groupPixelSize;
     vkCmdDispatch(frame->computeCommandBuffer, groupCountX, groupCountY, 1);
 
     // Copy the render target image into the shader read copy.

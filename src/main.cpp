@@ -7,8 +7,8 @@
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 
-int const WINDOW_WIDTH = 2048;
-int const WINDOW_HEIGHT = 1024;
+int const WINDOW_WIDTH = 1920;
+int const WINDOW_HEIGHT = 1080;
 char const* APPLICATION_NAME = "Path Tracer";
 
 struct FrameState
