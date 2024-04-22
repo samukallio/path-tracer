@@ -375,7 +375,6 @@ void Frame()
     // ImGui.
     bool editorCameraChanged = false;
     bool renderCameraChanged = false;
-    bool objectDataChanged = false;
     {
         bool c = false;
 
@@ -396,7 +395,7 @@ void Frame()
 
         editorCameraChanged = ShowEditorCameraWindow(app.editorCamera);
         renderCameraChanged = ShowRenderCameraWindow(app.renderCamera);
-        objectDataChanged = ShowInspectorWindow();
+        ShowInspectorWindow();
         ShowResourcesWindow();
 
         ImGui::EndFrame();
@@ -404,6 +403,7 @@ void Frame()
     }
 
     // Handle camera movement.
+    bool cameraMoved = false;
     {
         bool editing = !app.renderCameraPossessed;
         glm::vec3& position = editing ? app.editorCamera.position : app.renderCamera.position;
@@ -441,11 +441,18 @@ void Frame()
 
         if (glm::length(velocity) < 1e-2f)
             velocity = glm::vec3(0);
+
+        if (changed) cameraMoved = true;
     }
 
     if (app.renderCameraPossessed) {
         app.editorCamera.position = app.renderCamera.position;
         app.editorCamera.rotation = app.renderCamera.rotation;
+
+        if (cameraMoved)
+            renderCameraChanged = true;
+        if (app.scene.dirtyFlags != 0)
+            renderCameraChanged = true;
     }
 
     FrameUniformBuffer uniforms = {
