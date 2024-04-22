@@ -38,7 +38,7 @@ struct MeshFace
     glm::vec3                       centroid;
     glm::vec3                       normals[3];
     glm::vec2                       uvs[3];
-    Material*                       material;
+    uint32_t                        materialIndex;
 };
 
 struct MeshNode
@@ -57,6 +57,7 @@ struct Mesh
     std::vector<MeshNode>           nodes;
     uint32_t                        depth;
     uint32_t                        packedRootNodeIndex;
+    std::vector<Material*>          materials;
 };
 
 struct SceneObject

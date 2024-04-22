@@ -243,31 +243,33 @@ Mesh* LoadModel(Scene* scene, char const* path, LoadModelOptions* options)
     if (!tinyobj::LoadObj(&attrib, &shapes, &fileMaterials, &warn, &err, path, options->directoryPath.c_str()))
         return nullptr;
 
+    auto mesh = new Mesh;
+    mesh->name = path;
+
     // Map from in-file texture name to scene texture.
     std::unordered_map<std::string, Texture*> textureMap;
-    // Map from in-file material IDs to scene material.
-    std::vector<Material*> materialMap;
 
     // Scan the material definitions and build scene materials.
     for (int materialId = 0; materialId < fileMaterials.size(); materialId++) {
         tinyobj::material_t const& fileMaterial = fileMaterials[materialId];
 
-        auto material = new Material {
-            .name = fileMaterial.name,
-            .baseColor = glm::vec4(
-                fileMaterial.diffuse[0],
-                fileMaterial.diffuse[1],
-                fileMaterial.diffuse[2],
-                1.0),
-            .emissionColor = glm::vec4(
-                fileMaterial.emission[0],
-                fileMaterial.emission[1],
-                fileMaterial.emission[2],
-                1.0),
-            .roughness = 1.0f, //material.roughness,
-            .refraction = 0.0f,
-            .refractionIndex = 0.0f,
-        };
+        auto material = CreateMaterial(scene, fileMaterial.name.c_str());
+
+        material->baseColor = glm::vec4(
+            fileMaterial.diffuse[0],
+            fileMaterial.diffuse[1],
+            fileMaterial.diffuse[2],
+            1.0);
+
+        material->emissionColor = glm::vec4(
+            fileMaterial.emission[0],
+            fileMaterial.emission[1],
+            fileMaterial.emission[2],
+            1.0);
+
+        material->roughness = 1.0f;
+        material->refraction = 0.0f;
+        material->refractionIndex = 0.0f;
 
         std::pair<std::string, Texture**> textures[] = {
             { fileMaterial.diffuse_texname, &material->baseColorTexture },
@@ -287,13 +289,11 @@ Mesh* LoadModel(Scene* scene, char const* path, LoadModelOptions* options)
             }
         }
 
-        materialMap.push_back(material);
-        scene->materials.push_back(material);
+        mesh->materials.push_back(material);
     }
 
-    auto mesh = new Mesh;
-
-    mesh->name = path;
+    uint32_t defaultMaterialIndex = static_cast<uint32_t>(mesh->materials.size());
+    bool defaultMaterialNeeded = false;
 
     size_t faceCount = 0;
     for (auto const& shape : shapes)
@@ -334,15 +334,22 @@ Mesh* LoadModel(Scene* scene, char const* path, LoadModelOptions* options)
             }
 
             int materialId = shape.mesh.material_ids[i/3];
-            if (materialId >= 0)
-                face.material = materialMap[materialId];
-            else
-                face.material = options->defaultMaterial;
+            if (materialId >= 0) {
+                face.materialIndex = static_cast<uint32_t>(materialId);
+            }
+            else {
+                face.materialIndex = defaultMaterialIndex;
+                defaultMaterialNeeded = true;
+            }
 
             face.centroid = (face.vertices[0] + face.vertices[1] + face.vertices[2]) / 3.0f;
 
             faceIndex++;
         }
+    }
+
+    if (defaultMaterialNeeded) {
+        mesh->materials.push_back(options->defaultMaterial);
     }
 
     mesh->nodes.reserve(2 * mesh->faces.size());
@@ -518,10 +525,8 @@ uint32_t BakeSceneData(Scene* scene)
 
                 packed.position = face.vertices[0];
 
-                if (face.material)
-                    packed.materialIndex = face.material->packedMaterialIndex;
-                else
-                    packed.materialIndex = 0;
+                Material* material = mesh->materials[face.materialIndex];
+                packed.materialIndex = material ? material->packedMaterialIndex : 0;
 
                 glm::vec3 ab = face.vertices[1] - face.vertices[0];
                 glm::vec3 ac = face.vertices[2] - face.vertices[0];
