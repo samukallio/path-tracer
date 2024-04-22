@@ -91,6 +91,8 @@ struct Camera : Entity
     uint32_t                        bounceLimit;
 
     bool                            accumulateSamples;
+    uint32_t                        renderSampleBlockSizeLog2 = 0;
+
     ToneMappingMode                 toneMappingMode;
     float                           toneMappingWhiteLevel;
 

@@ -144,6 +144,11 @@ static void CameraInspector(UIContext* context, Camera* camera)
 
     ImGui::SeparatorText("General");
 
+    char const* const renderSampleBlockSizeLabels[] = { "1x1", "2x2", "4x4", "8x8" };
+    ImGui::Combo("Sample Block Size",
+        (int*)&camera->renderSampleBlockSizeLog2,
+        renderSampleBlockSizeLabels, 4);
+
     c |= ImGui::Checkbox("Accumulate Samples", &camera->accumulateSamples);
 
     if (context->camera == camera) {

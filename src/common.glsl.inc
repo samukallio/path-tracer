@@ -45,6 +45,7 @@ uniform FrameUniformBuffer
     mat4            cameraWorldMatrix;
     uint            renderMode;
     uint            renderFlags;
+    uint            renderSampleBlockSize;
     uint            renderBounceLimit;
     uint            highlightObjectIndex;
     uint            toneMappingMode;

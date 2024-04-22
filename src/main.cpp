@@ -207,6 +207,7 @@ void Frame()
         uniforms.highlightObjectIndex = 0xFFFFFFFF;
         uniforms.renderFlags = RENDER_FLAG_SAMPLE_JITTER;
 
+        uniforms.renderSampleBlockSize = 1u << app.ui.camera->renderSampleBlockSizeLog2;
         uniforms.renderBounceLimit = app.ui.camera->bounceLimit;
         uniforms.toneMappingMode = app.ui.camera->toneMappingMode;
         uniforms.toneMappingWhiteLevel = app.ui.camera->toneMappingWhiteLevel;

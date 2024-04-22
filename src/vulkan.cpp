@@ -2391,7 +2391,9 @@ VkResult RenderFrame(
         0, 1, &frame->renderDescriptorSet,
         0, nullptr);
 
-    vkCmdDispatch(frame->computeCommandBuffer, RENDER_WIDTH/16, RENDER_HEIGHT/16, 1);
+    uint32_t groupCountX = RENDER_WIDTH / (16 * uniforms->renderSampleBlockSize);
+    uint32_t groupCountY = RENDER_HEIGHT / (16 * uniforms->renderSampleBlockSize);
+    vkCmdDispatch(frame->computeCommandBuffer, groupCountX, groupCountY, 1);
 
     // Copy the render target image into the shader read copy.
     {

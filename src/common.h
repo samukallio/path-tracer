@@ -149,6 +149,7 @@ struct FrameUniformBuffer
     glm::aligned_mat4           cameraWorldMatrix           = {};
     RenderMode                  renderMode                  = RENDER_MODE_PATH_TRACE;
     uint32_t                    renderFlags                 = 0;
+    uint32_t                    renderSampleBlockSize       = 1;
     uint32_t                    renderBounceLimit           = 0;
     uint32_t                    highlightObjectIndex        = 0xFFFFFFFF;
     ToneMappingMode             toneMappingMode             = TONE_MAPPING_MODE_CLAMP;

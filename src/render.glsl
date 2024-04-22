@@ -487,7 +487,16 @@ void main()
     InitializeRandom();
 
     // Image pixel coordinate: (0,0) to (canvasSizeX, canvasSizeY).
-    ivec2 imagePosition = ivec2(gl_GlobalInvocationID.xy);
+    vec2 samplePosition = gl_GlobalInvocationID.xy;
+
+    if ((renderFlags & RENDER_FLAG_SAMPLE_JITTER) != 0)
+        samplePosition += vec2(Random0To1(), Random0To1());
+    else
+        samplePosition += vec2(0.5, 0.5);
+
+    samplePosition *= renderSampleBlockSize;
+
+    ivec2 imagePosition = ivec2(floor(samplePosition));
     ivec2 imageSize_ = imageSize(outputImage);
 
     // Invocation may be outside the image if the image dimensions are not
@@ -495,11 +504,6 @@ void main()
     // just exit immediately.
     if (imagePosition.x >= imageSize_.x) return;
     if (imagePosition.y >= imageSize_.y) return;
-
-    vec2 samplePosition = imagePosition;
-
-    if ((renderFlags & RENDER_FLAG_SAMPLE_JITTER) != 0)
-        samplePosition += vec2(Random0To1(), Random0To1());
 
     vec2 samplePositionNormalized = samplePosition / imageSize_;
 
@@ -537,28 +541,38 @@ void main()
 
     ray = TransformRay(ray, cameraWorldMatrix);
 
-    vec4 outputValue;
+    vec4 sampleValue;
 
     if (renderMode == RENDER_MODE_PATH_TRACE)
-        outputValue = Trace(ray);
+        sampleValue = Trace(ray);
 
     if (renderMode == RENDER_MODE_BASE_COLOR)
-        outputValue = TraceBaseColor(ray);
+        sampleValue = TraceBaseColor(ray);
 
     if (renderMode == RENDER_MODE_NORMAL)
-        outputValue = TraceNormal(ray);
+        sampleValue = TraceNormal(ray);
 
     if (renderMode == RENDER_MODE_MATERIAL_INDEX)
-        outputValue = TraceMaterialIndex(ray);
+        sampleValue = TraceMaterialIndex(ray);
 
     if (renderMode == RENDER_MODE_PRIMITIVE_INDEX)
-        outputValue = TracePrimitiveIndex(ray);
+        sampleValue = TracePrimitiveIndex(ray);
 
     if (renderMode == RENDER_MODE_EDIT)
-        outputValue = TraceEdit(ray);
+        sampleValue = TraceEdit(ray);
 
-    if ((renderFlags & RENDER_FLAG_ACCUMULATE) != 0)
-        outputValue += imageLoad(inputImage, imagePosition);
-
-    imageStore(outputImage, imagePosition, outputValue);
+    ivec2 xy = ivec2(gl_GlobalInvocationID.xy * renderSampleBlockSize);
+    for (int i = 0; i < renderSampleBlockSize; i++) {
+        for (int j = 0; j < renderSampleBlockSize; j++) {
+            ivec2 transferPosition = xy + ivec2(i,j);
+            if (transferPosition.x >= imageSize_.x) break;
+            if (transferPosition.y >= imageSize_.y) return;
+            vec4 transferValue = vec4(0,0,0,0);
+            if ((renderFlags & RENDER_FLAG_ACCUMULATE) != 0)
+                transferValue = imageLoad(inputImage, transferPosition);
+            if (transferPosition == imagePosition)
+                transferValue += sampleValue;
+            imageStore(outputImage, transferPosition, transferValue);
+        }
+    }
 }
