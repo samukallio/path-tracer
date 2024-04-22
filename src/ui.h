@@ -24,6 +24,7 @@ struct UIContext
     Camera*         camera          = nullptr;
 };
 
+void InitializeImGui();
 void ShowSceneHierarchyWindow(UIContext* context);
 void ShowInspectorWindow(UIContext* context);
 void ShowResourcesWindow(UIContext* context);

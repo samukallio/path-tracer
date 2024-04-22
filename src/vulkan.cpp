@@ -1,5 +1,6 @@
 #include "vulkan.h"
 #include "scene.h"
+#include "ui_font.h"
 
 #include <cassert>
 #include <cstdarg>
@@ -1843,7 +1844,7 @@ static VkResult InternalCreateVulkan(
     {
         ImGuiIO& io = ImGui::GetIO();
 
-        io.Fonts->AddFontDefault();
+        io.Fonts->AddFontFromMemoryCompressedTTF(CousineRegular_compressed_data, CousineRegular_compressed_size, 16);
         io.Fonts->Build();
 
         unsigned char* data;
