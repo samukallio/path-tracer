@@ -127,7 +127,7 @@ bool ShowRenderCameraWindow(RenderCamera& camera)
 
     ImGui::Checkbox("Possess", &app.renderCameraPossessed);
 
-    c |= ImGui::InputFloat3("Position", &camera.position[0], "%.3f");
+    c |= ImGui::DragFloat3("Position", &camera.position[0], 0.1f);
     c |= ImGui_DragEulerAngles("Rotation", &camera.rotation);
 
     ImGui::SeparatorText("Render Mode");
@@ -318,7 +318,7 @@ bool TextureInspector(Texture* texture)
     return false;
 }
 
-bool MaterialInspector(Material* material)
+bool MaterialInspector(Material* material, bool referenced = false)
 {
     Scene& scene = app.scene;
 
@@ -326,10 +326,17 @@ bool MaterialInspector(Material* material)
 
     ImGui::PushID(material);
 
-    ImGui::SeparatorText("Material");
+    if (referenced) {
+        char title[256];
+        snprintf(title, 256, "Material: %s", material->name.c_str());
+        ImGui::SeparatorText(title);
+    }
+    else {
+        ImGui::SeparatorText("Material");
+        ImGui::InputText("Name", &material->name);
+    }
 
     bool c = false;
-    ImGui::InputText("Name", &material->name);
     c |= ImGui::ColorEdit3("Base Color", &material->baseColor[0]);
     c |= ResourceSelectorDropDown("Base Color Texture", scene.textures, &material->baseColorTexture);
     c |= ImGui::ColorEdit3("Emission Color", &material->emissionColor[0]);
@@ -348,7 +355,7 @@ bool MaterialInspector(Material* material)
     return c;
 }
 
-bool MeshInspector(Mesh* mesh)
+bool MeshInspector(Mesh* mesh, bool referenced = false)
 {
     Scene& scene = app.scene;
 
@@ -356,8 +363,15 @@ bool MeshInspector(Mesh* mesh)
 
     ImGui::PushID(mesh);
 
-    ImGui::SeparatorText("Mesh");
-    ImGui::InputText("Name", &mesh->name);
+    if (referenced) {
+        char title[256];
+        snprintf(title, 256, "Mesh: %s", mesh->name.c_str());
+        ImGui::SeparatorText(title);
+    }
+    else {
+        ImGui::SeparatorText("Mesh");
+        ImGui::InputText("Name", &mesh->name);
+    }
 
     bool c = false;
 
@@ -367,7 +381,9 @@ bool MeshInspector(Mesh* mesh)
         char title[32];
         sprintf_s(title, "Material %llu", k);
         c |= ResourceSelectorDropDown(title, scene.materials, &mesh->materials[k]);
-        MaterialInspector(mesh->materials[k]);
+
+        ImGui::Spacing();
+        MaterialInspector(mesh->materials[k], true);
 
         ImGui::PopID();
     }
@@ -413,13 +429,15 @@ bool SceneObjectInspector(SceneObject* object)
     switch (object->type) {
         case OBJECT_TYPE_MESH_INSTANCE: {
             c |= ResourceSelectorDropDown("Mesh", scene.meshes, &object->mesh);
-            MeshInspector(object->mesh);
+            ImGui::Spacing();
+            MeshInspector(object->mesh, true);
             break;
         }
         case OBJECT_TYPE_PLANE:
         case OBJECT_TYPE_SPHERE: {
             c |= ResourceSelectorDropDown("Material", scene.materials, &object->material);
-            MaterialInspector(object->material);
+            ImGui::Spacing();
+            MaterialInspector(object->material, true);
             break;
         }
     }
