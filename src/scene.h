@@ -60,21 +60,30 @@ struct Mesh
     std::vector<Material*>          materials;
 };
 
-struct SceneObject
+enum EntityType
+{
+    ENTITY_TYPE_SCENE               = 0,
+    ENTITY_TYPE_CAMERA              = 1,
+    ENTITY_TYPE_MESH_INSTANCE       = 2,
+    ENTITY_TYPE_PLANE               = 3,
+    ENTITY_TYPE_SPHERE              = 4,
+};
+
+struct Entity
 {
     std::string                     name;
+    EntityType                      type;
     Transform                       transform;
-    ObjectType                      type;
     Material*                       material;
     Mesh*                           mesh;
     uint32_t                        packedObjectIndex;
-    std::vector<SceneObject*>       children;
+    std::vector<Entity*>            children;
 };
 
 struct Scene
 {
+    Entity                          root;
     std::vector<Mesh*>              meshes;
-    std::vector<SceneObject*>       objects;
     std::vector<Material*>          materials;
     std::vector<Texture*>           textures;
 

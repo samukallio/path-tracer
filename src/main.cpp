@@ -48,7 +48,7 @@ enum SelectionType
     SELECTION_TYPE_TEXTURE      = 1,
     SELECTION_TYPE_MATERIAL     = 2,
     SELECTION_TYPE_MESH         = 3,
-    SELECTION_TYPE_OBJECT       = 4,
+    SELECTION_TYPE_ENTITY       = 4,
 };
 
 struct Selection
@@ -57,7 +57,7 @@ struct Selection
     Texture*        texture     = nullptr;
     Material*       material    = nullptr;
     Mesh*           mesh        = nullptr;
-    SceneObject*    object      = nullptr;
+    Entity*         entity      = nullptr;
 };
 
 struct AppContext
@@ -395,49 +395,49 @@ bool MeshInspector(Mesh* mesh, bool referenced = false)
     return c;
 }
 
-bool SceneObjectInspector(SceneObject* object)
+bool EntityInspector(Entity* entity)
 {
     Scene& scene = app.scene;
 
-    if (!object) return false;
+    if (!entity) return false;
 
-    ImGui::PushID(object);
+    ImGui::PushID(entity);
 
-    char const* objectTypeLabel = "(unknown)";
-    switch (object->type) {
-        case OBJECT_TYPE_MESH_INSTANCE:
-            objectTypeLabel = "Mesh Instance";
+    char const* entityTypeLabel = "(unknown)";
+    switch (entity->type) {
+        case ENTITY_TYPE_MESH_INSTANCE:
+            entityTypeLabel = "Mesh Instance";
             break;
-        case OBJECT_TYPE_PLANE:
-            objectTypeLabel = "Plane";
+        case ENTITY_TYPE_PLANE:
+            entityTypeLabel = "Plane";
             break;
-        case OBJECT_TYPE_SPHERE:
-            objectTypeLabel = "Sphere";
+        case ENTITY_TYPE_SPHERE:
+            entityTypeLabel = "Sphere";
             break;
     }
-    ImGui::SeparatorText(objectTypeLabel);
+    ImGui::SeparatorText(entityTypeLabel);
 
     bool c = false;
 
-    ImGui::InputText("Name", &object->name);
+    ImGui::InputText("Name", &entity->name);
 
-    Transform& transform = object->transform;
+    Transform& transform = entity->transform;
     c |= ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
     c |= ImGui_DragEulerAngles("Rotation", &transform.rotation);
     c |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.01f);
 
-    switch (object->type) {
+    switch (entity->type) {
         case OBJECT_TYPE_MESH_INSTANCE: {
-            c |= ResourceSelectorDropDown("Mesh", scene.meshes, &object->mesh);
+            c |= ResourceSelectorDropDown("Mesh", scene.meshes, &entity->mesh);
             ImGui::Spacing();
-            MeshInspector(object->mesh, true);
+            MeshInspector(entity->mesh, true);
             break;
         }
         case OBJECT_TYPE_PLANE:
         case OBJECT_TYPE_SPHERE: {
-            c |= ResourceSelectorDropDown("Material", scene.materials, &object->material);
+            c |= ResourceSelectorDropDown("Material", scene.materials, &entity->material);
             ImGui::Spacing();
-            MaterialInspector(object->material, true);
+            MaterialInspector(entity->material, true);
             break;
         }
     }
@@ -449,26 +449,26 @@ bool SceneObjectInspector(SceneObject* object)
     return c;
 }
 
-void DoSceneObjectNode(SceneObject* object)
+void DoEntityNode(Entity* entity)
 {
     Selection& selection = app.selection;
 
     ImGuiTreeNodeFlags flags = 0;
 
-    if (object->children.empty())
+    if (entity->children.empty())
         flags |= ImGuiTreeNodeFlags_Leaf;
 
-    if (selection.type == SELECTION_TYPE_OBJECT && selection.object == object)
+    if (selection.type == SELECTION_TYPE_ENTITY && selection.entity == entity)
         flags |= ImGuiTreeNodeFlags_Selected;
 
-    if (ImGui::TreeNodeEx(object->name.c_str(), flags)) {
+    if (ImGui::TreeNodeEx(entity->name.c_str(), flags)) {
         if (ImGui::IsItemClicked()) {
-            selection.type = SELECTION_TYPE_OBJECT;
-            selection.object = object;
+            selection.type = SELECTION_TYPE_ENTITY;
+            selection.entity = entity;
         }
 
-        for (SceneObject* child : object->children)
-            DoSceneObjectNode(child);
+        for (Entity* child : entity->children)
+            DoEntityNode(child);
 
         ImGui::TreePop();
     }
@@ -480,8 +480,7 @@ void ShowSceneHierarchyWindow()
 
     ImGui::Begin("Scene Hierarchy");
 
-    for (SceneObject* object : scene.objects)
-        DoSceneObjectNode(object);
+    DoEntityNode(&scene.root);
 
     ImGui::End();
 }
@@ -508,10 +507,10 @@ bool ShowInspectorWindow()
             MeshInspector(selection.mesh);
             break;
         }
-        case SELECTION_TYPE_OBJECT: {
+        case SELECTION_TYPE_ENTITY: {
             bool c = false;
-            SceneObject* object = selection.object;
-            SceneObjectInspector(object);
+            Entity* entity = selection.entity;
+            EntityInspector(entity);
             if (c) app.scene.dirtyFlags |= SCENE_DIRTY_OBJECTS;
             break;
         }
@@ -623,7 +622,6 @@ void Frame()
 
     FrameUniformBuffer uniforms = {
         .frameRandomSeed = app.frameIndex,
-        .sceneObjectCount = static_cast<uint32_t>(app.scene.objects.size()),
         .renderBounceLimit = app.renderCamera.bounceLimit,
         .toneMappingMode = app.renderCamera.toneMappingMode,
         .toneMappingWhiteLevel = app.renderCamera.toneMappingWhiteLevel,
@@ -658,10 +656,10 @@ void Frame()
 
             Hit hit;
             if (Trace(&app.scene, ray, hit)) {
-                app.selection.type = SELECTION_TYPE_OBJECT;
-                for (SceneObject* object : app.scene.objects)
-                    if (object->packedObjectIndex == hit.objectIndex)
-                        app.selection.object = object;
+                app.selection.type = SELECTION_TYPE_ENTITY;
+                for (Entity* entity : app.scene.root.children)
+                    if (entity->packedObjectIndex == hit.objectIndex)
+                        app.selection.entity = entity;
             }
         }
 
@@ -672,8 +670,8 @@ void Frame()
         uniforms.cameraWorldMatrix = glm::inverse(viewMatrix);
         uniforms.renderFlags = 0;
 
-        if (app.selection.type == SELECTION_TYPE_OBJECT)
-            uniforms.highlightObjectIndex = app.selection.object->packedObjectIndex;
+        if (app.selection.type == SELECTION_TYPE_ENTITY)
+            uniforms.highlightObjectIndex = app.selection.entity->packedObjectIndex;
         else
             uniforms.highlightObjectIndex = 0xFFFFFFFF;
     }
@@ -703,6 +701,8 @@ void Frame()
 
     uint32_t dirtyFlags = BakeSceneData(&app.scene);
     UploadScene(app.vulkan, &app.scene, dirtyFlags);
+
+    uniforms.sceneObjectCount = static_cast<uint32_t>(app.scene.packedObjects.size());
 
     RenderFrame(app.vulkan, &uniforms, ImGui::GetDrawData());
 }
@@ -867,6 +867,9 @@ int main()
 {
     Scene& scene = app.scene;
 
+    scene.root.name = "Scene";
+    scene.root.type = ENTITY_TYPE_SCENE;
+
     Material* material = CreateMaterial(&scene, "viking_room");
     material->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png");
 
@@ -875,13 +878,13 @@ int main()
     options.defaultMaterial = material;
     Mesh* mesh = LoadModel(&scene, "../scene/viking_room.obj", &options);
 
-    scene.objects.push_back(new SceneObject {
+    scene.root.children.push_back(new Entity {
         .name = "room",
+        .type = ENTITY_TYPE_MESH_INSTANCE,
         .transform = {
             .position = glm::vec3(0, 0, 0),
             .rotation = glm::vec3(0, 0, 0),
         },
-        .type = OBJECT_TYPE_MESH_INSTANCE,
         .mesh = mesh,
     });
 
@@ -889,23 +892,23 @@ int main()
     glass->refraction = 1.0f;
     glass->refractionIndex = 1.5f;
 
-    scene.objects.push_back(new SceneObject {
+    scene.root.children.push_back(new Entity {
         .name = "sphere",
+        .type = ENTITY_TYPE_SPHERE,
         .transform = {
             .position = glm::vec3(0, 0, 0),
             .rotation = glm::vec3(0, 0, 0),
         },
-        .type = OBJECT_TYPE_SPHERE,
         .material = glass,
     });
 
-    scene.objects.push_back(new SceneObject {
+    scene.root.children.push_back(new Entity {
         .name = "plane",
+        .type = ENTITY_TYPE_PLANE,
         .transform = {
             .position = glm::vec3(0, 0, 0),
             .rotation = glm::vec3(0, 0, 0),
         },
-        .type = OBJECT_TYPE_PLANE,
     });
 
     BakeSceneData(&scene);
