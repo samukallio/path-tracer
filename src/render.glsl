@@ -486,7 +486,8 @@ void main()
 {
     InitializeRandom();
 
-    // Image pixel coordinate: (0,0) to (canvasSizeX, canvasSizeY).
+    // Compute the position of the sample we are going to produce in image
+    // coordinates from (0, 0) to (ImageSizeX, ImageSizeY).
     vec2 samplePosition = gl_GlobalInvocationID.xy;
 
     if ((renderFlags & RENDER_FLAG_SAMPLE_JITTER) != 0)
@@ -496,33 +497,35 @@ void main()
 
     samplePosition *= renderSampleBlockSize;
 
-    ivec2 imagePosition = ivec2(floor(samplePosition));
-    ivec2 imageSize_ = imageSize(outputImage);
+    // Get the integer position of the pixel that contains the chosen sample.
+    ivec2 samplePixelPosition = ivec2(floor(samplePosition));
 
-    // Invocation may be outside the image if the image dimensions are not
-    // multiples of 16 (since a workgroup is 16-by-16).  If that happens,
-    // just exit immediately.
-    if (imagePosition.x >= imageSize_.x) return;
-    if (imagePosition.y >= imageSize_.y) return;
+    // This position can be outside the target image if the image size is not
+    // a multiple of the region size (16 * renderSampleBlockSize) handled by
+    // one invocation.  If that happens, just exit.
+    ivec2 imageSizeInPixels = imageSize(outputImage);
+    if (samplePixelPosition.x >= imageSizeInPixels.x) return;
+    if (samplePixelPosition.y >= imageSizeInPixels.y) return;
 
-    vec2 samplePositionNormalized = samplePosition / imageSize_;
+    // Compute normalized sample position from (0, 0) to (1, 1).
+    vec2 sampleNormalizedPosition = samplePosition / imageSizeInPixels;
 
     Ray ray;
 
     if (cameraModel == CAMERA_MODEL_PINHOLE) {
-        vec3 sensorPositionNormalized = vec3(
-            -cameraSensorSize.x * (samplePositionNormalized.x - 0.5),
-            -cameraSensorSize.y * (0.5 - samplePositionNormalized.y),
+        vec3 sensorPosition = vec3(
+            -cameraSensorSize.x * (sampleNormalizedPosition.x - 0.5),
+            -cameraSensorSize.y * (0.5 - sampleNormalizedPosition.y),
             cameraSensorDistance);
 
         ray.origin = vec3(0, 0, 0);
-        ray.direction = normalize(-sensorPositionNormalized);
+        ray.direction = normalize(-sensorPosition);
     }
 
     if (cameraModel == CAMERA_MODEL_THIN_LENS) {
         vec3 sensorPosition = vec3(
-            -cameraSensorSize.x * (samplePositionNormalized.x - 0.5),
-            -cameraSensorSize.y * (0.5 - samplePositionNormalized.y),
+            -cameraSensorSize.x * (sampleNormalizedPosition.x - 0.5),
+            -cameraSensorSize.y * (0.5 - sampleNormalizedPosition.y),
             cameraSensorDistance);
 
         vec3 objectPosition = -sensorPosition * cameraFocalLength / (sensorPosition.z - cameraFocalLength);
@@ -532,8 +535,8 @@ void main()
     }
 
     if (cameraModel == CAMERA_MODEL_360) {
-        float phi = (samplePositionNormalized.x - 0.5f) * TAU;
-        float theta = (0.5f - samplePositionNormalized.y) * PI;
+        float phi = (sampleNormalizedPosition.x - 0.5f) * TAU;
+        float theta = (0.5f - sampleNormalizedPosition.y) * PI;
 
         ray.origin = vec3(0, 0, 0);
         ray.direction = vec3(cos(theta) * sin(phi), sin(theta), -cos(theta) * cos(phi));
@@ -561,18 +564,21 @@ void main()
     if (renderMode == RENDER_MODE_EDIT)
         sampleValue = TraceEdit(ray);
 
+    // Transfer the sample block from the input image to the output image,
+    // adding the sample value that we produced at the relevant pixel
+    // position.
     ivec2 xy = ivec2(gl_GlobalInvocationID.xy * renderSampleBlockSize);
     for (int i = 0; i < renderSampleBlockSize; i++) {
         for (int j = 0; j < renderSampleBlockSize; j++) {
-            ivec2 transferPosition = xy + ivec2(i,j);
-            if (transferPosition.x >= imageSize_.x) break;
-            if (transferPosition.y >= imageSize_.y) return;
-            vec4 transferValue = vec4(0,0,0,0);
+            ivec2 transferPixelPosition = xy + ivec2(i,j);
+            if (transferPixelPosition.x >= imageSizeInPixels.x) break;
+            if (transferPixelPosition.y >= imageSizeInPixels.y) return;
+            vec4 outputValue = vec4(0,0,0,0);
             if ((renderFlags & RENDER_FLAG_ACCUMULATE) != 0)
-                transferValue = imageLoad(inputImage, transferPosition);
-            if (transferPosition == imagePosition)
-                transferValue += sampleValue;
-            imageStore(outputImage, transferPosition, transferValue);
+                outputValue = imageLoad(inputImage, transferPixelPosition);
+            if (transferPixelPosition == samplePixelPosition)
+                outputValue += sampleValue;
+            imageStore(outputImage, transferPixelPosition, outputValue);
         }
     }
 }
