@@ -80,6 +80,7 @@ struct Entity
 
 struct Root : Entity
 {
+    Root() { type = ENTITY_TYPE_ROOT; }
 };
 
 struct Camera : Entity

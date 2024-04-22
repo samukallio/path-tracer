@@ -885,7 +885,6 @@ int main()
     app.activeCamera = nullptr;
 
     scene.root.name = "Root";
-    scene.root.type = ENTITY_TYPE_ROOT;
 
     Material* material = CreateMaterial(&scene, "viking_room");
     material->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png");
@@ -938,7 +937,6 @@ int main()
 
     auto camera = new Camera;
     camera->name = "Camera";
-    ((Entity*)camera)->type = ENTITY_TYPE_CAMERA;
     camera->renderMode = RENDER_MODE_NORMAL;
     camera->type = CAMERA_TYPE_PINHOLE;
     camera->transform.position = { 0, 0, 0 };
