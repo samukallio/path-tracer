@@ -261,9 +261,9 @@ static void EntityInspector(UIContext* context, Entity* entity)
                 }
                 c = true;
             }
-            if (ImGui::Checkbox("Scale Uniform", &transform.scaleIsUniform)) {
+            if (ImGui::Checkbox("Uniform Scale", &transform.scaleIsUniform)) {
                 if (transform.scaleIsUniform)
-                    scale = glm::vec3(1) * glm::pow(scale.x * scale.y * scale.z, 1.f/3);
+                    scale = glm::vec3(1) * scale.x;
                 c = true;
             }
             transform.scale = scale;
