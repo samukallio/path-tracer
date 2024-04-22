@@ -306,10 +306,14 @@ bool TextureInspector(Texture* texture)
 
     if (!texture) return false;
 
+    ImGui::PushID(texture);
+
     ImGui::SeparatorText("Texture");
 
     ImGui::InputText("Name", &texture->name);
     ImGui::LabelText("Size", "%u x %u", texture->width, texture->height);
+
+    ImGui::PopID();
 
     return false;
 }
@@ -319,6 +323,8 @@ bool MaterialInspector(Material* material)
     Scene& scene = app.scene;
 
     if (!material) return false;
+
+    ImGui::PushID(material);
 
     ImGui::SeparatorText("Material");
 
@@ -337,6 +343,8 @@ bool MaterialInspector(Material* material)
     c |= ImGui::DragFloat("Refraction Index", &material->refractionIndex, 0.001f, 2.0f);
     if (c) scene.dirtyFlags |= SCENE_DIRTY_MATERIALS;
 
+    ImGui::PopID();
+
     return c;
 }
 
@@ -346,10 +354,29 @@ bool MeshInspector(Mesh* mesh)
 
     if (!mesh) return false;
 
+    ImGui::PushID(mesh);
+
     ImGui::SeparatorText("Mesh");
     ImGui::InputText("Name", &mesh->name);
 
-    return false;
+    bool c = false;
+
+    for (size_t k = 0; k < mesh->materials.size(); k++) {
+        ImGui::PushID(static_cast<int>(k));
+
+        char title[32];
+        sprintf_s(title, "Material %llu", k);
+        c |= ResourceSelectorDropDown(title, scene.materials, &mesh->materials[k]);
+        MaterialInspector(mesh->materials[k]);
+
+        ImGui::PopID();
+    }
+
+    if (c) scene.dirtyFlags |= SCENE_DIRTY_MESHES;
+
+    ImGui::PopID();
+
+    return c;
 }
 
 bool SceneObjectInspector(SceneObject* object)
@@ -357,6 +384,8 @@ bool SceneObjectInspector(SceneObject* object)
     Scene& scene = app.scene;
 
     if (!object) return false;
+
+    ImGui::PushID(object);
 
     char const* objectTypeLabel = "(unknown)";
     switch (object->type) {
@@ -390,11 +419,14 @@ bool SceneObjectInspector(SceneObject* object)
         case OBJECT_TYPE_PLANE:
         case OBJECT_TYPE_SPHERE: {
             c |= ResourceSelectorDropDown("Material", scene.materials, &object->material);
+            MaterialInspector(object->material);
             break;
         }
     }
 
     if (c) scene.dirtyFlags |= SCENE_DIRTY_OBJECTS;
+
+    ImGui::PopID();
 
     return c;
 }
@@ -462,7 +494,6 @@ bool ShowInspectorWindow()
             bool c = false;
             SceneObject* object = selection.object;
             SceneObjectInspector(object);
-            MaterialInspector(object->material);
             if (c) app.scene.dirtyFlags |= SCENE_DIRTY_OBJECTS;
             break;
         }
