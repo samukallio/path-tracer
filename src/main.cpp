@@ -322,6 +322,7 @@ bool ShowInspectorWindow()
             c |= ImGui::ColorEdit3("Base Color", &m->baseColor[0]);
             c |= TextureCombo("Base Color Texture", &m->baseColorTexture);
             c |= ImGui::ColorEdit3("Emission Color", &m->emissionColor[0]);
+            c |= ImGui::DragFloat("Emission Power", &m->emissionPower, 1.0f, 0.0f, 100.0f);
             c |= TextureCombo("Emission Color Texture", &m->emissionColorTexture);
             c |= ImGui::DragFloat("Metallic", &m->metallic, 0.01f, 0.0f, 1.0f);
             c |= TextureCombo("Metallic Texture", &m->metallicTexture);

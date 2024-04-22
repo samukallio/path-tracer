@@ -481,7 +481,7 @@ uint32_t BakeSceneData(Scene* scene)
             }
 
             packed.baseColor = material->baseColor;
-            packed.emissionColor = material->emissionColor;
+            packed.emissionColor = material->emissionColor * material->emissionPower;
             packed.metallic = material->metallic;
             packed.roughness = material->roughness;
             packed.refraction = material->refraction;

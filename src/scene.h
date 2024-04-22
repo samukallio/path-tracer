@@ -22,6 +22,7 @@ struct Material
     Texture*                        baseColorTexture        = nullptr;
     glm::vec3                       emissionColor           = glm::vec3(0, 0, 0);
     Texture*                        emissionColorTexture    = nullptr;
+    float                           emissionPower           = 0.0f;
     float                           metallic                = 0.0f;
     Texture*                        metallicTexture         = nullptr;
     float                           roughness               = 1.0f;
