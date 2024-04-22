@@ -266,36 +266,137 @@ bool ShowResourcesWindow()
     return c;
 }
 
-bool TextureCombo(char const* label, Texture** texturePtr)
+template<typename ResourceT>
+bool ResourceSelectorDropDown(
+    char const* label,
+    std::vector<ResourceT*>& resources,
+    ResourceT** resourcePtr)
 {
-    Scene& scene = app.scene;
-
     auto getter = [](void* context, int index) {
-        auto scene = static_cast<Scene*>(context);
+        auto& resources = *static_cast<std::vector<ResourceT*>*>(context);
         if (index <= 0)
             return "(none)";
-        if (index > scene->textures.size())
+        if (index > resources.size())
             return "";
-        return scene->textures[index-1]->name.c_str();
+        return resources[index-1]->name.c_str();
     };
 
     int itemIndex = 0;
-    int itemCount = static_cast<int>(scene.textures.size()) + 1;
+    int itemCount = static_cast<int>(resources.size()) + 1;
 
     for (int k = 0; k < itemCount; k++)
-        if (scene.textures[k] == *texturePtr)
+        if (resources[k] == *resourcePtr)
             itemIndex = k + 1;
 
-    bool changed = ImGui::Combo(label, &itemIndex, getter, &scene, itemCount, 6);
+    bool changed = ImGui::Combo(label, &itemIndex, getter, &resources, itemCount, 6);
 
     if (changed) {
         if (itemIndex == 0)
-            *texturePtr = nullptr;
+            *resourcePtr = nullptr;
         else
-            *texturePtr = scene.textures[itemIndex-1];
+            *resourcePtr = resources[itemIndex-1];
     }
 
     return changed;
+}
+
+bool TextureInspector(Texture* texture)
+{
+    Scene& scene = app.scene;
+
+    if (!texture) return false;
+
+    ImGui::SeparatorText("Texture");
+
+    ImGui::InputText("Name", &texture->name);
+    ImGui::LabelText("Size", "%u x %u", texture->width, texture->height);
+
+    return false;
+}
+
+bool MaterialInspector(Material* material)
+{
+    Scene& scene = app.scene;
+
+    if (!material) return false;
+
+    ImGui::SeparatorText("Material");
+
+    bool c = false;
+    ImGui::InputText("Name", &material->name);
+    c |= ImGui::ColorEdit3("Base Color", &material->baseColor[0]);
+    c |= ResourceSelectorDropDown("Base Color Texture", scene.textures, &material->baseColorTexture);
+    c |= ImGui::ColorEdit3("Emission Color", &material->emissionColor[0]);
+    c |= ImGui::DragFloat("Emission Power", &material->emissionPower, 1.0f, 0.0f, 100.0f);
+    c |= ResourceSelectorDropDown("Emission Color Texture", scene.textures, &material->emissionColorTexture);
+    c |= ImGui::DragFloat("Metallic", &material->metallic, 0.01f, 0.0f, 1.0f);
+    c |= ResourceSelectorDropDown("Metallic Texture", scene.textures, &material->metallicTexture);
+    c |= ImGui::DragFloat("Roughness", &material->roughness, 0.01f, 0.0f, 1.0f);
+    c |= ResourceSelectorDropDown("Roughness Texture", scene.textures, &material->roughnessTexture);
+    c |= ImGui::DragFloat("Refraction Probability", &material->refraction, 0.01f, 0.0f, 1.0f);
+    c |= ImGui::DragFloat("Refraction Index", &material->refractionIndex, 0.001f, 2.0f);
+    if (c) scene.dirtyFlags |= SCENE_DIRTY_MATERIALS;
+
+    return c;
+}
+
+bool MeshInspector(Mesh* mesh)
+{
+    Scene& scene = app.scene;
+
+    if (!mesh) return false;
+
+    ImGui::SeparatorText("Mesh");
+    ImGui::InputText("Name", &mesh->name);
+
+    return false;
+}
+
+bool SceneObjectInspector(SceneObject* object)
+{
+    Scene& scene = app.scene;
+
+    if (!object) return false;
+
+    char const* objectTypeLabel = "(unknown)";
+    switch (object->type) {
+        case OBJECT_TYPE_MESH_INSTANCE:
+            objectTypeLabel = "Mesh Instance";
+            break;
+        case OBJECT_TYPE_PLANE:
+            objectTypeLabel = "Plane";
+            break;
+        case OBJECT_TYPE_SPHERE:
+            objectTypeLabel = "Sphere";
+            break;
+    }
+    ImGui::SeparatorText(objectTypeLabel);
+
+    bool c = false;
+
+    ImGui::InputText("Name", &object->name);
+
+    Transform& transform = object->transform;
+    c |= ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
+    c |= ImGui_DragEulerAngles("Rotation", &transform.rotation);
+    c |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.01f);
+
+    switch (object->type) {
+        case OBJECT_TYPE_MESH_INSTANCE: {
+            c |= ResourceSelectorDropDown("Mesh", scene.meshes, &object->mesh);
+            MeshInspector(object->mesh);
+            break;
+        }
+        case OBJECT_TYPE_PLANE:
+        case OBJECT_TYPE_SPHERE: {
+            c |= ResourceSelectorDropDown("Material", scene.materials, &object->material);
+            break;
+        }
+    }
+
+    if (c) scene.dirtyFlags |= SCENE_DIRTY_OBJECTS;
+
+    return c;
 }
 
 bool ShowInspectorWindow()
@@ -309,44 +410,22 @@ bool ShowInspectorWindow()
 
     switch (selection.type) {
         case SELECTION_TYPE_TEXTURE: {
-            Texture* t = selection.texture;
-            bool c = false;
-            ImGui::InputText("Name", &t->name);
+            TextureInspector(selection.texture);
             break;
         }
-
         case SELECTION_TYPE_MATERIAL: {
-            Material* m = selection.material;
-            bool c = false;
-            ImGui::InputText("Name", &m->name);
-            c |= ImGui::ColorEdit3("Base Color", &m->baseColor[0]);
-            c |= TextureCombo("Base Color Texture", &m->baseColorTexture);
-            c |= ImGui::ColorEdit3("Emission Color", &m->emissionColor[0]);
-            c |= ImGui::DragFloat("Emission Power", &m->emissionPower, 1.0f, 0.0f, 100.0f);
-            c |= TextureCombo("Emission Color Texture", &m->emissionColorTexture);
-            c |= ImGui::DragFloat("Metallic", &m->metallic, 0.01f, 0.0f, 1.0f);
-            c |= TextureCombo("Metallic Texture", &m->metallicTexture);
-            c |= ImGui::DragFloat("Roughness", &m->roughness, 0.01f, 0.0f, 1.0f);
-            c |= TextureCombo("Roughness Texture", &m->roughnessTexture);
-            c |= ImGui::DragFloat("Refraction Probability", &m->refraction, 0.01f, 0.0f, 1.0f);
-            c |= ImGui::DragFloat("Refraction Index", &m->refractionIndex, 0.001f, 2.0f);
-            if (c) scene.dirtyFlags |= SCENE_DIRTY_MATERIALS;
+            MaterialInspector(selection.material);
             break;
         }
-
         case SELECTION_TYPE_MESH: {
-            Mesh* m = selection.mesh;
-            bool c = false;
-            ImGui::InputText("Name", &m->name);
+            MeshInspector(selection.mesh);
             break;
         }
-
         case SELECTION_TYPE_OBJECT: {
             bool c = false;
-            Transform& transform = selection.object->transform;
-            c |= ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
-            c |= ImGui_DragEulerAngles("Rotation", &transform.rotation);
-            c |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.01f);
+            SceneObject* object = selection.object;
+            SceneObjectInspector(object);
+            MaterialInspector(object->material);
             if (c) app.scene.dirtyFlags |= SCENE_DIRTY_OBJECTS;
             break;
         }
