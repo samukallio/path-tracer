@@ -403,38 +403,47 @@ bool EntityInspector(Entity* entity)
 
     ImGui::PushID(entity);
 
-    char const* entityTypeLabel = "(unknown)";
     switch (entity->type) {
+        case ENTITY_TYPE_SCENE:
+            ImGui::SeparatorText("Scene");
+            break;
         case ENTITY_TYPE_MESH_INSTANCE:
-            entityTypeLabel = "Mesh Instance";
+            ImGui::SeparatorText("Mesh Instance");
             break;
         case ENTITY_TYPE_PLANE:
-            entityTypeLabel = "Plane";
+            ImGui::SeparatorText("Plane");
             break;
         case ENTITY_TYPE_SPHERE:
-            entityTypeLabel = "Sphere";
+            ImGui::SeparatorText("Sphere");
+            break;
+        default:
+            ImGui::SeparatorText("(unknown)");
             break;
     }
-    ImGui::SeparatorText(entityTypeLabel);
 
     bool c = false;
 
-    ImGui::InputText("Name", &entity->name);
+    if (entity->type != ENTITY_TYPE_SCENE) {
+        ImGui::InputText("Name", &entity->name);
 
-    Transform& transform = entity->transform;
-    c |= ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
-    c |= ImGui_DragEulerAngles("Rotation", &transform.rotation);
-    c |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.01f);
+        Transform& transform = entity->transform;
+        c |= ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
+        c |= ImGui_DragEulerAngles("Rotation", &transform.rotation);
+        c |= ImGui::DragFloat3("Scale", &transform.scale[0], 0.01f);
+    }
 
     switch (entity->type) {
-        case OBJECT_TYPE_MESH_INSTANCE: {
+        case ENTITY_TYPE_SCENE: {
+            break;
+        }
+        case ENTITY_TYPE_MESH_INSTANCE: {
             c |= ResourceSelectorDropDown("Mesh", scene.meshes, &entity->mesh);
             ImGui::Spacing();
             MeshInspector(entity->mesh, true);
             break;
         }
-        case OBJECT_TYPE_PLANE:
-        case OBJECT_TYPE_SPHERE: {
+        case ENTITY_TYPE_PLANE:
+        case ENTITY_TYPE_SPHERE: {
             c |= ResourceSelectorDropDown("Material", scene.materials, &entity->material);
             ImGui::Spacing();
             MaterialInspector(entity->material, true);
@@ -449,14 +458,17 @@ bool EntityInspector(Entity* entity)
     return c;
 }
 
-void DoEntityNode(Entity* entity)
+void EntityTreeNode(Entity* entity)
 {
     Selection& selection = app.selection;
 
-    ImGuiTreeNodeFlags flags = 0;
+    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnDoubleClick;
 
     if (entity->children.empty())
         flags |= ImGuiTreeNodeFlags_Leaf;
+
+    if (entity->type == ENTITY_TYPE_SCENE)
+        flags |= ImGuiTreeNodeFlags_DefaultOpen;
 
     if (selection.type == SELECTION_TYPE_ENTITY && selection.entity == entity)
         flags |= ImGuiTreeNodeFlags_Selected;
@@ -468,7 +480,7 @@ void DoEntityNode(Entity* entity)
         }
 
         for (Entity* child : entity->children)
-            DoEntityNode(child);
+            EntityTreeNode(child);
 
         ImGui::TreePop();
     }
@@ -480,7 +492,7 @@ void ShowSceneHierarchyWindow()
 
     ImGui::Begin("Scene Hierarchy");
 
-    DoEntityNode(&scene.root);
+    EntityTreeNode(&scene.root);
 
     ImGui::End();
 }
@@ -495,25 +507,18 @@ bool ShowInspectorWindow()
     Selection& selection = app.selection;
 
     switch (selection.type) {
-        case SELECTION_TYPE_TEXTURE: {
+        case SELECTION_TYPE_TEXTURE:
             TextureInspector(selection.texture);
             break;
-        }
-        case SELECTION_TYPE_MATERIAL: {
+        case SELECTION_TYPE_MATERIAL:
             MaterialInspector(selection.material);
             break;
-        }
-        case SELECTION_TYPE_MESH: {
+        case SELECTION_TYPE_MESH:
             MeshInspector(selection.mesh);
             break;
-        }
-        case SELECTION_TYPE_ENTITY: {
-            bool c = false;
-            Entity* entity = selection.entity;
-            EntityInspector(entity);
-            if (c) app.scene.dirtyFlags |= SCENE_DIRTY_OBJECTS;
+        case SELECTION_TYPE_ENTITY:
+            EntityInspector(selection.entity);
             break;
-        }
     }
 
     ImGui::End();
