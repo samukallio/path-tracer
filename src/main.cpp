@@ -399,6 +399,43 @@ bool SceneObjectInspector(SceneObject* object)
     return c;
 }
 
+void DoSceneObjectNode(SceneObject* object)
+{
+    Selection& selection = app.selection;
+
+    ImGuiTreeNodeFlags flags = 0;
+
+    if (object->children.empty())
+        flags |= ImGuiTreeNodeFlags_Leaf;
+
+    if (selection.type == SELECTION_TYPE_OBJECT && selection.object == object)
+        flags |= ImGuiTreeNodeFlags_Selected;
+
+    if (ImGui::TreeNodeEx(object->name.c_str(), flags)) {
+        if (ImGui::IsItemClicked()) {
+            selection.type = SELECTION_TYPE_OBJECT;
+            selection.object = object;
+        }
+
+        for (SceneObject* child : object->children)
+            DoSceneObjectNode(child);
+
+        ImGui::TreePop();
+    }
+}
+
+void ShowSceneHierarchyWindow()
+{
+    Scene& scene = app.scene;
+
+    ImGui::Begin("Scene Hierarchy");
+
+    for (SceneObject* object : scene.objects)
+        DoSceneObjectNode(object);
+
+    ImGui::End();
+}
+
 bool ShowInspectorWindow()
 {
     bool c = false;
@@ -476,6 +513,7 @@ void Frame()
         renderCameraChanged = ShowRenderCameraWindow(app.renderCamera);
         ShowInspectorWindow();
         ShowResourcesWindow();
+        ShowSceneHierarchyWindow();
 
         ImGui::EndFrame();
         ImGui::Render();
@@ -790,7 +828,6 @@ int main()
 
     scene.objects.push_back(new SceneObject {
         .name = "room",
-        .parent = nullptr,
         .transform = {
             .position = glm::vec3(0, 0, 0),
             .rotation = glm::vec3(0, 0, 0),
@@ -805,7 +842,6 @@ int main()
 
     scene.objects.push_back(new SceneObject {
         .name = "sphere",
-        .parent = nullptr,
         .transform = {
             .position = glm::vec3(0, 0, 0),
             .rotation = glm::vec3(0, 0, 0),
@@ -816,7 +852,6 @@ int main()
 
     scene.objects.push_back(new SceneObject {
         .name = "plane",
-        .parent = nullptr,
         .transform = {
             .position = glm::vec3(0, 0, 0),
             .rotation = glm::vec3(0, 0, 0),

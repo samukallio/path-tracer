@@ -62,12 +62,12 @@ struct Mesh
 struct SceneObject
 {
     std::string                     name;
-    SceneObject*                    parent;
     Transform                       transform;
     ObjectType                      type;
     Material*                       material;
     Mesh*                           mesh;
     uint32_t                        packedObjectIndex;
+    std::vector<SceneObject*>       children;
 };
 
 struct Scene
