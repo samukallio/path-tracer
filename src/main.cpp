@@ -437,6 +437,11 @@ int main()
     plane->material = metal;
     scene.root.children.push_back(plane);
 
+    auto cube = new Cube;
+    cube->name = "Cube";
+    cube->material = metal;
+    scene.root.children.push_back(cube);
+
     BakeSceneData(&scene);
     LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
 

@@ -106,6 +106,7 @@ enum ObjectType : int32_t
     OBJECT_TYPE_MESH_INSTANCE           = 0,
     OBJECT_TYPE_PLANE                   = 1,
     OBJECT_TYPE_SPHERE                  = 2,
+    OBJECT_TYPE_CUBE                    = 3,
 };
 
 enum MaterialFlag : uint32_t

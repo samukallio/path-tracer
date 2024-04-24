@@ -271,6 +271,24 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
         hit.objectType = OBJECT_TYPE_SPHERE;
         hit.objectIndex = objectIndex;
     }
+
+    if (object.type == OBJECT_TYPE_CUBE) {
+        vec3 minimum = (vec3(-1,-1,-1) - ray.origin) / ray.direction;
+        vec3 maximum = (vec3(+1,+1,+1) - ray.origin) / ray.direction;
+        vec3 earlier = min(minimum, maximum);
+        vec3 later = max(minimum, maximum);
+        float t0 = max(max(earlier.x, earlier.y), earlier.z);
+        float t1 = min(min(later.x, later.y), later.z);
+        if (t1 < t0) return;
+        if (t1 <= 0) return;
+        if (t0 >= hit.time) return;
+
+        float t = t0 < 0 ? t1 : t0;
+
+        hit.time = t;
+        hit.objectType = OBJECT_TYPE_CUBE;
+        hit.objectIndex = objectIndex;
+    }
 }
 
 void Intersect(Ray ray, inout Hit hit)
@@ -340,6 +358,21 @@ void ResolveHit(Ray ray, inout Hit hit)
         normal = position;
         hit.materialIndex = object.materialIndex;
         hit.primitiveIndex = 0;
+        hit.material = materials[object.materialIndex];
+    }
+
+    if (hit.objectType == OBJECT_TYPE_CUBE) {
+        Object object = objects[hit.objectIndex];
+
+        hit.primitiveIndex = 0;
+
+        vec3 p = abs(position);
+        if (p.x > p.y)
+            normal = p.x > p.z ? vec3(sign(p.x),0,0) : vec3(0,0,sign(p.z));
+        else
+            normal = p.y > p.z ? vec3(0,sign(p.y),0) : vec3(0,0,sign(p.z));
+
+        hit.materialIndex = object.materialIndex;
         hit.material = materials[object.materialIndex];
     }
 

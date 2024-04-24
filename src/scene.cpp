@@ -611,6 +611,13 @@ uint32_t BakeSceneData(Scene* scene)
                     packed.type = OBJECT_TYPE_SPHERE;
                     break;
                 }
+                case ENTITY_TYPE_CUBE: {
+                    auto cube = static_cast<Cube*>(entity);
+                    if (cube->material)
+                        packed.materialIndex = cube->material->packedMaterialIndex;
+                    packed.type = OBJECT_TYPE_CUBE;
+                    break;
+                }
                 default: {
                     continue;
                 }

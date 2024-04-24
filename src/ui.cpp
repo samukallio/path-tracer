@@ -264,6 +264,9 @@ static void EntityInspector(UIContext* context, Entity* entity)
         case ENTITY_TYPE_SPHERE:
             ImGui::SeparatorText("Sphere");
             break;
+        case ENTITY_TYPE_CUBE:
+            ImGui::SeparatorText("Cube");
+            break;
         default:
             ImGui::SeparatorText("(unknown)");
             break;
@@ -331,6 +334,13 @@ static void EntityInspector(UIContext* context, Entity* entity)
             c |= ResourceSelectorDropDown("Material", scene.materials, &sphere->material);
             ImGui::Spacing();
             MaterialInspector(context, sphere->material, true);
+            break;
+        }
+        case ENTITY_TYPE_CUBE: {
+            auto cube = static_cast<Cube*>(entity);
+            c |= ResourceSelectorDropDown("Material", scene.materials, &cube->material);
+            ImGui::Spacing();
+            MaterialInspector(context, cube->material, true);
             break;
         }
     }

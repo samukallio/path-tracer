@@ -67,6 +67,7 @@ enum EntityType
     ENTITY_TYPE_MESH_INSTANCE       = 2,
     ENTITY_TYPE_PLANE               = 3,
     ENTITY_TYPE_SPHERE              = 4,
+    ENTITY_TYPE_CUBE                = 5,
 };
 
 struct Entity
@@ -138,6 +139,13 @@ struct Sphere : Entity
     Material*                       material = nullptr;
 
     Sphere() { type = ENTITY_TYPE_SPHERE; }
+};
+
+struct Cube : Entity
+{
+    Material*                       material = nullptr;
+
+    Cube() { type = ENTITY_TYPE_CUBE; }
 };
 
 struct Scene

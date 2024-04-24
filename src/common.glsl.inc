@@ -25,6 +25,7 @@ const uint CAMERA_MODEL_360                 = 2;
 const uint OBJECT_TYPE_MESH_INSTANCE        = 0;
 const uint OBJECT_TYPE_PLANE                = 1;
 const uint OBJECT_TYPE_SPHERE               = 2;
+const uint OBJECT_TYPE_CUBE                 = 3;
 
 const uint MATERIAL_FLAG_BASE_COLOR_TEXTURE = 1 << 0;
 const uint MATERIAL_FLAG_EMISSION_TEXTURE   = 1 << 1;
