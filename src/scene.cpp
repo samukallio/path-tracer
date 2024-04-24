@@ -648,10 +648,10 @@ static void IntersectMeshFace(Scene* scene, Ray ray, uint32_t meshFaceIndex, Hit
     if (gamma < 0 || beta + gamma > 1) return;
 
     hit.time = t;
-    //hit.data = vec3(1 - beta - gamma, beta, gamma);
     hit.objectType = OBJECT_TYPE_MESH_INSTANCE;
     hit.objectIndex = 0xFFFFFFFF;
     hit.primitiveIndex = meshFaceIndex;
+    hit.primitiveCoordinates = glm::vec3(1 - beta - gamma, beta, gamma);
 }
 
 static float IntersectMeshNodeBounds(Ray ray, float reach, PackedMeshNode const& node)
@@ -688,12 +688,12 @@ static float IntersectMeshNodeBounds(Ray ray, float reach, PackedMeshNode const&
     return entry;
 }
 
-static void IntersectMesh(Scene* scene, Ray const& ray, PackedSceneObject object, Hit& hit)
+static void IntersectMesh(Scene* scene, Ray const& ray, uint32_t rootNodeIndex, Hit& hit)
 {
     uint32_t stack[32];
     uint32_t depth = 0;
 
-    PackedMeshNode node = scene->packedMeshNodes[object.meshRootNodeIndex];
+    PackedMeshNode node = scene->packedMeshNodes[rootNodeIndex];
 
     while (true) {
         // Leaf node or internal?
@@ -746,12 +746,14 @@ static void IntersectMesh(Scene* scene, Ray const& ray, PackedSceneObject object
     }
 }
 
-static void IntersectObject(Scene* scene, Ray const& ray, uint32_t objectIndex, Hit& hit)
+static void IntersectObject(Scene* scene, Ray const& worldRay, uint32_t objectIndex, Hit& hit)
 {
     PackedSceneObject object = scene->packedObjects[objectIndex];
 
+    Ray ray = TransformRay(worldRay, object.transform.from);
+
     if (object.type == OBJECT_TYPE_MESH_INSTANCE) {
-        IntersectMesh(scene, ray, object, hit);
+        IntersectMesh(scene, ray, object.meshRootNodeIndex, hit);
         if (hit.objectIndex == 0xFFFFFFFF)
             hit.objectIndex = objectIndex;
     }
@@ -763,33 +765,35 @@ static void IntersectObject(Scene* scene, Ray const& ray, uint32_t objectIndex, 
         hit.time = t;
         hit.objectType = OBJECT_TYPE_PLANE;
         hit.objectIndex = objectIndex;
-        //hit.data = glm::vec3(fract(ray.origin.xy + ray.direction.xy * t), 0);
+        hit.primitiveIndex = 0;
+        hit.primitiveCoordinates = glm::vec3(glm::fract(ray.origin.xy() + ray.direction.xy() * t), 0);
     }
 
     if (object.type == OBJECT_TYPE_SPHERE) {
-        float tm = glm::dot(ray.direction, -ray.origin);
-        float td2 = tm * tm - glm::dot(-ray.origin, -ray.origin) + 1.0f;
-        if (td2 < 0) return;
+        float v = glm::dot(ray.direction, ray.direction);
+        float p = glm::dot(ray.origin, ray.direction);
+        float q = glm::dot(ray.origin, ray.origin) - 1.0f;
+        float d2 = p * p - q * v;
+        if (d2 < 0) return;
 
-        float td = sqrt(td2);
-        float t0 = tm - td;
-        float t1 = tm + td;
-        float t = glm::min(t0, t1);
-        if (t < 0 || t > hit.time) return;
+        float d = glm::sqrt(d2);
+        if (d < p) return;
 
-        hit.time = t;
+        float s0 = -p - d;
+        float s1 = -p + d;
+        float s = s0 < 0 ? s1 : s0;
+        if (s < 0 || s > v * hit.time) return;
+
+        hit.time = s / v;
         hit.objectType = OBJECT_TYPE_SPHERE;
         hit.objectIndex = objectIndex;
     }
 }
 
-static void Intersect(Scene* scene, Ray const& ray, Hit& hit)
+static void Intersect(Scene* scene, Ray const& worldRay, Hit& hit)
 {
-    for (uint32_t objectIndex = 0; objectIndex < scene->packedObjects.size(); objectIndex++) {
-        PackedSceneObject& object = scene->packedObjects[objectIndex];
-        Ray objectRay = TransformRay(ray, object.transform.from);
-        IntersectObject(scene, objectRay, objectIndex, hit);
-    }
+    for (uint32_t objectIndex = 0; objectIndex < scene->packedObjects.size(); objectIndex++)
+        IntersectObject(scene, worldRay, objectIndex, hit);
 }
 
 bool Trace(Scene* scene, Ray const& ray, Hit& hit)

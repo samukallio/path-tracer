@@ -191,6 +191,7 @@ struct Hit
     ObjectType                  objectType;
     uint32_t                    objectIndex;
     uint32_t                    primitiveIndex;
+    glm::vec3                   primitiveCoordinates;
 };
 
 inline float RepeatRange(float value, float min, float max)
