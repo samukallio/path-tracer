@@ -171,7 +171,7 @@ void Frame()
             }
         }
 
-        uniforms.renderMode = RENDER_MODE_EDIT;
+        uniforms.renderMode = RENDER_MODE_BASE_COLOR_SHADED;
         uniforms.cameraModel = CAMERA_MODEL_PINHOLE;
         uniforms.cameraSensorDistance = 0.020f;
         uniforms.cameraSensorSize = { 0.032f, 0.018f };
@@ -214,12 +214,13 @@ void Frame()
         uniforms.renderFlags = RENDER_FLAG_SAMPLE_JITTER;
 
         uniforms.renderSampleBlockSize = 1u << app.ui.camera->renderSampleBlockSizeLog2;
-        uniforms.renderBounceLimit = app.ui.camera->bounceLimit;
+        uniforms.renderBounceLimit = app.ui.camera->renderBounceLimit;
         uniforms.toneMappingMode = app.ui.camera->toneMappingMode;
         uniforms.toneMappingWhiteLevel = app.ui.camera->toneMappingWhiteLevel;
+        uniforms.renderFlags = app.ui.camera->renderFlags;
 
-        if (camera->accumulateSamples && app.scene.dirtyFlags == 0)
-            uniforms.renderFlags |= RENDER_FLAG_ACCUMULATE;
+        if (app.scene.dirtyFlags != 0)
+            uniforms.renderFlags &= ~RENDER_FLAG_ACCUMULATE;
     }
 
     uint32_t dirtyFlags = BakeSceneData(&app.scene);
@@ -443,11 +444,11 @@ int main()
     auto camera = new Camera;
     camera->name = "Camera";
     camera->renderMode = RENDER_MODE_NORMAL;
+    camera->renderBounceLimit = 5;
     camera->model = CAMERA_MODEL_PINHOLE;
     camera->transform.position = { 0, 0, 0 };
     camera->transform.rotation = { 0, 0, 0 };
     camera->velocity = { 0, 0, 0 };
-    camera->bounceLimit = 5;
     camera->focusDistance = 1.0f;
     camera->focalLengthInMM = 20.0f;
     camera->apertureRadiusInMM = 40.0f;

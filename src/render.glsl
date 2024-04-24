@@ -430,12 +430,22 @@ Hit IntersectAndResolve(Ray ray)
     return hit;
 }
 
-vec4 TraceBaseColor(Ray ray)
+vec4 TraceBaseColor(Ray ray, bool shaded)
 {
     Hit hit = IntersectAndResolve(ray);
     if (hit.time == INFINITY)
         return vec4(SampleSkybox(ray), 1);
-    return vec4(hit.material.baseColor, 1);
+
+    if (shaded) {
+        float shading = dot(hit.normal, -ray.direction);
+        if (hit.objectIndex == highlightObjectIndex)
+            return vec4((hit.material.baseColor + vec3(1,0,0)) * shading, 1.0);
+        else
+            return vec4(hit.material.baseColor * shading, 1.0);
+    }
+    else {
+        return vec4(hit.material.baseColor, 1);
+    }
 }
 
 vec4 TraceNormal(Ray ray)
@@ -460,19 +470,6 @@ vec4 TracePrimitiveIndex(Ray ray)
     if (hit.time == INFINITY)
         return vec4(0, 0, 0, 1);
     return vec4(COLORS[hit.primitiveIndex % 20], 1);
-}
-
-vec4 TraceEdit(Ray ray)
-{
-    Hit hit = IntersectAndResolve(ray);
-    if (hit.time == INFINITY)
-        return vec4(0, 0, 0, 1);
-
-    float shading = dot(hit.normal, -ray.direction);
-    if (hit.objectIndex == highlightObjectIndex)
-        return vec4((hit.material.baseColor + vec3(1,0,0)) * shading, 1.0);
-    else
-        return vec4(hit.material.baseColor * shading, 1.0);
 }
 
 void main()
@@ -543,7 +540,10 @@ void main()
         sampleValue = Trace(ray);
 
     if (renderMode == RENDER_MODE_BASE_COLOR)
-        sampleValue = TraceBaseColor(ray);
+        sampleValue = TraceBaseColor(ray, false);
+
+    if (renderMode == RENDER_MODE_BASE_COLOR_SHADED)
+        sampleValue = TraceBaseColor(ray, true);
 
     if (renderMode == RENDER_MODE_NORMAL)
         sampleValue = TraceNormal(ray);
@@ -553,9 +553,6 @@ void main()
 
     if (renderMode == RENDER_MODE_PRIMITIVE_INDEX)
         sampleValue = TracePrimitiveIndex(ray);
-
-    if (renderMode == RENDER_MODE_EDIT)
-        sampleValue = TraceEdit(ray);
 
     // Transfer the sample block from the input image to the output image,
     // adding the sample value that we produced at the relevant pixel

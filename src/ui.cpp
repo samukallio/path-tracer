@@ -142,15 +142,6 @@ static void CameraInspector(UIContext* context, Camera* camera)
 {
     bool c = false;
 
-    ImGui::SeparatorText("General");
-
-    char const* const renderSampleBlockSizeLabels[] = { "1x1", "2x2", "4x4", "8x8" };
-    ImGui::Combo("Sample Block Size",
-        (int*)&camera->renderSampleBlockSizeLog2,
-        renderSampleBlockSizeLabels, 4);
-
-    c |= ImGui::Checkbox("Accumulate Samples", &camera->accumulateSamples);
-
     if (context->camera == camera) {
         bool active = true;
         ImGui::Checkbox("Possess", &active);
@@ -162,41 +153,67 @@ static void CameraInspector(UIContext* context, Camera* camera)
         if (active) context->camera = camera;
     }
 
-    ImGui::SeparatorText("Render Mode");
-    c |= ImGui::RadioButton("Path Tracing", (int*)&camera->renderMode, RENDER_MODE_PATH_TRACE);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("Base Color", (int*)&camera->renderMode, RENDER_MODE_BASE_COLOR);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("Normal", (int*)&camera->renderMode, RENDER_MODE_NORMAL);
-    c |= ImGui::RadioButton("Material ID", (int*)&camera->renderMode, RENDER_MODE_MATERIAL_INDEX);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("Primitive ID", (int*)&camera->renderMode, RENDER_MODE_PRIMITIVE_INDEX);
+    ImGui::Spacing();
+    ImGui::SeparatorText("Rendering");
 
-    int bounceLimit = static_cast<int>(camera->bounceLimit);
-    c |= ImGui::InputInt("Bounce Limit", &bounceLimit);
-    camera->bounceLimit = std::max(1, bounceLimit);
+    if (ImGui::BeginCombo("Render Mode", RenderModeName(camera->renderMode))) {
+        for (int k = 0; k < RENDER_MODE__COUNT; k++) {
+            auto renderMode = static_cast<RenderMode>(k);
+            bool selected = camera->renderMode == renderMode;
+            if (ImGui::Selectable(RenderModeName(renderMode), &selected)) {
+                camera->renderMode = renderMode;
+                c = true;
+            }
+        }
+        ImGui::EndCombo();
+    }
+    
+    if (camera->renderMode == RENDER_MODE_PATH_TRACE) {
+        int bounceLimit = static_cast<int>(camera->renderBounceLimit);
+        c |= ImGui::InputInt("Bounce Limit", &bounceLimit);
+        camera->renderBounceLimit = std::max(1, bounceLimit);
+    }
 
-    // Tone mapping operators.  Note that since tone mapping happens as
-    // a post-process operation, there is no need to reset the accumulated
-    // samples.
+    char const* const renderSampleBlockSizeLabels[] = { "1x1", "2x2", "4x4", "8x8" };
+    ImGui::Combo("Sample Block Size",
+        (int*)&camera->renderSampleBlockSizeLog2,
+        renderSampleBlockSizeLabels, 4);
+
+    c |= ImGui::CheckboxFlags("Sample Accumulation", &camera->renderFlags, RENDER_FLAG_ACCUMULATE);
+    c |= ImGui::CheckboxFlags("Sample Jitter", &camera->renderFlags, RENDER_FLAG_SAMPLE_JITTER);
+
+    ImGui::Spacing();
     ImGui::SeparatorText("Tone Mapping");
-    ImGui::RadioButton("Clamp", (int*)&camera->toneMappingMode, TONE_MAPPING_MODE_CLAMP);
-    ImGui::SameLine();
-    ImGui::RadioButton("Reinhard", (int*)&camera->toneMappingMode, TONE_MAPPING_MODE_REINHARD);
-    ImGui::SameLine();
-    ImGui::RadioButton("Hable", (int*)&camera->toneMappingMode, TONE_MAPPING_MODE_HABLE);
-    ImGui::RadioButton("ACES", (int*)&camera->toneMappingMode, TONE_MAPPING_MODE_ACES);
+
+    if (ImGui::BeginCombo("Mode", ToneMappingModeName(camera->toneMappingMode))) {
+        for (int k = 0; k < TONE_MAPPING_MODE__COUNT; k++) {
+            auto toneMappingMode = static_cast<ToneMappingMode>(k);
+            bool selected = camera->toneMappingMode == toneMappingMode;
+            if (ImGui::Selectable(ToneMappingModeName(toneMappingMode), &selected)) {
+                camera->toneMappingMode = toneMappingMode;
+            }
+        }
+        ImGui::EndCombo();
+    }
 
     if (camera->toneMappingMode == TONE_MAPPING_MODE_REINHARD) {
         ImGui::SliderFloat("White Level", &camera->toneMappingWhiteLevel, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
     }
 
-    ImGui::SeparatorText("Camera");
-    c |= ImGui::RadioButton("Pinhole", (int*)&camera->model, CAMERA_MODEL_PINHOLE);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("Thin Lens", (int*)&camera->model, CAMERA_MODEL_THIN_LENS);
-    ImGui::SameLine();
-    c |= ImGui::RadioButton("360", (int*)&camera->model, CAMERA_MODEL_360);
+    ImGui::Spacing();
+    ImGui::SeparatorText("Projection");
+
+    if (ImGui::BeginCombo("Camera Model", CameraModelName(camera->model))) {
+        for (int k = 0; k < CAMERA_MODEL__COUNT; k++) {
+            auto model = static_cast<CameraModel>(k);
+            bool selected = camera->model == model;
+            if (ImGui::Selectable(CameraModelName(model), &selected)) {
+                camera->model = model;
+                c = true;
+            }
+        }
+        ImGui::EndCombo();
+    }
 
     if (camera->model == CAMERA_MODEL_PINHOLE) {
     }

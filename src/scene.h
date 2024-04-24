@@ -87,20 +87,19 @@ struct Root : Entity
 
 struct Camera : Entity
 {
-    RenderMode                      renderMode;
-    uint32_t                        bounceLimit;
-
-    bool                            accumulateSamples;
+    RenderMode                      renderMode              = RENDER_MODE_PATH_TRACE;
+    uint32_t                        renderFlags             = 0;
+    uint32_t                        renderBounceLimit       = 5;
     uint32_t                        renderSampleBlockSizeLog2 = 0;
 
-    ToneMappingMode                 toneMappingMode;
-    float                           toneMappingWhiteLevel;
+    ToneMappingMode                 toneMappingMode         = TONE_MAPPING_MODE_CLAMP;
+    float                           toneMappingWhiteLevel   = 1.0f;
 
-    CameraModel                     model;
-    glm::vec3                       velocity;
-    float                           focalLengthInMM;
-    float                           apertureRadiusInMM;
-    float                           focusDistance;
+    CameraModel                     model                   = CAMERA_MODEL_PINHOLE;
+    glm::vec3                       velocity                = { 0, 0, 0 };
+    float                           focalLengthInMM         = 20.0f;
+    float                           apertureRadiusInMM      = 10.0f;
+    float                           focusDistance           = 1.0f;
 
     Camera() { ((Entity*)this)->type = ENTITY_TYPE_CAMERA; }
 };
