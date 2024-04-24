@@ -352,16 +352,6 @@ void ResolveHit(Ray ray, inout Hit hit)
     hit.normal = TransformNormal(normal, object.transform);
 }
 
-void IntersectAndResolve(Ray ray, inout Hit hit)
-{
-    Intersect(ray, hit);
-
-    if (hit.time == INFINITY)
-        return;
-
-    ResolveHit(ray, hit);
-}
-
 vec4 Trace(Ray ray)
 {
     vec3 outputColor = vec3(0, 0, 0);
@@ -430,11 +420,19 @@ vec4 Trace(Ray ray)
     return vec4(outputColor.rgb, 1);
 }
 
-vec4 TraceBaseColor(Ray ray)
+Hit IntersectAndResolve(Ray ray)
 {
     Hit hit;
     hit.time = INFINITY;
-    IntersectAndResolve(ray, hit);
+    Intersect(ray, hit);
+    if (hit.time != INFINITY)
+        ResolveHit(ray, hit);
+    return hit;
+}
+
+vec4 TraceBaseColor(Ray ray)
+{
+    Hit hit = IntersectAndResolve(ray);
     if (hit.time == INFINITY)
         return vec4(SampleSkybox(ray), 1);
     return vec4(hit.material.baseColor, 1);
@@ -442,9 +440,7 @@ vec4 TraceBaseColor(Ray ray)
 
 vec4 TraceNormal(Ray ray)
 {
-    Hit hit;
-    hit.time = INFINITY;
-    IntersectAndResolve(ray, hit);
+    Hit hit = IntersectAndResolve(ray);
     if (hit.time == INFINITY)
         return vec4(0.5 * (1 - ray.direction), 1);
     return vec4(0.5 * (hit.normal + 1), 1);
@@ -452,9 +448,7 @@ vec4 TraceNormal(Ray ray)
 
 vec4 TraceMaterialIndex(Ray ray)
 {
-    Hit hit;
-    hit.time = INFINITY;
-    IntersectAndResolve(ray, hit);
+    Hit hit = IntersectAndResolve(ray);
     if (hit.time == INFINITY)
         return vec4(0, 0, 0, 1);
     return vec4(COLORS[hit.materialIndex % 20], 1);
@@ -462,9 +456,7 @@ vec4 TraceMaterialIndex(Ray ray)
 
 vec4 TracePrimitiveIndex(Ray ray)
 {
-    Hit hit;
-    hit.time = INFINITY;
-    IntersectAndResolve(ray, hit);
+    Hit hit = IntersectAndResolve(ray);
     if (hit.time == INFINITY)
         return vec4(0, 0, 0, 1);
     return vec4(COLORS[hit.primitiveIndex % 20], 1);
@@ -472,9 +464,7 @@ vec4 TracePrimitiveIndex(Ray ray)
 
 vec4 TraceEdit(Ray ray)
 {
-    Hit hit;
-    hit.time = INFINITY;
-    IntersectAndResolve(ray, hit);
+    Hit hit = IntersectAndResolve(ray);
     if (hit.time == INFINITY)
         return vec4(0, 0, 0, 1);
 
