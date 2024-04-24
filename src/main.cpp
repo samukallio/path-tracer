@@ -420,6 +420,9 @@ int main()
     room->mesh = mesh;
     scene.root.children.push_back(room);
 
+    Material* metal = CreateMaterial(&scene, "metal");
+    metal->roughness = 0.0f;
+
     Material* glass = CreateMaterial(&scene, "glass");
     glass->refraction = 1.0f;
     glass->refractionIndex = 1.5f;
@@ -431,6 +434,7 @@ int main()
 
     auto plane = new Plane;
     plane->name = "Plane";
+    plane->material = metal;
     scene.root.children.push_back(plane);
 
     BakeSceneData(&scene);

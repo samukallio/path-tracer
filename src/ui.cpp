@@ -272,6 +272,8 @@ static void EntityInspector(UIContext* context, Entity* entity)
     bool c = false;
 
     if (entity->type != ENTITY_TYPE_ROOT) {
+        c |= ImGui::Checkbox("Active", &entity->active);
+
         ImGui::InputText("Name", &entity->name);
 
         Transform& transform = entity->transform;

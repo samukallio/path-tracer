@@ -73,6 +73,7 @@ struct Entity
 {
     std::string                     name;
     EntityType                      type;
+    bool                            active;
     Transform                       transform;
     std::vector<Entity*>            children;
     uint32_t                        packedObjectIndex;

@@ -582,6 +582,9 @@ uint32_t BakeSceneData(Scene* scene)
         scene->packedObjects.clear();
 
         for (Entity* entity : scene->root.children) {
+            if (!entity->active)
+                continue;
+
             PackedSceneObject packed;
 
             packed.materialIndex = 0;
