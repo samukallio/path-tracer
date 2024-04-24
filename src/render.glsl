@@ -256,17 +256,21 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
     }
 
     if (object.type == OBJECT_TYPE_SPHERE) {
-        float tm = dot(ray.direction, -ray.origin);
-        float td2 = tm * tm - dot(ray.origin, ray.origin) + 1.0f;
-        if (td2 < 0) return;
+        float v = dot(ray.direction, ray.direction);
+        float p = dot(ray.origin, ray.direction);
+        float q = dot(ray.origin, ray.origin) - 1.0;
+        float d2 = p * p - q * v;
+        if (d2 < 0) return;
 
-        float td = sqrt(td2);
-        float t0 = tm - td;
-        float t1 = tm + td;
-        float t = min(t0, t1);
-        if (t < 0 || t > hit.time) return;
+        float d = sqrt(d2);
+        if (d < p) return;
 
-        hit.time = t;
+        float s0 = -p - d;
+        float s1 = -p + d;
+        float s = s0 < 0 ? s1 : s0;
+        if (s < 0 || s > v * hit.time) return;
+
+        hit.time = s / v;
         hit.objectType = OBJECT_TYPE_SPHERE;
         hit.objectIndex = objectIndex;
     }
