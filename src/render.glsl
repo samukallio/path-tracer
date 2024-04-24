@@ -69,12 +69,6 @@ layout(
 
 uint randomState;
 
-void InitializeRandom()
-{
-    uvec2 xy = gl_GlobalInvocationID.xy;
-    randomState = xy.y * imageSize(inputImage).x + xy.x + frameRandomSeed * 277803737u;
-}
-
 uint Random()
 {
     randomState = randomState * 747796405u + 2891336453u;
@@ -83,9 +77,10 @@ uint Random()
     return (w >> 22u) ^ w;
 }
 
+// Generate a random number in the range [0,1).
 float Random0To1()
 {
-    return Random() / float(0xFFFFFFFFu);
+    return Random() / 4294967296.0f;
 }
 
 vec2 RandomPointOnDisk()
@@ -474,7 +469,11 @@ vec4 TracePrimitiveIndex(Ray ray)
 
 void main()
 {
-    InitializeRandom();
+    // Initialize random number generator.
+    randomState
+        = gl_GlobalInvocationID.y * 65537
+        + gl_GlobalInvocationID.x
+        + frameRandomSeed * 277803737u;
 
     // Compute the position of the sample we are going to produce in image
     // coordinates from (0, 0) to (ImageSizeX, ImageSizeY).
