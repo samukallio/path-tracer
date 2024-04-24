@@ -787,7 +787,7 @@ static void Intersect(Scene* scene, Ray const& ray, Hit& hit)
 {
     for (uint32_t objectIndex = 0; objectIndex < scene->packedObjects.size(); objectIndex++) {
         PackedSceneObject& object = scene->packedObjects[objectIndex];
-        Ray objectRay = TransformRay(ray, object.transform.to);
+        Ray objectRay = TransformRay(ray, object.transform.from);
         IntersectObject(scene, objectRay, objectIndex, hit);
     }
 }
