@@ -176,12 +176,12 @@ float IntersectMeshNodeBounds(Ray ray, float reach, MeshNode node)
     return entry;
 }
 
-void IntersectMesh(Ray ray, Object object, inout Hit hit)
+void IntersectMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
 {
     uint stack[32];
     uint depth = 0;
 
-    MeshNode node = meshNodes[object.meshRootNodeIndex];
+    MeshNode node = meshNodes[rootNodeIndex];
 
     while (true) {
         // Leaf node or internal?
@@ -238,10 +238,12 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
 {
     Object object = objects[objectIndex];
 
+    ray = InverseTransformRay(ray, object.transform);
+
     if (object.type == OBJECT_TYPE_MESH_INSTANCE) {
-        IntersectMesh(ray, object, hit);
+        IntersectMesh(ray, object.meshRootNodeIndex, hit);
         if (hit.objectIndex == 0xFFFFFFFF)
-                hit.objectIndex = objectIndex;
+            hit.objectIndex = objectIndex;
     }
 
     if (object.type == OBJECT_TYPE_PLANE) {
@@ -278,11 +280,8 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
 
 void Intersect(Ray ray, inout Hit hit)
 {
-    for (uint objectIndex = 0; objectIndex < sceneObjectCount; objectIndex++) {
-        Object object = objects[objectIndex];
-        Ray objectRay = InverseTransformRay(ray, object.transform);
-        IntersectObject(objectRay, objectIndex, hit);
-    }
+    for (uint objectIndex = 0; objectIndex < sceneObjectCount; objectIndex++)
+        IntersectObject(ray, objectIndex, hit);
 }
 
 void ResolveHit(Ray ray, inout Hit hit)
