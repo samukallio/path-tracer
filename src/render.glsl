@@ -343,14 +343,14 @@ void ResolveHit(Ray ray, inout Hit hit)
 
     if (hit.objectType == OBJECT_TYPE_SPHERE) {
         Object object = objects[hit.objectIndex];
-        normal = normalize(position);
+        normal = position;
         hit.materialIndex = object.materialIndex;
         hit.primitiveIndex = 0;
         hit.material = materials[object.materialIndex];
     }
 
     hit.position = (object.objectToWorldMatrix * vec4(position, 1)).xyz;
-    hit.normal = (object.objectToWorldMatrix * vec4(normal, 0)).xyz;
+    hit.normal = normalize((vec4(normal, 0) * object.worldToObjectMatrix).xyz);
 }
 
 void IntersectAndResolve(Ray ray, inout Hit hit)
