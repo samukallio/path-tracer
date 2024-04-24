@@ -280,7 +280,7 @@ void Intersect(Ray ray, inout Hit hit)
 {
     for (uint objectIndex = 0; objectIndex < sceneObjectCount; objectIndex++) {
         Object object = objects[objectIndex];
-        Ray objectRay = TransformRay(ray, object.worldToObjectMatrix);
+        Ray objectRay = InverseTransformRay(ray, object.transform);
         IntersectObject(objectRay, objectIndex, hit);
     }
 }
@@ -288,7 +288,7 @@ void Intersect(Ray ray, inout Hit hit)
 void ResolveHit(Ray ray, inout Hit hit)
 {
     Object object = objects[hit.objectIndex];
-    Ray objectRay = TransformRay(ray, object.worldToObjectMatrix);
+    Ray objectRay = InverseTransformRay(ray, object.transform);
 
     vec3 position = objectRay.origin + objectRay.direction * hit.time;
     vec3 normal = vec3(0, 0, 1);
@@ -349,8 +349,8 @@ void ResolveHit(Ray ray, inout Hit hit)
         hit.material = materials[object.materialIndex];
     }
 
-    hit.position = (object.objectToWorldMatrix * vec4(position, 1)).xyz;
-    hit.normal = normalize((vec4(normal, 0) * object.worldToObjectMatrix).xyz);
+    hit.position = TransformPosition(position, object.transform);
+    hit.normal = TransformNormal(normal, object.transform);
 }
 
 void IntersectAndResolve(Ray ray, inout Hit hit)
@@ -546,7 +546,7 @@ void main()
         ray.direction = vec3(cos(theta) * sin(phi), sin(theta), -cos(theta) * cos(phi));
     }
 
-    ray = TransformRay(ray, cameraWorldMatrix);
+    ray = TransformRay(ray, cameraTransform);
 
     vec4 sampleValue;
 

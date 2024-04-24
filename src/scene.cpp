@@ -613,12 +613,12 @@ uint32_t BakeSceneData(Scene* scene)
                 }
             }
 
-            packed.objectToWorldMatrix
+            packed.transform.to
                 = glm::translate(glm::mat4(1), entity->transform.position)
                 * glm::orientate4(entity->transform.rotation)
                 * glm::scale(glm::mat4(1), entity->transform.scale);
 
-            packed.worldToObjectMatrix = glm::inverse(packed.objectToWorldMatrix);
+            packed.transform.from = glm::inverse(packed.transform.to);
 
             entity->packedObjectIndex = static_cast<uint32_t>(scene->packedObjects.size());
 
@@ -787,7 +787,7 @@ static void Intersect(Scene* scene, Ray const& ray, Hit& hit)
 {
     for (uint32_t objectIndex = 0; objectIndex < scene->packedObjects.size(); objectIndex++) {
         PackedSceneObject& object = scene->packedObjects[objectIndex];
-        Ray objectRay = TransformRay(ray, object.worldToObjectMatrix);
+        Ray objectRay = TransformRay(ray, object.transform.to);
         IntersectObject(scene, objectRay, objectIndex, hit);
     }
 }

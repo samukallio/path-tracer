@@ -65,6 +65,14 @@ enum MaterialFlag : uint32_t
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
+struct alignas(16) PackedTransform
+{
+    glm::aligned_mat4           to      = glm::mat4(1);
+    glm::aligned_mat4           from    = glm::mat4(1);
+};
+
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
 struct alignas(16) PackedMaterial
 {
     glm::vec3                   baseColor;
@@ -89,8 +97,7 @@ struct alignas(16) PackedSceneObject
     ObjectType                  type;
     uint32_t                    materialIndex;
     uint32_t                    meshRootNodeIndex;
-    glm::aligned_mat4           worldToObjectMatrix;
-    glm::aligned_mat4           objectToWorldMatrix;
+    PackedTransform             transform;
 };
 
 // This structure is shared between CPU and GPU,
@@ -146,7 +153,7 @@ struct FrameUniformBuffer
     float                       cameraApertureRadius        = 0.040f;
     float                       cameraSensorDistance        = 0.0202f;
     glm::aligned_vec2           cameraSensorSize            = { 0.032f, 0.018f };
-    glm::aligned_mat4           cameraWorldMatrix           = {};
+    PackedTransform             cameraTransform             = {};
     RenderMode                  renderMode                  = RENDER_MODE_PATH_TRACE;
     uint32_t                    renderFlags                 = 0;
     uint32_t                    renderSampleBlockSize       = 1;

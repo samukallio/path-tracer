@@ -31,6 +31,12 @@ const uint MATERIAL_FLAG_EMISSION_TEXTURE   = 1 << 1;
 const uint MATERIAL_FLAG_METALLIC_TEXTURE   = 1 << 2;
 const uint MATERIAL_FLAG_ROUGHNESS_TEXTURE  = 1 << 3;
 
+struct Transform
+{
+    mat4            to;
+    mat4            from;
+};
+
 layout(binding = 0)
 uniform FrameUniformBuffer
 {
@@ -42,7 +48,7 @@ uniform FrameUniformBuffer
     float           cameraApertureRadius;
     float           cameraSensorDistance;
     vec2            cameraSensorSize;
-    mat4            cameraWorldMatrix;
+    Transform       cameraTransform;
     uint            renderMode;
     uint            renderFlags;
     uint            renderSampleBlockSize;
@@ -74,8 +80,7 @@ struct Object
     uint            type;
     uint            materialIndex;
     uint            meshRootNodeIndex;
-    mat4            worldToObjectMatrix;
-    mat4            objectToWorldMatrix;
+    Transform       transform;
 };
 
 struct MeshFace
@@ -119,10 +124,48 @@ struct Ray
     vec3            direction;
 };
 
-Ray TransformRay(Ray ray, mat4 matrix)
+vec3 TransformPosition(vec3 position, Transform transform)
+{
+    return (transform.to * vec4(position, 1)).xyz;
+}
+
+vec3 TransformVector(vec3 vector, Transform transform)
+{
+    return (transform.to * vec4(vector, 0)).xyz;
+}
+
+vec3 TransformNormal(vec3 normal, Transform transform)
+{
+    return normalize((vec4(normal, 0) * transform.from).xyz);
+}
+
+Ray TransformRay(Ray ray, Transform transform)
 {
     Ray r;
-    r.origin = (matrix * vec4(ray.origin, 1)).xyz;
-    r.direction = (matrix * vec4(ray.direction, 0)).xyz;
+    r.origin = TransformPosition(ray.origin, transform);
+    r.direction = TransformVector(ray.direction, transform);
+    return r;
+}
+
+vec3 InverseTransformPosition(vec3 position, Transform transform)
+{
+    return (transform.from * vec4(position, 1)).xyz;
+}
+
+vec3 InverseTransformVector(vec3 vector, Transform transform)
+{
+    return (transform.from * vec4(vector, 0)).xyz;
+}
+
+vec3 InverseTransformNormal(vec3 normal, Transform transform)
+{
+    return normalize((vec4(normal, 0) * transform.to).xyz);
+}
+
+Ray InverseTransformRay(Ray ray, Transform transform)
+{
+    Ray r;
+    r.origin = InverseTransformPosition(ray.origin, transform);
+    r.direction = InverseTransformVector(ray.direction, transform);
     return r;
 }

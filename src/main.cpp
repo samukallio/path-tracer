@@ -175,7 +175,10 @@ void Frame()
         uniforms.cameraModel = CAMERA_MODEL_PINHOLE;
         uniforms.cameraSensorDistance = 0.020f;
         uniforms.cameraSensorSize = { 0.032f, 0.018f };
-        uniforms.cameraWorldMatrix = glm::inverse(viewMatrix);
+        uniforms.cameraTransform = {
+            .to = worldMatrix,
+            .from = viewMatrix,
+        };
         uniforms.renderFlags = 0;
 
         uniforms.renderBounceLimit = 0;
@@ -203,7 +206,10 @@ void Frame()
         uniforms.cameraApertureRadius = camera->apertureRadiusInMM / 1000.0f;
         uniforms.cameraSensorDistance = sensorDistance;
         uniforms.cameraSensorSize = { 0.032f, 0.018f };
-        uniforms.cameraWorldMatrix = worldMatrix;
+        uniforms.cameraTransform = {
+            .to = worldMatrix,
+            .from = viewMatrix,
+        };
         uniforms.highlightObjectIndex = 0xFFFFFFFF;
         uniforms.renderFlags = RENDER_FLAG_SAMPLE_JITTER;
 
