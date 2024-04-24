@@ -718,7 +718,10 @@ static void IntersectMesh(Scene* scene, Ray const& ray, uint32_t rootNodeIndex, 
             // then it was definitely hit, so process it next.
             if (time > timeB) {
                 // If the first subnode was also hit, then set it aside for later.
-                if (time < INFINITY) stack[depth++] = index;
+                if (time < INFINITY) {
+                    assert(depth < std::size(stack));
+                    stack[depth++] = index;
+                }
                 node = nodeB;
                 continue;
             }
@@ -727,6 +730,7 @@ static void IntersectMesh(Scene* scene, Ray const& ray, uint32_t rootNodeIndex, 
             // If the second subnode was hit, then both of them were,
             // and we should set the second one aside for later.
             if (timeB < INFINITY) {
+                assert(depth < std::size(stack));
                 stack[depth++] = indexB;
                 continue;
             }
