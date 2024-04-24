@@ -2245,7 +2245,7 @@ VkResult UploadScene(
             VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             VK_IMAGE_TYPE_2D,
-            VK_FORMAT_R8G8B8A8_UNORM,
+            VK_FORMAT_R8G8B8A8_SRGB,
             { .width = 4096, .height = 4096, .depth = 1 },
             layerCount,
             VK_IMAGE_TILING_OPTIMAL,
