@@ -508,8 +508,8 @@ void main()
             -cameraSensorSize.y * (0.5 - sampleNormalizedPosition.y),
             cameraSensorDistance);
 
-        ray.origin = vec3(0, 0, 0);
-        ray.direction = normalize(-sensorPosition);
+        ray.origin = vec3(cameraApertureRadius * RandomPointOnDisk(), 0);
+        ray.direction = normalize(ray.origin - sensorPosition);
     }
 
     if (cameraModel == CAMERA_MODEL_THIN_LENS) {

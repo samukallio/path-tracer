@@ -175,6 +175,7 @@ void Frame()
         uniforms.cameraModel = CAMERA_MODEL_PINHOLE;
         uniforms.cameraSensorDistance = 0.020f;
         uniforms.cameraSensorSize = { 0.032f, 0.018f };
+        uniforms.cameraApertureRadius = 0.0f;
         uniforms.cameraTransform = {
             .to = worldMatrix,
             .from = viewMatrix,
@@ -193,26 +194,35 @@ void Frame()
     else {
         Camera* camera = app.ui.camera;
 
-        float sensorDistance = 1.0f / (1000.0f / camera->focalLengthInMM - 1.0f / camera->focusDistance);
-
         glm::vec3 origin = camera->transform.position;
         glm::vec3 forward = glm::quat(camera->transform.rotation) * glm::vec3(1, 0, 0);
         glm::mat4 viewMatrix = glm::lookAt(origin - forward * 2.0f, origin, glm::vec3(0, 0, 1));
         glm::mat4 worldMatrix = glm::inverse(viewMatrix);
 
         uniforms.renderMode = camera->renderMode;
-        uniforms.cameraModel = camera->model;
-        uniforms.cameraFocalLength = camera->focalLengthInMM / 1000.0f;
-        uniforms.cameraApertureRadius = camera->apertureRadiusInMM / 1000.0f;
-        uniforms.cameraSensorDistance = sensorDistance;
-        uniforms.cameraSensorSize = { 0.032f, 0.018f };
+        uniforms.cameraModel = camera->cameraModel;
+
+        if (camera->cameraModel == CAMERA_MODEL_PINHOLE) {
+            float const ASPECT_RATIO = WINDOW_WIDTH / float(WINDOW_HEIGHT);
+            uniforms.cameraApertureRadius = camera->pinhole.apertureDiameterInMM / 2000.0f;
+            uniforms.cameraSensorSize.x = 2 * glm::tan(glm::radians(camera->pinhole.fieldOfViewInDegrees / 2));
+            uniforms.cameraSensorSize.y = uniforms.cameraSensorSize.x / ASPECT_RATIO;
+            uniforms.cameraSensorDistance = 1.0f;
+        }
+
+        if (camera->cameraModel == CAMERA_MODEL_THIN_LENS) {
+            uniforms.cameraFocalLength = camera->thinLens.focalLengthInMM / 1000.0f;
+            uniforms.cameraApertureRadius = camera->thinLens.apertureDiameterInMM / 2000.0f;
+            uniforms.cameraSensorDistance = 1.0f / (1000.0f / camera->thinLens.focalLengthInMM - 1.0f / camera->thinLens.focusDistance);
+            uniforms.cameraSensorSize = camera->thinLens.sensorSizeInMM / 1000.0f;
+        }
+
         uniforms.cameraTransform = {
             .to = worldMatrix,
             .from = viewMatrix,
         };
         uniforms.highlightObjectIndex = 0xFFFFFFFF;
         uniforms.renderFlags = RENDER_FLAG_SAMPLE_JITTER;
-
         uniforms.renderSampleBlockSize = 1u << app.ui.camera->renderSampleBlockSizeLog2;
         uniforms.renderBounceLimit = app.ui.camera->renderBounceLimit;
         uniforms.toneMappingMode = app.ui.camera->toneMappingMode;
@@ -443,15 +453,6 @@ int main()
 
     auto camera = new Camera;
     camera->name = "Camera";
-    camera->renderMode = RENDER_MODE_NORMAL;
-    camera->renderBounceLimit = 5;
-    camera->model = CAMERA_MODEL_PINHOLE;
-    camera->transform.position = { 0, 0, 0 };
-    camera->transform.rotation = { 0, 0, 0 };
-    camera->velocity = { 0, 0, 0 };
-    camera->focusDistance = 1.0f;
-    camera->focalLengthInMM = 20.0f;
-    camera->apertureRadiusInMM = 40.0f;
     scene.root.children.push_back(camera);
 
     FrameState& initial = app.frames[0];

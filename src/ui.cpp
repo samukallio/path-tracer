@@ -203,25 +203,38 @@ static void CameraInspector(UIContext* context, Camera* camera)
     ImGui::Spacing();
     ImGui::SeparatorText("Projection");
 
-    if (ImGui::BeginCombo("Camera Model", CameraModelName(camera->model))) {
+    if (ImGui::BeginCombo("Camera Model", CameraModelName(camera->cameraModel))) {
         for (int k = 0; k < CAMERA_MODEL__COUNT; k++) {
             auto model = static_cast<CameraModel>(k);
-            bool selected = camera->model == model;
+            bool selected = camera->cameraModel == model;
             if (ImGui::Selectable(CameraModelName(model), &selected)) {
-                camera->model = model;
+                camera->cameraModel = model;
                 c = true;
             }
         }
         ImGui::EndCombo();
     }
 
-    if (camera->model == CAMERA_MODEL_PINHOLE) {
+    if (camera->cameraModel == CAMERA_MODEL_PINHOLE) {
+        c |= ImGui::DragFloat("FOV (degrees)", &camera->pinhole.fieldOfViewInDegrees, 1.0f, 0.01f, 179.99f);
+        c |= ImGui::DragFloat("Aperture (mm)", &camera->pinhole.apertureDiameterInMM, 0.1f, 0.0f, 50.0f);
     }
 
-    if (camera->model == CAMERA_MODEL_THIN_LENS) {
-        c |= ImGui::SliderFloat("Focal Length (mm)", &camera->focalLengthInMM, 1.0f, 50.0f);
-        c |= ImGui::SliderFloat("Aperture Radius (mm)", &camera->apertureRadiusInMM, 0.01f, 100.0f);
-        c |= ImGui::SliderFloat("Focus Distance", &camera->focusDistance, 0.01f, 1000.0f,  "%.3f", ImGuiSliderFlags_Logarithmic);
+    if (camera->cameraModel == CAMERA_MODEL_THIN_LENS) {
+        glm::vec2 sensorSizeInMM = camera->thinLens.sensorSizeInMM;
+        if (ImGui::DragFloat2("Sensor Size (mm)", &sensorSizeInMM[0], 1.0f, 1.0f, 100.0f)) {
+            float const ASPECT_RATIO = 1920.0f / 1080.0f;
+            if (sensorSizeInMM.x != camera->thinLens.sensorSizeInMM.x)
+                sensorSizeInMM.y = sensorSizeInMM.x / ASPECT_RATIO;
+            else
+                sensorSizeInMM.x = sensorSizeInMM.y * ASPECT_RATIO;
+            camera->thinLens.sensorSizeInMM = sensorSizeInMM;
+            c = true;
+        }
+
+        c |= ImGui::DragFloat("Focal Length (mm)", &camera->thinLens.focalLengthInMM, 1.0f, 1.0f, 200.0f);
+        c |= ImGui::DragFloat("Aperture (mm)", &camera->thinLens.apertureDiameterInMM, 0.5f, 0.0f, 100.0f);
+        c |= ImGui::DragFloat("Focus Distance", &camera->thinLens.focusDistance, 1.0f, 0.01f, 1000.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
     }
 
     if (c) context->scene->dirtyFlags |= SCENE_DIRTY_CAMERAS;

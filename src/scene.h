@@ -85,6 +85,20 @@ struct Root : Entity
     Root() { type = ENTITY_TYPE_ROOT; }
 };
 
+struct CameraParametersPinhole
+{
+    float                           fieldOfViewInDegrees    = 90.000f;
+    float                           apertureDiameterInMM    = 0.0f;
+};
+
+struct CameraParametersThinLens
+{
+    glm::vec2                       sensorSizeInMM          = { 32.0f, 18.0f };
+    float                           focalLengthInMM         = 20.0f;
+    float                           apertureDiameterInMM    = 10.0f;
+    float                           focusDistance           = 1.0f;
+};
+
 struct Camera : Entity
 {
     RenderMode                      renderMode              = RENDER_MODE_PATH_TRACE;
@@ -95,11 +109,11 @@ struct Camera : Entity
     ToneMappingMode                 toneMappingMode         = TONE_MAPPING_MODE_CLAMP;
     float                           toneMappingWhiteLevel   = 1.0f;
 
-    CameraModel                     model                   = CAMERA_MODEL_PINHOLE;
+    CameraModel                     cameraModel             = CAMERA_MODEL_PINHOLE;
+    CameraParametersPinhole         pinhole                 = {};
+    CameraParametersThinLens        thinLens                = {};
+
     glm::vec3                       velocity                = { 0, 0, 0 };
-    float                           focalLengthInMM         = 20.0f;
-    float                           apertureRadiusInMM      = 10.0f;
-    float                           focusDistance           = 1.0f;
 
     Camera() { ((Entity*)this)->type = ENTITY_TYPE_CAMERA; }
 };
