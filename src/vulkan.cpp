@@ -1723,7 +1723,7 @@ static VkResult InternalCreateVulkan(
         VkDescriptorPoolCreateInfo descriptorPoolInfo = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
             .maxSets = 16,
-            .poolSizeCount = 3,
+            .poolSizeCount = static_cast<uint32_t>(std::size(descriptorPoolSizes)),
             .pPoolSizes = descriptorPoolSizes,
         };
 
