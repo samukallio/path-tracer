@@ -368,9 +368,9 @@ void ResolveHit(Ray ray, inout Hit hit)
 
         vec3 p = abs(position);
         if (p.x > p.y)
-            normal = p.x > p.z ? vec3(sign(p.x),0,0) : vec3(0,0,sign(p.z));
+            normal = p.x > p.z ? vec3(sign(position.x),0,0) : vec3(0,0,sign(position.z));
         else
-            normal = p.y > p.z ? vec3(0,sign(p.y),0) : vec3(0,0,sign(p.z));
+            normal = p.y > p.z ? vec3(0,sign(position.y),0) : vec3(0,0,sign(position.z));
 
         hit.materialIndex = object.materialIndex;
         hit.material = materials[object.materialIndex];
