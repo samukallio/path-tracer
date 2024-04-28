@@ -802,6 +802,24 @@ static void IntersectObject(Scene* scene, Ray const& worldRay, uint32_t objectIn
         hit.objectType = OBJECT_TYPE_SPHERE;
         hit.objectIndex = objectIndex;
     }
+
+    if (object.type == OBJECT_TYPE_CUBE) {
+        glm::vec3 minimum = (glm::vec3(-1,-1,-1) - ray.origin) / ray.direction;
+        glm::vec3 maximum = (glm::vec3(+1,+1,+1) - ray.origin) / ray.direction;
+        glm::vec3 earlier = min(minimum, maximum);
+        glm::vec3 later = max(minimum, maximum);
+        float t0 = glm::max(glm::max(earlier.x, earlier.y), earlier.z);
+        float t1 = glm::min(glm::min(later.x, later.y), later.z);
+        if (t1 < t0) return;
+        if (t1 <= 0) return;
+        if (t0 >= hit.time) return;
+
+        float t = t0 < 0 ? t1 : t0;
+
+        hit.time = t;
+        hit.objectType = OBJECT_TYPE_CUBE;
+        hit.objectIndex = objectIndex;
+    }
 }
 
 static void Intersect(Scene* scene, Ray const& worldRay, Hit& hit)
