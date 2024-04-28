@@ -2,7 +2,9 @@
 
 ![Screenshot](https://samukallio.net/path-tracer/viking_room.png)
 
-A GPU compute shader-based path tracer, written using Vulkan.
+A GPU compute shader-based path tracer written using Vulkan.
+
+"Viking room" 3D model by Nigel Goh ([Sketchfab](https://sketchfab.com/3d-models/viking-room-a49f1b8e4f5c4ecf9e1fe7d81915ad38)).
 
 ## Features
 
