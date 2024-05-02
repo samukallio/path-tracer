@@ -236,7 +236,7 @@ void Frame()
             uniforms.renderFlags &= ~RENDER_FLAG_ACCUMULATE;
     }
 
-    uint32_t dirtyFlags = BakeSceneData(&app.scene);
+    uint32_t dirtyFlags = PackSceneData(&app.scene);
     UploadScene(app.vulkan, &app.scene, dirtyFlags);
 
     uniforms.sceneObjectCount = static_cast<uint32_t>(app.scene.packedObjects.size());
@@ -444,7 +444,7 @@ int main()
     //cube->material = metal;
     //scene.root.children.push_back(cube);
 
-    BakeSceneData(&scene);
+    PackSceneData(&scene);
     LoadSkybox(&scene, "../scene/AmbienceExposure4k.hdr");
 
     InitializeImGui();

@@ -411,7 +411,67 @@ bool LoadSkybox(Scene* scene, char const* path)
     return true;
 }
 
-uint32_t BakeSceneData(Scene* scene)
+static void PackSceneObject(Scene* scene, glm::mat4 const& outerTransform, Entity* entity)
+{
+    if (!entity->active)
+        return;
+
+    glm::mat4 innerTransform
+        = outerTransform
+        * glm::translate(glm::mat4(1), entity->transform.position)
+        * glm::orientate4(entity->transform.rotation)
+        * glm::scale(glm::mat4(1), entity->transform.scale);
+
+    for (Entity* child : entity->children)
+        PackSceneObject(scene, innerTransform, child);
+
+    PackedSceneObject packed;
+
+    packed.materialIndex = 0;
+
+    switch (entity->type) {
+        case ENTITY_TYPE_MESH_INSTANCE: {
+            auto instance = static_cast<MeshInstance*>(entity);
+            if (!instance->mesh) return;
+            packed.meshRootNodeIndex = instance->mesh->packedRootNodeIndex;
+            packed.type = OBJECT_TYPE_MESH_INSTANCE;
+            break;
+        }
+        case ENTITY_TYPE_PLANE: {
+            auto plane = static_cast<Plane*>(entity);
+            if (plane->material)
+                packed.materialIndex = plane->material->packedMaterialIndex;
+            packed.type = OBJECT_TYPE_PLANE;
+            break;
+        }
+        case ENTITY_TYPE_SPHERE: {
+            auto sphere = static_cast<Sphere*>(entity);
+            if (sphere->material)
+                packed.materialIndex = sphere->material->packedMaterialIndex;
+            packed.type = OBJECT_TYPE_SPHERE;
+            break;
+        }
+        case ENTITY_TYPE_CUBE: {
+            auto cube = static_cast<Cube*>(entity);
+            if (cube->material)
+                packed.materialIndex = cube->material->packedMaterialIndex;
+            packed.type = OBJECT_TYPE_CUBE;
+            break;
+        }
+        default: {
+            return;
+        }
+    }
+
+    packed.transform.to = innerTransform;
+    packed.transform.from = glm::inverse(innerTransform);
+
+    entity->packedObjectIndex = static_cast<uint32_t>(scene->packedObjects.size());
+
+    scene->packedObjects.push_back(packed);
+}
+
+uint32_t PackSceneData(Scene* scene)
 {
     uint32_t dirtyFlags = scene->dirtyFlags;
 
@@ -608,59 +668,10 @@ uint32_t BakeSceneData(Scene* scene)
     if (dirtyFlags & SCENE_DIRTY_OBJECTS) {
         scene->packedObjects.clear();
 
-        for (Entity* entity : scene->root.children) {
-            if (!entity->active)
-                continue;
+        glm::mat4 const& outerTransform = glm::mat4(1);
 
-            PackedSceneObject packed;
-
-            packed.materialIndex = 0;
-
-            switch (entity->type) {
-                case ENTITY_TYPE_MESH_INSTANCE: {
-                    auto instance = static_cast<MeshInstance*>(entity);
-                    if (!instance->mesh) continue;
-                    packed.meshRootNodeIndex = instance->mesh->packedRootNodeIndex;
-                    packed.type = OBJECT_TYPE_MESH_INSTANCE;
-                    break;
-                }
-                case ENTITY_TYPE_PLANE: {
-                    auto plane = static_cast<Plane*>(entity);
-                    if (plane->material)
-                        packed.materialIndex = plane->material->packedMaterialIndex;
-                    packed.type = OBJECT_TYPE_PLANE;
-                    break;
-                }
-                case ENTITY_TYPE_SPHERE: {
-                    auto sphere = static_cast<Sphere*>(entity);
-                    if (sphere->material)
-                        packed.materialIndex = sphere->material->packedMaterialIndex;
-                    packed.type = OBJECT_TYPE_SPHERE;
-                    break;
-                }
-                case ENTITY_TYPE_CUBE: {
-                    auto cube = static_cast<Cube*>(entity);
-                    if (cube->material)
-                        packed.materialIndex = cube->material->packedMaterialIndex;
-                    packed.type = OBJECT_TYPE_CUBE;
-                    break;
-                }
-                default: {
-                    continue;
-                }
-            }
-
-            packed.transform.to
-                = glm::translate(glm::mat4(1), entity->transform.position)
-                * glm::orientate4(entity->transform.rotation)
-                * glm::scale(glm::mat4(1), entity->transform.scale);
-
-            packed.transform.from = glm::inverse(packed.transform.to);
-
-            entity->packedObjectIndex = static_cast<uint32_t>(scene->packedObjects.size());
-
-            scene->packedObjects.push_back(packed);
-        }
+        for (Entity* entity : scene->root.children)
+            PackSceneObject(scene, outerTransform, entity);
     }
 
     scene->dirtyFlags = 0;

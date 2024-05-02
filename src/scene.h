@@ -203,6 +203,6 @@ bool LoadSkybox(Scene* scene, char const* path);
 
 Material* CreateMaterial(Scene* scene, char const* name);
 
-uint32_t BakeSceneData(Scene* scene);
+uint32_t PackSceneData(Scene* scene);
 
 bool Trace(Scene* scene, Ray const& ray, Hit& hit);
