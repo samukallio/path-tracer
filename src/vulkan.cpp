@@ -2,6 +2,7 @@
 #include "scene.h"
 #include "ui_font.h"
 
+#include <array>
 #include <cassert>
 #include <cstdarg>
 #include <vector>

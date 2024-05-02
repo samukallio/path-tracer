@@ -1,5 +1,7 @@
 #include <stdio.h>
 
+#include <format>
+
 #include "vulkan.h"
 #include "scene.h"
 #include "ui.h"
@@ -66,6 +68,7 @@ void Frame()
         io.MousePos.x = static_cast<float>(current.mouseX);
         io.MousePos.y = static_cast<float>(current.mouseY);
         io.MouseDown[0] = glfwGetMouseButton(app.window, GLFW_MOUSE_BUTTON_1);
+        io.MouseDown[1] = glfwGetMouseButton(app.window, GLFW_MOUSE_BUTTON_2);
         io.DisplaySize.x = WINDOW_WIDTH;
         io.DisplaySize.y = WINDOW_HEIGHT;
         io.MouseWheel = static_cast<float>(app.mouseScrollPosition);
@@ -420,30 +423,29 @@ int main()
     room->mesh = mesh;
     scene.root.children.push_back(room);
 
-    Material* metal = CreateMaterial(&scene, "metal");
-    metal->roughness = 0.0f;
-
-    Material* glass = CreateMaterial(&scene, "glass");
-    glass->refraction = 1.0f;
-    glass->refractionIndex = 1.5f;
-
-    auto sphere = new Sphere;
-    sphere->name = "Sphere";
-    sphere->material = glass;
-    scene.root.children.push_back(sphere);
+    for (int k = 0; k < 3; k++) {
+        auto sphere = new Sphere;
+        sphere->name = std::format("Sphere {}", k+1);
+        sphere->material = CreateMaterial(&scene, std::format("Sphere {} Material", k+1).c_str());
+        sphere->material->refraction = 0.960f;
+        sphere->material->refractionIndex = 1.5f;
+        sphere->material->roughness = 0.0f;
+        scene.root.children.push_back(sphere);
+    }
 
     auto plane = new Plane;
     plane->name = "Plane";
-    plane->material = metal;
+    plane->material = CreateMaterial(&scene, "Plane Material");
+    plane->material->roughness = 0.0f;
     scene.root.children.push_back(plane);
 
-    auto cube = new Cube;
-    cube->name = "Cube";
-    cube->material = metal;
-    scene.root.children.push_back(cube);
+    //auto cube = new Cube;
+    //cube->name = "Cube";
+    //cube->material = metal;
+    //scene.root.children.push_back(cube);
 
     BakeSceneData(&scene);
-    LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
+    LoadSkybox(&scene, "../scene/AmbienceExposure4k.hdr");
 
     InitializeImGui();
 

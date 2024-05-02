@@ -68,6 +68,8 @@ enum EntityType
     ENTITY_TYPE_PLANE               = 3,
     ENTITY_TYPE_SPHERE              = 4,
     ENTITY_TYPE_CUBE                = 5,
+
+    ENTITY_TYPE__COUNT              = 6,
 };
 
 struct Entity
@@ -179,8 +181,6 @@ enum SceneDirtyFlag
     SCENE_DIRTY_ALL                 = 0xFFFFFFFF,
 };
 
-Texture* LoadTexture(Scene* scene, char const* path, char const* name = nullptr);
-
 struct LoadModelOptions
 {
     char const*     name                        = nullptr;
@@ -190,6 +190,12 @@ struct LoadModelOptions
     glm::mat4       normalTransform             = glm::mat4(1);
     glm::mat3       textureCoordinateTransform  = glm::mat3(1);
 };
+
+char const* EntityTypeName(EntityType type);
+
+Entity* CreateEntity(EntityType type);
+
+Texture* LoadTexture(Scene* scene, char const* path, char const* name = nullptr);
 
 Mesh* LoadModel(Scene* scene, char const* path, LoadModelOptions* options = nullptr);
 

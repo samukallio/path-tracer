@@ -49,6 +49,33 @@ static float HalfArea(Bounds const& box)
     return e.x * e.y + e.y * e.z + e.z * e.x;
 }
 
+char const* EntityTypeName(EntityType type)
+{
+    switch (type) {
+        case ENTITY_TYPE_ROOT:          return "Root";
+        case ENTITY_TYPE_CAMERA:        return "Camera";
+        case ENTITY_TYPE_MESH_INSTANCE: return "Mesh Instance";
+        case ENTITY_TYPE_PLANE:         return "Plane";
+        case ENTITY_TYPE_SPHERE:        return "Sphere";
+        case ENTITY_TYPE_CUBE:          return "Cube";
+    }
+    return "Entity";
+}
+
+Entity* CreateEntity(EntityType type)
+{
+    switch (type) {
+        case ENTITY_TYPE_ROOT:          return new Root;
+        case ENTITY_TYPE_CAMERA:        return new Camera;
+        case ENTITY_TYPE_MESH_INSTANCE: return new MeshInstance;
+        case ENTITY_TYPE_PLANE:         return new Plane;
+        case ENTITY_TYPE_SPHERE:        return new Sphere;
+        case ENTITY_TYPE_CUBE:          return new Cube;
+    }
+    assert(false);
+    return nullptr;
+}
+
 Texture* LoadTexture(Scene* scene, char const* path, char const* name)
 {
     int width, height, channelsInFile;

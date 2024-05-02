@@ -369,6 +369,24 @@ static void EntityTreeNode(UIContext* context, Entity* entity)
             context->entity = entity;
         }
 
+        if (ImGui::BeginPopupContextItem()) {
+            for (int k = 0; k < ENTITY_TYPE__COUNT; k++) {
+                if (k == ENTITY_TYPE_ROOT) continue;
+                char buffer[256];
+                auto type = static_cast<EntityType>(k);
+                snprintf(buffer, std::size(buffer), "Create %s...", EntityTypeName(type));
+                if (ImGui::MenuItem(buffer)) {
+                    auto child = CreateEntity(type);
+                    child->name = std::format("New {}", EntityTypeName(type));
+                    entity->children.push_back(child);
+                    context->scene->dirtyFlags |= SCENE_DIRTY_OBJECTS;
+                    context->selectionType = SELECTION_TYPE_ENTITY;
+                    context->entity = child;
+                }
+            }
+            ImGui::EndPopup();
+        }
+
         for (Entity* child : entity->children)
             EntityTreeNode(context, child);
 
