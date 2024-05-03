@@ -84,6 +84,14 @@ struct Object
     Transform       transform;
 };
 
+struct SceneNode
+{
+    vec3            minimum;
+    uint            childNodeIndices;
+    vec3            maximum;
+    uint            objectIndex;
+};
+
 struct MeshFace
 {
     vec3            position;

@@ -471,6 +471,65 @@ static void PackSceneObject(Scene* scene, glm::mat4 const& outerTransform, Entit
     scene->packedObjects.push_back(packed);
 }
 
+static Bounds SceneObjectBounds(Scene const* scene, PackedSceneObject const& object)
+{
+    glm::vec4 objectCorners[8] = {};
+
+    switch (object.type) {
+        case OBJECT_TYPE_MESH_INSTANCE: {
+            glm::vec3 meshMin = scene->packedMeshNodes[object.meshRootNodeIndex].minimum;
+            glm::vec3 meshMax = scene->packedMeshNodes[object.meshRootNodeIndex].maximum;
+
+            objectCorners[0] = { meshMin.x, meshMin.y, meshMin.z, 1 };
+            objectCorners[1] = { meshMin.x, meshMin.y, meshMax.z, 1 };
+            objectCorners[2] = { meshMin.x, meshMax.y, meshMin.z, 1 };
+            objectCorners[3] = { meshMin.x, meshMax.y, meshMax.z, 1 };
+            objectCorners[4] = { meshMax.x, meshMin.y, meshMin.z, 1 };
+            objectCorners[5] = { meshMax.x, meshMin.y, meshMax.z, 1 };
+            objectCorners[6] = { meshMax.x, meshMax.y, meshMin.z, 1 };
+            objectCorners[7] = { meshMax.x, meshMax.y, meshMax.z, 1 };
+
+            break;
+        }
+        case OBJECT_TYPE_PLANE: {
+            objectCorners[0] = { -1e9f, -1e9f, -EPSILON, 1 };
+            objectCorners[1] = { +1e9f, -1e9f, -EPSILON, 1 };
+            objectCorners[2] = { -1e9f, +1e9f, -EPSILON, 1 };
+            objectCorners[3] = { +1e9f, +1e9f, -EPSILON, 1 };
+            objectCorners[4] = { -1e9f, -1e9f, +EPSILON, 1 };
+            objectCorners[5] = { +1e9f, -1e9f, +EPSILON, 1 };
+            objectCorners[6] = { -1e9f, +1e9f, +EPSILON, 1 };
+            objectCorners[7] = { +1e9f, +1e9f, +EPSILON, 1 };
+
+            break;
+        }
+        case OBJECT_TYPE_SPHERE:
+        case OBJECT_TYPE_CUBE: {
+            objectCorners[0] = { -1, -1, -1, 1 };
+            objectCorners[1] = { +1, -1, -1, 1 };
+            objectCorners[2] = { -1, +1, -1, 1 };
+            objectCorners[3] = { +1, +1, -1, 1 };
+            objectCorners[4] = { -1, -1, +1, 1 };
+            objectCorners[5] = { +1, -1, +1, 1 };
+            objectCorners[6] = { -1, +1, +1, 1 };
+            objectCorners[7] = { +1, +1, +1, 1 };
+
+            break;
+        }
+    }
+
+    glm::vec3 worldMin = glm::vec3(+INFINITY);
+    glm::vec3 worldMax = glm::vec3(-INFINITY);
+
+    for (glm::vec4 const& objectCorner : objectCorners) {
+        glm::vec3 worldCorner = (object.transform.to * objectCorner).xyz();
+        worldMin = glm::min(worldMin, worldCorner.xyz());
+        worldMax = glm::max(worldMax, worldCorner.xyz());
+    }
+
+    return { worldMin, worldMax };
+}
+
 uint32_t PackSceneData(Scene* scene)
 {
     uint32_t dirtyFlags = scene->dirtyFlags;
@@ -667,11 +726,96 @@ uint32_t PackSceneData(Scene* scene)
     // Pack object data.
     if (dirtyFlags & SCENE_DIRTY_OBJECTS) {
         scene->packedObjects.clear();
+        scene->packedSceneNodes.resize(1);
 
         glm::mat4 const& outerTransform = glm::mat4(1);
 
         for (Entity* entity : scene->root.children)
             PackSceneObject(scene, outerTransform, entity);
+
+        std::vector<uint16_t> map;
+
+        for (uint32_t objectIndex = 0; objectIndex < scene->packedObjects.size(); objectIndex++) {
+            PackedSceneObject const& object = scene->packedObjects[objectIndex];
+            Bounds bounds = SceneObjectBounds(scene, object);
+
+            uint16_t nodeIndex = static_cast<uint16_t>(scene->packedSceneNodes.size());
+            map.push_back(nodeIndex);
+
+            PackedSceneNode node = {
+                .minimum = bounds.minimum,
+                .childNodeIndices = 0,
+                .maximum = bounds.maximum,
+                .objectIndex = objectIndex,
+            };
+            scene->packedSceneNodes.push_back(node);
+        }
+
+        auto FindBestMatch = [](
+            Scene const* scene,
+            std::vector<uint16_t> const& map,
+            uint16_t indexA
+        ) -> uint16_t {
+            glm::vec3 minA = scene->packedSceneNodes[map[indexA]].minimum;
+            glm::vec3 maxA = scene->packedSceneNodes[map[indexA]].maximum;
+
+            float bestArea = INFINITY;
+            uint16_t bestIndexB = 0xFFFF;
+
+            for (uint16_t indexB = 0; indexB < map.size(); indexB++) {
+                if (indexA == indexB) continue;
+
+                glm::vec3 minB = scene->packedSceneNodes[map[indexB]].minimum;
+                glm::vec3 maxB = scene->packedSceneNodes[map[indexB]].maximum;
+                glm::vec3 size = glm::max(maxA, maxB) - glm::min(minA, minB);
+                float area = size.x * size.y + size.y * size.z + size.z * size.z;
+                if (area <= bestArea) {
+                    bestArea = area;
+                    bestIndexB = indexB;
+                }
+            }
+
+            return bestIndexB;
+        };
+
+        uint16_t indexA = 0;
+        uint16_t indexB = FindBestMatch(scene, map, indexA);
+
+        while (map.size() > 1) {
+            uint16_t indexC = FindBestMatch(scene, map, indexB);
+            if (indexA == indexC) {
+                uint16_t nodeIndexA = map[indexA];
+                PackedSceneNode const& nodeA = scene->packedSceneNodes[nodeIndexA];
+                uint16_t nodeIndexB = map[indexB];
+                PackedSceneNode const& nodeB = scene->packedSceneNodes[nodeIndexB];
+
+                PackedSceneNode node = {
+                    .minimum = glm::min(nodeA.minimum, nodeB.minimum),
+                    .childNodeIndices = uint32_t(nodeIndexA) | uint32_t(nodeIndexB) << 16,
+                    .maximum = glm::max(nodeA.maximum, nodeB.maximum),
+                    .objectIndex = 0xFFFFFFFF,
+                };
+
+                map[indexA] = static_cast<uint16_t>(scene->packedSceneNodes.size());
+                map[indexB] = map.back();
+                map.pop_back();
+
+                if (indexA == map.size())
+                    indexA = indexB;
+
+                scene->packedSceneNodes.push_back(node);
+
+                indexB = FindBestMatch(scene, map, indexA);
+            }
+            else {
+                indexA = indexB;
+                indexB = indexC;
+            }
+        }
+
+        scene->packedSceneNodes[0] = scene->packedSceneNodes[map[indexA]];
+        scene->packedSceneNodes[map[indexA]] = scene->packedSceneNodes.back();
+        scene->packedSceneNodes.pop_back();
     }
 
     scene->dirtyFlags = 0;

@@ -74,17 +74,17 @@ enum EntityType
 
 struct Entity
 {
-    std::string                     name;
-    EntityType                      type;
-    bool                            active;
-    Transform                       transform;
-    std::vector<Entity*>            children;
-    uint32_t                        packedObjectIndex;
+    std::string                     name                    = "Entity";
+    EntityType                      type                    = ENTITY_TYPE_ROOT;
+    bool                            active                  = true;
+    Transform                       transform               = {};
+    std::vector<Entity*>            children                = {};
+    uint32_t                        packedObjectIndex       = 0xFFFFFFFF;
 };
 
 struct Root : Entity
 {
-    float                           scatterRate = 0.0f;
+    float                           scatterRate             = 0.0f;
 
     Root() { type = ENTITY_TYPE_ROOT; }
 };
@@ -159,6 +159,7 @@ struct Scene
 
     std::vector<PackedImage>        packedImages;
     std::vector<PackedSceneObject>  packedObjects;
+    std::vector<PackedSceneNode>    packedSceneNodes;
     std::vector<PackedMaterial>     packedMaterials;
     std::vector<PackedMeshFace>     packedMeshFaces;
     std::vector<PackedMeshNode>     packedMeshNodes;

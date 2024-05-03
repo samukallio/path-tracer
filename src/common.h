@@ -160,7 +160,7 @@ struct alignas(16) PackedSceneObject
 struct alignas(16) PackedSceneNode
 {
     glm::vec3                   minimum;
-    uint32_t                    nodeIndices;
+    uint32_t                    childNodeIndices;
     glm::vec3                   maximum;
     uint32_t                    objectIndex;
 };

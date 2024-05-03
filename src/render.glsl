@@ -50,12 +50,18 @@ readonly buffer ObjectBuffer
 };
 
 layout(binding = 7, std430)
+readonly buffer SceneNodeBuffer
+{
+    SceneNode sceneNodes[];
+};
+
+layout(binding = 8, std430)
 readonly buffer MeshFaceBuffer
 {
     MeshFace meshFaces[];
 };
 
-layout(binding = 8, std430)
+layout(binding = 9, std430)
 readonly buffer MeshNodeBuffer
 {
     MeshNode meshNodes[];
@@ -114,6 +120,40 @@ vec3 SampleSkybox(Ray ray)
     return textureLod(skyboxImage, uv, 0).rgb;
 }
 
+float IntersectBoundingBox(Ray ray, float reach, vec3 minimum, vec3 maximum)
+{
+    // Compute ray time to the axis-aligned planes at the node bounding
+    // box minimum and maximum corners.
+    vec3 minimumT = (minimum - ray.origin) / ray.direction;
+    vec3 maximumT = (maximum - ray.origin) / ray.direction;
+
+    // For each coordinate axis, sort out which of the two coordinate
+    // planes (at bounding box min/max points) comes earlier in time and
+    // which one comes later.
+    vec3 earlierT = min(minimumT, maximumT);
+    vec3 laterT = max(minimumT, maximumT);
+
+    // Compute the ray entry and exit times.  The ray enters the box when
+    // it has crossed all of the entry planes, so we take the maximum.
+    // Likewise, the ray has exit the box when it has exit at least one
+    // of the exit planes, so we take the minimum.
+    float entryT = max(max(earlierT.x, earlierT.y), earlierT.z);
+    float exitT = min(min(laterT.x, laterT.y), laterT.z);
+
+    // If the exit time is greater than the entry time, then the ray has
+    // missed the box altogether.
+    if (exitT < entryT) return INFINITY;
+
+    // If the exit time is less than 0, then the box is behind the eye.
+    if (exitT <= 0) return INFINITY;
+
+    // If the entry time is greater than previous hit time, then the box
+    // is occluded.
+    if (entryT >= reach) return INFINITY;
+
+    return entryT;
+}
+
 void IntersectMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
 {
     MeshFace face = meshFaces[meshFaceIndex];
@@ -137,40 +177,6 @@ void IntersectMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
     hit.primitiveCoordinates = vec3(1 - beta - gamma, beta, gamma);
 }
 
-float IntersectMeshNodeBounds(Ray ray, float reach, MeshNode node)
-{
-    // Compute ray time to the axis-aligned planes at the node bounding
-    // box minimum and maximum corners.
-    vec3 minimum = (node.minimum - ray.origin) / ray.direction;
-    vec3 maximum = (node.maximum - ray.origin) / ray.direction;
-
-    // For each coordinate axis, sort out which of the two coordinate
-    // planes (at bounding box min/max points) comes earlier in time and
-    // which one comes later.
-    vec3 earlier = min(minimum, maximum);
-    vec3 later = max(minimum, maximum);
-
-    // Compute the ray entry and exit times.  The ray enters the box when
-    // it has crossed all of the entry planes, so we take the maximum.
-    // Likewise, the ray has exit the box when it has exit at least one
-    // of the exit planes, so we take the minimum.
-    float entry = max(max(earlier.x, earlier.y), earlier.z);
-    float exit = min(min(later.x, later.y), later.z);
-
-    // If the exit time is greater than the entry time, then the ray has
-    // missed the box altogether.
-    if (exit < entry) return INFINITY;
-
-    // If the exit time is less than 0, then the box is behind the eye.
-    if (exit <= 0) return INFINITY;
-
-    // If the entry time is greater than previous hit time, then the box
-    // is occluded.
-    if (entry >= reach) return INFINITY;
-
-    return entry;
-}
-
 void IntersectMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
 {
     uint stack[32];
@@ -190,12 +196,12 @@ void IntersectMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
             // Load the first subnode as the node to be processed next.
             uint index = node.faceBeginOrNodeIndex;
             node = meshNodes[index];
-            float time = IntersectMeshNodeBounds(ray, hit.time, node);
+            float time = IntersectBoundingBox(ray, hit.time, node.minimum, node.maximum);
 
             // Also load the second subnode to see if it is closer.
             uint indexB = index + 1;
             MeshNode nodeB = meshNodes[indexB];
-            float timeB = IntersectMeshNodeBounds(ray, hit.time, nodeB);
+            float timeB = IntersectBoundingBox(ray, hit.time, nodeB.minimum, nodeB.maximum);
 
             // If the second subnode is strictly closer than the first one,
             // then it was definitely hit, so process it next.
@@ -293,8 +299,47 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
 
 void Intersect(Ray ray, inout Hit hit)
 {
-    for (uint objectIndex = 0; objectIndex < sceneObjectCount; objectIndex++)
-        IntersectObject(ray, objectIndex, hit);
+    uint stack[32];
+    uint depth = 0;
+
+    SceneNode nodeA = sceneNodes[0];
+    SceneNode nodeB;
+
+    while (true) {
+        // Leaf node or internal?
+        if (nodeA.childNodeIndices == 0) {
+            // Leaf node, intersect object.
+            IntersectObject(ray, nodeA.objectIndex, hit);
+        }
+        else {
+            // Internal node.
+            uint indexA = nodeA.childNodeIndices & 0xFFFF;
+            uint indexB = nodeA.childNodeIndices >> 16;
+
+            nodeA = sceneNodes[indexA];
+            nodeB = sceneNodes[indexB];
+
+            float timeA = IntersectBoundingBox(ray, hit.time, nodeA.minimum, nodeA.maximum);
+            float timeB = IntersectBoundingBox(ray, hit.time, nodeB.minimum, nodeB.maximum);
+
+            if (timeA > timeB) {
+                if (timeA < INFINITY) stack[depth++] = indexA;
+                nodeA = nodeB;
+                continue;
+            }
+
+            if (timeB < INFINITY) {
+                stack[depth++] = indexB;
+                continue;
+            }
+
+            if (timeA < INFINITY) continue;
+        }
+
+        if (depth == 0) break;
+
+        nodeA = sceneNodes[stack[--depth]];
+    }
 }
 
 void ResolveHit(Ray ray, inout Hit hit)

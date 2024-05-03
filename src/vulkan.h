@@ -129,6 +129,7 @@ struct VulkanContext
     VulkanImage                 textureArray                = {};
     VulkanBuffer                materialBuffer              = {};
     VulkanBuffer                objectBuffer                = {};
+    VulkanBuffer                sceneNodeBuffer             = {};
     VulkanBuffer                meshFaceBuffer              = {};
     VulkanBuffer                meshNodeBuffer              = {};
     VulkanImage                 skyboxImage                 = {};
