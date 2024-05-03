@@ -9,9 +9,9 @@ struct Texture
     uint32_t                        height;
     uint32_t const*                 pixels;
 
-    uint32_t                        packedImageIndex;
-    glm::vec2                       packedImageMinimum;
-    glm::vec2                       packedImageMaximum;
+    uint32_t                        atlasImageIndex;
+    glm::vec2                       atlasPlacementMinimum;
+    glm::vec2                       atlasPlacementMaximum;
 };
 
 struct Material
@@ -157,12 +157,12 @@ struct Scene
     std::vector<Material*>          materials;
     std::vector<Texture*>           textures;
 
-    std::vector<PackedImage>        packedImages;
-    std::vector<PackedSceneObject>  packedObjects;
-    std::vector<PackedSceneNode>    packedSceneNodes;
-    std::vector<PackedMaterial>     packedMaterials;
-    std::vector<PackedMeshFace>     packedMeshFaces;
-    std::vector<PackedMeshNode>     packedMeshNodes;
+    std::vector<Image>              images;
+    std::vector<PackedSceneObject>  sceneObjectPack;
+    std::vector<PackedSceneNode>    sceneNodePack;
+    std::vector<PackedMaterial>     materialPack;
+    std::vector<PackedMeshFace>     meshFacePack;
+    std::vector<PackedMeshNode>     meshNodePack;
 
     uint32_t                        skyboxWidth;
     uint32_t                        skyboxHeight;

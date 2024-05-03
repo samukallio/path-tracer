@@ -32,34 +32,13 @@ const uint MATERIAL_FLAG_EMISSION_TEXTURE   = 1 << 1;
 const uint MATERIAL_FLAG_METALLIC_TEXTURE   = 1 << 2;
 const uint MATERIAL_FLAG_ROUGHNESS_TEXTURE  = 1 << 3;
 
-struct Transform
+struct PackedTransform
 {
     mat4            to;
     mat4            from;
 };
 
-layout(binding = 0)
-uniform FrameUniformBuffer
-{
-    uint            frameRandomSeed;
-    uint            sceneObjectCount;
-    float           sceneScatterRate;
-    uint            cameraModel;
-    float           cameraFocalLength;
-    float           cameraApertureRadius;
-    float           cameraSensorDistance;
-    vec2            cameraSensorSize;
-    Transform       cameraTransform;
-    uint            renderMode;
-    uint            renderFlags;
-    uint            renderSampleBlockSize;
-    uint            renderBounceLimit;
-    uint            highlightObjectIndex;
-    uint            toneMappingMode;
-    float           toneMappingWhiteLevel;
-};
-
-struct Material
+struct PackedMaterial
 {
     vec3            baseColor;
     uint            baseColorTextureIndex;
@@ -76,15 +55,15 @@ struct Material
     uint            flags;
 };
 
-struct Object
+struct PackedSceneObject
 {
     uint            type;
     uint            materialIndex;
     uint            meshRootNodeIndex;
-    Transform       transform;
+    PackedTransform transform;
 };
 
-struct SceneNode
+struct PackedSceneNode
 {
     vec3            minimum;
     uint            childNodeIndices;
@@ -92,7 +71,7 @@ struct SceneNode
     uint            objectIndex;
 };
 
-struct MeshFace
+struct PackedMeshFace
 {
     vec3            position;
     uint            materialIndex;
@@ -103,7 +82,7 @@ struct MeshFace
     vec2            uvs[3];
 };
 
-struct MeshNode
+struct PackedMeshNode
 {
     vec3            minimum;
     uint            faceBeginOrNodeIndex;
@@ -124,57 +103,78 @@ struct Hit
     vec3            normal;
     vec2            uv;
     uint            materialIndex;
-    Material        material;
+    PackedMaterial  material;
 };
 
 struct Ray
 {
     vec3            origin;
-    vec3            direction;
+    vec3            vector;
 };
 
-vec3 TransformPosition(vec3 position, Transform transform)
+vec3 TransformPosition(vec3 position, PackedTransform transform)
 {
     return (transform.to * vec4(position, 1)).xyz;
 }
 
-vec3 TransformVector(vec3 vector, Transform transform)
+vec3 TransformVector(vec3 vector, PackedTransform transform)
 {
     return (transform.to * vec4(vector, 0)).xyz;
 }
 
-vec3 TransformNormal(vec3 normal, Transform transform)
+vec3 TransformNormal(vec3 normal, PackedTransform transform)
 {
     return normalize((vec4(normal, 0) * transform.from).xyz);
 }
 
-Ray TransformRay(Ray ray, Transform transform)
+Ray TransformRay(Ray ray, PackedTransform transform)
 {
     Ray r;
     r.origin = TransformPosition(ray.origin, transform);
-    r.direction = TransformVector(ray.direction, transform);
+    r.vector = TransformVector(ray.vector, transform);
     return r;
 }
 
-vec3 InverseTransformPosition(vec3 position, Transform transform)
+vec3 InverseTransformPosition(vec3 position, PackedTransform transform)
 {
     return (transform.from * vec4(position, 1)).xyz;
 }
 
-vec3 InverseTransformVector(vec3 vector, Transform transform)
+vec3 InverseTransformVector(vec3 vector, PackedTransform transform)
 {
     return (transform.from * vec4(vector, 0)).xyz;
 }
 
-vec3 InverseTransformNormal(vec3 normal, Transform transform)
+vec3 InverseTransformNormal(vec3 normal, PackedTransform transform)
 {
     return normalize((vec4(normal, 0) * transform.to).xyz);
 }
 
-Ray InverseTransformRay(Ray ray, Transform transform)
+Ray InverseTransformRay(Ray ray, PackedTransform transform)
 {
     Ray r;
     r.origin = InverseTransformPosition(ray.origin, transform);
-    r.direction = InverseTransformVector(ray.direction, transform);
+    r.vector = InverseTransformVector(ray.vector, transform);
     return r;
 }
+
+layout(binding = 0)
+uniform FrameUniformBuffer
+{
+    uint            frameRandomSeed;
+    uint            sceneObjectCount;
+    float           sceneScatterRate;
+    uint            cameraModel;
+    float           cameraFocalLength;
+    float           cameraApertureRadius;
+    float           cameraSensorDistance;
+    vec2            cameraSensorSize;
+    PackedTransform cameraTransform;
+    uint            renderMode;
+    uint            renderFlags;
+    uint            renderSampleBlockSize;
+    uint            renderBounceLimit;
+    uint            highlightObjectIndex;
+    uint            toneMappingMode;
+    float           toneMappingWhiteLevel;
+};

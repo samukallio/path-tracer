@@ -123,12 +123,12 @@ struct VulkanContext
     uint32_t                    frameIndex                  = 0;
     VulkanFrameState            frameStates[2]              = {};
 
-    VkSampler                   sampler                     = VK_NULL_HANDLE;
-    VkSampler                   textureSampler              = VK_NULL_HANDLE;
+    VkSampler                   imageSamplerLinear          = VK_NULL_HANDLE;
+    VkSampler                   imageSamplerLinearNoMip     = VK_NULL_HANDLE;
 
-    VulkanImage                 textureArray                = {};
+    VulkanImage                 imageArray                  = {};
     VulkanBuffer                materialBuffer              = {};
-    VulkanBuffer                objectBuffer                = {};
+    VulkanBuffer                sceneObjectBuffer           = {};
     VulkanBuffer                sceneNodeBuffer             = {};
     VulkanBuffer                meshFaceBuffer              = {};
     VulkanBuffer                meshNodeBuffer              = {};

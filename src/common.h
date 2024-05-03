@@ -189,7 +189,7 @@ struct alignas(16) PackedMeshNode
     uint32_t                    faceEndIndex;
 };
 
-struct alignas(16) PackedImage
+struct Image
 {
     uint32_t                    width;
     uint32_t                    height;

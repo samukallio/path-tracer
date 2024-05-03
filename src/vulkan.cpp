@@ -964,7 +964,7 @@ static VkResult InternalCreateFrameResources(
             };
 
             VkDescriptorImageInfo srcImageInfo = {
-                .sampler = vulkan->sampler,
+                .sampler = vulkan->imageSamplerLinear,
                 .imageView = frame->renderTargetGraphicsCopy.view,
                 .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             };
@@ -1015,7 +1015,7 @@ static VkResult InternalCreateFrameResources(
             };
 
             VkDescriptorImageInfo imguiTextureInfo = {
-                .sampler = vulkan->sampler,
+                .sampler = vulkan->imageSamplerLinear,
                 .imageView = vulkan->imguiTexture.view,
                 .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             };
@@ -1807,7 +1807,7 @@ static VkResult InternalCreateVulkan(
             .unnormalizedCoordinates = VK_FALSE,
         };
 
-        result = vkCreateSampler(vulkan->device, &samplerInfo, nullptr, &vulkan->sampler);
+        result = vkCreateSampler(vulkan->device, &samplerInfo, nullptr, &vulkan->imageSamplerLinear);
         if (result != VK_SUCCESS) {
             Errorf(vulkan, "failed to create texture sampler");
             return result;
@@ -1834,9 +1834,9 @@ static VkResult InternalCreateVulkan(
             .unnormalizedCoordinates = VK_FALSE,
         };
 
-        result = vkCreateSampler(vulkan->device, &samplerInfo, nullptr, &vulkan->textureSampler);
+        result = vkCreateSampler(vulkan->device, &samplerInfo, nullptr, &vulkan->imageSamplerLinearNoMip);
         if (result != VK_SUCCESS) {
-            Errorf(vulkan, "failed to create texture sampler");
+            Errorf(vulkan, "failed to create bilinear sampler");
             return result;
         }
     }
@@ -1916,7 +1916,7 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // skyboxImage
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // textureArray
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // materialBuffer
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // objectBuffer
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // sceneObjectBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // sceneNodeBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // meshFaceBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // meshNodeBuffer
@@ -1980,11 +1980,11 @@ void DestroyVulkan(VulkanContext* vulkan)
 
     InternalDestroyBuffer(vulkan, &vulkan->materialBuffer);
     InternalDestroyBuffer(vulkan, &vulkan->sceneNodeBuffer);
-    InternalDestroyBuffer(vulkan, &vulkan->objectBuffer);
+    InternalDestroyBuffer(vulkan, &vulkan->sceneObjectBuffer);
     InternalDestroyBuffer(vulkan, &vulkan->meshNodeBuffer);
     InternalDestroyBuffer(vulkan, &vulkan->meshFaceBuffer);
     InternalDestroyImage(vulkan, &vulkan->skyboxImage);
-    InternalDestroyImage(vulkan, &vulkan->textureArray);
+    InternalDestroyImage(vulkan, &vulkan->imageArray);
 
     InternalDestroyFrameResources(vulkan);
 
@@ -1995,14 +1995,14 @@ void DestroyVulkan(VulkanContext* vulkan)
     InternalDestroyPipeline(vulkan, &vulkan->renderPipeline);
     InternalDestroyPipeline(vulkan, &vulkan->resolvePipeline);
 
-    if (vulkan->textureSampler) {
-        vkDestroySampler(vulkan->device, vulkan->textureSampler, nullptr);
-        vulkan->textureSampler = VK_NULL_HANDLE;
+    if (vulkan->imageSamplerLinearNoMip) {
+        vkDestroySampler(vulkan->device, vulkan->imageSamplerLinearNoMip, nullptr);
+        vulkan->imageSamplerLinearNoMip = VK_NULL_HANDLE;
     }
 
-    if (vulkan->sampler) {
-        vkDestroySampler(vulkan->device, vulkan->sampler, nullptr);
-        vulkan->sampler = VK_NULL_HANDLE;
+    if (vulkan->imageSamplerLinear) {
+        vkDestroySampler(vulkan->device, vulkan->imageSamplerLinear, nullptr);
+        vulkan->imageSamplerLinear = VK_NULL_HANDLE;
     }
 
     if (vulkan->mainRenderPass) {
@@ -2079,14 +2079,14 @@ static void InternalUpdateSceneDataDescriptors(
         return;
 
     VkDescriptorImageInfo skyboxImageInfo = {
-        .sampler = vulkan->textureSampler,
+        .sampler = vulkan->imageSamplerLinearNoMip,
         .imageView = vulkan->skyboxImage.view,
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
 
     VkDescriptorImageInfo textureArrayInfo = {
-        .sampler = vulkan->textureSampler,
-        .imageView = vulkan->textureArray.view,
+        .sampler = vulkan->imageSamplerLinearNoMip,
+        .imageView = vulkan->imageArray.view,
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
 
@@ -2096,10 +2096,10 @@ static void InternalUpdateSceneDataDescriptors(
         .range = vulkan->materialBuffer.size,
     };
 
-    VkDescriptorBufferInfo objectBufferInfo = {
-        .buffer = vulkan->objectBuffer.buffer,
+    VkDescriptorBufferInfo sceneObjectBufferInfo = {
+        .buffer = vulkan->sceneObjectBuffer.buffer,
         .offset = 0,
-        .range = vulkan->objectBuffer.size,
+        .range = vulkan->sceneObjectBuffer.size,
     };
 
     VkDescriptorBufferInfo sceneNodeBufferInfo = {
@@ -2158,7 +2158,7 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .pBufferInfo = &objectBufferInfo,
+                .pBufferInfo = &sceneObjectBufferInfo,
             },
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -2207,9 +2207,9 @@ VkResult UploadScene(
     // Remove the old resources, but don't destroy them yet.
     // We must update descriptors to point to the new ones first.
     VulkanImage skyboxImageOld = {};
-    VulkanImage textureArrayOld = {};
+    VulkanImage imageArrayOld = {};
     VulkanBuffer materialBufferOld = {};
-    VulkanBuffer objectBufferOld = {};
+    VulkanBuffer sceneObjectBufferOld = {};
     VulkanBuffer sceneNodeBufferOld = {};
     VulkanBuffer meshFaceBufferOld = {};
     VulkanBuffer meshNodeBufferOld = {};
@@ -2240,10 +2240,10 @@ VkResult UploadScene(
     }
 
     if (dirtyFlags & SCENE_DIRTY_TEXTURES) {
-        textureArrayOld = vulkan->textureArray;
-        vulkan->textureArray = VulkanImage {};
+        imageArrayOld = vulkan->imageArray;
+        vulkan->imageArray = VulkanImage {};
 
-        uint32_t textureCount = static_cast<uint32_t>(scene->packedImages.size());
+        uint32_t textureCount = static_cast<uint32_t>(scene->images.size());
 
         // We will create an image even if there are no textures.  This is so
         // that we will always have something to bind for the shader.
@@ -2260,7 +2260,7 @@ VkResult UploadScene(
 
         result = InternalCreateImage(
             vulkan,
-            &vulkan->textureArray,
+            &vulkan->imageArray,
             VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             VK_IMAGE_TYPE_2D,
@@ -2271,9 +2271,9 @@ VkResult UploadScene(
             layout,
             true);
         for (uint32_t index = 0; index < textureCount; index++) {
-            PackedImage const& image = scene->packedImages[index];
+            Image const& image = scene->images[index];
             InternalWriteToDeviceLocalImage(vulkan,
-                &vulkan->textureArray,
+                &vulkan->imageArray,
                 index, 1,
                 image.pixels,
                 image.width, image.height, sizeof(uint32_t),
@@ -2285,33 +2285,33 @@ VkResult UploadScene(
         materialBufferOld = vulkan->materialBuffer;
         vulkan->materialBuffer = VulkanBuffer {};
 
-        size_t materialBufferSize = sizeof(PackedMaterial) * scene->packedMaterials.size();
+        size_t materialBufferSize = sizeof(PackedMaterial) * scene->materialPack.size();
         result = InternalCreateBuffer(
             vulkan,
             &vulkan->materialBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             materialBufferSize);
-        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->materialBuffer, scene->packedMaterials.data(), materialBufferSize);
+        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->materialBuffer, scene->materialPack.data(), materialBufferSize);
     }
 
     if (dirtyFlags & SCENE_DIRTY_OBJECTS) {
-        size_t objectBufferSize = sizeof(PackedSceneObject) * scene->packedObjects.size();
-        if (objectBufferSize > vulkan->objectBuffer.size) {
-            objectBufferOld = vulkan->objectBuffer;
-            vulkan->objectBuffer = VulkanBuffer {};
+        size_t objectBufferSize = sizeof(PackedSceneObject) * scene->sceneObjectPack.size();
+        if (objectBufferSize > vulkan->sceneObjectBuffer.size) {
+            sceneObjectBufferOld = vulkan->sceneObjectBuffer;
+            vulkan->sceneObjectBuffer = VulkanBuffer {};
 
             result = InternalCreateBuffer(
                 vulkan,
-                &vulkan->objectBuffer,
+                &vulkan->sceneObjectBuffer,
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 objectBufferSize);
 
         }
-        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->objectBuffer, scene->packedObjects.data(), objectBufferSize);
+        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->sceneObjectBuffer, scene->sceneObjectPack.data(), objectBufferSize);
 
-        size_t sceneNodeBufferSize = sizeof(PackedSceneNode) * scene->packedSceneNodes.size();
+        size_t sceneNodeBufferSize = sizeof(PackedSceneNode) * scene->sceneNodePack.size();
         if (sceneNodeBufferSize > vulkan->sceneNodeBuffer.size) {
             sceneNodeBufferOld = vulkan->sceneNodeBuffer;
             vulkan->sceneNodeBuffer = VulkanBuffer {};
@@ -2323,7 +2323,7 @@ VkResult UploadScene(
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                 sceneNodeBufferSize);
         }
-        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->sceneNodeBuffer, scene->packedSceneNodes.data(), sceneNodeBufferSize);
+        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->sceneNodeBuffer, scene->sceneNodePack.data(), sceneNodeBufferSize);
     }
 
     if (dirtyFlags & SCENE_DIRTY_MESHES) {
@@ -2332,23 +2332,23 @@ VkResult UploadScene(
         meshNodeBufferOld = vulkan->meshNodeBuffer;
         vulkan->meshNodeBuffer = VulkanBuffer {};
 
-        size_t meshFaceBufferSize = sizeof(PackedMeshFace) * scene->packedMeshFaces.size();
+        size_t meshFaceBufferSize = sizeof(PackedMeshFace) * scene->meshFacePack.size();
         result = InternalCreateBuffer(
             vulkan,
             &vulkan->meshFaceBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             meshFaceBufferSize);
-        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshFaceBuffer, scene->packedMeshFaces.data(), meshFaceBufferSize);
+        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshFaceBuffer, scene->meshFacePack.data(), meshFaceBufferSize);
 
-        size_t meshNodeBufferSize = sizeof(PackedMeshNode) * scene->packedMeshNodes.size();
+        size_t meshNodeBufferSize = sizeof(PackedMeshNode) * scene->meshNodePack.size();
         result = InternalCreateBuffer(
             vulkan,
             &vulkan->meshNodeBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             meshNodeBufferSize);
-        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshNodeBuffer, scene->packedMeshNodes.data(), meshNodeBufferSize);
+        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshNodeBuffer, scene->meshNodePack.data(), meshNodeBufferSize);
     }
 
     InternalUpdateSceneDataDescriptors(vulkan);
@@ -2356,9 +2356,10 @@ VkResult UploadScene(
     InternalDestroyImage(vulkan, &skyboxImageOld);
     InternalDestroyBuffer(vulkan, &meshFaceBufferOld);
     InternalDestroyBuffer(vulkan, &meshNodeBufferOld);
-    InternalDestroyBuffer(vulkan, &objectBufferOld);
+    InternalDestroyBuffer(vulkan, &sceneObjectBufferOld);
     InternalDestroyBuffer(vulkan, &sceneNodeBufferOld);
     InternalDestroyBuffer(vulkan, &materialBufferOld);
+    InternalDestroyImage(vulkan, &imageArrayOld);
 
     return result;
 }

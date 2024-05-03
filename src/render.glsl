@@ -40,31 +40,31 @@ uniform sampler2DArray textureArray;
 layout(binding = 5, std430)
 readonly buffer MaterialBuffer
 {
-    Material materials[];
+    PackedMaterial materials[];
 };
 
 layout(binding = 6, std430)
 readonly buffer ObjectBuffer
 {
-    Object objects[];
+    PackedSceneObject objects[];
 };
 
 layout(binding = 7, std430)
 readonly buffer SceneNodeBuffer
 {
-    SceneNode sceneNodes[];
+    PackedSceneNode sceneNodes[];
 };
 
 layout(binding = 8, std430)
 readonly buffer MeshFaceBuffer
 {
-    MeshFace meshFaces[];
+    PackedMeshFace meshFaces[];
 };
 
 layout(binding = 9, std430)
 readonly buffer MeshNodeBuffer
 {
-    MeshNode meshNodes[];
+    PackedMeshNode meshNodes[];
 };
 
 layout(
@@ -112,9 +112,9 @@ vec3 RandomHemisphereDirection(vec3 normal)
 
 vec3 SampleSkybox(Ray ray)
 {
-    float r = length(ray.direction.xy);
-    float phi = atan(ray.direction.x, ray.direction.y);
-    float theta = atan(-ray.direction.z, r);
+    float r = length(ray.vector.xy);
+    float phi = atan(ray.vector.x, ray.vector.y);
+    float theta = atan(-ray.vector.z, r);
 
     vec2 uv = 0.5 + vec2(phi / TAU, theta / PI);
     return textureLod(skyboxImage, uv, 0).rgb;
@@ -124,8 +124,8 @@ float IntersectBoundingBox(Ray ray, float reach, vec3 minimum, vec3 maximum)
 {
     // Compute ray time to the axis-aligned planes at the node bounding
     // box minimum and maximum corners.
-    vec3 minimumT = (minimum - ray.origin) / ray.direction;
-    vec3 maximumT = (maximum - ray.origin) / ray.direction;
+    vec3 minimumT = (minimum - ray.origin) / ray.vector;
+    vec3 maximumT = (maximum - ray.origin) / ray.vector;
 
     // For each coordinate axis, sort out which of the two coordinate
     // planes (at bounding box min/max points) comes earlier in time and
@@ -156,15 +156,15 @@ float IntersectBoundingBox(Ray ray, float reach, vec3 minimum, vec3 maximum)
 
 void IntersectMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
 {
-    MeshFace face = meshFaces[meshFaceIndex];
+    PackedMeshFace face = meshFaces[meshFaceIndex];
 
-    float r = dot(face.plane.xyz, ray.direction);
+    float r = dot(face.plane.xyz, ray.vector);
     if (r > -EPSILON && r < +EPSILON) return;
 
     float t = -(dot(face.plane.xyz, ray.origin) + face.plane.w) / r;
     if (t < 0 || t > hit.time) return;
 
-    vec3 v = ray.origin + ray.direction * t - face.position;
+    vec3 v = ray.origin + ray.vector * t - face.position;
     float beta = dot(face.base1, v);
     if (beta < 0 || beta > 1) return;
     float gamma = dot(face.base2, v);
@@ -177,12 +177,12 @@ void IntersectMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
     hit.primitiveCoordinates = vec3(1 - beta - gamma, beta, gamma);
 }
 
-void IntersectMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
+void IntersectMeshNode(Ray ray, uint meshNodeIndex, inout Hit hit)
 {
     uint stack[32];
     uint depth = 0;
 
-    MeshNode node = meshNodes[rootNodeIndex];
+    PackedMeshNode node = meshNodes[meshNodeIndex];
 
     while (true) {
         // Leaf node or internal?
@@ -200,7 +200,7 @@ void IntersectMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
 
             // Also load the second subnode to see if it is closer.
             uint indexB = index + 1;
-            MeshNode nodeB = meshNodes[indexB];
+            PackedMeshNode nodeB = meshNodes[indexB];
             float timeB = IntersectBoundingBox(ray, hit.time, nodeB.minimum, nodeB.maximum);
 
             // If the second subnode is strictly closer than the first one,
@@ -237,30 +237,30 @@ void IntersectMesh(Ray ray, uint rootNodeIndex, inout Hit hit)
 
 void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
 {
-    Object object = objects[objectIndex];
+    PackedSceneObject object = objects[objectIndex];
 
     ray = InverseTransformRay(ray, object.transform);
 
     if (object.type == OBJECT_TYPE_MESH_INSTANCE) {
-        IntersectMesh(ray, object.meshRootNodeIndex, hit);
+        IntersectMeshNode(ray, object.meshRootNodeIndex, hit);
         if (hit.objectIndex == 0xFFFFFFFF)
             hit.objectIndex = objectIndex;
     }
 
     if (object.type == OBJECT_TYPE_PLANE) {
-        float t = - ray.origin.z / ray.direction.z;
+        float t = - ray.origin.z / ray.vector.z;
         if (t < 0 || t > hit.time) return;
 
         hit.time = t;
         hit.objectType = OBJECT_TYPE_PLANE;
         hit.objectIndex = objectIndex;
         hit.primitiveIndex = 0;
-        hit.primitiveCoordinates = vec3(fract(ray.origin.xy + ray.direction.xy * t), 0);
+        hit.primitiveCoordinates = vec3(fract(ray.origin.xy + ray.vector.xy * t), 0);
     }
 
     if (object.type == OBJECT_TYPE_SPHERE) {
-        float v = dot(ray.direction, ray.direction);
-        float p = dot(ray.origin, ray.direction);
+        float v = dot(ray.vector, ray.vector);
+        float p = dot(ray.origin, ray.vector);
         float q = dot(ray.origin, ray.origin) - 1.0;
         float d2 = p * p - q * v;
         if (d2 < 0) return;
@@ -279,8 +279,8 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
     }
 
     if (object.type == OBJECT_TYPE_CUBE) {
-        vec3 minimum = (vec3(-1,-1,-1) - ray.origin) / ray.direction;
-        vec3 maximum = (vec3(+1,+1,+1) - ray.origin) / ray.direction;
+        vec3 minimum = (vec3(-1,-1,-1) - ray.origin) / ray.vector;
+        vec3 maximum = (vec3(+1,+1,+1) - ray.origin) / ray.vector;
         vec3 earlier = min(minimum, maximum);
         vec3 later = max(minimum, maximum);
         float t0 = max(max(earlier.x, earlier.y), earlier.z);
@@ -302,8 +302,8 @@ void Intersect(Ray ray, inout Hit hit)
     uint stack[32];
     uint depth = 0;
 
-    SceneNode nodeA = sceneNodes[0];
-    SceneNode nodeB;
+    PackedSceneNode nodeA = sceneNodes[0];
+    PackedSceneNode nodeB;
 
     while (true) {
         // Leaf node or internal?
@@ -344,14 +344,14 @@ void Intersect(Ray ray, inout Hit hit)
 
 void ResolveHit(Ray ray, inout Hit hit)
 {
-    Object object = objects[hit.objectIndex];
+    PackedSceneObject object = objects[hit.objectIndex];
     Ray objectRay = InverseTransformRay(ray, object.transform);
 
-    vec3 position = objectRay.origin + objectRay.direction * hit.time;
+    vec3 position = objectRay.origin + objectRay.vector * hit.time;
     vec3 normal = vec3(0, 0, 1);
 
     if (hit.objectType == OBJECT_TYPE_MESH_INSTANCE) {
-        MeshFace face = meshFaces[hit.primitiveIndex];
+        PackedMeshFace face = meshFaces[hit.primitiveIndex];
 
         normal = face.normals[0] * hit.primitiveCoordinates.x
                + face.normals[1] * hit.primitiveCoordinates.y
@@ -381,7 +381,7 @@ void ResolveHit(Ray ray, inout Hit hit)
     }
 
     if (hit.objectType == OBJECT_TYPE_PLANE) {
-        Object object = objects[hit.objectIndex];
+        PackedSceneObject object = objects[hit.objectIndex];
 
         hit.primitiveIndex = 0;
 
@@ -399,7 +399,7 @@ void ResolveHit(Ray ray, inout Hit hit)
     }
 
     if (hit.objectType == OBJECT_TYPE_SPHERE) {
-        Object object = objects[hit.objectIndex];
+        PackedSceneObject object = objects[hit.objectIndex];
         normal = position;
         hit.materialIndex = object.materialIndex;
         hit.primitiveIndex = 0;
@@ -407,7 +407,7 @@ void ResolveHit(Ray ray, inout Hit hit)
     }
 
     if (hit.objectType == OBJECT_TYPE_CUBE) {
-        Object object = objects[hit.objectIndex];
+        PackedSceneObject object = objects[hit.objectIndex];
 
         hit.primitiveIndex = 0;
 
@@ -444,8 +444,8 @@ vec4 Trace(Ray ray)
 
         if (hit.time == scatterTime) {
             if (scatterTime < INFINITY) {
-                ray.origin = ray.origin + ray.direction * scatterTime;
-                ray.direction = RandomDirection();
+                ray.origin = ray.origin + ray.vector * scatterTime;
+                ray.vector = RandomDirection();
                 continue;
             }
             else {
@@ -459,35 +459,35 @@ vec4 Trace(Ray ray)
         if (Random0To1() < hit.material.refraction) {
             vec3 refractionDirection;
 
-            if (dot(ray.direction, hit.normal) < 0) {
+            if (dot(ray.vector, hit.normal) < 0) {
                 // Ray is exiting the material.
-                refractionDirection = refract(ray.direction, hit.normal, 1.0f / hit.material.refractionIndex);
+                refractionDirection = refract(ray.vector, hit.normal, 1.0f / hit.material.refractionIndex);
             }
             else {
                 // Ray is entering the material.
-                refractionDirection = refract(ray.direction, -hit.normal, hit.material.refractionIndex);
+                refractionDirection = refract(ray.vector, -hit.normal, hit.material.refractionIndex);
             }
 
             if (dot(refractionDirection, refractionDirection) > 0) {
                 // Normal refraction.
-                ray.direction = refractionDirection;
+                ray.vector = refractionDirection;
             }
             else {
                 // Total internal reflection.
-                ray.direction = reflect(ray.direction, hit.normal);
+                ray.vector = reflect(ray.vector, hit.normal);
             }
         }
         else {
             vec3 diffuseDirection = normalize(hit.normal + RandomDirection());
-            vec3 specularDirection = reflect(ray.direction, hit.normal);
+            vec3 specularDirection = reflect(ray.vector, hit.normal);
 
-            ray.direction = normalize(mix(specularDirection, diffuseDirection, hit.material.roughness));
+            ray.vector = normalize(mix(specularDirection, diffuseDirection, hit.material.roughness));
 
             outputColor += hit.material.emissionColor * filterColor;
             filterColor *= hit.material.baseColor;
         }
 
-        ray.origin = hit.position + 1e-3 * ray.direction;
+        ray.origin = hit.position + 1e-3 * ray.vector;
     }
 
     return vec4(outputColor.rgb, 1);
@@ -510,7 +510,7 @@ vec4 TraceBaseColor(Ray ray, bool shaded)
         return vec4(SampleSkybox(ray), 1);
 
     if (shaded) {
-        float shading = dot(hit.normal, -ray.direction);
+        float shading = dot(hit.normal, -ray.vector);
         if (hit.objectIndex == highlightObjectIndex)
             return vec4((hit.material.baseColor + vec3(1,0,0)) * shading, 1.0);
         else
@@ -525,7 +525,7 @@ vec4 TraceNormal(Ray ray)
 {
     Hit hit = IntersectAndResolve(ray);
     if (hit.time == INFINITY)
-        return vec4(0.5 * (1 - ray.direction), 1);
+        return vec4(0.5 * (1 - ray.vector), 1);
     return vec4(0.5 * (hit.normal + 1), 1);
 }
 
@@ -586,7 +586,7 @@ void main()
             cameraSensorDistance);
 
         ray.origin = vec3(cameraApertureRadius * RandomPointOnDisk(), 0);
-        ray.direction = normalize(ray.origin - sensorPosition);
+        ray.vector = normalize(ray.origin - sensorPosition);
     }
 
     if (cameraModel == CAMERA_MODEL_THIN_LENS) {
@@ -598,7 +598,7 @@ void main()
         vec3 objectPosition = -sensorPosition * cameraFocalLength / (sensorPosition.z - cameraFocalLength);
 
         ray.origin = vec3(cameraApertureRadius * RandomPointOnDisk(), 0);
-        ray.direction = normalize(objectPosition - ray.origin);
+        ray.vector = normalize(objectPosition - ray.origin);
     }
 
     if (cameraModel == CAMERA_MODEL_360) {
@@ -606,7 +606,7 @@ void main()
         float theta = (0.5f - sampleNormalizedPosition.y) * PI;
 
         ray.origin = vec3(0, 0, 0);
-        ray.direction = vec3(cos(theta) * sin(phi), sin(theta), -cos(theta) * cos(phi));
+        ray.vector = vec3(cos(theta) * sin(phi), sin(theta), -cos(theta) * cos(phi));
     }
 
     ray = TransformRay(ray, cameraTransform);

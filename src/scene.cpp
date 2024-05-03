@@ -466,9 +466,9 @@ static void PackSceneObject(Scene* scene, glm::mat4 const& outerTransform, Entit
     packed.transform.to = innerTransform;
     packed.transform.from = glm::inverse(innerTransform);
 
-    entity->packedObjectIndex = static_cast<uint32_t>(scene->packedObjects.size());
+    entity->packedObjectIndex = static_cast<uint32_t>(scene->sceneObjectPack.size());
 
-    scene->packedObjects.push_back(packed);
+    scene->sceneObjectPack.push_back(packed);
 }
 
 static Bounds SceneObjectBounds(Scene const* scene, PackedSceneObject const& object)
@@ -477,8 +477,8 @@ static Bounds SceneObjectBounds(Scene const* scene, PackedSceneObject const& obj
 
     switch (object.type) {
         case OBJECT_TYPE_MESH_INSTANCE: {
-            glm::vec3 meshMin = scene->packedMeshNodes[object.meshRootNodeIndex].minimum;
-            glm::vec3 meshMax = scene->packedMeshNodes[object.meshRootNodeIndex].maximum;
+            glm::vec3 meshMin = scene->meshNodePack[object.meshRootNodeIndex].minimum;
+            glm::vec3 meshMax = scene->meshNodePack[object.meshRootNodeIndex].maximum;
 
             objectCorners[0] = { meshMin.x, meshMin.y, meshMin.z, 1 };
             objectCorners[1] = { meshMin.x, meshMin.y, meshMax.z, 1 };
@@ -552,7 +552,7 @@ uint32_t PackSceneData(Scene* scene)
             };
         }
 
-        scene->packedImages.clear();
+        scene->images.clear();
 
         while (!rects.empty()) {
             stbrp_context context;
@@ -561,7 +561,7 @@ uint32_t PackSceneData(Scene* scene)
 
             uint32_t* pixels = new uint32_t[4096 * 4096];
 
-            uint32_t packedImageIndex = static_cast<uint32_t>(scene->packedImages.size());
+            uint32_t imageIndex = static_cast<uint32_t>(scene->images.size());
 
             for (stbrp_rect& rect : rects) {
                 if (!rect.was_packed)
@@ -571,12 +571,12 @@ uint32_t PackSceneData(Scene* scene)
                 assert(texture->width == rect.w);
                 assert(texture->height == rect.h);
 
-                texture->packedImageIndex = packedImageIndex;
-                texture->packedImageMinimum = {
+                texture->atlasImageIndex = imageIndex;
+                texture->atlasPlacementMinimum = {
                     rect.x / float(ATLAS_WIDTH),
                     (rect.y + rect.h) / float(ATLAS_HEIGHT),
                 };
-                texture->packedImageMaximum = {
+                texture->atlasPlacementMaximum = {
                     (rect.x + rect.w) / float(ATLAS_WIDTH),
                     rect.y / float(ATLAS_HEIGHT),
                 };
@@ -588,12 +588,12 @@ uint32_t PackSceneData(Scene* scene)
                 }
             }
 
-            PackedImage packed = {
+            auto atlas = Image {
                 .width = ATLAS_WIDTH,
                 .height = ATLAS_HEIGHT,
                 .pixels = pixels,
             };
-            scene->packedImages.push_back(packed);
+            scene->images.push_back(atlas);
 
             std::erase_if(rects, [](stbrp_rect& r) { return r.was_packed; });
         }
@@ -603,7 +603,7 @@ uint32_t PackSceneData(Scene* scene)
 
     // Pack materials.
     if (dirtyFlags & SCENE_DIRTY_MATERIALS) {
-        scene->packedMaterials.clear();
+        scene->materialPack.clear();
 
         // Fallback material.
         {
@@ -616,7 +616,7 @@ uint32_t PackSceneData(Scene* scene)
                 .refractionIndex = 1.0f,
                 .flags = 0
             };
-            scene->packedMaterials.push_back(packed);
+            scene->materialPack.push_back(packed);
         }
 
         for (Material* material : scene->materials) {
@@ -624,12 +624,12 @@ uint32_t PackSceneData(Scene* scene)
 
             packed.flags = 0;
 
-            material->packedMaterialIndex = static_cast<uint32_t>(scene->packedMaterials.size());
+            material->packedMaterialIndex = static_cast<uint32_t>(scene->materialPack.size());
 
             if (Texture* texture = material->baseColorTexture; texture) {
-                packed.baseColorTextureIndex = texture->packedImageIndex;
-                packed.baseColorTextureMinimum = texture->packedImageMinimum;
-                packed.baseColorTextureMaximum = texture->packedImageMaximum;
+                packed.baseColorTextureIndex = texture->atlasImageIndex;
+                packed.baseColorTextureMinimum = texture->atlasPlacementMinimum;
+                packed.baseColorTextureMaximum = texture->atlasPlacementMaximum;
                 packed.flags |= MATERIAL_FLAG_BASE_COLOR_TEXTURE;
             }
 
@@ -640,7 +640,7 @@ uint32_t PackSceneData(Scene* scene)
             packed.refraction = material->refraction;
             packed.refractionIndex = material->refractionIndex;
 
-            scene->packedMaterials.push_back(packed);
+            scene->materialPack.push_back(packed);
         }
 
         dirtyFlags |= SCENE_DIRTY_MESHES;
@@ -656,14 +656,14 @@ uint32_t PackSceneData(Scene* scene)
             nodeCount += static_cast<uint32_t>(mesh->nodes.size());
         }
 
-        scene->packedMeshFaces.clear();
-        scene->packedMeshFaces.reserve(faceCount);
-        scene->packedMeshNodes.clear();
-        scene->packedMeshNodes.reserve(nodeCount);
+        scene->meshFacePack.clear();
+        scene->meshFacePack.reserve(faceCount);
+        scene->meshNodePack.clear();
+        scene->meshNodePack.reserve(nodeCount);
 
         for (Mesh* mesh : scene->meshes) {
-            uint32_t faceIndexBase = static_cast<uint32_t>(scene->packedMeshFaces.size());
-            uint32_t nodeIndexBase = static_cast<uint32_t>(scene->packedMeshNodes.size());
+            uint32_t faceIndexBase = static_cast<uint32_t>(scene->meshFacePack.size());
+            uint32_t nodeIndexBase = static_cast<uint32_t>(scene->meshNodePack.size());
 
             // Build the packed mesh faces.
             for (MeshFace const& face : mesh->faces) {
@@ -695,7 +695,7 @@ uint32_t PackSceneData(Scene* scene)
                 packed.uvs[1] = face.uvs[1];
                 packed.uvs[2] = face.uvs[2];
 
-                scene->packedMeshFaces.push_back(packed);
+                scene->meshFacePack.push_back(packed);
             }
 
             // Build the packed mesh nodes.
@@ -714,7 +714,7 @@ uint32_t PackSceneData(Scene* scene)
                     packed.faceEndIndex = faceIndexBase + node.faceEndIndex;
                 }
 
-                scene->packedMeshNodes.push_back(packed);
+                scene->meshNodePack.push_back(packed);
             }
 
             mesh->packedRootNodeIndex = nodeIndexBase;
@@ -725,8 +725,8 @@ uint32_t PackSceneData(Scene* scene)
 
     // Pack object data.
     if (dirtyFlags & SCENE_DIRTY_OBJECTS) {
-        scene->packedObjects.clear();
-        scene->packedSceneNodes.resize(1);
+        scene->sceneObjectPack.clear();
+        scene->sceneNodePack.resize(1);
 
         glm::mat4 const& outerTransform = glm::mat4(1);
 
@@ -735,11 +735,11 @@ uint32_t PackSceneData(Scene* scene)
 
         std::vector<uint16_t> map;
 
-        for (uint32_t objectIndex = 0; objectIndex < scene->packedObjects.size(); objectIndex++) {
-            PackedSceneObject const& object = scene->packedObjects[objectIndex];
+        for (uint32_t objectIndex = 0; objectIndex < scene->sceneObjectPack.size(); objectIndex++) {
+            PackedSceneObject const& object = scene->sceneObjectPack[objectIndex];
             Bounds bounds = SceneObjectBounds(scene, object);
 
-            uint16_t nodeIndex = static_cast<uint16_t>(scene->packedSceneNodes.size());
+            uint16_t nodeIndex = static_cast<uint16_t>(scene->sceneNodePack.size());
             map.push_back(nodeIndex);
 
             PackedSceneNode node = {
@@ -748,7 +748,7 @@ uint32_t PackSceneData(Scene* scene)
                 .maximum = bounds.maximum,
                 .objectIndex = objectIndex,
             };
-            scene->packedSceneNodes.push_back(node);
+            scene->sceneNodePack.push_back(node);
         }
 
         auto FindBestMatch = [](
@@ -756,8 +756,8 @@ uint32_t PackSceneData(Scene* scene)
             std::vector<uint16_t> const& map,
             uint16_t indexA
         ) -> uint16_t {
-            glm::vec3 minA = scene->packedSceneNodes[map[indexA]].minimum;
-            glm::vec3 maxA = scene->packedSceneNodes[map[indexA]].maximum;
+            glm::vec3 minA = scene->sceneNodePack[map[indexA]].minimum;
+            glm::vec3 maxA = scene->sceneNodePack[map[indexA]].maximum;
 
             float bestArea = INFINITY;
             uint16_t bestIndexB = 0xFFFF;
@@ -765,8 +765,8 @@ uint32_t PackSceneData(Scene* scene)
             for (uint16_t indexB = 0; indexB < map.size(); indexB++) {
                 if (indexA == indexB) continue;
 
-                glm::vec3 minB = scene->packedSceneNodes[map[indexB]].minimum;
-                glm::vec3 maxB = scene->packedSceneNodes[map[indexB]].maximum;
+                glm::vec3 minB = scene->sceneNodePack[map[indexB]].minimum;
+                glm::vec3 maxB = scene->sceneNodePack[map[indexB]].maximum;
                 glm::vec3 size = glm::max(maxA, maxB) - glm::min(minA, minB);
                 float area = size.x * size.y + size.y * size.z + size.z * size.z;
                 if (area <= bestArea) {
@@ -785,9 +785,9 @@ uint32_t PackSceneData(Scene* scene)
             uint16_t indexC = FindBestMatch(scene, map, indexB);
             if (indexA == indexC) {
                 uint16_t nodeIndexA = map[indexA];
-                PackedSceneNode const& nodeA = scene->packedSceneNodes[nodeIndexA];
+                PackedSceneNode const& nodeA = scene->sceneNodePack[nodeIndexA];
                 uint16_t nodeIndexB = map[indexB];
-                PackedSceneNode const& nodeB = scene->packedSceneNodes[nodeIndexB];
+                PackedSceneNode const& nodeB = scene->sceneNodePack[nodeIndexB];
 
                 PackedSceneNode node = {
                     .minimum = glm::min(nodeA.minimum, nodeB.minimum),
@@ -796,14 +796,14 @@ uint32_t PackSceneData(Scene* scene)
                     .objectIndex = 0xFFFFFFFF,
                 };
 
-                map[indexA] = static_cast<uint16_t>(scene->packedSceneNodes.size());
+                map[indexA] = static_cast<uint16_t>(scene->sceneNodePack.size());
                 map[indexB] = map.back();
                 map.pop_back();
 
                 if (indexA == map.size())
                     indexA = indexB;
 
-                scene->packedSceneNodes.push_back(node);
+                scene->sceneNodePack.push_back(node);
 
                 indexB = FindBestMatch(scene, map, indexA);
             }
@@ -813,9 +813,9 @@ uint32_t PackSceneData(Scene* scene)
             }
         }
 
-        scene->packedSceneNodes[0] = scene->packedSceneNodes[map[indexA]];
-        scene->packedSceneNodes[map[indexA]] = scene->packedSceneNodes.back();
-        scene->packedSceneNodes.pop_back();
+        scene->sceneNodePack[0] = scene->sceneNodePack[map[indexA]];
+        scene->sceneNodePack[map[indexA]] = scene->sceneNodePack.back();
+        scene->sceneNodePack.pop_back();
     }
 
     scene->dirtyFlags = 0;
@@ -825,7 +825,7 @@ uint32_t PackSceneData(Scene* scene)
 
 static void IntersectMeshFace(Scene* scene, Ray ray, uint32_t meshFaceIndex, Hit& hit)
 {
-    PackedMeshFace face = scene->packedMeshFaces[meshFaceIndex];
+    PackedMeshFace face = scene->meshFacePack[meshFaceIndex];
 
     float r = glm::dot(face.plane.xyz(), ray.direction);
     if (r > -EPSILON && r < +EPSILON) return;
@@ -885,7 +885,7 @@ static void IntersectMesh(Scene* scene, Ray const& ray, uint32_t rootNodeIndex, 
     uint32_t stack[32];
     uint32_t depth = 0;
 
-    PackedMeshNode node = scene->packedMeshNodes[rootNodeIndex];
+    PackedMeshNode node = scene->meshNodePack[rootNodeIndex];
 
     while (true) {
         // Leaf node or internal?
@@ -898,12 +898,12 @@ static void IntersectMesh(Scene* scene, Ray const& ray, uint32_t rootNodeIndex, 
             // Internal node.
             // Load the first subnode as the node to be processed next.
             uint32_t index = node.faceBeginOrNodeIndex;
-            node = scene->packedMeshNodes[index];
+            node = scene->meshNodePack[index];
             float time = IntersectMeshNodeBounds(ray, hit.time, node);
 
             // Also load the second subnode to see if it is closer.
             uint32_t indexB = index + 1;
-            PackedMeshNode nodeB = scene->packedMeshNodes[indexB];
+            PackedMeshNode nodeB = scene->meshNodePack[indexB];
             float timeB = IntersectMeshNodeBounds(ray, hit.time, nodeB);
 
             // If the second subnode is strictly closer than the first one,
@@ -938,13 +938,13 @@ static void IntersectMesh(Scene* scene, Ray const& ray, uint32_t rootNodeIndex, 
         if (depth == 0) break;
 
         // Pull a node from the stack.
-        node = scene->packedMeshNodes[stack[--depth]];
+        node = scene->meshNodePack[stack[--depth]];
     }
 }
 
 static void IntersectObject(Scene* scene, Ray const& worldRay, uint32_t objectIndex, Hit& hit)
 {
-    PackedSceneObject object = scene->packedObjects[objectIndex];
+    PackedSceneObject object = scene->sceneObjectPack[objectIndex];
 
     Ray ray = TransformRay(worldRay, object.transform.from);
 
@@ -1006,7 +1006,7 @@ static void IntersectObject(Scene* scene, Ray const& worldRay, uint32_t objectIn
 
 static void Intersect(Scene* scene, Ray const& worldRay, Hit& hit)
 {
-    for (uint32_t objectIndex = 0; objectIndex < scene->packedObjects.size(); objectIndex++)
+    for (uint32_t objectIndex = 0; objectIndex < scene->sceneObjectPack.size(); objectIndex++)
         IntersectObject(scene, worldRay, objectIndex, hit);
 }
 

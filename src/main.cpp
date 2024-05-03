@@ -239,7 +239,7 @@ void Frame()
     uint32_t dirtyFlags = PackSceneData(&app.scene);
     UploadScene(app.vulkan, &app.scene, dirtyFlags);
 
-    uniforms.sceneObjectCount = static_cast<uint32_t>(app.scene.packedObjects.size());
+    uniforms.sceneObjectCount = static_cast<uint32_t>(app.scene.sceneObjectPack.size());
 
     RenderFrame(app.vulkan, &uniforms, ImGui::GetDrawData());
 }
