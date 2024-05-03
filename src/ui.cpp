@@ -375,6 +375,14 @@ static void EntityTreeNode(UIContext* context, Entity* entity)
     if (context->selectionType == SELECTION_TYPE_ENTITY && context->entity == entity)
         flags |= ImGuiTreeNodeFlags_Selected;
 
+    if (!entity->active) {
+        auto color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
+        color.x *= 0.5f;
+        color.y *= 0.5f;
+        color.z *= 0.5f;
+        ImGui::PushStyleColor(ImGuiCol_Text, color);
+    }
+
     if (ImGui::TreeNodeEx(entity->name.c_str(), flags)) {
         if (ImGui::IsItemClicked()) {
             context->selectionType = SELECTION_TYPE_ENTITY;
@@ -403,6 +411,10 @@ static void EntityTreeNode(UIContext* context, Entity* entity)
             EntityTreeNode(context, child);
 
         ImGui::TreePop();
+    }
+
+    if (!entity->active) {
+        ImGui::PopStyleColor();
     }
 }
 
