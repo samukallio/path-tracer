@@ -9,6 +9,8 @@ const uint RENDER_MODE_BASE_COLOR_SHADED    = 2;
 const uint RENDER_MODE_NORMAL               = 3;
 const uint RENDER_MODE_MATERIAL_INDEX       = 4;
 const uint RENDER_MODE_PRIMITIVE_INDEX      = 5;
+const uint RENDER_MODE_MESH_COMPLEXITY      = 6;
+const uint RENDER_MODE_SCENE_COMPLEXITY     = 7;
 
 const uint RENDER_FLAG_ACCUMULATE           = 1 << 0;
 const uint RENDER_FLAG_SAMPLE_JITTER        = 1 << 1;
@@ -98,6 +100,9 @@ struct Hit
     uint            primitiveIndex;
     vec3            primitiveCoordinates;
 
+    uint            sceneComplexity;
+    uint            meshComplexity;
+
     // Populated by ResolveHit()
     vec3            position;
     vec3            normal;
@@ -174,6 +179,8 @@ uniform FrameUniformBuffer
     uint            renderFlags;
     uint            renderSampleBlockSize;
     uint            renderBounceLimit;
+    uint            renderMeshComplexityScale;
+    uint            renderSceneComplexityScale;
     uint            highlightObjectIndex;
     uint            toneMappingMode;
     float           toneMappingWhiteLevel;

@@ -228,6 +228,8 @@ void Frame()
         uniforms.renderFlags = RENDER_FLAG_SAMPLE_JITTER;
         uniforms.renderSampleBlockSize = 1u << app.ui.camera->renderSampleBlockSizeLog2;
         uniforms.renderBounceLimit = app.ui.camera->renderBounceLimit;
+        uniforms.renderMeshComplexityScale = app.ui.camera->renderMeshComplexityScale;
+        uniforms.renderSceneComplexityScale = app.ui.camera->renderSceneComplexityScale;
         uniforms.toneMappingMode = app.ui.camera->toneMappingMode;
         uniforms.toneMappingWhiteLevel = app.ui.camera->toneMappingWhiteLevel;
         uniforms.renderFlags = app.ui.camera->renderFlags;

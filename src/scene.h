@@ -114,6 +114,8 @@ struct Camera : Entity
     RenderMode                      renderMode              = RENDER_MODE_PATH_TRACE;
     uint32_t                        renderFlags             = 0;
     uint32_t                        renderBounceLimit       = 5;
+    uint32_t                        renderMeshComplexityScale = 32;
+    uint32_t                        renderSceneComplexityScale = 32;
     uint32_t                        renderSampleBlockSizeLog2 = 0;
 
     ToneMappingMode                 toneMappingMode         = TONE_MAPPING_MODE_CLAMP;

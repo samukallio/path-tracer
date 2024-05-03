@@ -174,6 +174,18 @@ static void CameraInspector(UIContext* context, Camera* camera)
         camera->renderBounceLimit = std::max(1, bounceLimit);
     }
 
+    if (camera->renderMode == RENDER_MODE_MESH_COMPLEXITY) {
+        int complexityScale = static_cast<int>(camera->renderMeshComplexityScale);
+        c |= ImGui::InputInt("Maximum Complexity", &complexityScale);
+        camera->renderMeshComplexityScale = std::max(1, complexityScale);
+    }
+
+    if (camera->renderMode == RENDER_MODE_SCENE_COMPLEXITY) {
+        int complexityScale = static_cast<int>(camera->renderSceneComplexityScale);
+        c |= ImGui::InputInt("Maximum Complexity", &complexityScale);
+        camera->renderSceneComplexityScale = std::max(1, complexityScale);
+    }
+
     char const* const renderSampleBlockSizeLabels[] = { "1x1", "2x2", "4x4", "8x8" };
     ImGui::Combo("Sample Block Size",
         (int*)&camera->renderSampleBlockSizeLog2,

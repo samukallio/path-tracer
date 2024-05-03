@@ -185,6 +185,8 @@ void IntersectMeshNode(Ray ray, uint meshNodeIndex, inout Hit hit)
     PackedMeshNode node = meshNodes[meshNodeIndex];
 
     while (true) {
+        hit.meshComplexity++;
+
         // Leaf node or internal?
         if (node.faceEndIndex > 0) {
             // Leaf node, trace all geometry within.
@@ -306,6 +308,8 @@ void Intersect(Ray ray, inout Hit hit)
     PackedSceneNode nodeB;
 
     while (true) {
+        hit.sceneComplexity++;
+
         // Leaf node or internal?
         if (nodeA.childNodeIndices == 0) {
             // Leaf node, intersect object.
@@ -545,6 +549,30 @@ vec4 TracePrimitiveIndex(Ray ray)
     return vec4(COLORS[hit.primitiveIndex % 20], 1);
 }
 
+vec4 TraceMeshComplexity(Ray ray)
+{
+    Hit hit;
+    hit.time = INFINITY;
+    hit.meshComplexity = 0;
+    Intersect(ray, hit);
+
+    float alpha = min(hit.meshComplexity / float(renderMeshComplexityScale), 1.0);
+    vec3 color = mix(vec3(0,0,0), vec3(0,1,0), alpha);
+    return vec4(color, 1);
+}
+
+vec4 TraceSceneComplexity(Ray ray)
+{
+    Hit hit;
+    hit.time = INFINITY;
+    hit.sceneComplexity = 0;
+    Intersect(ray, hit);
+
+    float alpha = min(hit.sceneComplexity / float(renderSceneComplexityScale), 1.0);
+    vec3 color = mix(vec3(0,0,0), vec3(0,1,0), alpha);
+    return vec4(color, 1);
+}
+
 void main()
 {
     // Initialize random number generator.
@@ -615,21 +643,20 @@ void main()
 
     if (renderMode == RENDER_MODE_PATH_TRACE)
         sampleValue = Trace(ray);
-
-    if (renderMode == RENDER_MODE_BASE_COLOR)
+    else if (renderMode == RENDER_MODE_BASE_COLOR)
         sampleValue = TraceBaseColor(ray, false);
-
-    if (renderMode == RENDER_MODE_BASE_COLOR_SHADED)
+    else if (renderMode == RENDER_MODE_BASE_COLOR_SHADED)
         sampleValue = TraceBaseColor(ray, true);
-
-    if (renderMode == RENDER_MODE_NORMAL)
+    else if (renderMode == RENDER_MODE_NORMAL)
         sampleValue = TraceNormal(ray);
-
-    if (renderMode == RENDER_MODE_MATERIAL_INDEX)
+    else if (renderMode == RENDER_MODE_MATERIAL_INDEX)
         sampleValue = TraceMaterialIndex(ray);
-
-    if (renderMode == RENDER_MODE_PRIMITIVE_INDEX)
+    else if (renderMode == RENDER_MODE_PRIMITIVE_INDEX)
         sampleValue = TracePrimitiveIndex(ray);
+    else if (renderMode == RENDER_MODE_MESH_COMPLEXITY)
+        sampleValue = TraceMeshComplexity(ray);
+    else if (renderMode == RENDER_MODE_SCENE_COMPLEXITY)
+        sampleValue = TraceSceneComplexity(ray);
 
     // Transfer the sample block from the input image to the output image,
     // adding the sample value that we produced at the relevant pixel

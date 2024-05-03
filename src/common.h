@@ -26,7 +26,9 @@ enum RenderMode : int32_t
     RENDER_MODE_NORMAL                  = 3,
     RENDER_MODE_MATERIAL_INDEX          = 4,
     RENDER_MODE_PRIMITIVE_INDEX         = 5,
-    RENDER_MODE__COUNT                  = 6,
+    RENDER_MODE_MESH_COMPLEXITY         = 6,
+    RENDER_MODE_SCENE_COMPLEXITY        = 7,
+    RENDER_MODE__COUNT                  = 8,
 };
 
 inline char const* RenderModeName(RenderMode mode)
@@ -44,6 +46,10 @@ inline char const* RenderModeName(RenderMode mode)
             return "Material ID";
         case RENDER_MODE_PRIMITIVE_INDEX:
             return "Primitive ID";
+        case RENDER_MODE_MESH_COMPLEXITY:
+            return "Mesh Complexity";
+        case RENDER_MODE_SCENE_COMPLEXITY:
+            return "Scene Complexity";
     }
     assert(false);
     return nullptr;
@@ -213,6 +219,8 @@ struct FrameUniformBuffer
     uint32_t                    renderFlags                 = 0;
     uint32_t                    renderSampleBlockSize       = 1;
     uint32_t                    renderBounceLimit           = 0;
+    uint32_t                    renderMeshComplexityScale   = 32;
+    uint32_t                    renderSceneComplexityScale  = 32;
     uint32_t                    highlightObjectIndex        = 0xFFFFFFFF;
     ToneMappingMode             toneMappingMode             = TONE_MAPPING_MODE_CLAMP;
     float                       toneMappingWhiteLevel       = 1.0f;
