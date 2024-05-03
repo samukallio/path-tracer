@@ -150,12 +150,18 @@ struct Cube : Entity
     Cube() { type = ENTITY_TYPE_CUBE; }
 };
 
+struct Prefab
+{
+    Entity*                         entity                  = nullptr;
+};
+
 struct Scene
 {
     Root                            root;
     std::vector<Mesh*>              meshes;
     std::vector<Material*>          materials;
     std::vector<Texture*>           textures;
+    std::vector<Prefab*>            prefabs;
 
     std::vector<Image>              images;
     std::vector<PackedSceneObject>  sceneObjectPack;
@@ -194,12 +200,12 @@ struct LoadModelOptions
 
 char const* EntityTypeName(EntityType type);
 
-Entity* CreateEntity(EntityType type);
+Entity* CreateEntity(Scene* scene, EntityType type, Entity* parent = nullptr);
+Entity* CreateEntity(Scene* scene, Entity* source, Entity* parent = nullptr);
+Entity* CreateEntity(Scene* scene, Prefab* prefab, Entity* parent = nullptr);
 
 Texture* LoadTexture(Scene* scene, char const* path, char const* name = nullptr);
-
-Mesh* LoadModel(Scene* scene, char const* path, LoadModelOptions* options = nullptr);
-
+Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* options = nullptr);
 bool LoadSkybox(Scene* scene, char const* path);
 
 Material* CreateMaterial(Scene* scene, char const* name);

@@ -376,7 +376,7 @@ static void EntityTreeNode(UIContext* context, Entity* entity)
                 auto type = static_cast<EntityType>(k);
                 snprintf(buffer, std::size(buffer), "Create %s...", EntityTypeName(type));
                 if (ImGui::MenuItem(buffer)) {
-                    auto child = CreateEntity(type);
+                    auto child = CreateEntity(context->scene, type);
                     child->name = std::format("New {}", EntityTypeName(type));
                     entity->children.push_back(child);
                     context->scene->dirtyFlags |= SCENE_DIRTY_OBJECTS;

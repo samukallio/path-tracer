@@ -62,18 +62,81 @@ char const* EntityTypeName(EntityType type)
     return "Entity";
 }
 
-Entity* CreateEntity(EntityType type)
+Entity* CreateEntity(Scene* scene, EntityType type, Entity* parent)
 {
+    Entity* entity = nullptr;
+
     switch (type) {
-        case ENTITY_TYPE_ROOT:          return new Root;
-        case ENTITY_TYPE_CAMERA:        return new Camera;
-        case ENTITY_TYPE_MESH_INSTANCE: return new MeshInstance;
-        case ENTITY_TYPE_PLANE:         return new Plane;
-        case ENTITY_TYPE_SPHERE:        return new Sphere;
-        case ENTITY_TYPE_CUBE:          return new Cube;
+        case ENTITY_TYPE_ROOT:
+            entity = new Root;
+            break;
+        case ENTITY_TYPE_CAMERA:
+            entity = new Camera;
+            break;
+        case ENTITY_TYPE_MESH_INSTANCE:
+            entity = new MeshInstance;
+            break;
+        case ENTITY_TYPE_PLANE:
+            entity = new Plane;
+            break;
+        case ENTITY_TYPE_SPHERE:
+            entity = new Sphere;
+            break;
+        case ENTITY_TYPE_CUBE:
+            entity = new Cube;
+            break;
+        default:
+            assert(false);
+            break;
     }
-    assert(false);
-    return nullptr;
+
+    if (!parent) parent = &scene->root;
+
+    parent->children.push_back(entity);
+
+    return entity;
+}
+
+Entity* CreateEntity(Scene* scene, Entity* source, Entity* parent)
+{
+    Entity* entity = nullptr;
+
+    switch (source->type) {
+        case ENTITY_TYPE_ROOT:
+            entity = new Root(*static_cast<Root*>(source));
+            break;
+        case ENTITY_TYPE_CAMERA:
+            entity = new Camera(*static_cast<Camera*>(source));
+            break;
+        case ENTITY_TYPE_MESH_INSTANCE:
+            entity = new MeshInstance(*static_cast<MeshInstance*>(source));
+            break;
+        case ENTITY_TYPE_PLANE:
+            entity = new Plane(*static_cast<Plane*>(source));
+            break;
+        case ENTITY_TYPE_SPHERE:
+            entity = new Sphere(*static_cast<Sphere*>(source));
+            break;
+        case ENTITY_TYPE_CUBE:
+            entity = new Cube(*static_cast<Cube*>(source));
+            break;
+    }
+
+    if (!parent) parent = &scene->root;
+
+    parent->children.push_back(entity);
+
+    std::vector<Entity*> children = std::move(entity->children);
+    entity->children.clear();
+    for (Entity* child : children)
+        CreateEntity(scene, child, entity);
+
+    return entity;
+}
+
+Entity* CreateEntity(Scene* scene, Prefab* prefab, Entity* parent)
+{
+    return CreateEntity(scene, prefab->entity, parent);
 }
 
 Texture* LoadTexture(Scene* scene, char const* path, char const* name)
@@ -256,7 +319,7 @@ static void BuildMeshNode(Mesh* mesh, uint32_t nodeIndex, uint32_t depth)
     BuildMeshNode(mesh, rightNodeIndex, depth+1);
 }
 
-Mesh* LoadModel(Scene* scene, char const* path, LoadModelOptions* options)
+Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* options)
 {
     LoadModelOptions defaultOptions {};
     if (!options) options = &defaultOptions;
@@ -395,7 +458,14 @@ Mesh* LoadModel(Scene* scene, char const* path, LoadModelOptions* options)
     scene->dirtyFlags |= SCENE_DIRTY_MATERIALS;
     scene->dirtyFlags |= SCENE_DIRTY_MESHES;
 
-    return mesh;
+    auto instance = new MeshInstance;
+    instance->name = mesh->name;
+    instance->mesh = mesh;
+
+    auto prefab = new Prefab;
+    prefab->entity = instance;
+
+    return prefab;
 }
 
 bool LoadSkybox(Scene* scene, char const* path)
@@ -528,6 +598,24 @@ static Bounds SceneObjectBounds(Scene const* scene, PackedSceneObject const& obj
     }
 
     return { worldMin, worldMax };
+}
+
+void PrintSceneNode(Scene* scene, uint16_t index, int depth)
+{
+    PackedSceneNode const& node = scene->sceneNodePack[index];
+
+    for (int k = 0; k < depth; k++) printf("  ");
+
+    if (node.childNodeIndices > 0) {
+        uint16_t indexA = node.childNodeIndices & 0xFFFF;
+        uint16_t indexB = node.childNodeIndices >> 16;
+        printf("Node %u\n", index);
+        PrintSceneNode(scene, indexA, depth+1);
+        PrintSceneNode(scene, indexB, depth+1);
+    }
+    else {
+        printf("Leaf %u (object %lu)\n", index, node.objectIndex);
+    }
 }
 
 uint32_t PackSceneData(Scene* scene)
@@ -816,6 +904,8 @@ uint32_t PackSceneData(Scene* scene)
         scene->sceneNodePack[0] = scene->sceneNodePack[map[indexA]];
         scene->sceneNodePack[map[indexA]] = scene->sceneNodePack.back();
         scene->sceneNodePack.pop_back();
+
+        //PrintSceneNode(scene, 0, 0);
     }
 
     scene->dirtyFlags = 0;

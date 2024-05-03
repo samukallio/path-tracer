@@ -416,12 +416,9 @@ int main()
     options.name = "viking_room.obj";
     options.directoryPath = "../scene";
     options.defaultMaterial = material;
-    Mesh* mesh = LoadModel(&scene, "../scene/viking_room.obj", &options);
+    Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/viking_room.obj", &options);
 
-    auto room = new MeshInstance;
-    room->name = "Room";
-    room->mesh = mesh;
-    scene.root.children.push_back(room);
+    CreateEntity(&scene, prefab);
 
     for (int k = 0; k < 3; k++) {
         auto sphere = new Sphere;
