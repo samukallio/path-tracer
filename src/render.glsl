@@ -380,7 +380,9 @@ void ResolveHit(Ray ray, inout Hit hit)
                 fract(hit.uv.y));
 
             vec3 uvw = vec3(u, v, hit.material.baseColorTextureIndex);
-            hit.material.baseColor *= textureLod(textureArray, uvw, 0).rgb;
+            vec4 value = textureLod(textureArray, uvw, 0);
+            hit.material.baseColor *= value.rgb;
+            hit.opacity = value.a;
         }
     }
 
@@ -400,6 +402,8 @@ void ResolveHit(Ray ray, inout Hit hit)
             hit.material.baseColor *= vec3(1.0, 1.0, 1.0);
         else
             hit.material.baseColor *= vec3(0.5, 0.5, 0.5);
+
+        hit.opacity = 1.0;
     }
 
     if (hit.objectType == OBJECT_TYPE_SPHERE) {
@@ -408,6 +412,7 @@ void ResolveHit(Ray ray, inout Hit hit)
         hit.materialIndex = object.materialIndex;
         hit.primitiveIndex = 0;
         hit.material = materials[object.materialIndex];
+        hit.opacity = 1.0;
     }
 
     if (hit.objectType == OBJECT_TYPE_CUBE) {
@@ -423,6 +428,7 @@ void ResolveHit(Ray ray, inout Hit hit)
 
         hit.materialIndex = object.materialIndex;
         hit.material = materials[object.materialIndex];
+        hit.opacity = 1.0;
     }
 
     hit.position = TransformPosition(position, object.transform);
@@ -460,7 +466,10 @@ vec4 Trace(Ray ray)
 
         ResolveHit(ray, hit);
 
-        if (Random0To1() < hit.material.refraction) {
+        if (Random0To1() > hit.opacity) {
+            // Pass through.
+        }
+        else if (Random0To1() < hit.material.refraction) {
             vec3 refractionDirection;
 
             if (dot(ray.vector, hit.normal) < 0) {
@@ -510,6 +519,7 @@ Hit IntersectAndResolve(Ray ray)
 vec4 TraceBaseColor(Ray ray, bool shaded)
 {
     Hit hit = IntersectAndResolve(ray);
+
     if (hit.time == INFINITY)
         return vec4(SampleSkybox(ray), 1);
 

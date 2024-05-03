@@ -109,6 +109,7 @@ struct Hit
     vec2            uv;
     uint            materialIndex;
     PackedMaterial  material;
+    float           opacity;
 };
 
 struct Ray
