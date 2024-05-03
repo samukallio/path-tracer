@@ -409,16 +409,25 @@ int main()
 
     scene.root.name = "Root";
 
-    Material* material = CreateMaterial(&scene, "viking_room");
-    material->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png", "viking_room.png");
+    //Material* material = CreateMaterial(&scene, "viking_room");
+    //material->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png", "viking_room.png");
 
-    LoadModelOptions options;
-    options.name = "viking_room.obj";
-    options.directoryPath = "../scene";
-    options.defaultMaterial = material;
-    Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/viking_room.obj", &options);
+    //LoadModelOptions options;
+    //options.name = "viking_room.obj";
+    //options.directoryPath = "../scene";
+    //options.defaultMaterial = material;
+    //Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/viking_room.obj", &options);
 
-    CreateEntity(&scene, prefab);
+    {
+        float s = 0.01f;
+        LoadModelOptions options;
+        options.name = "sponza.obj";
+        options.directoryPath = "../scene";
+        options.vertexTransform = { { 0, s, 0, 0 }, { 0, 0, s, 0 }, { s, 0, 0, 0 }, { 0, 0, 0, 1 } };
+        options.normalTransform = { { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 1, 0, 0, 0 }, { 0, 0, 0, 1 } };
+        Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/sponza.obj", &options);
+        CreateEntity(&scene, prefab);
+    }
 
     for (int k = 0; k < 3; k++) {
         auto sphere = new Sphere;

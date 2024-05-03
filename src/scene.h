@@ -63,13 +63,14 @@ struct Mesh
 enum EntityType
 {
     ENTITY_TYPE_ROOT                = 0,
-    ENTITY_TYPE_CAMERA              = 1,
-    ENTITY_TYPE_MESH_INSTANCE       = 2,
-    ENTITY_TYPE_PLANE               = 3,
-    ENTITY_TYPE_SPHERE              = 4,
-    ENTITY_TYPE_CUBE                = 5,
+    ENTITY_TYPE_CONTAINER           = 1,
+    ENTITY_TYPE_CAMERA              = 2,
+    ENTITY_TYPE_MESH_INSTANCE       = 3,
+    ENTITY_TYPE_PLANE               = 4,
+    ENTITY_TYPE_SPHERE              = 5,
+    ENTITY_TYPE_CUBE                = 6,
 
-    ENTITY_TYPE__COUNT              = 6,
+    ENTITY_TYPE__COUNT              = 7,
 };
 
 struct Entity
@@ -87,6 +88,11 @@ struct Root : Entity
     float                           scatterRate             = 0.0f;
 
     Root() { type = ENTITY_TYPE_ROOT; }
+};
+
+struct Container : Entity
+{
+    Container() { type = ENTITY_TYPE_CONTAINER; }
 };
 
 struct CameraParametersPinhole
@@ -196,6 +202,7 @@ struct LoadModelOptions
     glm::mat4       vertexTransform             = glm::mat4(1);
     glm::mat4       normalTransform             = glm::mat4(1);
     glm::mat3       textureCoordinateTransform  = glm::mat3(1);
+    bool            mergeIntoSingleMesh         = false;
 };
 
 char const* EntityTypeName(EntityType type);
@@ -203,12 +210,10 @@ char const* EntityTypeName(EntityType type);
 Entity* CreateEntity(Scene* scene, EntityType type, Entity* parent = nullptr);
 Entity* CreateEntity(Scene* scene, Entity* source, Entity* parent = nullptr);
 Entity* CreateEntity(Scene* scene, Prefab* prefab, Entity* parent = nullptr);
-
+Material* CreateMaterial(Scene* scene, char const* name);
 Texture* LoadTexture(Scene* scene, char const* path, char const* name = nullptr);
 Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* options = nullptr);
 bool LoadSkybox(Scene* scene, char const* path);
-
-Material* CreateMaterial(Scene* scene, char const* name);
 
 uint32_t PackSceneData(Scene* scene);
 

@@ -53,6 +53,7 @@ char const* EntityTypeName(EntityType type)
 {
     switch (type) {
         case ENTITY_TYPE_ROOT:          return "Root";
+        case ENTITY_TYPE_CONTAINER:     return "Container";
         case ENTITY_TYPE_CAMERA:        return "Camera";
         case ENTITY_TYPE_MESH_INSTANCE: return "Mesh Instance";
         case ENTITY_TYPE_PLANE:         return "Plane";
@@ -69,6 +70,9 @@ Entity* CreateEntity(Scene* scene, EntityType type, Entity* parent)
     switch (type) {
         case ENTITY_TYPE_ROOT:
             entity = new Root;
+            break;
+        case ENTITY_TYPE_CONTAINER:
+            entity = new Container;
             break;
         case ENTITY_TYPE_CAMERA:
             entity = new Camera;
@@ -105,6 +109,9 @@ Entity* CreateEntity(Scene* scene, Entity* source, Entity* parent)
         case ENTITY_TYPE_ROOT:
             entity = new Root(*static_cast<Root*>(source));
             break;
+        case ENTITY_TYPE_CONTAINER:
+            entity = new Container(*static_cast<Container*>(source));
+            break;
         case ENTITY_TYPE_CAMERA:
             entity = new Camera(*static_cast<Camera*>(source));
             break;
@@ -119,6 +126,9 @@ Entity* CreateEntity(Scene* scene, Entity* source, Entity* parent)
             break;
         case ENTITY_TYPE_CUBE:
             entity = new Cube(*static_cast<Cube*>(source));
+            break;
+        default:
+            assert(false);
             break;
     }
 
@@ -333,11 +343,9 @@ Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* opti
     if (!tinyobj::LoadObj(&attrib, &shapes, &fileMaterials, &warn, &err, path, options->directoryPath.c_str()))
         return nullptr;
 
-    auto mesh = new Mesh;
-    mesh->name = options->name ? options->name : path;
-
     // Map from in-file texture name to scene texture.
     std::unordered_map<std::string, Texture*> textureMap;
+    std::vector<Material*> materials;
 
     // Scan the material definitions and build scene materials.
     for (int materialId = 0; materialId < fileMaterials.size(); materialId++) {
@@ -379,91 +387,127 @@ Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* opti
             }
         }
 
-        mesh->materials.push_back(material);
+        materials.push_back(material);
+        //mesh->materials.push_back(material);
     }
 
-    uint32_t defaultMaterialIndex = static_cast<uint32_t>(mesh->materials.size());
-    bool defaultMaterialNeeded = false;
+    // Import meshes.
+    std::vector<Mesh*> meshes;
+    {
+        Mesh* mesh = nullptr;
 
-    size_t faceCount = 0;
-    for (auto const& shape : shapes)
-        faceCount += shape.mesh.indices.size() / 3;
+        uint32_t defaultMaterialIndex = static_cast<uint32_t>(materials.size());
+        bool defaultMaterialNeeded = false;
 
-    mesh->faces.resize(faceCount);
+        if (options->mergeIntoSingleMesh) {
+            mesh = new Mesh;
+            mesh->name = options->name ? options->name : path;
+            mesh->materials = materials;
+            meshes.push_back(mesh);
 
-    size_t faceIndex = 0;
-    for (tinyobj::shape_t const& shape : shapes) {
-        size_t shapeIndexCount = shape.mesh.indices.size();
+            size_t faceCount = 0;
+            for (auto const& shape : shapes)
+                faceCount += shape.mesh.indices.size() / 3;
+            mesh->faces.reserve(faceCount);
+        }
 
-        for (size_t i = 0; i < shapeIndexCount; i += 3) {
-            MeshFace& face = mesh->faces[faceIndex];
+        for (tinyobj::shape_t const& shape : shapes) {
+            size_t shapeIndexCount = shape.mesh.indices.size();
 
-            for (int j = 0; j < 3; j++) {
-                tinyobj::index_t const& index = shape.mesh.indices[i+j];
+            if (!options->mergeIntoSingleMesh) {
+                mesh = new Mesh;
+                mesh->name = !shape.name.empty() ? shape.name : "Shape";
+                mesh->faces.reserve(shapeIndexCount / 3);
+                mesh->materials = materials;
+                meshes.push_back(mesh);
+            }
 
-                face.vertices[j] = options->vertexTransform * glm::vec4(
-                    attrib.vertices[3*index.vertex_index+0],
-                    attrib.vertices[3*index.vertex_index+1],
-                    attrib.vertices[3*index.vertex_index+2],
-                    1.0f);
+            for (size_t i = 0; i < shapeIndexCount; i += 3) {
+                auto face = MeshFace {};
 
-                if (index.normal_index >= 0) {
-                    face.normals[j] = options->normalTransform * glm::vec4(
-                        attrib.normals[3*index.normal_index+0],
-                        attrib.normals[3*index.normal_index+1],
-                        attrib.normals[3*index.normal_index+2],
+                for (int j = 0; j < 3; j++) {
+                    tinyobj::index_t const& index = shape.mesh.indices[i+j];
+
+                    face.vertices[j] = options->vertexTransform * glm::vec4(
+                        attrib.vertices[3*index.vertex_index+0],
+                        attrib.vertices[3*index.vertex_index+1],
+                        attrib.vertices[3*index.vertex_index+2],
                         1.0f);
+
+                    if (index.normal_index >= 0) {
+                        face.normals[j] = options->normalTransform * glm::vec4(
+                            attrib.normals[3*index.normal_index+0],
+                            attrib.normals[3*index.normal_index+1],
+                            attrib.normals[3*index.normal_index+2],
+                            1.0f);
+                    }
+
+                    if (index.texcoord_index >= 0) {
+                        face.uvs[j] = options->textureCoordinateTransform * glm::vec3(
+                            attrib.texcoords[2*index.texcoord_index+0],
+                            attrib.texcoords[2*index.texcoord_index+1],
+                            1.0f);
+                    }
                 }
 
-                if (index.texcoord_index >= 0) {
-                    face.uvs[j] = options->textureCoordinateTransform * glm::vec3(
-                        attrib.texcoords[2*index.texcoord_index+0],
-                        attrib.texcoords[2*index.texcoord_index+1],
-                        1.0f);
+                int materialId = shape.mesh.material_ids[i/3];
+                if (materialId >= 0) {
+                    face.materialIndex = static_cast<uint32_t>(materialId);
                 }
-            }
+                else {
+                    face.materialIndex = defaultMaterialIndex;
+                    defaultMaterialNeeded = true;
+                }
 
-            int materialId = shape.mesh.material_ids[i/3];
-            if (materialId >= 0) {
-                face.materialIndex = static_cast<uint32_t>(materialId);
-            }
-            else {
-                face.materialIndex = defaultMaterialIndex;
-                defaultMaterialNeeded = true;
-            }
+                face.centroid = (face.vertices[0] + face.vertices[1] + face.vertices[2]) / 3.0f;
 
-            face.centroid = (face.vertices[0] + face.vertices[1] + face.vertices[2]) / 3.0f;
+                mesh->faces.push_back(face);
+            }
+        }
 
-            faceIndex++;
+        if (defaultMaterialNeeded) {
+            for (Mesh* mesh : meshes)
+                mesh->materials.push_back(options->defaultMaterial);
         }
     }
 
-    if (defaultMaterialNeeded) {
-        mesh->materials.push_back(options->defaultMaterial);
+    for (Mesh* mesh : meshes) {
+        mesh->nodes.reserve(2 * mesh->faces.size());
+
+        auto root = MeshNode {
+            .faceBeginIndex = 0,
+            .faceEndIndex = static_cast<uint32_t>(mesh->faces.size()),
+            .childNodeIndex = 0,
+        };
+
+        mesh->nodes.push_back(root);
+        BuildMeshNode(mesh, 0, 0);
+
+        scene->meshes.push_back(mesh);
     }
-
-    mesh->nodes.reserve(2 * mesh->faces.size());
-
-    MeshNode root = {
-        .faceBeginIndex = 0,
-        .faceEndIndex = static_cast<uint32_t>(mesh->faces.size()),
-        .childNodeIndex = 0,
-    };
-
-    mesh->nodes.push_back(root);
-    BuildMeshNode(mesh, 0, 0);
-
-    scene->meshes.push_back(mesh);
 
     scene->dirtyFlags |= SCENE_DIRTY_MATERIALS;
     scene->dirtyFlags |= SCENE_DIRTY_MESHES;
 
-    auto instance = new MeshInstance;
-    instance->name = mesh->name;
-    instance->mesh = mesh;
-
     auto prefab = new Prefab;
-    prefab->entity = instance;
+
+    if (options->mergeIntoSingleMesh) {
+        auto instance = new MeshInstance;
+        instance->name = meshes[0]->name;
+        instance->mesh = meshes[0];
+        prefab->entity = instance;
+    }
+    else {
+        auto container = new Container;
+        container->name = options->name ? options->name : path;
+        for (Mesh* mesh : meshes) {
+            auto instance = new MeshInstance;
+            instance->name = mesh->name;
+            instance->mesh = mesh;
+            container->children.push_back(instance);
+        }
+        prefab->entity = container;
+    }
 
     return prefab;
 }
