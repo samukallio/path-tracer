@@ -186,6 +186,7 @@ void Frame()
         uniforms.renderFlags = 0;
 
         uniforms.renderBounceLimit = 0;
+        uniforms.brightness = 1.0f;
         uniforms.toneMappingMode = TONE_MAPPING_MODE_CLAMP;
         uniforms.toneMappingWhiteLevel = 1.0f;
 
@@ -230,6 +231,7 @@ void Frame()
         uniforms.renderBounceLimit = app.ui.camera->renderBounceLimit;
         uniforms.renderMeshComplexityScale = app.ui.camera->renderMeshComplexityScale;
         uniforms.renderSceneComplexityScale = app.ui.camera->renderSceneComplexityScale;
+        uniforms.brightness = app.ui.camera->brightness;
         uniforms.toneMappingMode = app.ui.camera->toneMappingMode;
         uniforms.toneMappingWhiteLevel = app.ui.camera->toneMappingWhiteLevel;
         uniforms.renderFlags = app.ui.camera->renderFlags;

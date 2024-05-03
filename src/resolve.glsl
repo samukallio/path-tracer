@@ -96,7 +96,7 @@ void main()
 
     vec4 value = texture(textureSampler, fragmentUV);
     if (value.a > 0)
-        color = value.rgb / value.a;
+        color = brightness * value.rgb / value.a;
 
     if (toneMappingMode == TONE_MAPPING_MODE_CLAMP)
         color = clamp(color, 0, 1);

@@ -195,9 +195,11 @@ static void CameraInspector(UIContext* context, Camera* camera)
     c |= ImGui::CheckboxFlags("Sample Jitter", &camera->renderFlags, RENDER_FLAG_SAMPLE_JITTER);
 
     ImGui::Spacing();
-    ImGui::SeparatorText("Tone Mapping");
+    ImGui::SeparatorText("Post-Processing");
 
-    if (ImGui::BeginCombo("Mode", ToneMappingModeName(camera->toneMappingMode))) {
+    ImGui::SliderFloat("Brightness", &camera->brightness, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+
+    if (ImGui::BeginCombo("Tone Mapping", ToneMappingModeName(camera->toneMappingMode))) {
         for (int k = 0; k < TONE_MAPPING_MODE__COUNT; k++) {
             auto toneMappingMode = static_cast<ToneMappingMode>(k);
             bool selected = camera->toneMappingMode == toneMappingMode;

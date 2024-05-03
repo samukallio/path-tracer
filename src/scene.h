@@ -118,6 +118,7 @@ struct Camera : Entity
     uint32_t                        renderSceneComplexityScale = 32;
     uint32_t                        renderSampleBlockSizeLog2 = 0;
 
+    float                           brightness              = 1.0f;
     ToneMappingMode                 toneMappingMode         = TONE_MAPPING_MODE_CLAMP;
     float                           toneMappingWhiteLevel   = 1.0f;
 

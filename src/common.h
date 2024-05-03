@@ -222,6 +222,7 @@ struct FrameUniformBuffer
     uint32_t                    renderMeshComplexityScale   = 32;
     uint32_t                    renderSceneComplexityScale  = 32;
     uint32_t                    highlightObjectIndex        = 0xFFFFFFFF;
+    float                       brightness                  = 1.0f;
     ToneMappingMode             toneMappingMode             = TONE_MAPPING_MODE_CLAMP;
     float                       toneMappingWhiteLevel       = 1.0f;
 };

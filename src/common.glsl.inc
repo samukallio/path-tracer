@@ -183,6 +183,7 @@ uniform FrameUniformBuffer
     uint            renderMeshComplexityScale;
     uint            renderSceneComplexityScale;
     uint            highlightObjectIndex;
+    float           brightness;
     uint            toneMappingMode;
     float           toneMappingWhiteLevel;
 };
