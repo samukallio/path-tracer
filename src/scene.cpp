@@ -64,7 +64,7 @@ static uint32_t ToSRGB(glm::vec4 const& color)
     return ToSRGB(color.r)
          | ToSRGB(color.g) << 8
          | ToSRGB(color.b) << 16
-         | ToSRGB(color.a) << 24;
+         | static_cast<uint8_t>(255 * color.a) << 24;
 }
 
 char const* EntityTypeName(EntityType type)
