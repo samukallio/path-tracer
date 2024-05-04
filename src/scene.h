@@ -218,6 +218,7 @@ Entity* CreateEntity(Scene* scene, EntityType type, Entity* parent = nullptr);
 Entity* CreateEntity(Scene* scene, Entity* source, Entity* parent = nullptr);
 Entity* CreateEntity(Scene* scene, Prefab* prefab, Entity* parent = nullptr);
 Material* CreateMaterial(Scene* scene, char const* name);
+Texture* CreateCheckerTexture(Scene* scene, char const* name, glm::vec4 const& colorA, glm::vec4 const& colorB);
 Texture* LoadTexture(Scene* scene, char const* path, char const* name = nullptr);
 Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* options = nullptr);
 bool LoadSkybox(Scene* scene, char const* path);

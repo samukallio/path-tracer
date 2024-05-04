@@ -49,6 +49,24 @@ static float HalfArea(Bounds const& box)
     return e.x * e.y + e.y * e.z + e.z * e.x;
 }
 
+static uint8_t ToSRGB(float value)
+{
+    value = glm::clamp(value, 0.0f, 1.0f);
+    if (value <= 0.0031308f)
+        value *= 12.92f;
+    else
+        value = 1.055f * glm::pow(value, 1.0f / 2.4f) - 0.055f;
+    return static_cast<uint8_t>(value * 255);
+}
+
+static uint32_t ToSRGB(glm::vec4 const& color)
+{
+    return ToSRGB(color.r)
+         | ToSRGB(color.g) << 8
+         | ToSRGB(color.b) << 16
+         | ToSRGB(color.a) << 24;
+}
+
 char const* EntityTypeName(EntityType type)
 {
     switch (type) {
@@ -147,6 +165,28 @@ Entity* CreateEntity(Scene* scene, Entity* source, Entity* parent)
 Entity* CreateEntity(Scene* scene, Prefab* prefab, Entity* parent)
 {
     return CreateEntity(scene, prefab->entity, parent);
+}
+
+Texture* CreateCheckerTexture(Scene* scene, char const* name, glm::vec4 const& colorA, glm::vec4 const& colorB)
+{
+    auto pixels = new uint32_t[4];
+
+    pixels[0] = ToSRGB(colorA);
+    pixels[1] = ToSRGB(colorB);
+    pixels[2] = ToSRGB(colorB);
+    pixels[3] = ToSRGB(colorA);
+
+    auto texture = new Texture{
+        .name = name,
+        .width = 2,
+        .height = 2,
+        .pixels = pixels,
+    };
+    scene->textures.push_back(texture);
+
+    scene->dirtyFlags |= SCENE_DIRTY_TEXTURES;
+
+    return texture;
 }
 
 Texture* LoadTexture(Scene* scene, char const* path, char const* name)

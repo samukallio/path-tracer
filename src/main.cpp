@@ -167,10 +167,12 @@ void Frame()
 
             Hit hit;
             if (Trace(&app.scene, ray, hit)) {
-                app.ui.selectionType = SELECTION_TYPE_ENTITY;
-                for (Entity* entity : app.scene.root.children)
-                    if (entity->packedObjectIndex == hit.objectIndex)
+                for (Entity* entity : app.scene.root.children) {
+                    if (entity->packedObjectIndex == hit.objectIndex) {
                         app.ui.entity = entity;
+                        app.ui.selectionType = SELECTION_TYPE_ENTITY;
+                    }
+                }
             }
         }
 
@@ -412,6 +414,8 @@ int main()
     app.ui.scene = &app.scene;
 
     scene.root.name = "Root";
+
+    CreateCheckerTexture(&scene, "Checker", glm::vec4(1,1,1,0), glm::vec4(0.5,0.5,0.5,1));
 
     //{
     //    LoadModelOptions options;
