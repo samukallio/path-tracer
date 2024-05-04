@@ -494,7 +494,7 @@ vec4 Trace(Ray ray)
 
             if (totalInternalReflection || schlickReflection) {
                 // Reflection.
-                ray.vector = reflect(ray.vector, hit.normal);
+                ray.vector = reflect(ray.vector, -refractionNormal);
             }
             else {
                 // Refraction.
