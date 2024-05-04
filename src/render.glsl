@@ -470,24 +470,37 @@ vec4 Trace(Ray ray)
             // Pass through.
         }
         else if (Random0To1() < hit.material.refraction) {
-            vec3 refractionDirection;
+            vec3 refractionNormal;
+            float refractionRatio;
 
             if (dot(ray.vector, hit.normal) < 0) {
-                // Ray is exiting the material.
-                refractionDirection = refract(ray.vector, hit.normal, 1.0f / hit.material.refractionIndex);
+                // Ray is entering the material.
+                refractionNormal = hit.normal;
+                refractionRatio = 1.0f / hit.material.refractionIndex;
             }
             else {
-                // Ray is entering the material.
-                refractionDirection = refract(ray.vector, -hit.normal, hit.material.refractionIndex);
+                // Ray is exiting the material.
+                refractionNormal = -hit.normal;
+                refractionRatio = hit.material.refractionIndex;
             }
 
-            if (dot(refractionDirection, refractionDirection) > 0) {
-                // Normal refraction.
-                ray.vector = refractionDirection;
+            float cosThetaNegated = dot(refractionNormal, ray.vector);
+            float sinThetaSquared = 1 - cosThetaNegated * cosThetaNegated;
+            float cosThetaPrimeSquared = 1 - refractionRatio * refractionRatio * sinThetaSquared;
+            bool totalInternalReflection = cosThetaPrimeSquared < 0;
+
+            float schlickR0 = pow((1 - refractionRatio) / (1 + refractionRatio), 2);
+            float schlickReflectance = schlickR0 + (1 - schlickR0) * pow(1 + cosThetaNegated, 5);
+            bool schlickReflection = Random0To1() < schlickReflectance;
+
+            if (totalInternalReflection || schlickReflection) {
+                // Reflection.
+                ray.vector = reflect(ray.vector, hit.normal);
             }
             else {
-                // Total internal reflection.
-                ray.vector = reflect(ray.vector, hit.normal);
+                // Refraction.
+                float cosThetaPrime = sqrt(cosThetaPrimeSquared);
+                ray.vector = refractionRatio * ray.vector - (cosThetaPrime + refractionRatio * cosThetaNegated) * refractionNormal;
             }
         }
         else {
