@@ -123,6 +123,7 @@ struct VulkanContext
     uint32_t                    frameIndex                  = 0;
     VulkanFrameState            frameStates[2]              = {};
 
+    VkSampler                   imageSamplerNearestNoMip    = VK_NULL_HANDLE;
     VkSampler                   imageSamplerLinear          = VK_NULL_HANDLE;
     VkSampler                   imageSamplerLinearNoMip     = VK_NULL_HANDLE;
 

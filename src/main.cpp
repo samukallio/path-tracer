@@ -413,14 +413,15 @@ int main()
 
     scene.root.name = "Root";
 
-    //Material* material = CreateMaterial(&scene, "viking_room");
-    //material->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png", "viking_room.png");
-
-    //LoadModelOptions options;
-    //options.name = "viking_room.obj";
-    //options.directoryPath = "../scene";
-    //options.defaultMaterial = material;
-    //Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/viking_room.obj", &options);
+    //{
+    //    LoadModelOptions options;
+    //    options.name = "viking_room.obj";
+    //    options.directoryPath = "../scene";
+    //    options.defaultMaterial = CreateMaterial(&scene, "viking_room");
+    //    options.defaultMaterial->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png", "viking_room.png");
+    //    Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/viking_room.obj", &options);
+    //    CreateEntity(&scene, prefab);
+    //}
 
     {
         float s = 0.01f;

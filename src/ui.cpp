@@ -86,6 +86,7 @@ static void MaterialInspector(UIContext* context, Material* material, bool refer
     bool c = false;
     c |= ImGui::ColorEdit3("Base Color", &material->baseColor[0]);
     c |= ResourceSelectorDropDown("Base Color Texture", scene.textures, &material->baseColorTexture);
+    c |= ImGui::Checkbox("Base Color Texture Filter Nearest", &material->baseColorTextureFilterNearest);
     c |= ImGui::ColorEdit3("Emission Color", &material->emissionColor[0]);
     c |= ImGui::DragFloat("Emission Power", &material->emissionPower, 1.0f, 0.0f, 100.0f);
     c |= ResourceSelectorDropDown("Emission Color Texture", scene.textures, &material->emissionColorTexture);

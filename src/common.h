@@ -118,10 +118,14 @@ enum ObjectType : int32_t
 
 enum MaterialFlag : uint32_t
 {
-    MATERIAL_FLAG_BASE_COLOR_TEXTURE    = 1 << 0,
-    MATERIAL_FLAG_EMISSION_TEXTURE      = 1 << 1,
-    MATERIAL_FLAG_METALLIC_TEXTURE      = 1 << 2,
-    MATERIAL_FLAG_ROUGHNESS_TEXTURE     = 1 << 3,
+    MATERIAL_FLAG_BASE_COLOR_TEXTURE                    = 1 << 0,
+    MATERIAL_FLAG_BASE_COLOR_TEXTURE_FILTER_NEAREST     = 1 << 1,
+    MATERIAL_FLAG_EMISSION_TEXTURE                      = 1 << 2,
+    MATERIAL_FLAG_EMISSION_TEXTURE_FILTER_NEAREST       = 1 << 3,
+    MATERIAL_FLAG_METALLIC_TEXTURE                      = 1 << 4,
+    MATERIAL_FLAG_METALLIC_TEXTURE_FILTER_NEAREST       = 1 << 5,
+    MATERIAL_FLAG_ROUGHNESS_TEXTURE                     = 1 << 6,
+    MATERIAL_FLAG_ROUGHNESS_TEXTURE_FILTER_NEAREST      = 1 << 7,
 };
 
 // This structure is shared between CPU and GPU,

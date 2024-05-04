@@ -1817,6 +1817,33 @@ static VkResult InternalCreateVulkan(
     {
         VkSamplerCreateInfo samplerInfo = {
             .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = VK_FILTER_NEAREST,
+            .minFilter = VK_FILTER_NEAREST,
+            .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
+            .addressModeU = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeV = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .addressModeW = VK_SAMPLER_ADDRESS_MODE_REPEAT,
+            .mipLodBias = 0.0f,
+            .anisotropyEnable = VK_FALSE,
+            .maxAnisotropy = 0.0f,
+            .compareEnable = VK_FALSE,
+            .compareOp = VK_COMPARE_OP_ALWAYS,
+            .minLod = 0.0f,
+            .maxLod = 0.0f,
+            .borderColor = VK_BORDER_COLOR_INT_OPAQUE_BLACK,
+            .unnormalizedCoordinates = VK_FALSE,
+        };
+
+        result = vkCreateSampler(vulkan->device, &samplerInfo, nullptr, &vulkan->imageSamplerNearestNoMip);
+        if (result != VK_SUCCESS) {
+            Errorf(vulkan, "failed to create sampler");
+            return result;
+        }
+    }
+
+    {
+        VkSamplerCreateInfo samplerInfo = {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
             .magFilter = VK_FILTER_LINEAR,
             .minFilter = VK_FILTER_LINEAR,
             .mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST,
@@ -1914,7 +1941,8 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // inputImage
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // outputImage
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // skyboxImage
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // textureArray
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // textureArrayNearest
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // textureArrayLinear
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // materialBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // sceneObjectBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // sceneNodeBuffer
@@ -1998,6 +2026,11 @@ void DestroyVulkan(VulkanContext* vulkan)
     if (vulkan->imageSamplerLinearNoMip) {
         vkDestroySampler(vulkan->device, vulkan->imageSamplerLinearNoMip, nullptr);
         vulkan->imageSamplerLinearNoMip = VK_NULL_HANDLE;
+    }
+
+    if (vulkan->imageSamplerNearestNoMip) {
+        vkDestroySampler(vulkan->device, vulkan->imageSamplerNearestNoMip, nullptr);
+        vulkan->imageSamplerNearestNoMip = VK_NULL_HANDLE;
     }
 
     if (vulkan->imageSamplerLinear) {
@@ -2084,7 +2117,13 @@ static void InternalUpdateSceneDataDescriptors(
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
     };
 
-    VkDescriptorImageInfo textureArrayInfo = {
+    VkDescriptorImageInfo textureArrayNearestInfo = {
+        .sampler = vulkan->imageSamplerNearestNoMip,
+        .imageView = vulkan->imageArray.view,
+        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+    };
+
+    VkDescriptorImageInfo textureArrayLinearInfo = {
         .sampler = vulkan->imageSamplerLinearNoMip,
         .imageView = vulkan->imageArray.view,
         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
@@ -2140,7 +2179,7 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .pImageInfo = &textureArrayInfo,
+                .pImageInfo = &textureArrayNearestInfo,
             },
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -2148,8 +2187,8 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstBinding = 5,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .pBufferInfo = &materialBufferInfo,
+                .descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .pImageInfo = &textureArrayLinearInfo,
             },
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -2158,7 +2197,7 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .pBufferInfo = &sceneObjectBufferInfo,
+                .pBufferInfo = &materialBufferInfo,
             },
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -2167,7 +2206,7 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .pBufferInfo = &sceneNodeBufferInfo,
+                .pBufferInfo = &sceneObjectBufferInfo,
             },
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -2176,12 +2215,21 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .pBufferInfo = &meshFaceBufferInfo,
+                .pBufferInfo = &sceneNodeBufferInfo,
             },
             {
                 .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet = frame->renderDescriptorSet,
                 .dstBinding = 9,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .pBufferInfo = &meshFaceBufferInfo,
+            },
+            {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = frame->renderDescriptorSet,
+                .dstBinding = 10,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,

@@ -29,10 +29,14 @@ const uint OBJECT_TYPE_PLANE                = 1;
 const uint OBJECT_TYPE_SPHERE               = 2;
 const uint OBJECT_TYPE_CUBE                 = 3;
 
-const uint MATERIAL_FLAG_BASE_COLOR_TEXTURE = 1 << 0;
-const uint MATERIAL_FLAG_EMISSION_TEXTURE   = 1 << 1;
-const uint MATERIAL_FLAG_METALLIC_TEXTURE   = 1 << 2;
-const uint MATERIAL_FLAG_ROUGHNESS_TEXTURE  = 1 << 3;
+const uint MATERIAL_FLAG_BASE_COLOR_TEXTURE                 = 1 << 0;
+const uint MATERIAL_FLAG_BASE_COLOR_TEXTURE_FILTER_NEAREST  = 1 << 1;
+const uint MATERIAL_FLAG_EMISSION_TEXTURE                   = 1 << 2;
+const uint MATERIAL_FLAG_EMISSION_TEXTURE_FILTER_NEAREST    = 1 << 3;
+const uint MATERIAL_FLAG_METALLIC_TEXTURE                   = 1 << 4;
+const uint MATERIAL_FLAG_METALLIC_TEXTURE_FILTER_NEAREST    = 1 << 5;
+const uint MATERIAL_FLAG_ROUGHNESS_TEXTURE                  = 1 << 6;
+const uint MATERIAL_FLAG_ROUGHNESS_TEXTURE_FILTER_NEAREST   = 1 << 7;
 
 struct PackedTransform
 {

@@ -763,6 +763,8 @@ uint32_t PackSceneData(Scene* scene)
                 packed.baseColorTextureMinimum = texture->atlasPlacementMinimum;
                 packed.baseColorTextureMaximum = texture->atlasPlacementMaximum;
                 packed.flags |= MATERIAL_FLAG_BASE_COLOR_TEXTURE;
+                if (material->baseColorTextureFilterNearest)
+                    packed.flags |= MATERIAL_FLAG_BASE_COLOR_TEXTURE_FILTER_NEAREST;
             }
 
             packed.baseColor = material->baseColor;

@@ -20,13 +20,17 @@ struct Material
     uint32_t                        flags                   = 0;
     glm::vec3                       baseColor               = glm::vec3(1, 1, 1);
     Texture*                        baseColorTexture        = nullptr;
+    bool                            baseColorTextureFilterNearest = false;
     glm::vec3                       emissionColor           = glm::vec3(0, 0, 0);
     Texture*                        emissionColorTexture    = nullptr;
+    bool                            emissionColorFilterNearest = false;
     float                           emissionPower           = 0.0f;
     float                           metallic                = 0.0f;
     Texture*                        metallicTexture         = nullptr;
+    bool                            metallicTextureFilterNearest = false;
     float                           roughness               = 1.0f;
     Texture*                        roughnessTexture        = nullptr;
+    bool                            roughnessTextureFilterNearest = false;
     float                           refraction              = 0.0f;
     float                           refractionIndex         = 1.0f;
     uint32_t                        packedMaterialIndex     = 0;

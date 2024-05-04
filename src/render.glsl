@@ -35,33 +35,36 @@ layout(binding = 3)
 uniform sampler2D skyboxImage;
 
 layout(binding = 4)
-uniform sampler2DArray textureArray;
+uniform sampler2DArray textureArrayNearest;
 
-layout(binding = 5, std430)
+layout(binding = 5)
+uniform sampler2DArray textureArrayLinear;
+
+layout(binding = 6, std430)
 readonly buffer MaterialBuffer
 {
     PackedMaterial materials[];
 };
 
-layout(binding = 6, std430)
+layout(binding = 7, std430)
 readonly buffer ObjectBuffer
 {
     PackedSceneObject objects[];
 };
 
-layout(binding = 7, std430)
+layout(binding = 8, std430)
 readonly buffer SceneNodeBuffer
 {
     PackedSceneNode sceneNodes[];
 };
 
-layout(binding = 8, std430)
+layout(binding = 9, std430)
 readonly buffer MeshFaceBuffer
 {
     PackedMeshFace meshFaces[];
 };
 
-layout(binding = 9, std430)
+layout(binding = 10, std430)
 readonly buffer MeshNodeBuffer
 {
     PackedMeshNode meshNodes[];
@@ -380,7 +383,13 @@ void ResolveHit(Ray ray, inout Hit hit)
                 fract(hit.uv.y));
 
             vec3 uvw = vec3(u, v, hit.material.baseColorTextureIndex);
-            vec4 value = textureLod(textureArray, uvw, 0);
+
+            vec4 value;
+            if ((hit.material.flags & MATERIAL_FLAG_BASE_COLOR_TEXTURE_FILTER_NEAREST) != 0)
+                value = textureLod(textureArrayNearest, uvw, 0);
+            else
+                value = textureLod(textureArrayLinear, uvw, 0);
+
             hit.material.baseColor *= value.rgb;
             hit.opacity = value.a;
         }
