@@ -261,30 +261,7 @@ static void EntityInspector(UIContext* context, Entity* entity)
     if (!entity) return;
 
     ImGui::PushID(entity);
-
-    switch (entity->type) {
-        case ENTITY_TYPE_ROOT:
-            ImGui::SeparatorText("Scene Root");
-            break;
-        case ENTITY_TYPE_CAMERA:
-            ImGui::SeparatorText("Camera");
-            break;
-        case ENTITY_TYPE_MESH_INSTANCE:
-            ImGui::SeparatorText("Mesh Instance");
-            break;
-        case ENTITY_TYPE_PLANE:
-            ImGui::SeparatorText("Plane");
-            break;
-        case ENTITY_TYPE_SPHERE:
-            ImGui::SeparatorText("Sphere");
-            break;
-        case ENTITY_TYPE_CUBE:
-            ImGui::SeparatorText("Cube");
-            break;
-        default:
-            ImGui::SeparatorText("(unknown)");
-            break;
-    }
+    ImGui::SeparatorText(EntityTypeName(entity->type));
 
     bool c = false;
 
