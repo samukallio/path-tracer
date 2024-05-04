@@ -705,12 +705,12 @@ uint32_t PackSceneData(Scene* scene)
 
                 texture->atlasImageIndex = imageIndex;
                 texture->atlasPlacementMinimum = {
-                    rect.x / float(ATLAS_WIDTH),
-                    (rect.y + rect.h) / float(ATLAS_HEIGHT),
+                    (rect.x + 0.5f) / float(ATLAS_WIDTH),
+                    (rect.y + rect.h - 0.5f) / float(ATLAS_HEIGHT),
                 };
                 texture->atlasPlacementMaximum = {
-                    (rect.x + rect.w) / float(ATLAS_WIDTH),
-                    rect.y / float(ATLAS_HEIGHT),
+                    (rect.x + rect.w - 0.5f) / float(ATLAS_WIDTH),
+                    (rect.y + 0.5f) / float(ATLAS_HEIGHT),
                 };
 
                 for (uint32_t y = 0; y < texture->height; y++) {
