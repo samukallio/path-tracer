@@ -428,7 +428,6 @@ Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* opti
         }
 
         materials.push_back(material);
-        //mesh->materials.push_back(material);
     }
 
     // Import meshes.
@@ -436,8 +435,8 @@ Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* opti
     {
         Mesh* mesh = nullptr;
 
-        uint32_t defaultMaterialIndex = static_cast<uint32_t>(materials.size());
-        bool defaultMaterialNeeded = false;
+        std::unordered_map<int, uint32_t> meshMaterialIndices;
+        std::vector<Material*> meshMaterials;
 
         if (options->mergeIntoSingleMesh) {
             mesh = new Mesh;
@@ -458,8 +457,10 @@ Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* opti
                 mesh = new Mesh;
                 mesh->name = !shape.name.empty() ? shape.name : "Shape";
                 mesh->faces.reserve(shapeIndexCount / 3);
-                mesh->materials = materials;
                 meshes.push_back(mesh);
+
+                meshMaterialIndices.clear();
+                meshMaterials.clear();
             }
 
             for (size_t i = 0; i < shapeIndexCount; i += 3) {
@@ -491,23 +492,31 @@ Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* opti
                 }
 
                 int materialId = shape.mesh.material_ids[i/3];
-                if (materialId >= 0) {
-                    face.materialIndex = static_cast<uint32_t>(materialId);
+
+                if (!meshMaterialIndices.contains(materialId)) {
+                    uint32_t materialIndex = static_cast<uint32_t>(meshMaterials.size());
+                    meshMaterialIndices[materialId] = materialIndex;
+
+                    if (materialId >= 0)
+                        meshMaterials.push_back(materials[materialId]);
+                    else
+                        meshMaterials.push_back(options->defaultMaterial);
                 }
-                else {
-                    face.materialIndex = defaultMaterialIndex;
-                    defaultMaterialNeeded = true;
-                }
+
+                face.materialIndex = meshMaterialIndices[materialId];
 
                 face.centroid = (face.vertices[0] + face.vertices[1] + face.vertices[2]) / 3.0f;
 
                 mesh->faces.push_back(face);
             }
+
+            if (!options->mergeIntoSingleMesh) {
+                mesh->materials = std::move(meshMaterials);
+            }
         }
 
-        if (defaultMaterialNeeded) {
-            for (Mesh* mesh : meshes)
-                mesh->materials.push_back(options->defaultMaterial);
+        if (options->mergeIntoSingleMesh) {
+            mesh->materials = std::move(meshMaterials);
         }
     }
 
