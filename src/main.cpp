@@ -415,8 +415,6 @@ int main()
 
     scene.root.name = "Root";
 
-    CreateCheckerTexture(&scene, "Checker", glm::vec4(1,1,1,0), glm::vec4(0.5,0.5,0.5,1));
-
     //{
     //    LoadModelOptions options;
     //    options.name = "viking_room.obj";
@@ -424,7 +422,7 @@ int main()
     //    options.defaultMaterial = CreateMaterial(&scene, "viking_room");
     //    options.defaultMaterial->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png", "viking_room.png");
     //    Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/viking_room.obj", &options);
-    //    CreateEntity(&scene, prefab);
+    //    CreateEntity(&scene, prefab); 
     //}
 
     {
@@ -448,11 +446,12 @@ int main()
         scene.root.children.push_back(sphere);
     }
 
-    auto plane = new Plane;
+    auto plane = static_cast<Plane*>(CreateEntity(&scene, ENTITY_TYPE_PLANE));
     plane->name = "Plane";
     plane->material = CreateMaterial(&scene, "Plane Material");
+    plane->material->baseColorTexture = CreateCheckerTexture(&scene, "Plane Texture", glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
+    plane->material->baseColorTextureFilterNearest = true;
     plane->material->roughness = 0.0f;
-    scene.root.children.push_back(plane);
 
     //auto cube = new Cube;
     //cube->name = "Cube";
