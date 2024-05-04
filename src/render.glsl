@@ -251,8 +251,7 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
         if (hit.objectIndex == 0xFFFFFFFF)
             hit.objectIndex = objectIndex;
     }
-
-    if (object.type == OBJECT_TYPE_PLANE) {
+    else if (object.type == OBJECT_TYPE_PLANE) {
         float t = - ray.origin.z / ray.vector.z;
         if (t < 0 || t > hit.time) return;
 
@@ -262,8 +261,7 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
         hit.primitiveIndex = 0;
         hit.primitiveCoordinates = ray.origin + ray.vector * t;
     }
-
-    if (object.type == OBJECT_TYPE_SPHERE) {
+    else if (object.type == OBJECT_TYPE_SPHERE) {
         float v = dot(ray.vector, ray.vector);
         float p = dot(ray.origin, ray.vector);
         float q = dot(ray.origin, ray.origin) - 1.0;
@@ -284,8 +282,7 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
         hit.primitiveIndex = 0;
         hit.primitiveCoordinates = ray.origin + ray.vector * hit.time;
     }
-
-    if (object.type == OBJECT_TYPE_CUBE) {
+    else if (object.type == OBJECT_TYPE_CUBE) {
         vec3 minimum = (vec3(-1,-1,-1) - ray.origin) / ray.vector;
         vec3 maximum = (vec3(+1,+1,+1) - ray.origin) / ray.vector;
         vec3 earlier = min(minimum, maximum);
@@ -375,8 +372,7 @@ void ResolveHit(Ray ray, inout Hit hit)
         hit.materialIndex = face.materialIndex;
         hit.material = materials[face.materialIndex];
     }
-
-    if (hit.objectType == OBJECT_TYPE_PLANE) {
+    else if (hit.objectType == OBJECT_TYPE_PLANE) {
         PackedSceneObject object = objects[hit.objectIndex];
 
         normal = vec3(0, 0, 1);
@@ -386,8 +382,7 @@ void ResolveHit(Ray ray, inout Hit hit)
         hit.material = materials[object.materialIndex];
         hit.uv = fract(hit.primitiveCoordinates.xy);
     }
-
-    if (hit.objectType == OBJECT_TYPE_SPHERE) {
+    else if (hit.objectType == OBJECT_TYPE_SPHERE) {
         PackedSceneObject object = objects[hit.objectIndex];
 
         hit.primitiveIndex = 0;
@@ -401,8 +396,7 @@ void ResolveHit(Ray ray, inout Hit hit)
 
         normal = position;
     }
-
-    if (hit.objectType == OBJECT_TYPE_CUBE) {
+    else if (hit.objectType == OBJECT_TYPE_CUBE) {
         PackedSceneObject object = objects[hit.objectIndex];
 
         hit.materialIndex = object.materialIndex;
@@ -660,7 +654,7 @@ void main()
         ray.vector = normalize(ray.origin - sensorPosition);
     }
 
-    if (cameraModel == CAMERA_MODEL_THIN_LENS) {
+    else if (cameraModel == CAMERA_MODEL_THIN_LENS) {
         vec3 sensorPosition = vec3(
             -cameraSensorSize.x * (sampleNormalizedPosition.x - 0.5),
             -cameraSensorSize.y * (0.5 - sampleNormalizedPosition.y),
@@ -672,7 +666,7 @@ void main()
         ray.vector = normalize(objectPosition - ray.origin);
     }
 
-    if (cameraModel == CAMERA_MODEL_360) {
+    else if (cameraModel == CAMERA_MODEL_360) {
         float phi = (sampleNormalizedPosition.x - 0.5f) * TAU;
         float theta = (0.5f - sampleNormalizedPosition.y) * PI;
 
