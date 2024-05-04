@@ -260,7 +260,7 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
         hit.objectType = OBJECT_TYPE_PLANE;
         hit.objectIndex = objectIndex;
         hit.primitiveIndex = 0;
-        hit.primitiveCoordinates = vec3(fract(ray.origin.xy + ray.vector.xy * t), 0);
+        hit.primitiveCoordinates = ray.origin + ray.vector * t;
     }
 
     if (object.type == OBJECT_TYPE_SPHERE) {
@@ -281,6 +281,8 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
         hit.time = s / v;
         hit.objectType = OBJECT_TYPE_SPHERE;
         hit.objectIndex = objectIndex;
+        hit.primitiveIndex = 0;
+        hit.primitiveCoordinates = ray.origin + ray.vector * hit.time;
     }
 
     if (object.type == OBJECT_TYPE_CUBE) {
@@ -299,6 +301,8 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
         hit.time = t;
         hit.objectType = OBJECT_TYPE_CUBE;
         hit.objectIndex = objectIndex;
+        hit.primitiveIndex = 0;
+        hit.primitiveCoordinates = ray.origin + ray.vector * t;
     }
 }
 
@@ -370,73 +374,81 @@ void ResolveHit(Ray ray, inout Hit hit)
 
         hit.materialIndex = face.materialIndex;
         hit.material = materials[face.materialIndex];
-
-        if ((hit.material.flags & MATERIAL_FLAG_BASE_COLOR_TEXTURE) != 0) {
-            float u = mix(
-                hit.material.baseColorTextureMinimum.x,
-                hit.material.baseColorTextureMaximum.x,
-                fract(hit.uv.x));
-
-            float v = mix(
-                hit.material.baseColorTextureMinimum.y,
-                hit.material.baseColorTextureMaximum.y,
-                fract(hit.uv.y));
-
-            vec3 uvw = vec3(u, v, hit.material.baseColorTextureIndex);
-
-            vec4 value;
-            if ((hit.material.flags & MATERIAL_FLAG_BASE_COLOR_TEXTURE_FILTER_NEAREST) != 0)
-                value = textureLod(textureArrayNearest, uvw, 0);
-            else
-                value = textureLod(textureArrayLinear, uvw, 0);
-
-            hit.material.baseColor *= value.rgb;
-            hit.opacity = value.a;
-        }
     }
 
     if (hit.objectType == OBJECT_TYPE_PLANE) {
         PackedSceneObject object = objects[hit.objectIndex];
 
-        hit.primitiveIndex = 0;
-
         normal = vec3(0, 0, 1);
 
+        hit.primitiveIndex = 0;
         hit.materialIndex = object.materialIndex;
         hit.material = materials[object.materialIndex];
-
-        vec3 pc = hit.primitiveCoordinates;
-
-        if ((pc.x > 0.5 && pc.y > 0.5) || (pc.x <= 0.5 && pc.y <= 0.5))
-            hit.material.baseColor *= vec3(1.0, 1.0, 1.0);
-        else
-            hit.material.baseColor *= vec3(0.5, 0.5, 0.5);
-
-        hit.opacity = 1.0;
+        hit.uv = fract(hit.primitiveCoordinates.xy);
     }
 
     if (hit.objectType == OBJECT_TYPE_SPHERE) {
         PackedSceneObject object = objects[hit.objectIndex];
-        normal = position;
-        hit.materialIndex = object.materialIndex;
+
         hit.primitiveIndex = 0;
+        hit.materialIndex = object.materialIndex;
         hit.material = materials[object.materialIndex];
-        hit.opacity = 1.0;
+
+        vec3 p = hit.primitiveCoordinates;
+        float u = (atan(p.y, p.x) + PI) / TAU;
+        float v = (p.z + 1.0) / 2.0;
+        hit.uv = vec2(u, v);
+
+        normal = position;
     }
 
     if (hit.objectType == OBJECT_TYPE_CUBE) {
         PackedSceneObject object = objects[hit.objectIndex];
 
-        hit.primitiveIndex = 0;
-
-        vec3 p = abs(position);
-        if (p.x > p.y)
-            normal = p.x > p.z ? vec3(sign(position.x),0,0) : vec3(0,0,sign(position.z));
-        else
-            normal = p.y > p.z ? vec3(0,sign(position.y),0) : vec3(0,0,sign(position.z));
-
         hit.materialIndex = object.materialIndex;
         hit.material = materials[object.materialIndex];
+        hit.primitiveIndex = 0;
+
+        vec3 p = hit.primitiveCoordinates;
+        vec3 q = abs(p);
+
+        if (q.x >= q.y && q.x >= q.z) {
+            normal = vec3(sign(p.x), 0, 0);
+            hit.uv = 0.5 * (1.0 + p.yz);
+        }
+        else if (q.y >= q.x && q.y >= q.z) {
+            normal = vec3(0, sign(p.y), 0);
+            hit.uv = 0.5 * (1.0 + p.xz);
+        }
+        else {
+            normal = vec3(0, 0, sign(p.z));
+            hit.uv = 0.5 * (1.0 + p.xy);
+        }
+    }
+
+    if ((hit.material.flags & MATERIAL_FLAG_BASE_COLOR_TEXTURE) != 0) {
+        float u = mix(
+            hit.material.baseColorTextureMinimum.x,
+            hit.material.baseColorTextureMaximum.x,
+            fract(hit.uv.x));
+
+        float v = mix(
+            hit.material.baseColorTextureMinimum.y,
+            hit.material.baseColorTextureMaximum.y,
+            fract(hit.uv.y));
+
+        vec3 uvw = vec3(u, v, hit.material.baseColorTextureIndex);
+
+        vec4 value;
+        if ((hit.material.flags & MATERIAL_FLAG_BASE_COLOR_TEXTURE_FILTER_NEAREST) != 0)
+            value = textureLod(textureArrayNearest, uvw, 0);
+        else
+            value = textureLod(textureArrayLinear, uvw, 0);
+
+        hit.material.baseColor *= value.rgb;
+        hit.opacity = value.a;
+    }
+    else {
         hit.opacity = 1.0;
     }
 
