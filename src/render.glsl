@@ -475,22 +475,21 @@ vec4 Trace(Ray ray)
 
             if (dot(ray.vector, hit.normal) < 0) {
                 // Ray is entering the material.
-                refractionNormal = hit.normal;
+                refractionNormal = -hit.normal;
                 refractionRatio = 1.0f / hit.material.refractionIndex;
             }
             else {
                 // Ray is exiting the material.
-                refractionNormal = -hit.normal;
+                refractionNormal = hit.normal;
                 refractionRatio = hit.material.refractionIndex;
             }
 
-            float cosThetaNegated = dot(refractionNormal, ray.vector);
-            float sinThetaSquared = 1 - cosThetaNegated * cosThetaNegated;
-            float cosThetaPrimeSquared = 1 - refractionRatio * refractionRatio * sinThetaSquared;
+            float cosTheta = dot(refractionNormal, ray.vector);
+            float cosThetaPrimeSquared = 1 - refractionRatio * refractionRatio * (1 - cosTheta * cosTheta);
             bool totalInternalReflection = cosThetaPrimeSquared < 0;
 
             float schlickR0 = pow((1 - refractionRatio) / (1 + refractionRatio), 2);
-            float schlickReflectance = schlickR0 + (1 - schlickR0) * pow(1 + cosThetaNegated, 5);
+            float schlickReflectance = schlickR0 + (1 - schlickR0) * pow(1 - cosTheta, 5);
             bool schlickReflection = Random0To1() < schlickReflectance;
 
             if (totalInternalReflection || schlickReflection) {
@@ -500,7 +499,7 @@ vec4 Trace(Ray ray)
             else {
                 // Refraction.
                 float cosThetaPrime = sqrt(cosThetaPrimeSquared);
-                ray.vector = refractionRatio * ray.vector - (cosThetaPrime + refractionRatio * cosThetaNegated) * refractionNormal;
+                ray.vector = refractionRatio * ray.vector + (cosThetaPrime - refractionRatio * cosTheta) * refractionNormal;
             }
         }
         else {
