@@ -432,6 +432,7 @@ Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* opti
 
     // Import meshes.
     std::vector<Mesh*> meshes;
+    std::vector<glm::vec3> origins;
     {
         Mesh* mesh = nullptr;
 
@@ -443,12 +444,15 @@ Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* opti
             mesh->name = options->name ? options->name : path;
             mesh->materials = materials;
             meshes.push_back(mesh);
+            origins.push_back(glm::vec3());
 
             size_t faceCount = 0;
             for (auto const& shape : shapes)
                 faceCount += shape.mesh.indices.size() / 3;
             mesh->faces.reserve(faceCount);
         }
+
+        glm::vec3 origin {};
 
         for (tinyobj::shape_t const& shape : shapes) {
             size_t shapeIndexCount = shape.mesh.indices.size();
@@ -461,6 +465,20 @@ Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* opti
 
                 meshMaterialIndices.clear();
                 meshMaterials.clear();
+
+                glm::vec3 minimum = glm::vec3(+INFINITY, +INFINITY, +INFINITY);
+                glm::vec3 maximum = glm::vec3(-INFINITY, -INFINITY, -INFINITY);
+                for (size_t i = 0; i < shapeIndexCount; i++) {
+                    tinyobj::index_t const& index = shape.mesh.indices[i];
+                    glm::vec3 position = glm::vec3(
+                        attrib.vertices[3*index.vertex_index+0],
+                        attrib.vertices[3*index.vertex_index+1],
+                        attrib.vertices[3*index.vertex_index+2]);
+                    minimum = glm::min(minimum, position);
+                    maximum = glm::max(maximum, position);
+                }
+                origin = (minimum + maximum) / 2.0f;
+                origins.push_back(origin);
             }
 
             for (size_t i = 0; i < shapeIndexCount; i += 3) {
@@ -470,9 +488,9 @@ Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* opti
                     tinyobj::index_t const& index = shape.mesh.indices[i+j];
 
                     face.vertices[j] = options->vertexTransform * glm::vec4(
-                        attrib.vertices[3*index.vertex_index+0],
-                        attrib.vertices[3*index.vertex_index+1],
-                        attrib.vertices[3*index.vertex_index+2],
+                        attrib.vertices[3*index.vertex_index+0] - origin.x,
+                        attrib.vertices[3*index.vertex_index+1] - origin.y,
+                        attrib.vertices[3*index.vertex_index+2] - origin.z,
                         1.0f);
 
                     if (index.normal_index >= 0) {
@@ -549,10 +567,14 @@ Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* opti
     else {
         auto container = new Container;
         container->name = options->name ? options->name : path;
-        for (Mesh* mesh : meshes) {
+        for (size_t k = 0; k < meshes.size(); k++) {
+            Mesh* mesh = meshes[k];
+            glm::vec3 const& origin = origins[k];
+
             auto instance = new MeshInstance;
             instance->name = mesh->name;
             instance->mesh = mesh;
+            instance->transform.position = options->vertexTransform * glm::vec4(origin, 1);
             container->children.push_back(instance);
         }
         prefab->entity = container;
