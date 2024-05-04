@@ -121,6 +121,7 @@ static void MeshInspector(UIContext* context, Mesh* mesh, bool referenced = fals
 
     bool c = false;
 
+    ImGui::PushID("materials");
     for (size_t k = 0; k < mesh->materials.size(); k++) {
         ImGui::PushID(static_cast<int>(k));
 
@@ -128,10 +129,13 @@ static void MeshInspector(UIContext* context, Mesh* mesh, bool referenced = fals
         sprintf_s(title, "Material %llu", k);
         c |= ResourceSelectorDropDown(title, scene.materials, &mesh->materials[k]);
 
+        ImGui::PopID();
+    }
+    ImGui::PopID();
+
+    for (size_t k = 0; k < mesh->materials.size(); k++) {
         ImGui::Spacing();
         MaterialInspector(context, mesh->materials[k], true);
-
-        ImGui::PopID();
     }
 
     if (c) scene.dirtyFlags |= SCENE_DIRTY_MESHES;
