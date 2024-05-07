@@ -49,6 +49,16 @@ static float HalfArea(Bounds const& box)
     return e.x * e.y + e.y * e.z + e.z * e.x;
 }
 
+static glm::vec3 OrthogonalVector(glm::vec3 const& v)
+{
+    int axis = 0;
+    if (glm::abs(v.y) > glm::abs(v.x)) axis = 1;
+    if (glm::abs(v.z) > glm::abs(v[axis])) axis = 2;
+    glm::vec3 w = {};
+    w[(axis + 1) % 3] = 1.0f;
+    return glm::normalize(glm::cross(v, w));
+}
+
 static uint8_t ToSRGB(float value)
 {
     value = glm::clamp(value, 0.0f, 1.0f);
@@ -592,6 +602,48 @@ bool LoadSkybox(Scene* scene, char const* path)
     scene->skyboxHeight = static_cast<uint32_t>(height);
 
     scene->dirtyFlags |= SCENE_DIRTY_SKYBOX;
+
+
+    float* pixels = scene->skyboxPixels;
+
+    glm::vec3 mean = {};
+    float weightSum = 0.0f;
+    for (int y = 0; y < height; y++) {
+        float theta = (0.5f - (y + 0.5f) / height) * PI;
+        for (int x = 0; x < width; x++) {
+            float phi = ((x + 0.5f) / width - 0.5f) * TAU;
+
+            int index = (y * width + x) * 4;
+            float r = pixels[index+0];
+            float g = pixels[index+1];
+            float b = pixels[index+2];
+            float luminance = 0.2126f * r + 0.7152f * g + 0.0722f * b;
+            float area = glm::cos(theta);
+
+            float weight = area * luminance * luminance;
+
+            glm::vec3 direction = {
+                glm::cos(theta) * glm::cos(phi),
+                glm::cos(theta) * glm::sin(phi),
+                glm::sin(theta),
+            };
+
+            mean += weight * direction;
+            weightSum += weight;
+        }
+    }
+    mean /= weightSum;
+
+    float meanLength = glm::length(mean);
+
+    glm::vec3 mu = mean / meanLength;
+    float kappa = meanLength * (3.0f - meanLength * meanLength) / (1 - meanLength * meanLength);
+
+    glm::vec3 e1 = OrthogonalVector(mu);
+    glm::vec3 e2 = glm::cross(e1, mu);
+
+    scene->skyboxDistributionFrame = glm::mat3(e1, e2, mu);
+    scene->skyboxDistributionConcentration = kappa;
 
     return true;
 }

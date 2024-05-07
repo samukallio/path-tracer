@@ -136,6 +136,8 @@ void Frame()
     FrameUniformBuffer uniforms = {
         .frameRandomSeed = app.frameIndex,
         .sceneScatterRate = app.scene.root.scatterRate,
+        .skyboxDistributionFrame = app.scene.skyboxDistributionFrame,
+        .skyboxDistributionConcentration = app.scene.skyboxDistributionConcentration,
     };
 
     if (!app.ui.camera) {
@@ -415,28 +417,28 @@ int main()
 
     scene.root.name = "Root";
 
-    //{
-    //    LoadModelOptions options;
-    //    options.name = "viking_room.obj";
-    //    options.directoryPath = "../scene";
-    //    options.defaultMaterial = CreateMaterial(&scene, "viking_room");
-    //    options.defaultMaterial->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png", "viking_room.png");
-    //    Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/viking_room.obj", &options);
-    //    CreateEntity(&scene, prefab); 
-    //}
-
     {
-        float s = 0.01f;
         LoadModelOptions options;
-        options.name = "sponza.obj";
+        options.name = "viking_room.obj";
         options.directoryPath = "../scene";
-        options.vertexTransform = { { 0, s, 0, 0 }, { 0, 0, s, 0 }, { s, 0, 0, 0 }, { 0, 0, 0, 1 } };
-        options.normalTransform = { { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 1, 0, 0, 0 }, { 0, 0, 0, 1 } };
-        Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/sponza.obj", &options);
-        CreateEntity(&scene, prefab);
+        options.defaultMaterial = CreateMaterial(&scene, "viking_room");
+        options.defaultMaterial->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png", "viking_room.png");
+        Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/viking_room.obj", &options);
+        CreateEntity(&scene, prefab); 
     }
 
-    for (int k = 0; k < 3; k++) {
+    //{
+    //    float s = 0.01f;
+    //    LoadModelOptions options;
+    //    options.name = "sponza.obj";
+    //    options.directoryPath = "../scene";
+    //    options.vertexTransform = { { 0, s, 0, 0 }, { 0, 0, s, 0 }, { s, 0, 0, 0 }, { 0, 0, 0, 1 } };
+    //    options.normalTransform = { { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 1, 0, 0, 0 }, { 0, 0, 0, 1 } };
+    //    Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/sponza.obj", &options);
+    //    CreateEntity(&scene, prefab);
+    //}
+
+    for (int k = 0; k < 1; k++) {
         auto sphere = new Sphere;
         sphere->name = std::format("Sphere {}", k+1);
         sphere->material = CreateMaterial(&scene, std::format("Sphere {} Material", k+1).c_str());
@@ -446,12 +448,12 @@ int main()
         scene.root.children.push_back(sphere);
     }
 
-    auto plane = static_cast<Plane*>(CreateEntity(&scene, ENTITY_TYPE_PLANE));
-    plane->name = "Plane";
-    plane->material = CreateMaterial(&scene, "Plane Material");
-    plane->material->baseColorTexture = CreateCheckerTexture(&scene, "Plane Texture", glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
-    plane->material->baseColorTextureFilterNearest = true;
-    plane->material->roughness = 0.0f;
+    //auto plane = static_cast<Plane*>(CreateEntity(&scene, ENTITY_TYPE_PLANE));
+    //plane->name = "Plane";
+    //plane->material = CreateMaterial(&scene, "Plane Material");
+    //plane->material->baseColorTexture = CreateCheckerTexture(&scene, "Plane Texture", glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
+    //plane->material->baseColorTextureFilterNearest = true;
+    //plane->material->roughness = 0.0f;
 
     //auto cube = new Cube;
     //cube->name = "Cube";

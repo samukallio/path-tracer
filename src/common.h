@@ -229,6 +229,8 @@ struct FrameUniformBuffer
     float                       brightness                  = 1.0f;
     ToneMappingMode             toneMappingMode             = TONE_MAPPING_MODE_CLAMP;
     float                       toneMappingWhiteLevel       = 1.0f;
+    glm::aligned_mat3           skyboxDistributionFrame     = {};
+    float                       skyboxDistributionConcentration = 1.0f;
 };
 
 struct Transform

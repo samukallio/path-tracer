@@ -187,6 +187,9 @@ struct Scene
     uint32_t                        skyboxHeight;
     float*                          skyboxPixels;
 
+    glm::mat3                       skyboxDistributionFrame;
+    float                           skyboxDistributionConcentration;
+
     uint32_t                        dirtyFlags;
 };
 

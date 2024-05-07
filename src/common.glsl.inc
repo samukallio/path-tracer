@@ -190,4 +190,6 @@ uniform FrameUniformBuffer
     float           brightness;
     uint            toneMappingMode;
     float           toneMappingWhiteLevel;
+    mat3            skyboxDistributionFrame;
+    float           skyboxDistributionConcentration;
 };
