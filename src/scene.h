@@ -191,6 +191,7 @@ struct Scene
     std::vector<PackedSceneNode>    sceneNodePack;
     std::vector<PackedMaterial>     materialPack;
     std::vector<PackedMeshFace>     meshFacePack;
+    std::vector<PackedMeshFaceExtra> meshFaceExtraPack;
     std::vector<PackedMeshNode>     meshNodePack;
 
     uint32_t                        skyboxWidth;

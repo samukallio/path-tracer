@@ -65,6 +65,12 @@ readonly buffer MeshFaceBuffer
 };
 
 layout(binding = 10, std430)
+readonly buffer MeshFaceExtraBuffer
+{
+    PackedMeshFaceExtra meshFaceExtras[];
+};
+
+layout(binding = 11, std430)
 readonly buffer MeshNodeBuffer
 {
     PackedMeshNode meshNodes[];
@@ -360,17 +366,18 @@ void ResolveHit(Ray ray, inout Hit hit)
 
     if (hit.objectType == OBJECT_TYPE_MESH_INSTANCE) {
         PackedMeshFace face = meshFaces[hit.primitiveIndex];
+        PackedMeshFaceExtra extra = meshFaceExtras[hit.primitiveIndex];
 
-        normal = face.normals[0] * hit.primitiveCoordinates.x
-               + face.normals[1] * hit.primitiveCoordinates.y
-               + face.normals[2] * hit.primitiveCoordinates.z;
+        normal = extra.normals[0] * hit.primitiveCoordinates.x
+               + extra.normals[1] * hit.primitiveCoordinates.y
+               + extra.normals[2] * hit.primitiveCoordinates.z;
 
-        hit.uv = face.uvs[0] * hit.primitiveCoordinates.x
-               + face.uvs[1] * hit.primitiveCoordinates.y
-               + face.uvs[2] * hit.primitiveCoordinates.z;
+        hit.uv = extra.uvs[0] * hit.primitiveCoordinates.x
+               + extra.uvs[1] * hit.primitiveCoordinates.y
+               + extra.uvs[2] * hit.primitiveCoordinates.z;
 
-        hit.materialIndex = face.materialIndex;
-        hit.material = materials[face.materialIndex];
+        hit.materialIndex = extra.materialIndex;
+        hit.material = materials[extra.materialIndex];
     }
     else if (hit.objectType == OBJECT_TYPE_PLANE) {
         PackedSceneObject object = objects[hit.objectIndex];

@@ -459,7 +459,7 @@ int main()
         options.defaultMaterial = CreateMaterial(&scene, "viking_room");
         options.defaultMaterial->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png", "viking_room.png");
         Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/viking_room.obj", &options);
-        //CreateEntity(&scene, prefab); 
+        CreateEntity(&scene, prefab); 
     }
 
     //{

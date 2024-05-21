@@ -90,12 +90,16 @@ struct PackedSceneNode
 struct PackedMeshFace
 {
     vec3            position;
-    uint            materialIndex;
     vec4            plane;
     vec3            base1;
     vec3            base2;
+};
+
+struct PackedMeshFaceExtra
+{
     vec3            normals[3];
     vec2            uvs[3];
+    uint            materialIndex;
 };
 
 struct PackedMeshNode

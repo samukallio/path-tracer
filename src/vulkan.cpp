@@ -1947,6 +1947,7 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // sceneObjectBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // sceneNodeBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // meshFaceBuffer
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // meshFaceExtraBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // meshNodeBuffer
         },
     };
@@ -2010,6 +2011,7 @@ void DestroyVulkan(VulkanContext* vulkan)
     InternalDestroyBuffer(vulkan, &vulkan->sceneNodeBuffer);
     InternalDestroyBuffer(vulkan, &vulkan->sceneObjectBuffer);
     InternalDestroyBuffer(vulkan, &vulkan->meshNodeBuffer);
+    InternalDestroyBuffer(vulkan, &vulkan->meshFaceExtraBuffer);
     InternalDestroyBuffer(vulkan, &vulkan->meshFaceBuffer);
     InternalDestroyImage(vulkan, &vulkan->skyboxImage);
     InternalDestroyImage(vulkan, &vulkan->imageArray);
@@ -2153,6 +2155,12 @@ static void InternalUpdateSceneDataDescriptors(
         .range = vulkan->meshFaceBuffer.size,
     };
 
+    VkDescriptorBufferInfo meshFaceExtraBufferInfo = {
+        .buffer = vulkan->meshFaceExtraBuffer.buffer,
+        .offset = 0,
+        .range = vulkan->meshFaceExtraBuffer.size,
+    };
+
     VkDescriptorBufferInfo meshNodeBufferInfo = {
         .buffer = vulkan->meshNodeBuffer.buffer,
         .offset = 0,
@@ -2233,6 +2241,15 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .pBufferInfo = &meshFaceExtraBufferInfo,
+            },
+            {
+                .sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet = frame->renderDescriptorSet,
+                .dstBinding = 11,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .pBufferInfo = &meshNodeBufferInfo,
             },
         };
@@ -2260,6 +2277,7 @@ VkResult UploadScene(
     VulkanBuffer sceneObjectBufferOld = {};
     VulkanBuffer sceneNodeBufferOld = {};
     VulkanBuffer meshFaceBufferOld = {};
+    VulkanBuffer meshFaceExtraBufferOld = {};
     VulkanBuffer meshNodeBufferOld = {};
 
     if (dirtyFlags & SCENE_DIRTY_SKYBOX) {
@@ -2377,6 +2395,8 @@ VkResult UploadScene(
     if (dirtyFlags & SCENE_DIRTY_MESHES) {
         meshFaceBufferOld = vulkan->meshFaceBuffer;
         vulkan->meshFaceBuffer = VulkanBuffer {};
+        meshFaceExtraBufferOld = vulkan->meshFaceExtraBuffer;
+        vulkan->meshFaceExtraBuffer = VulkanBuffer {};
         meshNodeBufferOld = vulkan->meshNodeBuffer;
         vulkan->meshNodeBuffer = VulkanBuffer {};
 
@@ -2388,6 +2408,15 @@ VkResult UploadScene(
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             meshFaceBufferSize);
         InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshFaceBuffer, scene->meshFacePack.data(), meshFaceBufferSize);
+
+        size_t meshFaceExtraBufferSize = sizeof(PackedMeshFaceExtra) * scene->meshFaceExtraPack.size();
+        result = InternalCreateBuffer(
+            vulkan,
+            &vulkan->meshFaceExtraBuffer,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            meshFaceExtraBufferSize);
+        InternalWriteToDeviceLocalBuffer(vulkan, &vulkan->meshFaceExtraBuffer, scene->meshFaceExtraPack.data(), meshFaceExtraBufferSize);
 
         size_t meshNodeBufferSize = sizeof(PackedMeshNode) * scene->meshNodePack.size();
         result = InternalCreateBuffer(
@@ -2402,6 +2431,7 @@ VkResult UploadScene(
     InternalUpdateSceneDataDescriptors(vulkan);
 
     InternalDestroyImage(vulkan, &skyboxImageOld);
+    InternalDestroyBuffer(vulkan, &meshFaceExtraBufferOld);
     InternalDestroyBuffer(vulkan, &meshFaceBufferOld);
     InternalDestroyBuffer(vulkan, &meshNodeBufferOld);
     InternalDestroyBuffer(vulkan, &sceneObjectBufferOld);

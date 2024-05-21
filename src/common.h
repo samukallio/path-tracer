@@ -191,13 +191,19 @@ struct alignas(16) PackedSceneNode
 // and must follow std430 layout rules.
 struct alignas(16) PackedMeshFace
 {
-    glm::vec3                   position;
-    uint32_t                    materialIndex;
-    glm::vec4                   plane;
-    glm::aligned_vec3           base1;
-    glm::aligned_vec3           base2;
+    alignas(16) glm::vec3       position;
+    alignas(16) glm::vec4       plane;
+    alignas(16) glm::vec3       base1;
+    alignas(16) glm::vec3       base2;
+};
+
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
+struct alignas(16) PackedMeshFaceExtra
+{
     glm::aligned_vec3           normals[3];
     glm::aligned_vec2           uvs[3];
+    uint32_t                    materialIndex;
 };
 
 // This structure is shared between CPU and GPU,

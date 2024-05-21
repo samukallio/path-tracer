@@ -943,11 +943,12 @@ uint32_t PackSceneData(Scene* scene)
             // Build the packed mesh faces.
             for (MeshFace const& face : mesh->faces) {
                 PackedMeshFace packed;
+                PackedMeshFaceExtra packedx;
 
                 packed.position = face.vertices[0];
 
                 Material* material = mesh->materials[face.materialIndex];
-                packed.materialIndex = material ? material->packedMaterialIndex : 0;
+                packedx.materialIndex = material ? material->packedMaterialIndex : 0;
 
                 glm::vec3 ab = face.vertices[1] - face.vertices[0];
                 glm::vec3 ac = face.vertices[2] - face.vertices[0];
@@ -962,15 +963,16 @@ uint32_t PackSceneData(Scene* scene)
                 packed.base1 = (ab * cc - ac * bc) * idet;
                 packed.base2 = (ac * bb - ab * bc) * idet;
 
-                packed.normals[0] = face.normals[0];
-                packed.normals[1] = face.normals[1];
-                packed.normals[2] = face.normals[2];
+                packedx.normals[0] = face.normals[0];
+                packedx.normals[1] = face.normals[1];
+                packedx.normals[2] = face.normals[2];
 
-                packed.uvs[0] = face.uvs[0];
-                packed.uvs[1] = face.uvs[1];
-                packed.uvs[2] = face.uvs[2];
+                packedx.uvs[0] = face.uvs[0];
+                packedx.uvs[1] = face.uvs[1];
+                packedx.uvs[2] = face.uvs[2];
 
                 scene->meshFacePack.push_back(packed);
+                scene->meshFaceExtraPack.push_back(packedx);
             }
 
             // Build the packed mesh nodes.
