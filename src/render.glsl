@@ -76,57 +76,6 @@ layout(
     local_size_z = 1)
     in;
 
-uint randomState;
-
-uint Random()
-{
-    randomState = randomState * 747796405u + 2891336453u;
-    uint s = randomState;
-    uint w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
-    return (w >> 22u) ^ w;
-}
-
-// Generate a random number in the range [0,1).
-float Random0To1()
-{
-    return Random() / 4294967296.0f;
-}
-
-vec2 RandomPointOnDisk()
-{
-    float r = sqrt(Random0To1());
-    float theta = Random0To1() * TAU;
-    return r * vec2(cos(theta), sin(theta));
-}
-
-vec3 RandomDirection()
-{
-    float z = 2 * Random0To1() - 1;
-    float r = sqrt(1 - z * z);
-    float phi = TAU * Random0To1();
-    return vec3(r * cos(phi), r * sin(phi), z);
-}
-
-vec3 RandomHemisphereDirection(vec3 normal)
-{
-    vec3 direction = RandomDirection();
-    return direction * sign(dot(normal, direction));
-}
-
-// Generate a random direction from a von Mises-Fisher distribution on
-// a sphere, with concentration parameter kappa and mean direction (0,0,1).
-vec3 RandomVonMisesFisher(float kappa)
-{
-    float xi = Random0To1();
-    float z = 1 + (1 / kappa) * log(xi - exp(-2 * kappa) * (xi - 1));
-
-    float r = sqrt(1 - z * z);
-    float phi = Random0To1() * TAU;
-    float x = r * cos(phi);
-    float y = r * sin(phi);
-
-    return vec3(x, y, z);
-}
 
 // Generate a random direction from the skybox directional distribution such
 // that the generated direction lies in the hemisphere corresponding to the
