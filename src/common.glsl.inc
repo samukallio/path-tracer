@@ -47,17 +47,27 @@ struct PackedTransform
 struct PackedMaterial
 {
     vec3            baseColor;
-    uint            baseColorTextureIndex;
+    float           baseWeight;
+    vec3            specularColor;
+    float           specularWeight;
+    vec3            transmissionColor;
+    float           transmissionWeight;
+    vec3            transmissionScatter;
+    float           transmissionScatterAnisotropy;
     vec3            emissionColor;
-    uint            emissionColorTextureIndex;
-    float           metallic;
-    uint            metallicTextureIndex;
-    float           roughness;
-    uint            roughnessTextureIndex;
-    float           refraction;
-    float           refractionIndex;
+    float           emissionLuminance;
+
+    float           baseMetalness;
+    float           baseDiffuseRoughness;
+    float           specularRoughness;
+    float           specularRoughnessAnisotropy;
+    float           specularIOR;
+    float           transmissionDepth;
+
+    uint            baseColorTextureIndex;
     vec2            baseColorTextureMinimum;
     vec2            baseColorTextureMaximum;
+
     uint            flags;
 };
 
@@ -110,6 +120,8 @@ struct Hit
     // Populated by ResolveHit()
     vec3            position;
     vec3            normal;
+    vec3            tangentX;
+    vec3            tangentY;
     vec2            uv;
     uint            materialIndex;
     PackedMaterial  material;
@@ -166,6 +178,67 @@ Ray InverseTransformRay(Ray ray, PackedTransform transform)
     r.origin = InverseTransformPosition(ray.origin, transform);
     r.vector = InverseTransformVector(ray.vector, transform);
     return r;
+}
+
+// Compute an arbitrary tangent space basis for a given normal vector.
+void ComputeTangentVectors(vec3 normal, out vec3 tangentX, out vec3 tangentY)
+{
+    vec3 nonparallel = abs(normal.x) < 0.9 ? vec3(1, 0, 0) : vec3(0, 1, 0);
+    tangentX = normalize(cross(nonparallel, normal));
+    tangentY = cross(tangentX, normal);
+}
+
+// Sample a microsurface normal from the GGX distribution.
+vec3 SampleNormalGGX(float alpha, float xi0, float xi1)
+{
+    float theta = atan(alpha * sqrt(xi0) / (1 - sqrt(xi0)));
+    float phi = TAU * xi1;
+    return vec3(
+        sin(theta) * cos(phi),
+        sin(theta) * sin(phi),
+        cos(theta));
+}
+
+float SchlickFresnelDielectric(float relativeIOR, float cosTheta)
+{
+    float r0 = pow((1 - relativeIOR) / (1 + relativeIOR), 2);
+    return r0 + (1 - r0) * pow(1 - cosTheta, 5);
+}
+
+vec3 SchlickFresnelMetal(vec3 f0, float cosTheta)
+{
+    return f0 + (1 - f0) * pow(1 - cosTheta, 5);
+}
+
+// Computes the Fresnel term for a metallic surface using the "F82-tint"
+// formulation presented in the paper "Novel aspects of the Adobe Standard
+// Material" by Kutz et al.
+vec3 SchlickFresnelMetalWithTint(vec3 f0, vec3 f82tint, float cosTheta)
+{
+    const float cosThetaMax = 1 / 7.0f;
+    const float denominator = cosThetaMax * pow(1 - cosThetaMax, 6);
+    float nominator = cosTheta * pow(1 - cosTheta, 6);
+    float factor = nominator / denominator;
+    vec3 base = SchlickFresnelMetal(f0, cosTheta);
+    vec3 offset = factor * (1 - f82tint) * SchlickFresnelMetal(f0, cosThetaMax);
+    return base - offset;
+}
+
+// One half of the Smith masking-shadowing function.
+float SmithG1(vec3 omega, float alpha)
+{
+    float cosThetaSq = omega.z * omega.z;
+    float tanThetaSq = (1 - cosThetaSq) / cosThetaSq;
+    //float cosPhiSq = omega.x * omega.x;
+    //float sinPhiSq = omega.y * omega.y;
+    //float alphaSq = (cosPhiSq * alphaSq0.x + sinPhiSq * alphaSq0.y) / (cosPhiSq + sinPhiSq);
+    float alphaSq = alpha * alpha;
+    return 2.0 / (1.0 + sqrt(1.0 + alphaSq * tanThetaSq));
+}
+
+float SmithG(vec3 omegaIn, vec3 omegaOut, float alpha)
+{
+    return SmithG1(omegaIn, alpha) * SmithG1(omegaOut, alpha);
 }
 
 layout(binding = 0)

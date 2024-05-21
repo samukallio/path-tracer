@@ -408,6 +408,39 @@ static void CharCallback(GLFWwindow* window, unsigned int codepoint)
     io.AddInputCharacter(codepoint);
 }
 
+static void CreateBasicResources(Scene* scene)
+{
+    struct MetalMaterialData {
+        char const* name;
+        glm::vec3 baseColor;
+        glm::vec3 specularColor;
+    };
+
+    MetalMaterialData const metals[] = {
+        { "Silver"   , { 0.9868f, 0.9830f, 0.9667f }, { 0.9929f, 0.9961f, 1.0000f } },
+        { "Aluminum" , { 0.9157f, 0.9226f, 0.9236f }, { 0.9090f, 0.9365f, 0.9596f } },
+        { "Gold"     , { 1.0000f, 0.7099f, 0.3148f }, { 0.9408f, 0.9636f, 0.9099f } },
+        { "Chromium" , { 0.5496f, 0.5561f, 0.5531f }, { 0.7372f, 0.7511f, 0.8170f } },
+        { "Copper"   , { 1.0000f, 0.6504f, 0.5274f }, { 0.9755f, 0.9349f, 0.9301f } },
+        { "Iron"     , { 0.8951f, 0.8755f, 0.8154f }, { 0.8551f, 0.8800f, 0.8966f } },
+        { "Mercury"  , { 0.7815f, 0.7795f, 0.7783f }, { 0.8103f, 0.8532f, 0.9046f } },
+        { "Magnesium", { 0.8918f, 0.8821f, 0.8948f }, { 0.8949f, 0.9147f, 0.9504f } },
+        { "Nickel"   , { 0.7014f, 0.6382f, 0.5593f }, { 0.8134f, 0.8352f, 0.8725f } },
+        { "Palladium", { 0.7363f, 0.7023f, 0.6602f }, { 0.8095f, 0.8369f, 0.8739f } },
+        { "Platinum" , { 0.9602f, 0.9317f, 0.8260f }, { 0.9501f, 0.9461f, 0.9352f } },
+        { "Titanium" , { 0.4432f, 0.3993f, 0.3599f }, { 0.8627f, 0.9066f, 0.9481f } },
+        { "Zinc"     , { 0.8759f, 0.8685f, 0.8542f }, { 0.8769f, 0.9037f, 0.9341f } },
+    };
+
+    for (auto const& metal : metals) {
+        Material* material = CreateMaterial(scene, metal.name);
+        material->baseMetalness = 1.0f;
+        material->baseColor = metal.baseColor;
+        material->specularColor = metal.specularColor;
+        material->specularRoughness = 0.0f;
+    }
+}
+
 int main()
 {
     Scene& scene = app.scene;
@@ -417,6 +450,8 @@ int main()
 
     scene.root.name = "Root";
 
+    CreateBasicResources(&scene);
+
     {
         LoadModelOptions options;
         options.name = "viking_room.obj";
@@ -424,7 +459,7 @@ int main()
         options.defaultMaterial = CreateMaterial(&scene, "viking_room");
         options.defaultMaterial->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png", "viking_room.png");
         Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/viking_room.obj", &options);
-        CreateEntity(&scene, prefab); 
+        //CreateEntity(&scene, prefab); 
     }
 
     //{
@@ -442,18 +477,18 @@ int main()
         auto sphere = new Sphere;
         sphere->name = std::format("Sphere {}", k+1);
         sphere->material = CreateMaterial(&scene, std::format("Sphere {} Material", k+1).c_str());
-        sphere->material->refraction = 0.960f;
-        sphere->material->refractionIndex = 1.5f;
-        sphere->material->roughness = 0.0f;
+        sphere->material->transmissionWeight = 0.0f;
+        sphere->material->specularRoughness = 0.0f;
+        sphere->material->specularIOR = 1.5f;
         scene.root.children.push_back(sphere);
     }
 
-    //auto plane = static_cast<Plane*>(CreateEntity(&scene, ENTITY_TYPE_PLANE));
-    //plane->name = "Plane";
-    //plane->material = CreateMaterial(&scene, "Plane Material");
-    //plane->material->baseColorTexture = CreateCheckerTexture(&scene, "Plane Texture", glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
-    //plane->material->baseColorTextureFilterNearest = true;
-    //plane->material->roughness = 0.0f;
+    auto plane = static_cast<Plane*>(CreateEntity(&scene, ENTITY_TYPE_PLANE));
+    plane->name = "Plane";
+    plane->material = CreateMaterial(&scene, "Plane Material");
+    plane->material->baseColorTexture = CreateCheckerTexture(&scene, "Plane Texture", glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
+    plane->material->baseColorTextureFilterNearest = true;
+    plane->material->specularRoughness = 0.0f;
 
     //auto cube = new Cube;
     //cube->name = "Cube";

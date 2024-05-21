@@ -84,18 +84,28 @@ static void MaterialInspector(UIContext* context, Material* material, bool refer
     }
 
     bool c = false;
+
+    c |= ImGui::DragFloat("Base Weight", &material->baseWeight, 0.01f, 0.0f, 1.0f);
     c |= ImGui::ColorEdit3("Base Color", &material->baseColor[0]);
     c |= ResourceSelectorDropDown("Base Color Texture", scene.textures, &material->baseColorTexture);
     c |= ImGui::Checkbox("Base Color Texture Filter Nearest", &material->baseColorTextureFilterNearest);
+    c |= ImGui::DragFloat("Base Metalness", &material->baseMetalness, 0.01f, 0.0f, 1.0f);
+
+    c |= ImGui::DragFloat("Specular Weight", &material->specularWeight, 0.01f, 0.0f, 1.0f);
+    c |= ImGui::ColorEdit3("Specular Color", &material->specularColor[0]);
+    c |= ImGui::DragFloat("Specular Roughness", &material->specularRoughness, 0.01f, 0.0f, 1.0f);
+    c |= ImGui::DragFloat("Specular Roughness Anisotropy", &material->specularRoughnessAnisotropy, 0.01f, 0.0f, 1.0f);
+    c |= ImGui::DragFloat("Specular IOR", &material->specularIOR, 0.01f, 1.0f, 3.0f);
+
+    c |= ImGui::DragFloat("Transmission Weight", &material->transmissionWeight, 0.01f, 0.0f, 1.0f);
+    c |= ImGui::ColorEdit3("Transmission Color", &material->transmissionColor[0]);
+    c |= ImGui::DragFloat("Transmission Depth", &material->transmissionDepth, 0.01f, 0.0f, 1.0f);
+    c |= ImGui::ColorEdit3("Transmission Scatter", &material->transmissionScatter[0]);
+    c |= ImGui::DragFloat("Transmission Scatter Anisotropy", &material->transmissionScatterAnisotropy, 0.01f, 0.0f, 1.0f);
+
+    c |= ImGui::DragFloat("Emission Luminance", &material->emissionLuminance, 1.0f, 0.0f, 1000.0f);
     c |= ImGui::ColorEdit3("Emission Color", &material->emissionColor[0]);
-    c |= ImGui::DragFloat("Emission Power", &material->emissionPower, 1.0f, 0.0f, 100.0f);
-    c |= ResourceSelectorDropDown("Emission Color Texture", scene.textures, &material->emissionColorTexture);
-    c |= ImGui::DragFloat("Metallic", &material->metallic, 0.01f, 0.0f, 1.0f);
-    c |= ResourceSelectorDropDown("Metallic Texture", scene.textures, &material->metallicTexture);
-    c |= ImGui::DragFloat("Roughness", &material->roughness, 0.01f, 0.0f, 1.0f);
-    c |= ResourceSelectorDropDown("Roughness Texture", scene.textures, &material->roughnessTexture);
-    c |= ImGui::DragFloat("Refraction Probability", &material->refraction, 0.01f, 0.0f, 1.0f);
-    c |= ImGui::DragFloat("Refraction Index", &material->refractionIndex, 0.001f, 2.0f);
+
     if (c) scene.dirtyFlags |= SCENE_DIRTY_MATERIALS;
 
     ImGui::PopID();

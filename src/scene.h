@@ -18,21 +18,31 @@ struct Material
 {
     std::string                     name                    = "New Material";
     uint32_t                        flags                   = 0;
+
+    float                           baseWeight              = 1.0f;
     glm::vec3                       baseColor               = glm::vec3(1, 1, 1);
     Texture*                        baseColorTexture        = nullptr;
     bool                            baseColorTextureFilterNearest = false;
+    float                           baseMetalness           = 0.0f;
+    float                           baseDiffuseRoughness    = 0.0f;
+
+    float                           specularWeight          = 1.0f;
+    glm::vec3                       specularColor           = glm::vec3(1, 1, 1);
+    float                           specularRoughness       = 0.3f;
+    float                           specularRoughnessAnisotropy = 0.0f;
+    float                           specularIOR             = 1.5f;
+
+    float                           transmissionWeight      = 0.0f;
+    glm::vec3                       transmissionColor       = glm::vec3(1, 1, 1);
+    float                           transmissionDepth       = 0.0f;
+    glm::vec3                       transmissionScatter     = glm::vec3(0, 0, 0);
+    float                           transmissionScatterAnisotropy = 0.0f;
+
+    float                           emissionLuminance       = 0.0f;
     glm::vec3                       emissionColor           = glm::vec3(0, 0, 0);
     Texture*                        emissionColorTexture    = nullptr;
-    bool                            emissionColorFilterNearest = false;
-    float                           emissionPower           = 0.0f;
-    float                           metallic                = 0.0f;
-    Texture*                        metallicTexture         = nullptr;
-    bool                            metallicTextureFilterNearest = false;
-    float                           roughness               = 1.0f;
-    Texture*                        roughnessTexture        = nullptr;
-    bool                            roughnessTextureFilterNearest = false;
-    float                           refraction              = 0.0f;
-    float                           refractionIndex         = 1.0f;
+    bool                            emissionColorTextureFilterNearest = false;
+
     uint32_t                        packedMaterialIndex     = 0;
 };
 

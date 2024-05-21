@@ -415,9 +415,9 @@ Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* opti
             fileMaterial.emission[2],
             1.0);
 
-        material->roughness = 1.0f;
-        material->refraction = 0.0f;
-        material->refractionIndex = 0.0f;
+        material->specularRoughness = 1.0f;
+        material->specularIOR = 0.0f;
+        material->transmissionWeight = 0.0f;
 
         std::pair<std::string, Texture**> textures[] = {
             { fileMaterial.diffuse_texname, &material->baseColorTexture },
@@ -864,11 +864,17 @@ uint32_t PackSceneData(Scene* scene)
         {
             PackedMaterial packed = {
                 .baseColor = glm::vec3(1, 1, 1),
+                .baseWeight = 1.0f,
+                .specularWeight = 0.0f,
+                .transmissionWeight = 0.0f,
                 .emissionColor = glm::vec3(0, 0, 0),
-                .metallic = 0.0f,
-                .roughness = 1.0f,
-                .refraction = 0.0f,
-                .refractionIndex = 1.0f,
+                .emissionLuminance = 0.0f,
+                .baseMetalness = 0.0f,
+                .baseDiffuseRoughness = 1.0f,
+                .specularRoughness = 1.0f,
+                .specularRoughnessAnisotropy = 0.0f,
+                .specularIOR = 1.5f,
+                .transmissionDepth = 0.0f,
                 .flags = 0
             };
             scene->materialPack.push_back(packed);
@@ -881,6 +887,25 @@ uint32_t PackSceneData(Scene* scene)
 
             material->packedMaterialIndex = static_cast<uint32_t>(scene->materialPack.size());
 
+            packed.baseColor = material->baseColor;
+            packed.baseWeight = material->baseWeight;
+            packed.baseMetalness = material->baseMetalness;
+            packed.baseDiffuseRoughness = material->baseDiffuseRoughness;
+
+            packed.specularColor = material->specularColor;
+            packed.specularWeight = material->specularWeight;
+            packed.specularRoughness = material->specularRoughness;
+            packed.specularRoughnessAnisotropy = material->specularRoughnessAnisotropy;
+            packed.specularIOR = material->specularIOR;
+
+            packed.transmissionColor = material->transmissionColor;
+            packed.transmissionWeight = material->transmissionWeight;
+            packed.transmissionScatter = material->transmissionScatter;
+            packed.transmissionScatterAnisotropy = material->transmissionScatterAnisotropy;
+
+            packed.emissionColor = material->emissionColor;
+            packed.emissionLuminance = material->emissionLuminance;
+
             if (Texture* texture = material->baseColorTexture; texture) {
                 packed.baseColorTextureIndex = texture->atlasImageIndex;
                 packed.baseColorTextureMinimum = texture->atlasPlacementMinimum;
@@ -889,13 +914,6 @@ uint32_t PackSceneData(Scene* scene)
                 if (material->baseColorTextureFilterNearest)
                     packed.flags |= MATERIAL_FLAG_BASE_COLOR_TEXTURE_FILTER_NEAREST;
             }
-
-            packed.baseColor = material->baseColor;
-            packed.emissionColor = material->emissionColor * material->emissionPower;
-            packed.metallic = material->metallic;
-            packed.roughness = material->roughness;
-            packed.refraction = material->refraction;
-            packed.refractionIndex = material->refractionIndex;
 
             scene->materialPack.push_back(packed);
         }

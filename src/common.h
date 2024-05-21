@@ -141,17 +141,29 @@ struct alignas(16) PackedTransform
 struct alignas(16) PackedMaterial
 {
     glm::vec3                   baseColor;
-    uint32_t                    baseColorTextureIndex;
+    float                       baseWeight;
+    glm::vec3                   specularColor;
+    float                       specularWeight;
+    glm::vec3                   transmissionColor;
+    float                       transmissionWeight;
+    glm::vec3                   transmissionScatter;
+    float                       transmissionScatterAnisotropy;
     glm::vec3                   emissionColor;
+    float                       emissionLuminance;
+
+    float                       baseMetalness;
+    float                       baseDiffuseRoughness;
+    float                       specularRoughness;
+    float                       specularRoughnessAnisotropy;
+    float                       specularIOR;
+    float                       transmissionDepth;
+
+    uint32_t                    baseColorTextureIndex;
     uint32_t                    emissionColorTextureIndex;
-    float                       metallic;
-    uint32_t                    metallicTextureIndex;
-    float                       roughness;
-    uint32_t                    roughnessTextureIndex;
-    float                       refraction;
-    float                       refractionIndex;
+
     glm::aligned_vec2           baseColorTextureMinimum;
     glm::aligned_vec2           baseColorTextureMaximum;
+
     uint32_t                    flags;
 };
 

@@ -499,6 +499,8 @@ void ResolveHit(Ray ray, inout Hit hit)
 
     hit.position = TransformPosition(position, object.transform);
     hit.normal = TransformNormal(normal, object.transform);
+
+    ComputeTangentVectors(hit.normal, hit.tangentX, hit.tangentY);
 }
 
 vec4 Trace(Ray ray)
@@ -532,67 +534,228 @@ vec4 Trace(Ray ray)
 
         ResolveHit(ray, hit);
 
+        // Outgoing ray direction in normal/tangent space.
+        vec3 outgoing = vec3(
+            -dot(ray.vector, hit.tangentX),
+            -dot(ray.vector, hit.tangentY),
+            -dot(ray.vector, hit.normal));
+
+        // Incoming ray direction in normal/tangent space.
+        vec3 incoming;
+
         if (Random0To1() > hit.opacity) {
             // Pass through.
+            incoming = -outgoing;
         }
-        else if (Random0To1() < hit.material.refraction) {
-            vec3 refractionNormal;
-            float refractionRatio;
+        // Metal base.
+        else if (Random0To1() < hit.material.baseMetalness) {
+            float baseWeight = hit.material.baseWeight;
+            vec3 baseColor = hit.material.baseColor;
+            float specularWeight = hit.material.specularWeight;
+            vec3 specularColor = hit.material.specularColor;
+            float specularRoughness = hit.material.specularRoughness;
 
-            if (dot(ray.vector, hit.normal) < 0) {
-                // Ray is entering the material.
-                refractionNormal = -hit.normal;
-                refractionRatio = 1.0f / hit.material.refractionIndex;
+            // Sample a microsurface normal.
+            float alpha = specularRoughness * specularRoughness;
+            vec3 normal = SampleNormalGGX(alpha, Random0To1(), Random0To1());
+
+            // Compute cosine between microsurface normal and outgoing direction.
+            // If the outgoing direction is from the backside of the microsurface,
+            // then visibility is 0 and we can terminate.
+            float cosTheta = dot(normal, outgoing);
+            if (cosTheta * outgoing.z <= 0)
+                break;
+
+            // Compute incoming direction.
+            // If the incoming direction is from the backside of the microsurface,
+            // then visibility is 0 and we can terminate.
+            incoming = 2 * cosTheta * normal - outgoing;
+            if (cosTheta * incoming.z <= 0)
+                break;
+
+            // Compute shadowing-masking term.
+            float visibility = SmithG(incoming, outgoing, alpha);
+
+            // Compute Fresnel term.
+            vec3 f0 = baseWeight * baseColor;
+            vec3 fresnel = specularWeight * SchlickFresnelMetalWithTint(f0, specularColor, cosTheta);
+
+            filterColor *= fresnel * visibility * abs(cosTheta / (outgoing.z * normal.z));
+        }
+        // Translucent dielectric base.
+        else if (Random0To1() < hit.material.transmissionWeight) {
+            // Surface roughness parameter.
+            float roughness = hit.material.specularRoughness;
+            float alpha = roughness * roughness;
+
+            // Sample microsurface normal (in normal/tangent space).
+            vec3 normal = SampleNormalGGX(alpha, Random0To1(), Random0To1());
+
+            // 
+            float refractionRatio;
+            if (outgoing.z > 0) {
+                // Ray is refracted out of, or reflected by the material.
+                refractionRatio = 1.0 / hit.material.specularIOR;
             }
             else {
-                // Ray is exiting the material.
-                refractionNormal = hit.normal;
-                refractionRatio = hit.material.refractionIndex;
+                // Ray is refracted into, or reflected within the material.
+                refractionRatio = hit.material.specularIOR / 1.0;
             }
 
-            float cosTheta = dot(refractionNormal, ray.vector);
-            float cosThetaPrimeSquared = 1 - refractionRatio * refractionRatio * (1 - cosTheta * cosTheta);
-            bool totalInternalReflection = cosThetaPrimeSquared < 0;
+            // Compute reflectance (Fresnel).
+            float reflectance;
 
-            float schlickR0 = pow((1 - refractionRatio) / (1 + refractionRatio), 2);
-            float schlickReflectance = schlickR0 + (1 - schlickR0) * pow(1 - cosTheta, 5);
-            bool schlickReflection = Random0To1() < schlickReflectance;
+            float outgoingCosTheta = dot(normal, outgoing);
+            if (outgoingCosTheta * outgoing.z <= 0)
+                break;
 
-            if (totalInternalReflection || schlickReflection) {
+            float refractionCosThetaSquared = 1 - refractionRatio * refractionRatio * (1 - outgoingCosTheta * outgoingCosTheta);
+
+            if (refractionCosThetaSquared < 0) {
+                // Total internal reflection.
+                reflectance = 1.0;
+            }
+            else {
+                reflectance = SchlickFresnelDielectric(refractionRatio, abs(outgoingCosTheta));
+            }
+
+            // Determine incoming direction.
+            if (Random0To1() < reflectance) {
                 // Reflection.
-                ray.vector = reflect(ray.vector, -refractionNormal);
+                incoming = 2 * outgoingCosTheta * normal - outgoing;
             }
             else {
                 // Refraction.
-                float cosThetaPrime = sqrt(cosThetaPrimeSquared);
-                ray.vector = refractionRatio * ray.vector + (cosThetaPrime - refractionRatio * cosTheta) * refractionNormal;
+                float refractionCosTheta = sqrt(refractionCosThetaSquared);
+
+                float side = outgoingCosTheta >= 0 ? +1 : -1;
+                incoming = (refractionRatio * outgoingCosTheta - side * refractionCosTheta) * normal - refractionRatio * outgoing;
+
             }
+
+            if (dot(incoming, normal) * incoming.z <= 0)
+                break;
+
+            float visibility = SmithG(incoming, outgoing, alpha);
+
+            filterColor *= abs(outgoingCosTheta) * visibility / abs(outgoing.z * normal.z);
         }
+        // Glossy-diffuse dielectric base.
         else {
-            if (Random0To1() < hit.material.roughness) {
-                vec3 diffuseDirection;
+            vec3 baseColor = hit.material.baseColor;
 
-                float pdfLambert;
-                float pdfSkybox;
+            // Sample a microsurface normal.
+            float specularRoughness = hit.material.specularRoughness;
+            float specularAlpha = specularRoughness * specularRoughness;
+            vec3 specularNormal = SampleNormalGGX(specularAlpha, Random0To1(), Random0To1());
 
-                if (Random0To1() < 0.5f)
-                    diffuseDirection = normalize(hit.normal + RandomDirection());
-                else
-                    diffuseDirection = RandomHemisphereSkyboxDirection(hit.normal);
+            // Compute cosine between microsurface normal and outgoing direction.
+            // If the outgoing direction is from the backside of the microsurface,
+            // then visibility is 0 and we can terminate.
+            float specularCosTheta = dot(specularNormal, outgoing);
+            if (specularCosTheta * outgoing.z <= 0)
+                break;
 
-                pdfLambert = dot(diffuseDirection, hit.normal) / PI;
-                pdfSkybox = HemisphereSkyboxDirectionPDF(diffuseDirection);
-
-                ray.vector = diffuseDirection;
-
-                outputColor += hit.material.emissionColor * filterColor;
-                filterColor *= hit.material.baseColor * pdfLambert / (0.5 * pdfLambert + 0.5 * pdfSkybox);
+            //
+            float specularEta;
+            if (outgoing.z > 0) {
+                // Ray is refracted out of, or reflected by the material.
+                specularEta = 1.0 / hit.material.specularIOR;
             }
             else {
-                ray.vector = reflect(ray.vector, hit.normal);
-                filterColor *= hit.material.baseColor;
+                // Ray is refracted into, or reflected within the material.
+                specularEta = hit.material.specularIOR / 1.0;
+            }
+
+            float specularProbability = SchlickFresnelDielectric(specularEta, specularCosTheta);
+
+            if (Random0To1() < specularProbability) {
+                // Specular reflection.
+
+                // Compute incoming direction.
+                // If the incoming direction is from the backside of the microsurface,
+                // then visibility is 0 and we can terminate.
+                incoming = 2 * specularCosTheta * specularNormal - outgoing;
+                if (specularCosTheta * incoming.z <= 0)
+                    break;
+
+                // Compute shadowing-masking term.
+                float visibility = SmithG(incoming, outgoing, specularAlpha);
+
+                filterColor *= visibility * abs(specularCosTheta / (outgoing.z * specularNormal.z));
+            }
+            else {
+                incoming = normalize(RandomDirection() + vec3(0, 0, 1));
+
+                filterColor *= baseColor;
             }
         }
+
+//        if (Random0To1() > hit.opacity) {
+//            // Pass through.
+//        }
+//        else if (Random0To1() < hit.material.refraction) {
+//            vec3 refractionNormal;
+//            float refractionRatio;
+//
+//            if (dot(ray.vector, hit.normal) < 0) {
+//                // Ray is entering the material.
+//                refractionNormal = -hit.normal;
+//                refractionRatio = 1.0f / hit.material.refractionIndex;
+//            }
+//            else {
+//                // Ray is exiting the material.
+//                refractionNormal = hit.normal;
+//                refractionRatio = hit.material.refractionIndex;
+//            }
+//
+//            float cosTheta = dot(refractionNormal, ray.vector);
+//            float cosThetaPrimeSquared = 1 - refractionRatio * refractionRatio * (1 - cosTheta * cosTheta);
+//            bool totalInternalReflection = cosThetaPrimeSquared < 0;
+//
+//            float schlickR0 = pow((1 - refractionRatio) / (1 + refractionRatio), 2);
+//            float schlickReflectance = schlickR0 + (1 - schlickR0) * pow(1 - cosTheta, 5);
+//            bool schlickReflection = Random0To1() < schlickReflectance;
+//
+//            if (totalInternalReflection || schlickReflection) {
+//                // Reflection.
+//                ray.vector = reflect(ray.vector, -refractionNormal);
+//            }
+//            else {
+//                // Refraction.
+//                float cosThetaPrime = sqrt(cosThetaPrimeSquared);
+//                ray.vector = refractionRatio * ray.vector + (cosThetaPrime - refractionRatio * cosTheta) * refractionNormal;
+//            }
+//        }
+//        else {
+//            if (Random0To1() < hit.material.roughness) {
+//                vec3 diffuseDirection;
+//
+//                float pdfLambert;
+//                float pdfSkybox;
+//
+//                if (Random0To1() < 0.5f)
+//                    diffuseDirection = normalize(hit.normal + RandomDirection());
+//                else
+//                    diffuseDirection = RandomHemisphereSkyboxDirection(hit.normal);
+//
+//                pdfLambert = dot(diffuseDirection, hit.normal) / PI;
+//                pdfSkybox = HemisphereSkyboxDirectionPDF(diffuseDirection);
+//
+//                ray.vector = diffuseDirection;
+//
+//                outputColor += hit.material.emissionColor * filterColor;
+//                filterColor *= hit.material.baseColor * pdfLambert / (0.5 * pdfLambert + 0.5 * pdfSkybox);
+//            }
+//            else {
+//                ray.vector = reflect(ray.vector, hit.normal);
+//                filterColor *= hit.material.baseColor;
+//            }
+//        }
+
+        ray.vector = incoming.x * hit.tangentX
+                   + incoming.y * hit.tangentY
+                   + incoming.z * hit.normal;
 
         ray.origin = hit.position + 1e-3 * ray.vector;
     }
