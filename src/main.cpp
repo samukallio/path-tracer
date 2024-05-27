@@ -138,6 +138,7 @@ void Frame()
         .sceneScatterRate = app.scene.root.scatterRate,
         .skyboxDistributionFrame = app.scene.skyboxDistributionFrame,
         .skyboxDistributionConcentration = app.scene.skyboxDistributionConcentration,
+        .skyboxBrightness = app.scene.root.skyboxBrightness,
     };
 
     if (!app.ui.camera) {

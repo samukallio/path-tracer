@@ -325,4 +325,5 @@ uniform FrameUniformBuffer
     float           toneMappingWhiteLevel;
     mat3            skyboxDistributionFrame;
     float           skyboxDistributionConcentration;
+    float           skyboxBrightness;
 };

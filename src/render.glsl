@@ -126,7 +126,9 @@ vec3 SampleSkybox(Ray ray)
     float u = 0.5 + phi / TAU;
     float v = 0.5 - theta / PI;
 
-    return textureLod(skyboxImage, vec2(u, v), 0).rgb;
+    vec3 color = textureLod(skyboxImage, vec2(u, v), 0).rgb;
+
+    return color * skyboxBrightness;
 }
 
 float IntersectBoundingBox(Ray ray, float reach, vec3 minimum, vec3 maximum)
