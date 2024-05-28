@@ -702,69 +702,6 @@ vec4 Trace(Ray ray)
             }
         }
 
-
-//        if (Random0To1() > hit.opacity) {
-//            // Pass through.
-//        }
-//        else if (Random0To1() < hit.material.refraction) {
-//            vec3 refractionNormal;
-//            float refractionRatio;
-//
-//            if (dot(ray.vector, hit.normal) < 0) {
-//                // Ray is entering the material.
-//                refractionNormal = -hit.normal;
-//                refractionRatio = 1.0f / hit.material.refractionIndex;
-//            }
-//            else {
-//                // Ray is exiting the material.
-//                refractionNormal = hit.normal;
-//                refractionRatio = hit.material.refractionIndex;
-//            }
-//
-//            float cosTheta = dot(refractionNormal, ray.vector);
-//            float cosThetaPrimeSquared = 1 - refractionRatio * refractionRatio * (1 - cosTheta * cosTheta);
-//            bool totalInternalReflection = cosThetaPrimeSquared < 0;
-//
-//            float schlickR0 = pow((1 - refractionRatio) / (1 + refractionRatio), 2);
-//            float schlickReflectance = schlickR0 + (1 - schlickR0) * pow(1 - cosTheta, 5);
-//            bool schlickReflection = Random0To1() < schlickReflectance;
-//
-//            if (totalInternalReflection || schlickReflection) {
-//                // Reflection.
-//                ray.vector = reflect(ray.vector, -refractionNormal);
-//            }
-//            else {
-//                // Refraction.
-//                float cosThetaPrime = sqrt(cosThetaPrimeSquared);
-//                ray.vector = refractionRatio * ray.vector + (cosThetaPrime - refractionRatio * cosTheta) * refractionNormal;
-//            }
-//        }
-//        else {
-//            if (Random0To1() < hit.material.roughness) {
-//                vec3 diffuseDirection;
-//
-//                float pdfLambert;
-//                float pdfSkybox;
-//
-//                if (Random0To1() < 0.5f)
-//                    diffuseDirection = normalize(hit.normal + RandomDirection());
-//                else
-//                    diffuseDirection = RandomHemisphereSkyboxDirection(hit.normal);
-//
-//                pdfLambert = dot(diffuseDirection, hit.normal) / PI;
-//                pdfSkybox = HemisphereSkyboxDirectionPDF(diffuseDirection);
-//
-//                ray.vector = diffuseDirection;
-//
-//                outputColor += hit.material.emissionColor * filterColor;
-//                filterColor *= hit.material.baseColor * pdfLambert / (0.5 * pdfLambert + 0.5 * pdfSkybox);
-//            }
-//            else {
-//                ray.vector = reflect(ray.vector, hit.normal);
-//                filterColor *= hit.material.baseColor;
-//            }
-//        }
-
         ray.vector = incoming.x * hit.tangentX
                    + incoming.y * hit.tangentY
                    + incoming.z * hit.normal;
