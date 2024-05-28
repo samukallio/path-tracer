@@ -449,10 +449,7 @@ void ResolveHit(Ray ray, inout Hit hit)
             value = textureLod(textureArrayLinear, uvw, 0);
 
         hit.material.baseColor *= value.rgb;
-        hit.opacity = value.a;
-    }
-    else {
-        hit.opacity = 1.0;
+        hit.material.opacity *= value.a;
     }
 
     hit.objectPriority = object.priority;
@@ -517,7 +514,7 @@ vec4 Trace(Ray ray)
         // Incoming ray direction in normal/tangent space.
         vec3 incoming;
 
-        if (Random0To1() > hit.opacity || medium.objectPriority > hit.objectPriority) {
+        if (Random0To1() > hit.material.opacity || medium.objectPriority > hit.objectPriority) {
             // Pass through.
             incoming = -outgoing;
         }

@@ -888,6 +888,8 @@ uint32_t PackSceneData(Scene* scene)
 
             material->packedMaterialIndex = static_cast<uint32_t>(scene->materialPack.size());
 
+            packed.opacity = material->opacity;
+
             packed.baseColor = material->baseColor;
             packed.baseWeight = material->baseWeight;
             packed.baseMetalness = material->baseMetalness;

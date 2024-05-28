@@ -151,6 +151,7 @@ struct alignas(16) PackedMaterial
     glm::vec3                   emissionColor;
     float                       emissionLuminance;
 
+    float                       opacity;
     float                       baseMetalness;
     float                       baseDiffuseRoughness;
     float                       specularRoughness;

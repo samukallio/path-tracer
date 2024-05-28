@@ -19,6 +19,8 @@ struct Material
     std::string                     name                    = "New Material";
     uint32_t                        flags                   = 0;
 
+    float                           opacity                 = 1.0f;
+
     float                           baseWeight              = 1.0f;
     glm::vec3                       baseColor               = glm::vec3(1, 1, 1);
     Texture*                        baseColorTexture        = nullptr;

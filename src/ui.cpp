@@ -85,6 +85,8 @@ static void MaterialInspector(UIContext* context, Material* material, bool refer
 
     bool c = false;
 
+    c |= ImGui::DragFloat("Opacity", &material->opacity, 0.01f, 0.0f, 1.0f);
+
     c |= ImGui::DragFloat("Base Weight", &material->baseWeight, 0.01f, 0.0f, 1.0f);
     c |= ImGui::ColorEdit3("Base Color", &material->baseColor[0]);
     c |= ResourceSelectorDropDown("Base Color Texture", scene.textures, &material->baseColorTexture);
