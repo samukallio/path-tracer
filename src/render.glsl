@@ -299,9 +299,9 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
         float t1 = min(min(later.x, later.y), later.z);
         if (t1 < t0) return;
         if (t1 <= 0) return;
-        if (t0 >= hit.time) return;
 
         float t = t0 < 0 ? t1 : t0;
+        if (t >= hit.time) return;
 
         hit.time = t;
         hit.objectType = OBJECT_TYPE_CUBE;
@@ -423,23 +423,22 @@ void ResolveHit(Ray ray, inout Hit hit)
             float s = sign(p.x);
             normal = vec3(s, 0, 0);
             tangentX = vec3(0, s, 0);
-            tangentY = vec3(0, 0, s);
             hit.uv = 0.5 * (1.0 + p.yz);
         }
         else if (q.y >= q.x && q.y >= q.z) {
             float s = sign(p.y);
             normal = vec3(0, s, 0);
-            tangentX = vec3(s, 0, 0);
-            tangentY = vec3(0, 0, s);
+            tangentX = vec3(0, 0, s);
             hit.uv = 0.5 * (1.0 + p.xz);
         }
         else {
             float s = sign(p.z);
             normal = vec3(0, 0, s);
             tangentX = vec3(s, 0, 0);
-            tangentY = vec3(0, s, 0);
             hit.uv = 0.5 * (1.0 + p.xy);
         }
+
+        tangentY = cross(normal, tangentX);
     }
 
     if ((hit.material.flags & MATERIAL_FLAG_BASE_COLOR_TEXTURE) != 0) {
