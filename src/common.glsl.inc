@@ -60,11 +60,11 @@ struct PackedMaterial
     vec3            emissionColor;
     float           emissionLuminance;
 
+    vec2            specularRoughnessAlpha;
+
     float           opacity;
     float           baseMetalness;
     float           baseDiffuseRoughness;
-    float           specularRoughness;
-    float           specularRoughnessAnisotropy;
     float           specularIOR;
     float           transmissionDepth;
     float           scatteringRate;
@@ -167,6 +167,11 @@ vec3 TransformVector(vec3 vector, PackedTransform transform)
 vec3 TransformNormal(vec3 normal, PackedTransform transform)
 {
     return normalize((vec4(normal, 0) * transform.from).xyz);
+}
+
+vec3 TransformDirection(vec3 direction, PackedTransform transform)
+{
+    return normalize(TransformVector(direction, transform));
 }
 
 Ray TransformRay(Ray ray, PackedTransform transform)

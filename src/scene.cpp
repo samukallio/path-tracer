@@ -870,10 +870,9 @@ uint32_t PackSceneData(Scene* scene)
                 .transmissionWeight = 0.0f,
                 .emissionColor = glm::vec3(0, 0, 0),
                 .emissionLuminance = 0.0f,
+                .specularRoughnessAlpha = glm::vec2(1, 1),
                 .baseMetalness = 0.0f,
                 .baseDiffuseRoughness = 1.0f,
-                .specularRoughness = 1.0f,
-                .specularRoughnessAnisotropy = 0.0f,
                 .specularIOR = 1.5f,
                 .transmissionDepth = 0.0f,
                 .flags = 0
@@ -897,8 +896,17 @@ uint32_t PackSceneData(Scene* scene)
 
             packed.specularColor = material->specularColor;
             packed.specularWeight = material->specularWeight;
-            packed.specularRoughness = material->specularRoughness;
-            packed.specularRoughnessAnisotropy = material->specularRoughnessAnisotropy;
+
+            // Precompute the specular roughness alpha parameter
+            // from the roughness and anisotropy parameters.
+            {
+                float r = material->specularRoughness;
+                float s = 1 - material->specularRoughnessAnisotropy;
+                float alphaX = r * r * glm::sqrt(2 / (1 + s * s));
+                float alphaY = s * alphaX;
+                packed.specularRoughnessAlpha = { alphaX, alphaY };
+            }
+
             packed.specularIOR = material->specularIOR;
 
             packed.transmissionColor = material->transmissionColor;

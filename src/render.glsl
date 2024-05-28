@@ -365,6 +365,8 @@ void ResolveHit(Ray ray, inout Hit hit)
 
     vec3 position = objectRay.origin + objectRay.vector * hit.time;
     vec3 normal = vec3(0, 0, 1);
+    vec3 tangentX = vec3(1, 0, 0);
+    vec3 tangentY = vec3(0, 1, 0);
 
     if (hit.objectType == OBJECT_TYPE_MESH_INSTANCE) {
         PackedMeshFace face = meshFaces[hit.primitiveIndex];
@@ -373,6 +375,8 @@ void ResolveHit(Ray ray, inout Hit hit)
         normal = extra.normals[0] * hit.primitiveCoordinates.x
                + extra.normals[1] * hit.primitiveCoordinates.y
                + extra.normals[2] * hit.primitiveCoordinates.z;
+
+        ComputeTangentVectors(normal, tangentX, tangentY);
 
         hit.uv = extra.uvs[0] * hit.primitiveCoordinates.x
                + extra.uvs[1] * hit.primitiveCoordinates.y
@@ -383,8 +387,6 @@ void ResolveHit(Ray ray, inout Hit hit)
     }
     else if (hit.objectType == OBJECT_TYPE_PLANE) {
         PackedSceneObject object = objects[hit.objectIndex];
-
-        normal = vec3(0, 0, 1);
 
         hit.primitiveIndex = 0;
         hit.materialIndex = object.materialIndex;
@@ -404,6 +406,8 @@ void ResolveHit(Ray ray, inout Hit hit)
         hit.uv = vec2(u, v);
 
         normal = position;
+        tangentX = normalize(cross(normal, vec3(-normal.y, normal.x, 0)));
+        tangentY = cross(normal, tangentX);
     }
     else if (hit.objectType == OBJECT_TYPE_CUBE) {
         PackedSceneObject object = objects[hit.objectIndex];
@@ -416,15 +420,24 @@ void ResolveHit(Ray ray, inout Hit hit)
         vec3 q = abs(p);
 
         if (q.x >= q.y && q.x >= q.z) {
-            normal = vec3(sign(p.x), 0, 0);
+            float s = sign(p.x);
+            normal = vec3(s, 0, 0);
+            tangentX = vec3(0, s, 0);
+            tangentY = vec3(0, 0, s);
             hit.uv = 0.5 * (1.0 + p.yz);
         }
         else if (q.y >= q.x && q.y >= q.z) {
-            normal = vec3(0, sign(p.y), 0);
+            float s = sign(p.y);
+            normal = vec3(0, s, 0);
+            tangentX = vec3(s, 0, 0);
+            tangentY = vec3(0, 0, s);
             hit.uv = 0.5 * (1.0 + p.xz);
         }
         else {
-            normal = vec3(0, 0, sign(p.z));
+            float s = sign(p.z);
+            normal = vec3(0, 0, s);
+            tangentX = vec3(s, 0, 0);
+            tangentY = vec3(0, s, 0);
             hit.uv = 0.5 * (1.0 + p.xy);
         }
     }
@@ -456,8 +469,8 @@ void ResolveHit(Ray ray, inout Hit hit)
 
     hit.position = TransformPosition(position, object.transform);
     hit.normal = TransformNormal(normal, object.transform);
-
-    ComputeTangentVectors(hit.normal, hit.tangentX, hit.tangentY);
+    hit.tangentX = TransformDirection(tangentX, object.transform);
+    hit.tangentY = TransformDirection(tangentY, object.transform);
 }
 
 vec4 Trace(Ray ray)
@@ -524,11 +537,10 @@ vec4 Trace(Ray ray)
             vec3 baseColor = hit.material.baseColor;
             float specularWeight = hit.material.specularWeight;
             vec3 specularColor = hit.material.specularColor;
-            float specularRoughness = hit.material.specularRoughness;
+            vec2 specularRoughnessAlpha = hit.material.specularRoughnessAlpha;
 
             // Sample a microsurface normal.
-            float alpha = specularRoughness * specularRoughness;
-            vec3 normal = SampleNormalGGX(alpha, Random0To1(), Random0To1());
+            vec3 normal = SampleNormalGGX(specularRoughnessAlpha.x, Random0To1(), Random0To1());
 
             // Compute cosine between microsurface normal and outgoing direction.
             // If the outgoing direction is from the backside of the microsurface,
@@ -545,7 +557,7 @@ vec4 Trace(Ray ray)
                 break;
 
             // Compute shadowing-masking term.
-            float visibility = SmithG(incoming, outgoing, alpha);
+            float visibility = SmithG(incoming, outgoing, specularRoughnessAlpha.x);
 
             // Compute Fresnel term.
             vec3 f0 = baseWeight * baseColor;
@@ -556,11 +568,10 @@ vec4 Trace(Ray ray)
         // Translucent dielectric base.
         else if (Random0To1() < hit.material.transmissionWeight) {
             // Surface roughness parameter.
-            float roughness = hit.material.specularRoughness;
-            float alpha = roughness * roughness;
+            vec2 specularRoughnessAlpha = hit.material.specularRoughnessAlpha;
 
             // Sample microsurface normal (in normal/tangent space).
-            vec3 normal = SampleNormalGGX(alpha, Random0To1(), Random0To1());
+            vec3 normal = SampleNormalGGX(specularRoughnessAlpha.x, Random0To1(), Random0To1());
 
             // 
             float refractionRatio;
@@ -606,7 +617,7 @@ vec4 Trace(Ray ray)
             if (dot(incoming, normal) * incoming.z <= 0)
                 break;
 
-            float visibility = SmithG(incoming, outgoing, alpha);
+            float visibility = SmithG(incoming, outgoing, specularRoughnessAlpha.x);
 
             filterColor *= abs(outgoingCosTheta) * visibility / abs(outgoing.z * normal.z);
         }
@@ -615,9 +626,8 @@ vec4 Trace(Ray ray)
             vec3 baseColor = hit.material.baseColor;
 
             // Sample a microsurface normal.
-            float specularRoughness = hit.material.specularRoughness;
-            float specularAlpha = specularRoughness * specularRoughness;
-            vec3 specularNormal = SampleNormalGGX(specularAlpha, Random0To1(), Random0To1());
+            vec2 specularRoughnessAlpha = hit.material.specularRoughnessAlpha;
+            vec3 specularNormal = SampleNormalGGX(specularRoughnessAlpha.x, Random0To1(), Random0To1());
 
             // Compute cosine between microsurface normal and outgoing direction.
             // If the outgoing direction is from the backside of the microsurface,
@@ -650,7 +660,7 @@ vec4 Trace(Ray ray)
                     break;
 
                 // Compute shadowing-masking term.
-                float visibility = SmithG(incoming, outgoing, specularAlpha);
+                float visibility = SmithG(incoming, outgoing, specularRoughnessAlpha.x);
 
                 filterColor *= visibility * abs(specularCosTheta / (outgoing.z * specularNormal.z));
             }

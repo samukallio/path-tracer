@@ -151,11 +151,11 @@ struct alignas(16) PackedMaterial
     glm::vec3                   emissionColor;
     float                       emissionLuminance;
 
+    glm::vec2                   specularRoughnessAlpha;
+
     float                       opacity;
     float                       baseMetalness;
     float                       baseDiffuseRoughness;
-    float                       specularRoughness;
-    float                       specularRoughnessAnisotropy;
     float                       specularIOR;
     float                       transmissionDepth;
     float                       scatteringRate;
