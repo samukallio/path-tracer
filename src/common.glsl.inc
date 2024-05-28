@@ -119,6 +119,7 @@ struct Medium
     uint            objectIndex;
     uint            objectPriority;
     float           specularIOR;
+    float           scatterRate;
 };
 
 struct Hit
