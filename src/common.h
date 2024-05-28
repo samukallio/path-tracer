@@ -174,6 +174,7 @@ struct alignas(16) PackedSceneObject
     ObjectType                  type;
     uint32_t                    materialIndex;
     uint32_t                    meshRootNodeIndex;
+    int32_t                     priority;
     PackedTransform             transform;
 };
 

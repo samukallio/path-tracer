@@ -183,7 +183,7 @@ void IntersectMeshFace(Ray ray, uint meshFaceIndex, inout Hit hit)
 
     hit.time = t;
     hit.objectType = OBJECT_TYPE_MESH_INSTANCE;
-    hit.objectIndex = 0xFFFFFFFF;
+    hit.objectIndex = OBJECT_INDEX_NONE;
     hit.primitiveIndex = meshFaceIndex;
     hit.primitiveCoordinates = vec3(1 - beta - gamma, beta, gamma);
 }
@@ -256,7 +256,7 @@ void IntersectObject(Ray ray, uint objectIndex, inout Hit hit)
 
     if (object.type == OBJECT_TYPE_MESH_INSTANCE) {
         IntersectMeshNode(ray, object.meshRootNodeIndex, hit);
-        if (hit.objectIndex == 0xFFFFFFFF)
+        if (hit.objectIndex == OBJECT_INDEX_NONE)
             hit.objectIndex = objectIndex;
     }
     else if (object.type == OBJECT_TYPE_PLANE) {
@@ -455,6 +455,8 @@ void ResolveHit(Ray ray, inout Hit hit)
         hit.opacity = 1.0;
     }
 
+    hit.objectPriority = object.priority;
+
     hit.position = TransformPosition(position, object.transform);
     hit.normal = TransformNormal(normal, object.transform);
 
@@ -465,6 +467,19 @@ vec4 Trace(Ray ray)
 {
     vec3 outputColor = vec3(0, 0, 0);
     vec3 filterColor = vec3(1, 1, 1);
+
+    const int MAX_MEDIUM_COUNT = 8;
+
+    Medium mediums[MAX_MEDIUM_COUNT];
+    for (int i = 0; i < MAX_MEDIUM_COUNT; i++)
+        mediums[i].objectIndex = OBJECT_INDEX_NONE;
+
+    Medium ambient;
+    ambient.objectIndex = OBJECT_INDEX_NONE;
+    ambient.objectPriority = 0;
+    ambient.specularIOR = 1.0f;
+
+    Medium medium = ambient;
 
     for (uint bounce = 0; bounce <= renderBounceLimit; bounce++) {
         float scatterTime = INFINITY;
@@ -501,7 +516,7 @@ vec4 Trace(Ray ray)
         // Incoming ray direction in normal/tangent space.
         vec3 incoming;
 
-        if (Random0To1() > hit.opacity) {
+        if (Random0To1() > hit.opacity || medium.objectPriority > hit.objectPriority) {
             // Pass through.
             incoming = -outgoing;
         }
@@ -553,11 +568,11 @@ vec4 Trace(Ray ray)
             float refractionRatio;
             if (outgoing.z > 0) {
                 // Ray is refracted out of, or reflected by the material.
-                refractionRatio = 1.0 / hit.material.specularIOR;
+                refractionRatio = medium.specularIOR / hit.material.specularIOR;
             }
             else {
                 // Ray is refracted into, or reflected within the material.
-                refractionRatio = hit.material.specularIOR / 1.0;
+                refractionRatio = hit.material.specularIOR / medium.specularIOR;
             }
 
             // Compute reflectance (Fresnel).
@@ -588,7 +603,6 @@ vec4 Trace(Ray ray)
 
                 float side = outgoingCosTheta >= 0 ? +1 : -1;
                 incoming = (refractionRatio * outgoingCosTheta - side * refractionCosTheta) * normal - refractionRatio * outgoing;
-
             }
 
             if (dot(incoming, normal) * incoming.z <= 0)
@@ -648,6 +662,46 @@ vec4 Trace(Ray ray)
                 filterColor *= baseColor;
             }
         }
+
+        // If the incoming and outgoing directions are within opposite hemispheres,
+        // then the ray is crossing the material interface boundary.  We need to
+        // perform bookkeeping to determine the current medium.
+        if (incoming.z * outgoing.z < 0) {
+            if (outgoing.z > 0) {
+                // We are tracing into the material, so add a medium entry
+                // associated with the object.
+                for (int i = 0; i < MAX_MEDIUM_COUNT; i++) {
+                    if (mediums[i].objectIndex == OBJECT_INDEX_NONE) {
+                        mediums[i].objectIndex = hit.objectIndex;
+                        mediums[i].objectPriority = hit.objectPriority;
+                        mediums[i].specularIOR = hit.material.specularIOR;
+                        break;
+                    }
+                }
+            }
+            else {
+                // We are tracing out of the material, so remove the medium
+                // entry associated with the object.
+                for (int i = 0; i < MAX_MEDIUM_COUNT; i++) {
+                    if (mediums[i].objectIndex == hit.objectIndex) {
+                        mediums[i].objectIndex = OBJECT_INDEX_NONE;
+                        break;
+                    }
+                }
+            }
+
+            // Determine the highest-priority medium that we are currently
+            // in, and set it as the active one.
+            medium = ambient;
+            for (int i = 0; i < MAX_MEDIUM_COUNT; i++) {
+                if (mediums[i].objectIndex == OBJECT_INDEX_NONE)
+                    continue;
+                if (mediums[i].objectPriority < medium.objectPriority)
+                    continue;
+                medium = mediums[i];
+            }
+        }
+
 
 //        if (Random0To1() > hit.opacity) {
 //            // Pass through.

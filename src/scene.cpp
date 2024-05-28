@@ -648,7 +648,7 @@ bool LoadSkybox(Scene* scene, char const* path)
     return true;
 }
 
-static void PackSceneObject(Scene* scene, glm::mat4 const& outerTransform, Entity* entity)
+static void PackSceneObject(Scene* scene, glm::mat4 const& outerTransform, Entity* entity, uint32_t& priority)
 {
     if (!entity->active)
         return;
@@ -660,11 +660,12 @@ static void PackSceneObject(Scene* scene, glm::mat4 const& outerTransform, Entit
         * glm::scale(glm::mat4(1), entity->transform.scale);
 
     for (Entity* child : entity->children)
-        PackSceneObject(scene, innerTransform, child);
+        PackSceneObject(scene, innerTransform, child, priority);
 
     PackedSceneObject packed;
 
     packed.materialIndex = 0;
+    packed.priority = priority++;
 
     switch (entity->type) {
         case ENTITY_TYPE_MESH_INSTANCE: {
@@ -1007,8 +1008,9 @@ uint32_t PackSceneData(Scene* scene)
 
         glm::mat4 const& outerTransform = glm::mat4(1);
 
+        uint32_t priority = 0;
         for (Entity* entity : scene->root.children)
-            PackSceneObject(scene, outerTransform, entity);
+            PackSceneObject(scene, outerTransform, entity, priority);
 
         std::vector<uint16_t> map;
 

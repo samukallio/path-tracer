@@ -3,6 +3,8 @@ const float EPSILON     = 1e-9f;
 const float PI          = 3.141592653f;
 const float TAU         = 6.283185306f;
 
+const uint OBJECT_INDEX_NONE                = 0xFFFFFFFF;
+
 const uint RENDER_MODE_PATH_TRACE           = 0;
 const uint RENDER_MODE_BASE_COLOR           = 1;
 const uint RENDER_MODE_BASE_COLOR_SHADED    = 2;
@@ -37,6 +39,7 @@ const uint MATERIAL_FLAG_METALLIC_TEXTURE                   = 1 << 4;
 const uint MATERIAL_FLAG_METALLIC_TEXTURE_FILTER_NEAREST    = 1 << 5;
 const uint MATERIAL_FLAG_ROUGHNESS_TEXTURE                  = 1 << 6;
 const uint MATERIAL_FLAG_ROUGHNESS_TEXTURE_FILTER_NEAREST   = 1 << 7;
+
 
 struct PackedTransform
 {
@@ -76,6 +79,7 @@ struct PackedSceneObject
     uint            type;
     uint            materialIndex;
     uint            meshRootNodeIndex;
+    uint            priority;
     PackedTransform transform;
 };
 
@@ -110,18 +114,26 @@ struct PackedMeshNode
     uint            faceEndIndex;
 };
 
+struct Medium
+{
+    uint            objectIndex;
+    uint            objectPriority;
+    float           specularIOR;
+};
+
 struct Hit
 {
+    // Populated by the Intersect*() routines.
     float           time;
     uint            objectType;
     uint            objectIndex;
     uint            primitiveIndex;
     vec3            primitiveCoordinates;
-
     uint            sceneComplexity;
     uint            meshComplexity;
 
-    // Populated by ResolveHit()
+    // Populated by ResolveHit().
+    uint            objectPriority;
     vec3            position;
     vec3            normal;
     vec3            tangentX;
