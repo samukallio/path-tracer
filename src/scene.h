@@ -43,6 +43,8 @@ struct Material
     Texture*                        emissionColorTexture    = nullptr;
     bool                            emissionColorTextureFilterNearest = false;
 
+    float                           scatteringRate          = 0.0f;
+
     uint32_t                        packedMaterialIndex     = 0;
 };
 

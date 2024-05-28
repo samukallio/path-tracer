@@ -66,8 +66,11 @@ struct PackedMaterial
     float           specularRoughnessAnisotropy;
     float           specularIOR;
     float           transmissionDepth;
+    float           scatteringRate;
 
     uint            baseColorTextureIndex;
+    uint            emissionColorTextureIndex;
+
     vec2            baseColorTextureMinimum;
     vec2            baseColorTextureMaximum;
 
@@ -119,7 +122,7 @@ struct Medium
     uint            objectIndex;
     uint            objectPriority;
     float           specularIOR;
-    float           scatterRate;
+    float           scatteringRate;
 };
 
 struct Hit

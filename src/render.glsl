@@ -478,25 +478,25 @@ vec4 Trace(Ray ray)
     ambient.objectIndex = OBJECT_INDEX_NONE;
     ambient.objectPriority = 0;
     ambient.specularIOR = 1.0f;
-    ambient.scatterRate = sceneScatterRate;
+    ambient.scatteringRate = sceneScatterRate;
 
     Medium medium = ambient;
 
     for (uint bounce = 0; bounce <= renderBounceLimit; bounce++) {
-        float scatterTime = INFINITY;
+        float scatteringTime = INFINITY;
 
-        if (medium.scatterRate > 0) {
-            scatterTime = -log(Random0To1()) / medium.scatterRate;
+        if (medium.scatteringRate > 0) {
+            scatteringTime = -log(Random0To1()) / medium.scatteringRate;
         }
 
         Hit hit;
-        hit.time = scatterTime;
+        hit.time = scatteringTime;
 
         Intersect(ray, hit);
 
-        if (hit.time == scatterTime) {
-            if (scatterTime < INFINITY) {
-                ray.origin = ray.origin + ray.vector * scatterTime;
+        if (hit.time == scatteringTime) {
+            if (scatteringTime < INFINITY) {
+                ray.origin = ray.origin + ray.vector * scatteringTime;
                 ray.vector = RandomDirection();
                 continue;
             }
@@ -676,7 +676,7 @@ vec4 Trace(Ray ray)
                         mediums[i].objectIndex = hit.objectIndex;
                         mediums[i].objectPriority = hit.objectPriority;
                         mediums[i].specularIOR = hit.material.specularIOR;
-                        mediums[i].scatterRate = 0.0f;
+                        mediums[i].scatteringRate = hit.material.scatteringRate;
                         break;
                     }
                 }

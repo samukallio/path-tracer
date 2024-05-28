@@ -907,6 +907,8 @@ uint32_t PackSceneData(Scene* scene)
             packed.emissionColor = material->emissionColor;
             packed.emissionLuminance = material->emissionLuminance;
 
+            packed.scatteringRate = material->scatteringRate;
+
             if (Texture* texture = material->baseColorTexture; texture) {
                 packed.baseColorTextureIndex = texture->atlasImageIndex;
                 packed.baseColorTextureMinimum = texture->atlasPlacementMinimum;

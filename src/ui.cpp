@@ -106,6 +106,8 @@ static void MaterialInspector(UIContext* context, Material* material, bool refer
     c |= ImGui::DragFloat("Emission Luminance", &material->emissionLuminance, 1.0f, 0.0f, 1000.0f);
     c |= ImGui::ColorEdit3("Emission Color", &material->emissionColor[0]);
 
+    c |= ImGui::DragFloat("Scattering Rate", &material->scatteringRate, 0.001f, 0.0001f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+
     if (c) scene.dirtyFlags |= SCENE_DIRTY_MATERIALS;
 
     ImGui::PopID();

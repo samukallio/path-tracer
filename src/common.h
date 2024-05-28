@@ -157,6 +157,7 @@ struct alignas(16) PackedMaterial
     float                       specularRoughnessAnisotropy;
     float                       specularIOR;
     float                       transmissionDepth;
+    float                       scatteringRate;
 
     uint32_t                    baseColorTextureIndex;
     uint32_t                    emissionColorTextureIndex;
