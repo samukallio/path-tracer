@@ -535,14 +535,15 @@ vec4 Trace(Ray ray)
         // Metal base.
         else if (Random0To1() < material.baseMetalness) {
             // Sample a microsurface normal.
-            vec3 normal = SampleNormalGGX(material.specularRoughnessAlpha.x, Random0To1(), Random0To1());
+            vec3 normal = SampleVisibleNormalGGX(outgoing, material.specularRoughnessAlpha, Random0To1(), Random0To1());
 
             // Compute cosine between microsurface normal and outgoing direction.
             // If the outgoing direction is from the backside of the microsurface,
             // then visibility is 0 and we can terminate.
             float cosine = dot(normal, outgoing);
+
             if (cosine * outgoing.z <= 0)
-                break;
+                return vec4(1,0,0,1);
 
             // Compute incoming direction.
             // If the incoming direction is from the backside of the microsurface,
@@ -551,19 +552,19 @@ vec4 Trace(Ray ray)
             if (cosine * incoming.z <= 0)
                 break;
 
-            // Compute shadowing-masking term.
-            float visibility = SmithG(incoming, outgoing, material.specularRoughnessAlpha.x);
+            // Compute shadowing term.
+            float shadowing = SmithG1(incoming, material.specularRoughnessAlpha);
 
             // Compute Fresnel term.
             vec3 f0 = material.baseWeight * material.baseColor;
             vec3 fresnel = material.specularWeight * SchlickFresnelMetalWithTint(f0, material.specularColor, cosine);
 
-            filterColor *= fresnel * visibility * abs(cosine / (outgoing.z * normal.z));
+            filterColor *= fresnel * shadowing;
         }
         // Translucent dielectric base.
         else if (Random0To1() < hit.material.transmissionWeight) {
             // Sample microsurface normal (in normal/tangent space).
-            vec3 normal = SampleNormalGGX(material.specularRoughnessAlpha.x, Random0To1(), Random0To1());
+            vec3 normal = SampleVisibleNormalGGX(outgoing, material.specularRoughnessAlpha, Random0To1(), Random0To1());
 
             // 
             float relativeIOR;
@@ -610,14 +611,14 @@ vec4 Trace(Ray ray)
             if (incomingCosine * incoming.z <= 0)
                 break;
 
-            float visibility = SmithG(incoming, outgoing, material.specularRoughnessAlpha.x);
+            float shadowing = SmithG1(incoming, material.specularRoughnessAlpha);
 
-            filterColor *= abs(outgoingCosine) * visibility / abs(outgoing.z * normal.z);
+            filterColor *= shadowing;
         }
         // Glossy-diffuse dielectric base.
         else {
             // Sample a microsurface normal.
-            vec3 specularNormal = SampleNormalGGX(material.specularRoughnessAlpha.x, Random0To1(), Random0To1());
+            vec3 specularNormal = SampleVisibleNormalGGX(outgoing, material.specularRoughnessAlpha, Random0To1(), Random0To1());
 
             // Compute cosine between microsurface normal and outgoing direction.
             // If the outgoing direction is from the backside of the microsurface,
@@ -650,9 +651,9 @@ vec4 Trace(Ray ray)
                     break;
 
                 // Compute shadowing-masking term.
-                float visibility = SmithG(incoming, outgoing, material.specularRoughnessAlpha.x);
+                float shadowing = SmithG1(incoming, material.specularRoughnessAlpha);
 
-                filterColor *= visibility * abs(specularCosine / (outgoing.z * specularNormal.z));
+                filterColor *= shadowing;
             }
             else {
                 incoming = normalize(RandomDirection() + vec3(0, 0, 1));

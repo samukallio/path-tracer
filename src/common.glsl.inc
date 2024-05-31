@@ -214,14 +214,31 @@ void ComputeTangentVectors(vec3 normal, out vec3 tangentX, out vec3 tangentY)
 }
 
 // Sample a microsurface normal from the GGX distribution.
-vec3 SampleNormalGGX(float alpha, float xi0, float xi1)
+vec3 SampleVisibleNormalGGX(vec3 omega, vec2 alpha, float xi0, float xi1)
 {
-    float theta = atan(alpha * sqrt(xi0) / (1 - sqrt(xi0)));
+    vec3 vz = normalize(vec3(
+        alpha.x * omega.x,
+        alpha.y * omega.y,
+        1));
+
+    float lensq = dot(vz.xy, vz.xy);
+    vec3 vx = lensq > 0 ? vec3(-vz.y, vz.x, 0) / sqrt(lensq) : vec3(1, 0, 0);
+    vec3 vy = cross(vz, vx);
+
+    float r = sqrt(xi0);
     float phi = TAU * xi1;
-    return vec3(
-        sin(theta) * cos(phi),
-        sin(theta) * sin(phi),
-        cos(theta));
+    float s = 0.5 * (1.0 + vz.z);
+
+    float tx = r * cos(phi);
+    float ty = (1.0 - s) * sqrt(1.0 - tx * tx) + s * r * sin(phi);
+    float tz = sqrt(max(0.0, 1.0 - tx * tx - ty * ty));
+
+    vec3 normal = tx * vx + ty * vy + tz * vz;
+
+    return normalize(vec3(
+        alpha.x * normal.x,
+        alpha.y * normal.y,
+        max(0.0, normal.z)));
 }
 
 float SchlickFresnelDielectric(float relativeIOR, float cosTheta)
@@ -249,21 +266,19 @@ vec3 SchlickFresnelMetalWithTint(vec3 f0, vec3 f82tint, float cosTheta)
     return base - offset;
 }
 
-// One half of the Smith masking-shadowing function.
-float SmithG1(vec3 omega, float alpha)
+// One half of the uncorrelated Smith shadowing-masking function for the
+// anisotropic GGX distribution of normals as presented in the paper
+// "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"
+// by Eric Heitz.
+float SmithG1(vec3 omega, vec2 alpha)
 {
+    vec2 alphaSq = alpha * alpha;
+    float cosPhiSq = omega.x * omega.x;
+    float sinPhiSq = omega.y * omega.y;
     float cosThetaSq = omega.z * omega.z;
     float tanThetaSq = (1 - cosThetaSq) / cosThetaSq;
-    //float cosPhiSq = omega.x * omega.x;
-    //float sinPhiSq = omega.y * omega.y;
-    //float alphaSq = (cosPhiSq * alphaSq0.x + sinPhiSq * alphaSq0.y) / (cosPhiSq + sinPhiSq);
-    float alphaSq = alpha * alpha;
-    return 2.0 / (1.0 + sqrt(1.0 + alphaSq * tanThetaSq));
-}
-
-float SmithG(vec3 omegaIn, vec3 omegaOut, float alpha)
-{
-    return SmithG1(omegaIn, alpha) * SmithG1(omegaOut, alpha);
+    float orientedAlphaSq = (cosPhiSq * alphaSq.x + sinPhiSq * alphaSq.y) / (cosPhiSq + sinPhiSq);
+    return 2.0 / (1.0 + sqrt(1.0 + orientedAlphaSq * tanThetaSq));
 }
 
 /* --- Random -------------------------------------------------------------- */

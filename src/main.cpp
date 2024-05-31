@@ -497,7 +497,7 @@ int main()
     //scene.root.children.push_back(cube);
 
     PackSceneData(&scene);
-    LoadSkybox(&scene, "../scene/AmbienceExposure4k.hdr");
+    LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
 
     InitializeImGui();
 
