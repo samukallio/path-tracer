@@ -393,6 +393,42 @@ Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* opti
     if (!tinyobj::LoadObj(&attrib, &shapes, &fileMaterials, &warn, &err, path, options->directoryPath.c_str()))
         return nullptr;
 
+    if (attrib.normals.empty()) {
+        auto& normals = attrib.normals;
+
+        normals.resize(attrib.vertices.size());
+
+        for (tinyobj::shape_t& shape : shapes) {
+            size_t n = shape.mesh.indices.size();
+            for (size_t i = 0; i < n; i += 3) {
+                glm::vec3 vertices[3];
+                for (size_t j = 0; j < 3; j++) {
+                    tinyobj::index_t const& index = shape.mesh.indices[i+j];
+                    vertices[j] = glm::vec3(
+                        attrib.vertices[3*index.vertex_index+0],
+                        attrib.vertices[3*index.vertex_index+1],
+                        attrib.vertices[3*index.vertex_index+2]);
+                }
+                glm::vec3 normal = glm::normalize(glm::cross(vertices[1] - vertices[0], vertices[2] - vertices[0]));
+                for (size_t j = 0; j < 3; j++) {
+                    tinyobj::index_t& index = shape.mesh.indices[i+j];
+                    index.normal_index = index.vertex_index;
+                    normals[3*index.normal_index+0] += normal.x;
+                    normals[3*index.normal_index+1] += normal.y;
+                    normals[3*index.normal_index+2] += normal.z;
+                }
+            }
+        }
+
+        size_t n = normals.size();
+        for (size_t i = 0; i < n; i += 3) {
+            float length = glm::length(glm::vec3(normals[i+0], normals[i+1], normals[i+2]));
+            normals[i+0] /= length;
+            normals[i+1] /= length;
+            normals[i+2] /= length;
+        }
+    }
+
     // Map from in-file texture name to scene texture.
     std::unordered_map<std::string, Texture*> textureMap;
     std::vector<Material*> materials;
