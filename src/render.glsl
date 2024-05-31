@@ -519,14 +519,23 @@ vec4 Trace(Ray ray)
 
         PackedMaterial material = hit.material;
 
+        float relativeIOR = medium.specularIOR / material.specularIOR;
+
+        // Incoming ray direction in normal/tangent space.
+        vec3 incoming;
+
         // Outgoing ray direction in normal/tangent space.
         vec3 outgoing = -vec3(
             dot(ray.vector, hit.tangentX),
             dot(ray.vector, hit.tangentY),
             dot(ray.vector, hit.normal));
 
-        // Incoming ray direction in normal/tangent space.
-        vec3 incoming;
+        bool backface = outgoing.z < 0;
+
+        if (backface) {
+            outgoing.z = -outgoing.z;
+            relativeIOR = 1.0 / relativeIOR;
+        }
 
         if (Random0To1() > material.opacity || medium.objectPriority > hit.objectPriority) {
             // Pass through.
@@ -538,26 +547,20 @@ vec4 Trace(Ray ray)
             vec3 normal = SampleVisibleNormalGGX(outgoing, material.specularRoughnessAlpha, Random0To1(), Random0To1());
 
             // Compute cosine between microsurface normal and outgoing direction.
-            // If the outgoing direction is from the backside of the microsurface,
-            // then visibility is 0 and we can terminate.
             float cosine = dot(normal, outgoing);
 
-            if (cosine * outgoing.z <= 0)
-                return vec4(1,0,0,1);
-
-            // Compute incoming direction.
-            // If the incoming direction is from the backside of the microsurface,
-            // then visibility is 0 and we can terminate.
+            // Compute incoming direction.  If the incoming ray appears to be
+            // coming from within the macrosurface, then it is shadowed, and we
+            // terminate.
             incoming = 2 * cosine * normal - outgoing;
-            if (cosine * incoming.z <= 0)
-                break;
-
-            // Compute shadowing term.
-            float shadowing = SmithG1(incoming, material.specularRoughnessAlpha);
+            if (incoming.z <= 0) break;
 
             // Compute Fresnel term.
             vec3 f0 = material.baseWeight * material.baseColor;
             vec3 fresnel = material.specularWeight * SchlickFresnelMetalWithTint(f0, material.specularColor, cosine);
+
+            // Compute shadowing term.
+            float shadowing = SmithG1(incoming, material.specularRoughnessAlpha);
 
             filterColor *= fresnel * shadowing;
         }
@@ -566,21 +569,7 @@ vec4 Trace(Ray ray)
             // Sample microsurface normal (in normal/tangent space).
             vec3 normal = SampleVisibleNormalGGX(outgoing, material.specularRoughnessAlpha, Random0To1(), Random0To1());
 
-            // 
-            float relativeIOR;
-            if (outgoing.z > 0) {
-                // Ray is refracted out of, or reflected by the material.
-                relativeIOR = medium.specularIOR / material.specularIOR;
-            }
-            else {
-                // Ray is refracted into, or reflected within the material.
-                relativeIOR = material.specularIOR / medium.specularIOR;
-            }
-
             float outgoingCosine = dot(normal, outgoing);
-            if (outgoingCosine * outgoing.z <= 0)
-                break;
-
             float refractedCosineSquared = 1 - relativeIOR * relativeIOR * (1 - outgoingCosine * outgoingCosine);
 
             // Compute reflectance (Fresnel).
@@ -597,19 +586,19 @@ vec4 Trace(Ray ray)
             float incomingCosine;
             if (Random0To1() < reflectance) {
                 // Reflection.
-                incoming = 2 * outgoingCosine * normal - outgoing;
                 incomingCosine = outgoingCosine;
+                incoming = 2 * outgoingCosine * normal - outgoing;
             }
             else {
                 // Refraction.
-                float refractedCosine = sqrt(refractedCosineSquared);
-                if (outgoingCosine >= 0) refractedCosine = -refractedCosine;
-                incoming = (relativeIOR * outgoingCosine + refractedCosine) * normal - relativeIOR * outgoing;
-                incomingCosine = refractedCosine;
+                incomingCosine = -sqrt(refractedCosineSquared);
+                incoming = (relativeIOR * outgoingCosine + incomingCosine) * normal - relativeIOR * outgoing;
             }
 
-            if (incomingCosine * incoming.z <= 0)
-                break;
+            // If the incoming direction is in the wrong hemisphere (depending on
+            // whether we have a reflection or a refraction), then it is shadowed,
+            // and we terminate.
+            if (incomingCosine * incoming.z <= 0) break;
 
             float shadowing = SmithG1(incoming, material.specularRoughnessAlpha);
 
@@ -621,43 +610,24 @@ vec4 Trace(Ray ray)
             vec3 specularNormal = SampleVisibleNormalGGX(outgoing, material.specularRoughnessAlpha, Random0To1(), Random0To1());
 
             // Compute cosine between microsurface normal and outgoing direction.
-            // If the outgoing direction is from the backside of the microsurface,
-            // then visibility is 0 and we can terminate.
             float specularCosine = dot(specularNormal, outgoing);
-            if (specularCosine * outgoing.z <= 0)
-                break;
-
-            //
-            float relativeIOR;
-            if (outgoing.z > 0) {
-                // Ray is refracted out of, or reflected by the material.
-                relativeIOR = medium.specularIOR / material.specularIOR;
-            }
-            else {
-                // Ray is refracted into, or reflected within the material.
-                relativeIOR = material.specularIOR / medium.specularIOR;
-            }
-
             float specularProbability = SchlickFresnelDielectric(relativeIOR, specularCosine);
 
             if (Random0To1() < specularProbability) {
                 // Specular reflection.
 
-                // Compute incoming direction.
-                // If the incoming direction is from the backside of the microsurface,
-                // then visibility is 0 and we can terminate.
+                // Compute incoming direction.  If the incoming ray appears to be
+                // coming from within the macrosurface, then it is shadowed, and we
+                // terminate.
                 incoming = 2 * specularCosine * specularNormal - outgoing;
-                if (specularCosine * incoming.z <= 0)
-                    break;
+                if (incoming.z <= 0) break;
 
-                // Compute shadowing-masking term.
                 float shadowing = SmithG1(incoming, material.specularRoughnessAlpha);
-
                 filterColor *= shadowing;
             }
             else {
+                // Diffuse reflection.
                 incoming = normalize(RandomDirection() + vec3(0, 0, 1));
-
                 filterColor *= material.baseColor;
             }
         }
@@ -665,8 +635,18 @@ vec4 Trace(Ray ray)
         // If the incoming and outgoing directions are within opposite hemispheres,
         // then the ray is crossing the material interface boundary.  We need to
         // perform bookkeeping to determine the current medium.
-        if (incoming.z * outgoing.z < 0) {
-            if (outgoing.z > 0) {
+        if (incoming.z < 0) {
+            if (backface) {
+                // We are tracing out of the material, so remove the medium
+                // entry associated with the object.
+                for (int i = 0; i < MAX_MEDIUM_COUNT; i++) {
+                    if (mediums[i].objectIndex == hit.objectIndex) {
+                        mediums[i].objectIndex = OBJECT_INDEX_NONE;
+                        break;
+                    }
+                }
+            }
+            else {
                 // We are tracing into the material, so add a medium entry
                 // associated with the object.
                 for (int i = 0; i < MAX_MEDIUM_COUNT; i++) {
@@ -675,16 +655,6 @@ vec4 Trace(Ray ray)
                         mediums[i].objectPriority = hit.objectPriority;
                         mediums[i].specularIOR = hit.material.specularIOR;
                         mediums[i].scatteringRate = hit.material.scatteringRate;
-                        break;
-                    }
-                }
-            }
-            else {
-                // We are tracing out of the material, so remove the medium
-                // entry associated with the object.
-                for (int i = 0; i < MAX_MEDIUM_COUNT; i++) {
-                    if (mediums[i].objectIndex == hit.objectIndex) {
-                        mediums[i].objectIndex = OBJECT_INDEX_NONE;
                         break;
                     }
                 }
@@ -700,6 +670,10 @@ vec4 Trace(Ray ray)
                     continue;
                 medium = mediums[i];
             }
+        }
+
+        if (backface) {
+            incoming.z = -incoming.z;
         }
 
         ray.vector = incoming.x * hit.tangentX

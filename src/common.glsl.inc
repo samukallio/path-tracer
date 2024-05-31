@@ -213,7 +213,9 @@ void ComputeTangentVectors(vec3 normal, out vec3 tangentX, out vec3 tangentY)
     tangentY = cross(tangentX, normal);
 }
 
-// Sample a microsurface normal from the GGX distribution.
+// Sample a normal from the GGX distribution that is visible from the given
+// direction according to the procedure outlined in the paper "Sampling the
+// GGX Distribution of Visible Normals" by Eric Heitz.
 vec3 SampleVisibleNormalGGX(vec3 omega, vec2 alpha, float xi0, float xi1)
 {
     vec3 vz = normalize(vec3(
