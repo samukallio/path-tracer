@@ -948,6 +948,8 @@ uint32_t PackSceneData(Scene* scene)
         scene->meshFacePack.reserve(faceCount);
         scene->meshNodePack.clear();
         scene->meshNodePack.reserve(nodeCount);
+        scene->meshFaceExtraPack.clear();
+        scene->meshFaceExtraPack.reserve(nodeCount);
 
         for (Mesh* mesh : scene->meshes) {
             uint32_t faceIndexBase = static_cast<uint32_t>(scene->meshFacePack.size());
