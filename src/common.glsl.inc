@@ -219,7 +219,7 @@ vec3 SampleVisibleNormalGGX(vec3 omega, vec2 alpha, float xi0, float xi1)
     vec3 vz = normalize(vec3(
         alpha.x * omega.x,
         alpha.y * omega.y,
-        1));
+        omega.z));
 
     float lensq = dot(vz.xy, vz.xy);
     vec3 vx = lensq > 0 ? vec3(-vz.y, vz.x, 0) / sqrt(lensq) : vec3(1, 0, 0);
