@@ -519,6 +519,11 @@ vec4 Trace(Ray ray)
 
         PackedMaterial material = hit.material;
 
+        if (Random0To1() > material.opacity || medium.objectPriority > hit.objectPriority) {
+            ray.origin = hit.position + 1e-3 * ray.vector;
+            continue;
+        }
+
         float relativeIOR = medium.specularIOR / material.specularIOR;
 
         // Incoming ray direction in normal/tangent space.
@@ -537,27 +542,22 @@ vec4 Trace(Ray ray)
             relativeIOR = 1.0 / relativeIOR;
         }
 
-        if (Random0To1() > material.opacity || medium.objectPriority > hit.objectPriority) {
-            // Pass through.
-            incoming = -outgoing;
-        }
+        // Sample a microsurface normal.
+        vec3 specularNormal = SampleVisibleNormalGGX(outgoing, material.specularRoughnessAlpha, Random0To1(), Random0To1());
+        // Compute cosine between microsurface normal and outgoing direction.
+        float specularCosine = dot(specularNormal, outgoing);
+
         // Metal base.
-        else if (Random0To1() < material.baseMetalness) {
-            // Sample a microsurface normal.
-            vec3 normal = SampleVisibleNormalGGX(outgoing, material.specularRoughnessAlpha, Random0To1(), Random0To1());
-
-            // Compute cosine between microsurface normal and outgoing direction.
-            float cosine = dot(normal, outgoing);
-
+        if (Random0To1() < material.baseMetalness) {
             // Compute incoming direction.  If the incoming ray appears to be
             // coming from within the macrosurface, then it is shadowed, and we
             // terminate.
-            incoming = 2 * cosine * normal - outgoing;
+            incoming = 2 * specularCosine * specularNormal - outgoing;
             if (incoming.z <= 0) break;
 
             // Compute Fresnel term.
             vec3 f0 = material.baseWeight * material.baseColor;
-            vec3 fresnel = material.specularWeight * SchlickFresnelMetalWithTint(f0, material.specularColor, cosine);
+            vec3 fresnel = material.specularWeight * SchlickFresnelMetalWithTint(f0, material.specularColor, specularCosine);
 
             // Compute shadowing term.
             float shadowing = SmithG1(incoming, material.specularRoughnessAlpha);
@@ -566,11 +566,7 @@ vec4 Trace(Ray ray)
         }
         // Translucent dielectric base.
         else if (Random0To1() < hit.material.transmissionWeight) {
-            // Sample microsurface normal (in normal/tangent space).
-            vec3 normal = SampleVisibleNormalGGX(outgoing, material.specularRoughnessAlpha, Random0To1(), Random0To1());
-
-            float outgoingCosine = dot(normal, outgoing);
-            float refractedCosineSquared = 1 - relativeIOR * relativeIOR * (1 - outgoingCosine * outgoingCosine);
+            float refractedCosineSquared = 1 - relativeIOR * relativeIOR * (1 - specularCosine * specularCosine);
 
             // Compute reflectance (Fresnel).
             float reflectance;
@@ -579,20 +575,20 @@ vec4 Trace(Ray ray)
                 reflectance = 1.0;
             }
             else {
-                reflectance = SchlickFresnelDielectric(relativeIOR, abs(outgoingCosine));
+                reflectance = SchlickFresnelDielectric(relativeIOR, abs(specularCosine));
             }
 
             // Determine incoming direction.
             float incomingCosine;
             if (Random0To1() < reflectance) {
                 // Reflection.
-                incomingCosine = outgoingCosine;
-                incoming = 2 * outgoingCosine * normal - outgoing;
+                incomingCosine = specularCosine;
+                incoming = 2 * specularCosine * specularNormal - outgoing;
             }
             else {
                 // Refraction.
                 incomingCosine = -sqrt(refractedCosineSquared);
-                incoming = (relativeIOR * outgoingCosine + incomingCosine) * normal - relativeIOR * outgoing;
+                incoming = (relativeIOR * specularCosine + incomingCosine) * specularNormal - relativeIOR * outgoing;
             }
 
             // If the incoming direction is in the wrong hemisphere (depending on
@@ -606,11 +602,6 @@ vec4 Trace(Ray ray)
         }
         // Glossy-diffuse dielectric base.
         else {
-            // Sample a microsurface normal.
-            vec3 specularNormal = SampleVisibleNormalGGX(outgoing, material.specularRoughnessAlpha, Random0To1(), Random0To1());
-
-            // Compute cosine between microsurface normal and outgoing direction.
-            float specularCosine = dot(specularNormal, outgoing);
             float specularProbability = SchlickFresnelDielectric(relativeIOR, specularCosine);
 
             if (Random0To1() < specularProbability) {
@@ -628,7 +619,15 @@ vec4 Trace(Ray ray)
             else {
                 // Diffuse reflection.
                 incoming = normalize(RandomDirection() + vec3(0, 0, 1));
-                filterColor *= material.baseColor;
+
+                float s = dot(incoming, outgoing) - incoming.z * outgoing.z;
+                float t = s > 0 ? max(incoming.z, outgoing.z) : 1.0;
+
+                float ssq = material.baseDiffuseRoughness * material.baseDiffuseRoughness;
+                vec3 A = 1 - 0.5 * ssq / (ssq + 0.33) - 0.17 * material.baseColor * ssq / (ssq + 0.13);
+                float B = 0.45 * ssq / (ssq + 0.09);
+
+                filterColor *= material.baseColor * (A + B * s / t);
             }
         }
 

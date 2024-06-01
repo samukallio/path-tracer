@@ -92,6 +92,7 @@ static void MaterialInspector(UIContext* context, Material* material, bool refer
     c |= ResourceSelectorDropDown("Base Color Texture", scene.textures, &material->baseColorTexture);
     c |= ImGui::Checkbox("Base Color Texture Filter Nearest", &material->baseColorTextureFilterNearest);
     c |= ImGui::DragFloat("Base Metalness", &material->baseMetalness, 0.01f, 0.0f, 1.0f);
+    c |= ImGui::DragFloat("Base Diffuse Roughness", &material->baseDiffuseRoughness, 0.01f, 0.0f, 1.0f);
 
     c |= ImGui::DragFloat("Specular Weight", &material->specularWeight, 0.01f, 0.0f, 1.0f);
     c |= ImGui::ColorEdit3("Specular Color", &material->specularColor[0]);
