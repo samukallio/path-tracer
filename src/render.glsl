@@ -627,7 +627,7 @@ vec4 Trace(Ray ray)
                 float t = s > 0 ? max(incoming.z, outgoing.z) : 1.0;
 
                 float ssq = material.baseDiffuseRoughness * material.baseDiffuseRoughness;
-                vec3 A = 1 - 0.5 * ssq / (ssq + 0.33) - 0.17 * material.baseColor * ssq / (ssq + 0.13);
+                vec3 A = 1 - 0.5 * ssq / (ssq + 0.33) + 0.17 * material.baseColor * ssq / (ssq + 0.13);
                 float B = 0.45 * ssq / (ssq + 0.09);
 
                 filterColor *= material.baseColor * (A + B * s / t);
