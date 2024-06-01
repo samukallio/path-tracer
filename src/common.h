@@ -253,6 +253,7 @@ struct FrameUniformBuffer
     glm::aligned_mat3           skyboxDistributionFrame     = {};
     float                       skyboxDistributionConcentration = 1.0f;
     float                       skyboxBrightness            = 1.0f;
+    uint32_t                    skyboxWhiteFurnace          = 0;
 };
 
 struct Transform

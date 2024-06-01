@@ -321,6 +321,7 @@ static void EntityInspector(UIContext* context, Entity* entity)
             auto root = static_cast<Root*>(entity);
             c |= ImGui::DragFloat("Scattering Rate", &root->scatterRate, 0.001f, 0.00001f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
             c |= ImGui::DragFloat("Skybox Brightness", &root->skyboxBrightness, 0.01f, 0.0f, 1.0f);
+            c |= ImGui::Checkbox("Skybox White Furnace", &root->skyboxWhiteFurnace);
             break;
         }
         case ENTITY_TYPE_CAMERA: {

@@ -105,6 +105,7 @@ struct Root : Entity
 {
     float                           scatterRate             = 0.0f;
     float                           skyboxBrightness        = 1.0f;
+    bool                            skyboxWhiteFurnace      = false;
 
     Root() { type = ENTITY_TYPE_ROOT; }
 };

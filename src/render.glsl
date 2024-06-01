@@ -120,6 +120,9 @@ vec3 SampleSkybox(Ray ray)
 //    float z = (1 + dot(ray.vector, frame[2])) / 2.0;
 //    return vec3(x, y, z);
 
+    if (skyboxWhiteFurnace != 0)
+        return vec3(1, 1, 1);
+
     float phi = atan(ray.vector.y, ray.vector.x);
     float theta = asin(ray.vector.z);
 

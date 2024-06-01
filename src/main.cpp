@@ -139,6 +139,7 @@ void Frame()
         .skyboxDistributionFrame = app.scene.skyboxDistributionFrame,
         .skyboxDistributionConcentration = app.scene.skyboxDistributionConcentration,
         .skyboxBrightness = app.scene.root.skyboxBrightness,
+        .skyboxWhiteFurnace = app.scene.root.skyboxWhiteFurnace,
     };
 
     if (!app.ui.camera) {
@@ -452,6 +453,14 @@ int main()
     scene.root.name = "Root";
 
     CreateBasicResources(&scene);
+
+    {
+        LoadModelOptions options;
+        options.name = "lucy.obj";
+        options.directoryPath = "../scene";
+        Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/lucy.obj", &options);
+        CreateEntity(&scene, prefab); 
+    }
 
     {
         LoadModelOptions options;
