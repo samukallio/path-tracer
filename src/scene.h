@@ -135,6 +135,7 @@ struct Camera : Entity
     uint32_t                        renderMeshComplexityScale = 32;
     uint32_t                        renderSceneComplexityScale = 32;
     uint32_t                        renderSampleBlockSizeLog2 = 0;
+    float                           renderTerminationProbability = 0.0f;
 
     float                           brightness              = 1.0f;
     ToneMappingMode                 toneMappingMode         = TONE_MAPPING_MODE_CLAMP;

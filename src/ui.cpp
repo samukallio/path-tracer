@@ -195,6 +195,7 @@ static void CameraInspector(UIContext* context, Camera* camera)
     if (camera->renderMode == RENDER_MODE_PATH_TRACE) {
         int bounceLimit = static_cast<int>(camera->renderBounceLimit);
         c |= ImGui::InputInt("Bounce Limit", &bounceLimit);
+        c |= ImGui::DragFloat("Termination Probability", &camera->renderTerminationProbability, 0.001f, 0.0f, 1.0f);
         camera->renderBounceLimit = std::max(1, bounceLimit);
     }
 

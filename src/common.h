@@ -246,6 +246,7 @@ struct FrameUniformBuffer
     uint32_t                    renderFlags                 = 0;
     uint32_t                    renderSampleBlockSize       = 1;
     uint32_t                    renderBounceLimit           = 0;
+    float                       renderTerminationProbability = 0.0f;
     uint32_t                    renderMeshComplexityScale   = 32;
     uint32_t                    renderSceneComplexityScale  = 32;
     uint32_t                    highlightObjectIndex        = 0xFFFFFFFF;

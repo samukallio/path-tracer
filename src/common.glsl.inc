@@ -353,6 +353,7 @@ uniform FrameUniformBuffer
     uint            renderFlags;
     uint            renderSampleBlockSize;
     uint            renderBounceLimit;
+    float           renderTerminationProbability;
     uint            renderMeshComplexityScale;
     uint            renderSceneComplexityScale;
     uint            highlightObjectIndex;

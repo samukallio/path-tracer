@@ -695,6 +695,11 @@ vec4 Trace(Ray ray)
                    + incoming.z * hit.normal;
 
         ray.origin = hit.position + 1e-3 * ray.vector;
+
+        if (Random0To1() < renderTerminationProbability)
+            break;
+
+        filterColor /= 1.0 - renderTerminationProbability;
     }
 
     return vec4(outputColor.rgb, 1);
