@@ -591,7 +591,7 @@ vec4 Trace(Ray ray)
             }
             else {
                 float f0 = material.specularWeight * pow((1 - relativeIOR) / (1 + relativeIOR), 2);
-                reflectance = SchlickFresnelDielectric(f0, abs(specularCosine));
+                reflectance = SchlickFresnelDielectric(f0, specularCosine);
             }
 
             // Determine incoming direction.
