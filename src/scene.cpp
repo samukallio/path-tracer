@@ -186,7 +186,7 @@ Texture* CreateCheckerTexture(Scene* scene, char const* name, glm::vec4 const& c
     pixels[2] = ToSRGB(colorB);
     pixels[3] = ToSRGB(colorA);
 
-    auto texture = new Texture{
+    auto texture = new Texture {
         .name = name,
         .width = 2,
         .height = 2,
@@ -822,6 +822,12 @@ void PrintSceneNode(Scene* scene, uint16_t index, int depth)
     }
 }
 
+static uint32_t GetPackedTextureIndex(Texture* texture)
+{
+    if (!texture) return TEXTURE_INDEX_NONE;
+    return texture->packedTextureIndex;
+}
+
 uint32_t PackSceneData(Scene* scene)
 {
     uint32_t dirtyFlags = scene->dirtyFlags;
@@ -845,6 +851,7 @@ uint32_t PackSceneData(Scene* scene)
         }
 
         scene->images.clear();
+        scene->texturePack.clear();
 
         while (!rects.empty()) {
             stbrp_context context;
@@ -859,16 +866,22 @@ uint32_t PackSceneData(Scene* scene)
                 if (!rect.was_packed)
                     continue;
 
+
                 Texture* texture = scene->textures[rect.id];
                 assert(texture->width == rect.w);
                 assert(texture->height == rect.h);
 
-                texture->atlasImageIndex = imageIndex;
-                texture->atlasPlacementMinimum = {
+                texture->packedTextureIndex = static_cast<uint32_t>(scene->texturePack.size());
+
+                PackedTexture packed;
+
+                packed.flags = 0;
+                packed.atlasImageIndex = imageIndex;
+                packed.atlasPlacementMinimum = {
                     (rect.x + 0.5f) / float(ATLAS_WIDTH),
                     (rect.y + rect.h - 0.5f) / float(ATLAS_HEIGHT),
                 };
-                texture->atlasPlacementMaximum = {
+                packed.atlasPlacementMaximum = {
                     (rect.x + rect.w - 0.5f) / float(ATLAS_WIDTH),
                     (rect.y + 0.5f) / float(ATLAS_HEIGHT),
                 };
@@ -878,6 +891,11 @@ uint32_t PackSceneData(Scene* scene)
                     uint32_t* dst = pixels + (rect.y + y) * ATLAS_WIDTH + rect.x;
                     memcpy(dst, src, texture->width * sizeof(uint32_t));
                 }
+
+                if (texture->enableNearestFiltering)
+                    packed.flags |= TEXTURE_FLAG_FILTER_NEAREST;
+
+                scene->texturePack.push_back(packed);
             }
 
             auto atlas = Image {
@@ -911,15 +929,12 @@ uint32_t PackSceneData(Scene* scene)
                 .baseDiffuseRoughness = 1.0f,
                 .specularIOR = 1.5f,
                 .transmissionDepth = 0.0f,
-                .flags = 0
             };
             scene->materialPack.push_back(packed);
         }
 
         for (Material* material : scene->materials) {
             PackedMaterial packed;
-
-            packed.flags = 0;
 
             material->packedMaterialIndex = static_cast<uint32_t>(scene->materialPack.size());
 
@@ -955,14 +970,7 @@ uint32_t PackSceneData(Scene* scene)
 
             packed.scatteringRate = material->scatteringRate;
 
-            if (Texture* texture = material->baseColorTexture; texture) {
-                packed.baseColorTextureIndex = texture->atlasImageIndex;
-                packed.baseColorTextureMinimum = texture->atlasPlacementMinimum;
-                packed.baseColorTextureMaximum = texture->atlasPlacementMaximum;
-                packed.flags |= MATERIAL_FLAG_BASE_COLOR_TEXTURE;
-                if (material->baseColorTextureFilterNearest)
-                    packed.flags |= MATERIAL_FLAG_BASE_COLOR_TEXTURE_FILTER_NEAREST;
-            }
+            packed.baseColorTextureIndex = GetPackedTextureIndex(material->baseColorTexture);
 
             scene->materialPack.push_back(packed);
         }

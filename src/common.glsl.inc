@@ -4,6 +4,7 @@ const float PI          = 3.141592653f;
 const float TAU         = 6.283185306f;
 
 const uint OBJECT_INDEX_NONE                = 0xFFFFFFFF;
+const uint TEXTURE_INDEX_NONE               = 0xFFFFFFFF;
 
 const uint RENDER_MODE_PATH_TRACE           = 0;
 const uint RENDER_MODE_BASE_COLOR           = 1;
@@ -31,20 +32,22 @@ const uint OBJECT_TYPE_PLANE                = 1;
 const uint OBJECT_TYPE_SPHERE               = 2;
 const uint OBJECT_TYPE_CUBE                 = 3;
 
-const uint MATERIAL_FLAG_BASE_COLOR_TEXTURE                 = 1 << 0;
-const uint MATERIAL_FLAG_BASE_COLOR_TEXTURE_FILTER_NEAREST  = 1 << 1;
-const uint MATERIAL_FLAG_EMISSION_TEXTURE                   = 1 << 2;
-const uint MATERIAL_FLAG_EMISSION_TEXTURE_FILTER_NEAREST    = 1 << 3;
-const uint MATERIAL_FLAG_METALLIC_TEXTURE                   = 1 << 4;
-const uint MATERIAL_FLAG_METALLIC_TEXTURE_FILTER_NEAREST    = 1 << 5;
-const uint MATERIAL_FLAG_ROUGHNESS_TEXTURE                  = 1 << 6;
-const uint MATERIAL_FLAG_ROUGHNESS_TEXTURE_FILTER_NEAREST   = 1 << 7;
-
+const uint TEXTURE_FLAG_FILTER_NEAREST      = 1 << 0;
 
 struct PackedTransform
 {
     mat4            to;
     mat4            from;
+};
+
+struct PackedTexture
+{
+    vec2            atlasPlacementMinimum;
+    vec2            atlasPlacementMaximum;
+    uint            atlasImageIndex;
+    uint            flags;
+    uint            dummy1;
+    uint            dummy2;
 };
 
 struct PackedMaterial
@@ -71,11 +74,6 @@ struct PackedMaterial
 
     uint            baseColorTextureIndex;
     uint            emissionColorTextureIndex;
-
-    vec2            baseColorTextureMinimum;
-    vec2            baseColorTextureMaximum;
-
-    uint            flags;
 };
 
 struct PackedSceneObject

@@ -59,8 +59,13 @@ static void TextureInspector(UIContext* context, Texture* texture)
 
     ImGui::SeparatorText("Texture");
 
+    bool c = false;
+
     ImGui::InputText("Name", &texture->name);
     ImGui::LabelText("Size", "%u x %u", texture->width, texture->height);
+    c |= ImGui::Checkbox("Nearest Filtering", &texture->enableNearestFiltering);
+
+    if (c) scene.dirtyFlags |= SCENE_DIRTY_TEXTURES;
 
     ImGui::PopID();
 }
@@ -90,7 +95,6 @@ static void MaterialInspector(UIContext* context, Material* material, bool refer
     c |= ImGui::DragFloat("Base Weight", &material->baseWeight, 0.01f, 0.0f, 1.0f);
     c |= ImGui::ColorEdit3("Base Color", &material->baseColor[0]);
     c |= ResourceSelectorDropDown("Base Color Texture", scene.textures, &material->baseColorTexture);
-    c |= ImGui::Checkbox("Base Color Texture Filter Nearest", &material->baseColorTextureFilterNearest);
     c |= ImGui::DragFloat("Base Metalness", &material->baseMetalness, 0.01f, 0.0f, 1.0f);
     c |= ImGui::DragFloat("Base Diffuse Roughness", &material->baseDiffuseRoughness, 0.01f, 0.0f, 1.0f);
 

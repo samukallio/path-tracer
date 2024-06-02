@@ -40,37 +40,43 @@ uniform sampler2DArray textureArrayNearest;
 layout(binding = 5)
 uniform sampler2DArray textureArrayLinear;
 
-layout(binding = 6, std430)
+layout(binding = 6)
+readonly buffer TextureBuffer
+{
+    PackedTexture textures[];
+};
+
+layout(binding = 7, std430)
 readonly buffer MaterialBuffer
 {
     PackedMaterial materials[];
 };
 
-layout(binding = 7, std430)
+layout(binding = 8, std430)
 readonly buffer ObjectBuffer
 {
     PackedSceneObject objects[];
 };
 
-layout(binding = 8, std430)
+layout(binding = 9, std430)
 readonly buffer SceneNodeBuffer
 {
     PackedSceneNode sceneNodes[];
 };
 
-layout(binding = 9, std430)
+layout(binding = 10, std430)
 readonly buffer MeshFaceBuffer
 {
     PackedMeshFace meshFaces[];
 };
 
-layout(binding = 10, std430)
+layout(binding = 11, std430)
 readonly buffer MeshFaceExtraBuffer
 {
     PackedMeshFaceExtra meshFaceExtras[];
 };
 
-layout(binding = 11, std430)
+layout(binding = 12, std430)
 readonly buffer MeshNodeBuffer
 {
     PackedMeshNode meshNodes[];
@@ -132,6 +138,29 @@ vec3 SampleSkybox(Ray ray)
     vec3 color = textureLod(skyboxImage, vec2(u, v), 0).rgb;
 
     return color * skyboxBrightness;
+}
+
+vec4 SampleTexture(uint index, vec2 uv)
+{
+    PackedTexture _texture = textures[index];
+
+    float u = mix(
+        _texture.atlasPlacementMinimum.x,
+        _texture.atlasPlacementMaximum.x,
+        fract(uv.x));
+
+    float v = mix(
+        _texture.atlasPlacementMinimum.y,
+        _texture.atlasPlacementMaximum.y,
+        fract(uv.y));
+
+    vec3 uvw = vec3(u, v, _texture.atlasImageIndex);
+
+    vec4 value;
+    if ((_texture.flags & TEXTURE_FLAG_FILTER_NEAREST) != 0)
+        return textureLod(textureArrayNearest, uvw, 0);
+    else
+        return textureLod(textureArrayLinear, uvw, 0);
 }
 
 float IntersectBoundingBox(Ray ray, float reach, vec3 minimum, vec3 maximum)
@@ -444,25 +473,8 @@ void ResolveHit(Ray ray, inout Hit hit)
         tangentY = cross(normal, tangentX);
     }
 
-    if ((hit.material.flags & MATERIAL_FLAG_BASE_COLOR_TEXTURE) != 0) {
-        float u = mix(
-            hit.material.baseColorTextureMinimum.x,
-            hit.material.baseColorTextureMaximum.x,
-            fract(hit.uv.x));
-
-        float v = mix(
-            hit.material.baseColorTextureMinimum.y,
-            hit.material.baseColorTextureMaximum.y,
-            fract(hit.uv.y));
-
-        vec3 uvw = vec3(u, v, hit.material.baseColorTextureIndex);
-
-        vec4 value;
-        if ((hit.material.flags & MATERIAL_FLAG_BASE_COLOR_TEXTURE_FILTER_NEAREST) != 0)
-            value = textureLod(textureArrayNearest, uvw, 0);
-        else
-            value = textureLod(textureArrayLinear, uvw, 0);
-
+    if (hit.material.baseColorTextureIndex != TEXTURE_INDEX_NONE) {
+        vec4 value = SampleTexture(hit.material.baseColorTextureIndex, hit.uv);
         hit.material.baseColor *= value.rgb;
         hit.material.opacity *= value.a;
     }

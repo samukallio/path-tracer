@@ -4,14 +4,14 @@
 
 struct Texture
 {
-    std::string                     name;
-    uint32_t                        width;
-    uint32_t                        height;
-    uint32_t const*                 pixels;
+    std::string                     name                    = "New Texture";
+    uint32_t                        width                   = 0;
+    uint32_t                        height                  = 0;
+    uint32_t const*                 pixels                  = nullptr;
 
-    uint32_t                        atlasImageIndex;
-    glm::vec2                       atlasPlacementMinimum;
-    glm::vec2                       atlasPlacementMaximum;
+    bool                            enableNearestFiltering  = false;
+
+    uint32_t                        packedTextureIndex      = 0;
 };
 
 struct Material
@@ -24,7 +24,6 @@ struct Material
     float                           baseWeight              = 1.0f;
     glm::vec3                       baseColor               = glm::vec3(1, 1, 1);
     Texture*                        baseColorTexture        = nullptr;
-    bool                            baseColorTextureFilterNearest = false;
     float                           baseMetalness           = 0.0f;
     float                           baseDiffuseRoughness    = 0.0f;
 
@@ -43,7 +42,6 @@ struct Material
     float                           emissionLuminance       = 0.0f;
     glm::vec3                       emissionColor           = glm::vec3(0, 0, 0);
     Texture*                        emissionColorTexture    = nullptr;
-    bool                            emissionColorTextureFilterNearest = false;
 
     float                           scatteringRate          = 0.0f;
 
@@ -193,6 +191,7 @@ struct Scene
     std::vector<Prefab*>            prefabs;
 
     std::vector<Image>              images;
+    std::vector<PackedTexture>      texturePack;
     std::vector<PackedSceneObject>  sceneObjectPack;
     std::vector<PackedSceneNode>    sceneNodePack;
     std::vector<PackedMaterial>     materialPack;

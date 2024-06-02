@@ -456,9 +456,9 @@ int main()
 
     {
         LoadModelOptions options;
-        options.name = "lucy.obj";
+        options.name = "xyzrgb_dragon.obj";
         options.directoryPath = "../scene";
-        Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/lucy.obj", &options);
+        Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/xyzrgb_dragon.obj", &options);
         CreateEntity(&scene, prefab); 
     }
 
@@ -497,7 +497,7 @@ int main()
     plane->name = "Plane";
     plane->material = CreateMaterial(&scene, "Plane Material");
     plane->material->baseColorTexture = CreateCheckerTexture(&scene, "Plane Texture", glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
-    plane->material->baseColorTextureFilterNearest = true;
+    plane->material->baseColorTexture->enableNearestFiltering = true;
     plane->material->specularRoughness = 0.0f;
 
     //auto cube = new Cube;

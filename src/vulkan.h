@@ -128,6 +128,7 @@ struct VulkanContext
     VkSampler                   imageSamplerLinearNoMip     = VK_NULL_HANDLE;
 
     VulkanImage                 imageArray                  = {};
+    VulkanBuffer                textureBuffer               = {};
     VulkanBuffer                materialBuffer              = {};
     VulkanBuffer                sceneObjectBuffer           = {};
     VulkanBuffer                sceneNodeBuffer             = {};

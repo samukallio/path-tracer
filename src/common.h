@@ -18,6 +18,8 @@ float const EPSILON     = 1e-9f;
 float const PI          = 3.141592653f;
 float const TAU         = 6.283185306f;
 
+uint32_t const TEXTURE_INDEX_NONE = 0xFFFFFFFF;
+
 enum RenderMode : int32_t
 {
     RENDER_MODE_PATH_TRACE              = 0,
@@ -116,16 +118,9 @@ enum ObjectType : int32_t
     OBJECT_TYPE_CUBE                    = 3,
 };
 
-enum MaterialFlag : uint32_t
+enum TextureFlag : uint32_t
 {
-    MATERIAL_FLAG_BASE_COLOR_TEXTURE                    = 1 << 0,
-    MATERIAL_FLAG_BASE_COLOR_TEXTURE_FILTER_NEAREST     = 1 << 1,
-    MATERIAL_FLAG_EMISSION_TEXTURE                      = 1 << 2,
-    MATERIAL_FLAG_EMISSION_TEXTURE_FILTER_NEAREST       = 1 << 3,
-    MATERIAL_FLAG_METALLIC_TEXTURE                      = 1 << 4,
-    MATERIAL_FLAG_METALLIC_TEXTURE_FILTER_NEAREST       = 1 << 5,
-    MATERIAL_FLAG_ROUGHNESS_TEXTURE                     = 1 << 6,
-    MATERIAL_FLAG_ROUGHNESS_TEXTURE_FILTER_NEAREST      = 1 << 7,
+    TEXTURE_FLAG_FILTER_NEAREST         = 1 << 0,
 };
 
 // This structure is shared between CPU and GPU,
@@ -134,6 +129,18 @@ struct alignas(16) PackedTransform
 {
     glm::aligned_mat4           to      = glm::mat4(1);
     glm::aligned_mat4           from    = glm::mat4(1);
+};
+
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
+struct alignas(16) PackedTexture
+{
+    glm::vec2                   atlasPlacementMinimum;
+    glm::vec2                   atlasPlacementMaximum;
+    uint32_t                    atlasImageIndex;
+    uint32_t                    flags;
+    uint32_t                    dummy1;
+    uint32_t                    dummy2;
 };
 
 // This structure is shared between CPU and GPU,
@@ -162,11 +169,6 @@ struct alignas(16) PackedMaterial
 
     uint32_t                    baseColorTextureIndex;
     uint32_t                    emissionColorTextureIndex;
-
-    glm::aligned_vec2           baseColorTextureMinimum;
-    glm::aligned_vec2           baseColorTextureMaximum;
-
-    uint32_t                    flags;
 };
 
 // This structure is shared between CPU and GPU,
