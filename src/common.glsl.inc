@@ -7,13 +7,14 @@ const uint OBJECT_INDEX_NONE                = 0xFFFFFFFF;
 const uint TEXTURE_INDEX_NONE               = 0xFFFFFFFF;
 
 const uint RENDER_MODE_PATH_TRACE           = 0;
-const uint RENDER_MODE_BASE_COLOR           = 1;
-const uint RENDER_MODE_BASE_COLOR_SHADED    = 2;
-const uint RENDER_MODE_NORMAL               = 3;
-const uint RENDER_MODE_MATERIAL_INDEX       = 4;
-const uint RENDER_MODE_PRIMITIVE_INDEX      = 5;
-const uint RENDER_MODE_MESH_COMPLEXITY      = 6;
-const uint RENDER_MODE_SCENE_COMPLEXITY     = 7;
+const uint RENDER_MODE_PATH_TRACE_SPECTRAL  = 1;
+const uint RENDER_MODE_BASE_COLOR           = 2;
+const uint RENDER_MODE_BASE_COLOR_SHADED    = 3;
+const uint RENDER_MODE_NORMAL               = 4;
+const uint RENDER_MODE_MATERIAL_INDEX       = 5;
+const uint RENDER_MODE_PRIMITIVE_INDEX      = 6;
+const uint RENDER_MODE_MESH_COMPLEXITY      = 7;
+const uint RENDER_MODE_SCENE_COMPLEXITY     = 8;
 
 const uint RENDER_FLAG_ACCUMULATE           = 1 << 0;
 const uint RENDER_FLAG_SAMPLE_JITTER        = 1 << 1;

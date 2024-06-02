@@ -705,6 +705,11 @@ vec4 Trace(Ray ray)
     return vec4(outputColor.rgb, 1);
 }
 
+vec4 TraceSpectral(Ray ray)
+{
+    return vec4(1, 0, 0, 1);
+}
+
 Hit IntersectAndResolve(Ray ray)
 {
     Hit hit;
@@ -852,6 +857,8 @@ void main()
 
     if (renderMode == RENDER_MODE_PATH_TRACE)
         sampleValue = Trace(ray);
+    else if (renderMode == RENDER_MODE_PATH_TRACE_SPECTRAL)
+        sampleValue = TraceSpectral(ray);
     else if (renderMode == RENDER_MODE_BASE_COLOR)
         sampleValue = TraceBaseColor(ray, false);
     else if (renderMode == RENDER_MODE_BASE_COLOR_SHADED)
