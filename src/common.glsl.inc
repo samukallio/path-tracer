@@ -242,10 +242,9 @@ vec3 SampleVisibleNormalGGX(vec3 omega, vec2 alpha, float xi0, float xi1)
         max(0.0, normal.z)));
 }
 
-float SchlickFresnelDielectric(float relativeIOR, float cosTheta)
+float SchlickFresnelDielectric(float f0, float cosTheta)
 {
-    float r0 = pow((1 - relativeIOR) / (1 + relativeIOR), 2);
-    return r0 + (1 - r0) * pow(1 - cosTheta, 5);
+    return f0 + (1 - f0) * pow(1 - cosTheta, 5);
 }
 
 vec3 SchlickFresnelMetal(vec3 f0, float cosTheta)

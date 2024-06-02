@@ -590,7 +590,8 @@ vec4 Trace(Ray ray)
                 reflectance = 1.0;
             }
             else {
-                reflectance = SchlickFresnelDielectric(relativeIOR, abs(specularCosine));
+                float f0 = material.specularWeight * pow((1 - relativeIOR) / (1 + relativeIOR), 2);
+                reflectance = SchlickFresnelDielectric(f0, abs(specularCosine));
             }
 
             // Determine incoming direction.
@@ -617,7 +618,8 @@ vec4 Trace(Ray ray)
         }
         // Glossy-diffuse dielectric base.
         else {
-            float specularProbability = SchlickFresnelDielectric(relativeIOR, specularCosine);
+            float f0 = material.specularWeight * pow((1 - relativeIOR) / (1 + relativeIOR), 2);
+            float specularProbability = SchlickFresnelDielectric(f0, specularCosine);
 
             if (Random0To1() < specularProbability) {
                 // Specular reflection.
