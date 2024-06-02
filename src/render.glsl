@@ -600,6 +600,13 @@ vec4 Trace(Ray ray)
                 // Reflection.
                 incomingCosine = specularCosine;
                 incoming = 2 * specularCosine * specularNormal - outgoing;
+
+                if (!backface) {
+                    // Per the OpenPBR specification: the specular color material
+                    // parameter modulates the Fresnel factor of the dielectric,
+                    // but only for reflections from above (and not below).
+                    filterColor *= material.specularColor;
+                }
             }
             else {
                 // Refraction.
@@ -629,6 +636,13 @@ vec4 Trace(Ray ray)
                 // terminate.
                 incoming = 2 * specularCosine * specularNormal - outgoing;
                 if (incoming.z <= 0) break;
+
+                if (!backface) {
+                    // Per the OpenPBR specification: the specular color material
+                    // parameter modulates the Fresnel factor of the dielectric,
+                    // but only for reflections from above (and not below).
+                    filterColor *= material.specularColor;
+                }
 
                 float shadowing = SmithG1(incoming, material.specularRoughnessAlpha);
                 filterColor *= shadowing;
