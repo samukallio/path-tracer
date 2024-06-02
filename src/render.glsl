@@ -534,11 +534,6 @@ vec4 Trace(Ray ray)
 
         PackedMaterial material = hit.material;
 
-        if (Random0To1() > material.opacity || medium.objectPriority > hit.objectPriority) {
-            ray.origin = hit.position + 1e-3 * ray.vector;
-            continue;
-        }
-
         float relativeIOR = medium.specularIOR / material.specularIOR;
 
         // Incoming ray direction in normal/tangent space.
@@ -562,8 +557,13 @@ vec4 Trace(Ray ray)
         // Compute cosine between microsurface normal and outgoing direction.
         float specularCosine = dot(specularNormal, outgoing);
 
+        // Pass through the surface if embedded in a higher-priority
+        // medium, or probabilistically based on geometric opacity.
+        if (Random0To1() > material.opacity || medium.objectPriority > hit.objectPriority) {
+            incoming = -outgoing;
+        }
         // Metal base.
-        if (Random0To1() < material.baseMetalness) {
+        else if (Random0To1() < material.baseMetalness) {
             // Compute incoming direction.  If the incoming ray appears to be
             // coming from within the macrosurface, then it is shadowed, and we
             // terminate.
