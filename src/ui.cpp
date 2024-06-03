@@ -21,8 +21,8 @@ static bool ResourceSelectorDropDown(
     std::vector<ResourceT*>& resources,
     ResourceT** resourcePtr)
 {
-    auto getter = [](void* context, int index) {
-        auto& resources = *static_cast<std::vector<ResourceT*>*>(context);
+    auto getter = [](void* app, int index) {
+        auto& resources = *static_cast<std::vector<ResourceT*>*>(app);
         if (index <= 0)
             return "(none)";
         if (index > resources.size())
@@ -49,9 +49,9 @@ static bool ResourceSelectorDropDown(
     return changed;
 }
 
-static void TextureInspector(UIContext* context, Texture* texture)
+static void TextureInspector(Application* app, Texture* texture)
 {
-    Scene& scene = *context->scene;
+    Scene& scene = *app->scene;
 
     if (!texture) return;
 
@@ -70,9 +70,9 @@ static void TextureInspector(UIContext* context, Texture* texture)
     ImGui::PopID();
 }
 
-static void MaterialInspector(UIContext* context, Material* material, bool referenced = false)
+static void MaterialInspector(Application* app, Material* material, bool referenced = false)
 {
-    Scene& scene = *context->scene;
+    Scene& scene = *app->scene;
 
     if (!material) return;
 
@@ -120,9 +120,9 @@ static void MaterialInspector(UIContext* context, Material* material, bool refer
     ImGui::PopID();
 }
 
-static void MeshInspector(UIContext* context, Mesh* mesh, bool referenced = false)
+static void MeshInspector(Application* app, Mesh* mesh, bool referenced = false)
 {
-    Scene& scene = *context->scene;
+    Scene& scene = *app->scene;
 
     if (!mesh) return;
 
@@ -154,7 +154,7 @@ static void MeshInspector(UIContext* context, Mesh* mesh, bool referenced = fals
 
     for (size_t k = 0; k < mesh->materials.size(); k++) {
         ImGui::Spacing();
-        MaterialInspector(context, mesh->materials[k], true);
+        MaterialInspector(app, mesh->materials[k], true);
     }
 
     if (c) scene.dirtyFlags |= SCENE_DIRTY_MESHES;
@@ -162,19 +162,19 @@ static void MeshInspector(UIContext* context, Mesh* mesh, bool referenced = fals
     ImGui::PopID();
 }
 
-static void CameraInspector(UIContext* context, Camera* camera)
+static void CameraInspector(Application* app, Camera* camera)
 {
     bool c = false;
 
-    if (context->camera == camera) {
+    if (app->camera == camera) {
         bool active = true;
         ImGui::Checkbox("Possess", &active);
-        if (!active) context->camera = nullptr;
+        if (!active) app->camera = nullptr;
     }
     else {
         bool active = false;
         ImGui::Checkbox("Possess", &active);
-        if (active) context->camera = camera;
+        if (active) app->camera = camera;
     }
 
     ImGui::Spacing();
@@ -276,12 +276,12 @@ static void CameraInspector(UIContext* context, Camera* camera)
         c |= ImGui::DragFloat("Focus Distance", &camera->thinLens.focusDistance, 1.0f, 0.01f, 1000.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
     }
 
-    if (c) context->scene->dirtyFlags |= SCENE_DIRTY_CAMERAS;
+    if (c) app->scene->dirtyFlags |= SCENE_DIRTY_CAMERAS;
 }
 
-static void EntityInspector(UIContext* context, Entity* entity)
+static void EntityInspector(Application* app, Entity* entity)
 {
-    Scene& scene = *context->scene;
+    Scene& scene = *app->scene;
 
     if (!entity) return;
 
@@ -330,35 +330,35 @@ static void EntityInspector(UIContext* context, Entity* entity)
             break;
         }
         case ENTITY_TYPE_CAMERA: {
-            CameraInspector(context, static_cast<Camera*>(entity));
+            CameraInspector(app, static_cast<Camera*>(entity));
             break;
         }
         case ENTITY_TYPE_MESH_INSTANCE: {
             auto instance = static_cast<MeshInstance*>(entity);
             c |= ResourceSelectorDropDown("Mesh", scene.meshes, &instance->mesh);
             ImGui::Spacing();
-            MeshInspector(context, instance->mesh, true);
+            MeshInspector(app, instance->mesh, true);
             break;
         }
         case ENTITY_TYPE_PLANE: {
             auto plane = static_cast<Plane*>(entity);
             c |= ResourceSelectorDropDown("Material", scene.materials, &plane->material);
             ImGui::Spacing();
-            MaterialInspector(context, plane->material, true);
+            MaterialInspector(app, plane->material, true);
             break;
         }
         case ENTITY_TYPE_SPHERE: {
             auto sphere = static_cast<Sphere*>(entity);
             c |= ResourceSelectorDropDown("Material", scene.materials, &sphere->material);
             ImGui::Spacing();
-            MaterialInspector(context, sphere->material, true);
+            MaterialInspector(app, sphere->material, true);
             break;
         }
         case ENTITY_TYPE_CUBE: {
             auto cube = static_cast<Cube*>(entity);
             c |= ResourceSelectorDropDown("Material", scene.materials, &cube->material);
             ImGui::Spacing();
-            MaterialInspector(context, cube->material, true);
+            MaterialInspector(app, cube->material, true);
             break;
         }
     }
@@ -368,7 +368,7 @@ static void EntityInspector(UIContext* context, Entity* entity)
     ImGui::PopID();
 }
 
-static void EntityTreeNode(UIContext* context, Entity* entity)
+static void EntityTreeNode(Application* app, Entity* entity)
 {
     ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnDoubleClick;
 
@@ -378,7 +378,7 @@ static void EntityTreeNode(UIContext* context, Entity* entity)
     if (entity->type == ENTITY_TYPE_ROOT)
         flags |= ImGuiTreeNodeFlags_DefaultOpen;
 
-    if (context->selectionType == SELECTION_TYPE_ENTITY && context->entity == entity)
+    if (app->selectionType == SELECTION_TYPE_ENTITY && app->selectedEntity == entity)
         flags |= ImGuiTreeNodeFlags_Selected;
 
     if (!entity->active) {
@@ -391,8 +391,8 @@ static void EntityTreeNode(UIContext* context, Entity* entity)
 
     if (ImGui::TreeNodeEx(entity->name.c_str(), flags)) {
         if (ImGui::IsItemClicked()) {
-            context->selectionType = SELECTION_TYPE_ENTITY;
-            context->entity = entity;
+            app->selectionType = SELECTION_TYPE_ENTITY;
+            app->selectedEntity = entity;
         }
 
         if (ImGui::BeginPopupContextItem()) {
@@ -402,18 +402,18 @@ static void EntityTreeNode(UIContext* context, Entity* entity)
                 auto type = static_cast<EntityType>(k);
                 snprintf(buffer, std::size(buffer), "Create %s...", EntityTypeName(type));
                 if (ImGui::MenuItem(buffer)) {
-                    auto child = CreateEntity(context->scene, type, entity);
+                    auto child = CreateEntity(app->scene, type, entity);
                     child->name = std::format("New {}", EntityTypeName(type));
-                    context->scene->dirtyFlags |= SCENE_DIRTY_OBJECTS;
-                    context->selectionType = SELECTION_TYPE_ENTITY;
-                    context->entity = child;
+                    app->scene->dirtyFlags |= SCENE_DIRTY_OBJECTS;
+                    app->selectionType = SELECTION_TYPE_ENTITY;
+                    app->selectedEntity = child;
                 }
             }
             ImGui::EndPopup();
         }
 
         for (Entity* child : entity->children)
-            EntityTreeNode(context, child);
+            EntityTreeNode(app, child);
 
         ImGui::TreePop();
     }
@@ -423,18 +423,18 @@ static void EntityTreeNode(UIContext* context, Entity* entity)
     }
 }
 
-void ShowResourcesWindow(UIContext* context)
+void ResourceBrowserWindow(Application* app)
 {
     bool c = false;
 
-    Scene& scene = *context->scene;
+    Scene& scene = *app->scene;
 
     ImGui::Begin("Resources");
 
     // Textures
     {
-        auto getter = [](void* context, int index) {
-            auto scene = static_cast<Scene*>(context);
+        auto getter = [](void* app, int index) {
+            auto scene = static_cast<Scene*>(app);
             if (index < 0 || index >= scene->textures.size())
                 return "";
             return scene->textures[index]->name.c_str();
@@ -443,22 +443,22 @@ void ShowResourcesWindow(UIContext* context)
         int itemIndex = -1;
         int itemCount = static_cast<int>(scene.textures.size());
 
-        if (context->selectionType == SELECTION_TYPE_TEXTURE) {
+        if (app->selectionType == SELECTION_TYPE_TEXTURE) {
             for (int k = 0; k < itemCount; k++)
-                if (scene.textures[k] == context->texture)
+                if (scene.textures[k] == app->selectedTexture)
                     itemIndex = k;
         }
 
         if (ImGui::ListBox("Textures", &itemIndex, getter, &scene, itemCount, 6)) {
-            context->selectionType = SELECTION_TYPE_TEXTURE;
-            context->texture = scene.textures[itemIndex];
+            app->selectionType = SELECTION_TYPE_TEXTURE;
+            app->selectedTexture = scene.textures[itemIndex];
         }
     }
 
     // Materials
     {
-        auto getter = [](void* context, int index) {
-            auto scene = static_cast<Scene*>(context);
+        auto getter = [](void* app, int index) {
+            auto scene = static_cast<Scene*>(app);
             if (index < 0 || index >= scene->materials.size())
                 return "";
             return scene->materials[index]->name.c_str();
@@ -467,22 +467,22 @@ void ShowResourcesWindow(UIContext* context)
         int itemIndex = -1;
         int itemCount = static_cast<int>(scene.materials.size());
 
-        if (context->selectionType == SELECTION_TYPE_MATERIAL) {
+        if (app->selectionType == SELECTION_TYPE_MATERIAL) {
             for (int k = 0; k < itemCount; k++)
-                if (scene.materials[k] == context->material)
+                if (scene.materials[k] == app->selectedMaterial)
                     itemIndex = k;
         }
 
         if (ImGui::ListBox("Materials", &itemIndex, getter, &scene, itemCount, 6)) {
-            context->selectionType = SELECTION_TYPE_MATERIAL;
-            context->material = scene.materials[itemIndex];
+            app->selectionType = SELECTION_TYPE_MATERIAL;
+            app->selectedMaterial = scene.materials[itemIndex];
         }
     }
 
     // Meshes
     {
-        auto getter = [](void* context, int index) {
-            auto scene = static_cast<Scene*>(context);
+        auto getter = [](void* app, int index) {
+            auto scene = static_cast<Scene*>(app);
             if (index < 0 || index >= scene->meshes.size())
                 return "";
             return scene->meshes[index]->name.c_str();
@@ -491,51 +491,51 @@ void ShowResourcesWindow(UIContext* context)
         int itemIndex = -1;
         int itemCount = static_cast<int>(scene.meshes.size());
 
-        if (context->selectionType == SELECTION_TYPE_MESH) {
+        if (app->selectionType == SELECTION_TYPE_MESH) {
             for (int k = 0; k < itemCount; k++)
-                if (scene.meshes[k] == context->mesh)
+                if (scene.meshes[k] == app->selectedMesh)
                     itemIndex = k;
         }
 
         if (ImGui::ListBox("Meshes", &itemIndex, getter, &scene, itemCount, 6)) {
-            context->selectionType = SELECTION_TYPE_MESH;
-            context->mesh = scene.meshes[itemIndex];
+            app->selectionType = SELECTION_TYPE_MESH;
+            app->selectedMesh = scene.meshes[itemIndex];
         }
     }
 
     ImGui::End();
 }
 
-void ShowSceneHierarchyWindow(UIContext* context)
+void SceneHierarchyWindow(Application* app)
 {
-    Scene& scene = *context->scene;
+    Scene& scene = *app->scene;
 
     ImGui::Begin("Scene Hierarchy");
 
-    EntityTreeNode(context, &scene.root);
+    EntityTreeNode(app, &scene.root);
 
     ImGui::End();
 }
 
-void ShowInspectorWindow(UIContext* context)
+void InspectorWindow(Application* app)
 {
     ImGui::Begin("Inspector");
     ImGui::PushItemWidth(0.50f * ImGui::GetWindowWidth());
 
-    Scene& scene = *context->scene;
+    Scene& scene = *app->scene;
 
-    switch (context->selectionType) {
+    switch (app->selectionType) {
         case SELECTION_TYPE_TEXTURE:
-            TextureInspector(context, context->texture);
+            TextureInspector(app, app->selectedTexture);
             break;
         case SELECTION_TYPE_MATERIAL:
-            MaterialInspector(context, context->material);
+            MaterialInspector(app, app->selectedMaterial);
             break;
         case SELECTION_TYPE_MESH:
-            MeshInspector(context, context->mesh);
+            MeshInspector(app, app->selectedMesh);
             break;
         case SELECTION_TYPE_ENTITY:
-            EntityInspector(context, context->entity);
+            EntityInspector(app, app->selectedEntity);
             break;
     }
 
@@ -543,7 +543,7 @@ void ShowInspectorWindow(UIContext* context)
     ImGui::End();
 }
 
-void InitializeImGui()
+void InitializeUI(Application* app)
 {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();

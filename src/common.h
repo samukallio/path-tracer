@@ -18,7 +18,8 @@ float const EPSILON     = 1e-9f;
 float const PI          = 3.141592653f;
 float const TAU         = 6.283185306f;
 
-uint32_t const TEXTURE_INDEX_NONE = 0xFFFFFFFF;
+uint32_t const OBJECT_INDEX_NONE    = 0xFFFFFFFF;
+uint32_t const TEXTURE_INDEX_NONE   = 0xFFFFFFFF;
 
 enum RenderMode : int32_t
 {
@@ -33,32 +34,6 @@ enum RenderMode : int32_t
     RENDER_MODE_SCENE_COMPLEXITY        = 8,
     RENDER_MODE__COUNT                  = 9,
 };
-
-inline char const* RenderModeName(RenderMode mode)
-{
-    switch (mode) {
-        case RENDER_MODE_PATH_TRACE:
-            return "Path Trace";
-        case RENDER_MODE_PATH_TRACE_SPECTRAL:
-            return "Path Trace (Spectral)";
-        case RENDER_MODE_BASE_COLOR:
-            return "Base Color";
-        case RENDER_MODE_BASE_COLOR_SHADED:
-            return "Base Color (Shaded)";
-        case RENDER_MODE_NORMAL:
-            return "Normal";
-        case RENDER_MODE_MATERIAL_INDEX:
-            return "Material ID";
-        case RENDER_MODE_PRIMITIVE_INDEX:
-            return "Primitive ID";
-        case RENDER_MODE_MESH_COMPLEXITY:
-            return "Mesh Complexity";
-        case RENDER_MODE_SCENE_COMPLEXITY:
-            return "Scene Complexity";
-    }
-    assert(false);
-    return nullptr;
-}
 
 enum RenderFlag : uint32_t
 {
@@ -75,22 +50,6 @@ enum ToneMappingMode : int32_t
     TONE_MAPPING_MODE__COUNT            = 4,
 };
 
-inline char const* ToneMappingModeName(ToneMappingMode mode)
-{
-    switch (mode) {
-        case TONE_MAPPING_MODE_CLAMP:
-            return "Clamp";
-        case TONE_MAPPING_MODE_REINHARD:
-            return "Reinhard";
-        case TONE_MAPPING_MODE_HABLE:
-            return "Hable";
-        case TONE_MAPPING_MODE_ACES:
-            return "ACES";
-    }
-    assert(false);
-    return nullptr;
-}
-
 enum CameraModel : int32_t
 {
     CAMERA_MODEL_PINHOLE                = 0,
@@ -98,20 +57,6 @@ enum CameraModel : int32_t
     CAMERA_MODEL_360                    = 2,
     CAMERA_MODEL__COUNT                 = 3,
 };
-
-inline char const* CameraModelName(CameraModel model)
-{
-    switch (model) {
-        case CAMERA_MODEL_PINHOLE:
-            return "Pinhole";
-        case CAMERA_MODEL_THIN_LENS:
-            return "Thin Lens";
-        case CAMERA_MODEL_360:
-            return "360";
-    }
-    assert(false);
-    return nullptr;
-}
 
 enum ObjectType : int32_t
 {
@@ -225,13 +170,6 @@ struct alignas(16) PackedMeshNode
     uint32_t                    faceEndIndex;
 };
 
-struct Image
-{
-    uint32_t                    width;
-    uint32_t                    height;
-    uint32_t const*             pixels;
-};
-
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
 struct FrameUniformBuffer
@@ -262,6 +200,13 @@ struct FrameUniformBuffer
     uint32_t                    skyboxWhiteFurnace          = 0;
 };
 
+struct Image
+{
+    uint32_t                    width;
+    uint32_t                    height;
+    uint32_t const*             pixels;
+};
+
 struct Transform
 {
     glm::vec3                   position                    = glm::vec3(0, 0, 0);
@@ -276,14 +221,6 @@ struct Ray
     glm::vec3                   direction;
 };
 
-inline Ray TransformRay(Ray const& ray, glm::mat4 const& matrix)
-{
-    return {
-        .origin = (matrix * glm::vec4(ray.origin, 1)).xyz(),
-        .direction = (matrix * glm::vec4(ray.direction, 0)).xyz(),
-    };
-}
-
 struct Hit
 {
     float                       time;
@@ -292,6 +229,70 @@ struct Hit
     uint32_t                    primitiveIndex;
     glm::vec3                   primitiveCoordinates;
 };
+
+inline char const* RenderModeName(RenderMode mode)
+{
+    switch (mode) {
+        case RENDER_MODE_PATH_TRACE:
+            return "Path Trace";
+        case RENDER_MODE_PATH_TRACE_SPECTRAL:
+            return "Path Trace (Spectral)";
+        case RENDER_MODE_BASE_COLOR:
+            return "Base Color";
+        case RENDER_MODE_BASE_COLOR_SHADED:
+            return "Base Color (Shaded)";
+        case RENDER_MODE_NORMAL:
+            return "Normal";
+        case RENDER_MODE_MATERIAL_INDEX:
+            return "Material ID";
+        case RENDER_MODE_PRIMITIVE_INDEX:
+            return "Primitive ID";
+        case RENDER_MODE_MESH_COMPLEXITY:
+            return "Mesh Complexity";
+        case RENDER_MODE_SCENE_COMPLEXITY:
+            return "Scene Complexity";
+    }
+    assert(false);
+    return nullptr;
+}
+
+inline char const* ToneMappingModeName(ToneMappingMode mode)
+{
+    switch (mode) {
+        case TONE_MAPPING_MODE_CLAMP:
+            return "Clamp";
+        case TONE_MAPPING_MODE_REINHARD:
+            return "Reinhard";
+        case TONE_MAPPING_MODE_HABLE:
+            return "Hable";
+        case TONE_MAPPING_MODE_ACES:
+            return "ACES";
+    }
+    assert(false);
+    return nullptr;
+}
+
+inline char const* CameraModelName(CameraModel model)
+{
+    switch (model) {
+        case CAMERA_MODEL_PINHOLE:
+            return "Pinhole";
+        case CAMERA_MODEL_THIN_LENS:
+            return "Thin Lens";
+        case CAMERA_MODEL_360:
+            return "360";
+    }
+    assert(false);
+    return nullptr;
+}
+
+inline Ray TransformRay(Ray const& ray, glm::mat4 const& matrix)
+{
+    return {
+        .origin = (matrix * glm::vec4(ray.origin, 1)).xyz(),
+        .direction = (matrix * glm::vec4(ray.direction, 0)).xyz(),
+    };
+}
 
 inline float RepeatRange(float value, float min, float max)
 {

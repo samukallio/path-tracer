@@ -2,6 +2,16 @@
 
 #include "common.h"
 #include "scene.h"
+#include "vulkan.h"
+
+struct GLFWwindow;
+
+struct EditorCamera
+{
+    glm::vec3       position;
+    glm::vec3       velocity;
+    glm::vec3       rotation;
+};
 
 enum SelectionType
 {
@@ -12,19 +22,26 @@ enum SelectionType
     SELECTION_TYPE_ENTITY       = 4,
 };
 
-struct UIContext
+struct Application
 {
-    SelectionType   selectionType   = SELECTION_TYPE_NONE;
-    Texture*        texture         = nullptr;
-    Material*       material        = nullptr;
-    Mesh*           mesh            = nullptr;
-    Entity*         entity          = nullptr;
+    GLFWwindow*     window              = nullptr;
+    VulkanContext*  vulkan              = nullptr;
 
-    Scene*          scene           = nullptr;
-    Camera*         camera          = nullptr;
+    uint32_t        frameIndex          = 0;
+
+    EditorCamera    editorCamera;
+
+    SelectionType   selectionType       = SELECTION_TYPE_NONE;
+    Texture*        selectedTexture     = nullptr;
+    Material*       selectedMaterial    = nullptr;
+    Mesh*           selectedMesh        = nullptr;
+    Entity*         selectedEntity      = nullptr;
+
+    Scene*          scene               = nullptr;
+    Camera*         camera              = nullptr;
 };
 
-void InitializeImGui();
-void ShowSceneHierarchyWindow(UIContext* context);
-void ShowInspectorWindow(UIContext* context);
-void ShowResourcesWindow(UIContext* context);
+void InitializeUI(Application* app);
+void SceneHierarchyWindow(Application* app);
+void InspectorWindow(Application* app);
+void ResourceBrowserWindow(Application* app);
