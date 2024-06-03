@@ -1130,7 +1130,7 @@ uint32_t PackSceneData(Scene* scene)
                     .minimum = glm::min(nodeA.minimum, nodeB.minimum),
                     .childNodeIndices = uint32_t(nodeIndexA) | uint32_t(nodeIndexB) << 16,
                     .maximum = glm::max(nodeA.maximum, nodeB.maximum),
-                    .objectIndex = 0xFFFFFFFF,
+                    .objectIndex = OBJECT_INDEX_NONE,
                 };
 
                 map[indexA] = static_cast<uint16_t>(scene->sceneNodePack.size());
@@ -1180,7 +1180,7 @@ static void IntersectMeshFace(Scene* scene, Ray ray, uint32_t meshFaceIndex, Hit
 
     hit.time = t;
     hit.objectType = OBJECT_TYPE_MESH_INSTANCE;
-    hit.objectIndex = 0xFFFFFFFF;
+    hit.objectIndex = OBJECT_INDEX_NONE;
     hit.primitiveIndex = meshFaceIndex;
     hit.primitiveCoordinates = glm::vec3(1 - beta - gamma, beta, gamma);
 }
@@ -1289,7 +1289,7 @@ static void IntersectObject(Scene* scene, Ray const& worldRay, uint32_t objectIn
 
     if (object.type == OBJECT_TYPE_MESH_INSTANCE) {
         IntersectMesh(scene, ray, object.meshRootNodeIndex, hit);
-        if (hit.objectIndex == 0xFFFFFFFF)
+        if (hit.objectIndex == OBJECT_INDEX_NONE)
             hit.objectIndex = objectIndex;
     }
 
