@@ -13,218 +13,218 @@ int const WINDOW_WIDTH = 1920;
 int const WINDOW_HEIGHT = 1080;
 char const* APPLICATION_NAME = "Path Tracer";
 
-Application app;
+application App;
 
 void Frame()
 {
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO& IO = ImGui::GetIO();
 
     // ImGui.
     ImGui::NewFrame();
     ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_PassthruCentralNode);
     ImGui::ShowDemoWindow();
-    InspectorWindow(&app);
-    ResourceBrowserWindow(&app);
-    SceneHierarchyWindow(&app);
+    InspectorWindow(&App);
+    ResourceBrowserWindow(&App);
+    SceneHierarchyWindow(&App);
     ImGui::EndFrame();
 
     ImGui::Render();
 
     // Handle camera movement.
     {
-        bool editing = !app.camera;
-        glm::vec3& position = editing ? app.editorCamera.position : app.camera->transform.position;
-        glm::vec3& velocity = editing ? app.editorCamera.velocity : app.camera->velocity;
-        glm::vec3& rotation = editing ? app.editorCamera.rotation : app.camera->transform.rotation;
-        bool moved = false;
+        bool IsEditing = !App.Camera;
+        glm::vec3& Position = IsEditing ? App.EditorCamera.Position : App.Camera->Transform.Position;
+        glm::vec3& Velocity = IsEditing ? App.EditorCamera.Velocity : App.Camera->Velocity;
+        glm::vec3& Rotation = IsEditing ? App.EditorCamera.Rotation : App.Camera->Transform.Rotation;
+        bool WasMoved = false;
 
-        glm::vec3 forward = glm::quat(rotation) * glm::vec3(1, 0, 0);
+        glm::vec3 Forward = glm::quat(Rotation) * glm::vec3(1, 0, 0);
 
-        if (!io.WantCaptureMouse && io.MouseDown[1]) {
-            glm::vec3 delta {};
-            if (glfwGetKey(app.window, GLFW_KEY_A))
-                delta -= glm::cross(forward, glm::vec3(0, 0, 1));
-            if (glfwGetKey(app.window, GLFW_KEY_D))
-                delta += glm::cross(forward, glm::vec3(0, 0, 1));
-            if (glfwGetKey(app.window, GLFW_KEY_W))
-                delta += forward;
-            if (glfwGetKey(app.window, GLFW_KEY_S))
-                delta -= forward;
-            if (glm::length(delta) > 0)
-                velocity = 2.0f * glm::normalize(delta);
+        if (!IO.WantCaptureMouse && IO.MouseDown[1]) {
+            glm::vec3 Delta {};
+            if (glfwGetKey(App.Window, GLFW_KEY_A))
+                Delta -= glm::cross(Forward, glm::vec3(0, 0, 1));
+            if (glfwGetKey(App.Window, GLFW_KEY_D))
+                Delta += glm::cross(Forward, glm::vec3(0, 0, 1));
+            if (glfwGetKey(App.Window, GLFW_KEY_W))
+                Delta += Forward;
+            if (glfwGetKey(App.Window, GLFW_KEY_S))
+                Delta -= Forward;
+            if (glm::length(Delta) > 0)
+                Velocity = 2.0f * glm::normalize(Delta);
 
-            rotation.z -= io.MouseDelta.x * 0.01f;
-            rotation.z = RepeatRange(rotation.z, -PI, +PI);
-            rotation.y += io.MouseDelta.y * 0.01f;
-            rotation.y = glm::clamp(rotation.y, -0.45f * PI, +0.45f * PI);
-            moved = true;
+            Rotation.z -= IO.MouseDelta.x * 0.01f;
+            Rotation.z = RepeatRange(Rotation.z, -PI, +PI);
+            Rotation.y += IO.MouseDelta.y * 0.01f;
+            Rotation.y = glm::clamp(Rotation.y, -0.45f * PI, +0.45f * PI);
+            WasMoved = true;
         }
 
-        position += io.DeltaTime * velocity;
-        velocity *= expf(-io.DeltaTime / 0.05f);
+        Position += IO.DeltaTime * Velocity;
+        Velocity *= expf(-IO.DeltaTime / 0.05f);
 
-        if (glm::length(velocity) > 0)
-            moved = true;
+        if (glm::length(Velocity) > 0)
+            WasMoved = true;
 
-        if (glm::length(velocity) < 1e-2f)
-            velocity = glm::vec3(0);
+        if (glm::length(Velocity) < 1e-2f)
+            Velocity = glm::vec3(0);
 
-        if (moved && app.camera) {
-            app.scene->dirtyFlags |= SCENE_DIRTY_CAMERAS;
-            app.editorCamera.position = app.camera->transform.position;
-            app.editorCamera.rotation = app.camera->transform.rotation;
+        if (WasMoved && App.Camera) {
+            App.Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
+            App.EditorCamera.Position = App.Camera->Transform.Position;
+            App.EditorCamera.Rotation = App.Camera->Transform.Rotation;
         }
     }
 
-    FrameUniformBuffer uniforms = {
-        .frameRandomSeed = app.frameIndex,
-        .sceneScatterRate = app.scene->root.scatterRate,
-        .skyboxDistributionFrame = app.scene->skyboxDistributionFrame,
-        .skyboxDistributionConcentration = app.scene->skyboxDistributionConcentration,
-        .skyboxBrightness = app.scene->root.skyboxBrightness,
-        .skyboxWhiteFurnace = app.scene->root.skyboxWhiteFurnace,
+    frame_uniform_buffer Uniforms = {
+        .FrameRandomSeed = App.FrameIndex,
+        .SceneScatterRate = App.Scene->Root.ScatterRate,
+        .SkyboxDistributionFrame = App.Scene->SkyboxDistributionFrame,
+        .SkyboxDistributionConcentration = App.Scene->SkyboxDistributionConcentration,
+        .SkyboxBrightness = App.Scene->Root.SkyboxBrightness,
+        .SkyboxWhiteFurnace = App.Scene->Root.SkyboxWhiteFurnace,
     };
 
-    if (!app.camera) {
-        EditorCamera& camera = app.editorCamera;
+    if (!App.Camera) {
+        editor_camera& Camera = App.EditorCamera;
 
-        glm::vec3 forward = glm::quat(camera.rotation) * glm::vec3(1, 0, 0);
-        glm::mat4 viewMatrix = glm::lookAt(camera.position - forward * 2.0f, camera.position, glm::vec3(0, 0, 1));
-        glm::mat4 worldMatrix = glm::inverse(viewMatrix);
+        glm::vec3 Forward = glm::quat(Camera.Rotation) * glm::vec3(1, 0, 0);
+        glm::mat4 ViewMatrix = glm::lookAt(Camera.Position - Forward * 2.0f, Camera.Position, glm::vec3(0, 0, 1));
+        glm::mat4 WorldMatrix = glm::inverse(ViewMatrix);
 
-        if (!io.WantCaptureMouse && io.MouseDown[0]) {
-            glm::vec2 sensorSize = { 0.032f, 0.018f };
+        if (!IO.WantCaptureMouse && IO.MouseDown[0]) {
+            glm::vec2 SensorSize = { 0.032f, 0.018f };
 
-            glm::vec2 samplePositionNormalized = {
-                io.MousePos.x / WINDOW_WIDTH,
-                io.MousePos.y / WINDOW_HEIGHT
+            glm::vec2 SamplePositionNormalized = {
+                IO.MousePos.x / WINDOW_WIDTH,
+                IO.MousePos.y / WINDOW_HEIGHT
             };
 
             glm::vec3 sensorPositionNormalized = {
-                -sensorSize.x * (samplePositionNormalized.x - 0.5),
-                -sensorSize.y * (0.5 - samplePositionNormalized.y),
+                -SensorSize.x * (SamplePositionNormalized.x - 0.5),
+                -SensorSize.y * (0.5 - SamplePositionNormalized.y),
                 0.020f
             };
 
             glm::vec3 rayVector = -sensorPositionNormalized;
 
-            Ray ray;
-            ray.origin = (worldMatrix * glm::vec4(0, 0, 0, 1)).xyz;
-            ray.direction = glm::normalize(worldMatrix * glm::vec4(rayVector, 0)).xyz;
+            ray Ray;
+            Ray.Origin = (WorldMatrix * glm::vec4(0, 0, 0, 1)).xyz;
+            Ray.Direction = glm::normalize(WorldMatrix * glm::vec4(rayVector, 0)).xyz;
 
-            Hit hit;
-            if (Trace(app.scene, ray, hit)) {
-                for (Entity* entity : app.scene->root.children) {
-                    if (entity->packedObjectIndex == hit.objectIndex) {
-                        app.selectedEntity = entity;
-                        app.selectionType = SELECTION_TYPE_ENTITY;
+            hit Hit;
+            if (Trace(App.Scene, Ray, Hit)) {
+                for (entity* Entity : App.Scene->Root.Children) {
+                    if (Entity->PackedObjectIndex == Hit.ObjectIndex) {
+                        App.SelectedEntity = Entity;
+                        App.SelectionType = SELECTION_TYPE_ENTITY;
                     }
                 }
             }
         }
 
-        uniforms.renderMode = RENDER_MODE_BASE_COLOR_SHADED;
-        uniforms.cameraModel = CAMERA_MODEL_PINHOLE;
-        uniforms.cameraSensorDistance = 0.020f;
-        uniforms.cameraSensorSize = { 0.032f, 0.018f };
-        uniforms.cameraApertureRadius = 0.0f;
-        uniforms.cameraTransform = {
-            .to = worldMatrix,
-            .from = viewMatrix,
+        Uniforms.RenderMode = RENDER_MODE_BASE_COLOR_SHADED;
+        Uniforms.CameraModel = CAMERA_MODEL_PINHOLE;
+        Uniforms.CameraSensorDistance = 0.020f;
+        Uniforms.CameraSensorSize = { 0.032f, 0.018f };
+        Uniforms.CameraApertureRadius = 0.0f;
+        Uniforms.CameraTransform = {
+            .To = WorldMatrix,
+            .From = ViewMatrix,
         };
-        uniforms.renderFlags = 0;
+        Uniforms.RenderFlags = 0;
 
-        uniforms.renderBounceLimit = 0;
-        uniforms.brightness = 1.0f;
-        uniforms.toneMappingMode = TONE_MAPPING_MODE_CLAMP;
-        uniforms.toneMappingWhiteLevel = 1.0f;
+        Uniforms.RenderBounceLimit = 0;
+        Uniforms.Brightness = 1.0f;
+        Uniforms.ToneMappingMode = TONE_MAPPING_MODE_CLAMP;
+        Uniforms.ToneMappingWhiteLevel = 1.0f;
 
-        if (app.selectionType == SELECTION_TYPE_ENTITY)
-            uniforms.highlightObjectIndex = app.selectedEntity->packedObjectIndex;
+        if (App.SelectionType == SELECTION_TYPE_ENTITY)
+            Uniforms.HighlightObjectIndex = App.SelectedEntity->PackedObjectIndex;
         else
-            uniforms.highlightObjectIndex = OBJECT_INDEX_NONE;
+            Uniforms.HighlightObjectIndex = OBJECT_INDEX_NONE;
     }
     else {
-        Camera* camera = app.camera;
+        camera* Camera = App.Camera;
 
-        glm::vec3 origin = camera->transform.position;
-        glm::vec3 forward = glm::quat(camera->transform.rotation) * glm::vec3(1, 0, 0);
-        glm::mat4 viewMatrix = glm::lookAt(origin - forward * 2.0f, origin, glm::vec3(0, 0, 1));
-        glm::mat4 worldMatrix = glm::inverse(viewMatrix);
+        glm::vec3 Origin = Camera->Transform.Position;
+        glm::vec3 Forward = glm::quat(Camera->Transform.Rotation) * glm::vec3(1, 0, 0);
+        glm::mat4 ViewMatrix = glm::lookAt(Origin - Forward * 2.0f, Origin, glm::vec3(0, 0, 1));
+        glm::mat4 WorldMatrix = glm::inverse(ViewMatrix);
 
-        uniforms.renderMode = camera->renderMode;
-        uniforms.cameraModel = camera->cameraModel;
+        Uniforms.RenderMode = Camera->RenderMode;
+        Uniforms.CameraModel = Camera->CameraModel;
 
-        if (camera->cameraModel == CAMERA_MODEL_PINHOLE) {
+        if (Camera->CameraModel == CAMERA_MODEL_PINHOLE) {
             float const ASPECT_RATIO = WINDOW_WIDTH / float(WINDOW_HEIGHT);
-            uniforms.cameraApertureRadius = camera->pinhole.apertureDiameterInMM / 2000.0f;
-            uniforms.cameraSensorSize.x = 2 * glm::tan(glm::radians(camera->pinhole.fieldOfViewInDegrees / 2));
-            uniforms.cameraSensorSize.y = uniforms.cameraSensorSize.x / ASPECT_RATIO;
-            uniforms.cameraSensorDistance = 1.0f;
+            Uniforms.CameraApertureRadius = Camera->Pinhole.ApertureDiameterInMM / 2000.0f;
+            Uniforms.CameraSensorSize.x = 2 * glm::tan(glm::radians(Camera->Pinhole.FieldOfViewInDegrees / 2));
+            Uniforms.CameraSensorSize.y = Uniforms.CameraSensorSize.x / ASPECT_RATIO;
+            Uniforms.CameraSensorDistance = 1.0f;
         }
 
-        if (camera->cameraModel == CAMERA_MODEL_THIN_LENS) {
-            uniforms.cameraFocalLength = camera->thinLens.focalLengthInMM / 1000.0f;
-            uniforms.cameraApertureRadius = camera->thinLens.apertureDiameterInMM / 2000.0f;
-            uniforms.cameraSensorDistance = 1.0f / (1000.0f / camera->thinLens.focalLengthInMM - 1.0f / camera->thinLens.focusDistance);
-            uniforms.cameraSensorSize = camera->thinLens.sensorSizeInMM / 1000.0f;
+        if (Camera->CameraModel == CAMERA_MODEL_THIN_LENS) {
+            Uniforms.CameraFocalLength = Camera->ThinLens.FocalLengthInMM / 1000.0f;
+            Uniforms.CameraApertureRadius = Camera->ThinLens.ApertureDiameterInMM / 2000.0f;
+            Uniforms.CameraSensorDistance = 1.0f / (1000.0f / Camera->ThinLens.FocalLengthInMM - 1.0f / Camera->ThinLens.FocusDistance);
+            Uniforms.CameraSensorSize = Camera->ThinLens.SensorSizeInMM / 1000.0f;
         }
 
-        uniforms.cameraTransform = {
-            .to = worldMatrix,
-            .from = viewMatrix,
+        Uniforms.CameraTransform = {
+            .To = WorldMatrix,
+            .From = ViewMatrix,
         };
-        uniforms.highlightObjectIndex = OBJECT_INDEX_NONE;
-        uniforms.renderFlags = RENDER_FLAG_SAMPLE_JITTER;
-        uniforms.renderSampleBlockSize = 1u << app.camera->renderSampleBlockSizeLog2;
-        uniforms.renderBounceLimit = app.camera->renderBounceLimit;
-        uniforms.renderTerminationProbability = app.camera->renderTerminationProbability;
-        uniforms.renderMeshComplexityScale = app.camera->renderMeshComplexityScale;
-        uniforms.renderSceneComplexityScale = app.camera->renderSceneComplexityScale;
-        uniforms.brightness = app.camera->brightness;
-        uniforms.toneMappingMode = app.camera->toneMappingMode;
-        uniforms.toneMappingWhiteLevel = app.camera->toneMappingWhiteLevel;
-        uniforms.renderFlags = app.camera->renderFlags;
+        Uniforms.HighlightObjectIndex = OBJECT_INDEX_NONE;
+        Uniforms.RenderFlags = RENDER_FLAG_SAMPLE_JITTER;
+        Uniforms.RenderSampleBlockSize = 1u << App.Camera->RenderSampleBlockSizeLog2;
+        Uniforms.RenderBounceLimit = App.Camera->RenderBounceLimit;
+        Uniforms.RenderTerminationProbability = App.Camera->RenderTerminationProbability;
+        Uniforms.RenderMeshComplexityScale = App.Camera->RenderMeshComplexityScale;
+        Uniforms.RenderSceneComplexityScale = App.Camera->RenderSceneComplexityScale;
+        Uniforms.Brightness = App.Camera->Brightness;
+        Uniforms.ToneMappingMode = App.Camera->ToneMappingMode;
+        Uniforms.ToneMappingWhiteLevel = App.Camera->ToneMappingWhiteLevel;
+        Uniforms.RenderFlags = App.Camera->RenderFlags;
 
-        if (app.scene->dirtyFlags != 0)
-            uniforms.renderFlags &= ~RENDER_FLAG_ACCUMULATE;
+        if (App.Scene->DirtyFlags != 0)
+            Uniforms.RenderFlags &= ~RENDER_FLAG_ACCUMULATE;
     }
 
-    uint32_t dirtyFlags = PackSceneData(app.scene);
-    UploadScene(app.vulkan, app.scene, dirtyFlags);
+    uint32_t DirtyFlags = PackSceneData(App.Scene);
+    UploadScene(App.Vulkan, App.Scene, DirtyFlags);
 
-    uniforms.sceneObjectCount = static_cast<uint32_t>(app.scene->sceneObjectPack.size());
+    Uniforms.SceneObjectCount = static_cast<uint32_t>(App.Scene->SceneObjectPack.size());
 
-    RenderFrame(app.vulkan, &uniforms, ImGui::GetDrawData());
+    RenderFrame(App.Vulkan, &Uniforms, ImGui::GetDrawData());
 }
 
-static void MouseButtonInputCallback(GLFWwindow* window, int button, int action, int mods)
+static void MouseButtonInputCallback(GLFWwindow* Window, int Button, int Action, int Mods)
 {
-    ImGuiIO& io = ImGui::GetIO();
-    io.AddMouseButtonEvent(button, action == GLFW_PRESS);
+    ImGuiIO& IO = ImGui::GetIO();
+    IO.AddMouseButtonEvent(Button, Action == GLFW_PRESS);
 }
 
-static void MousePositionInputCallback(GLFWwindow* window, double x, double y)
+static void MousePositionInputCallback(GLFWwindow* Window, double X, double Y)
 {
-    ImGuiIO& io = ImGui::GetIO();
-    io.AddMousePosEvent(static_cast<float>(x), static_cast<float>(y));
+    ImGuiIO& IO = ImGui::GetIO();
+    IO.AddMousePosEvent(static_cast<float>(X), static_cast<float>(Y));
 }
 
-static void MouseScrollInputCallback(GLFWwindow* window, double x, double y)
+static void MouseScrollInputCallback(GLFWwindow* Window, double X, double Y)
 {
-    ImGuiIO& io = ImGui::GetIO();
-    io.AddMouseWheelEvent(static_cast<float>(x), static_cast<float>(y));
+    ImGuiIO& IO = ImGui::GetIO();
+    IO.AddMouseWheelEvent(static_cast<float>(X), static_cast<float>(Y));
 }
 
-static void KeyInputCallback(GLFWwindow* window, int key, int scancode, int action, int mods)
+static void KeyInputCallback(GLFWwindow* Window, int Key, int ScanCode, int Action, int Mods)
 {
-    if (action != GLFW_PRESS && action != GLFW_RELEASE)
+    if (Action != GLFW_PRESS && Action != GLFW_RELEASE)
         return;
 
-    ImGuiIO& io = ImGui::GetIO();
+    ImGuiIO& IO = ImGui::GetIO();
     
-    ImGuiKey imKey = [](int key) {
-        switch (key) {
+    ImGuiKey ImKey = [](int Key) {
+        switch (Key) {
         case GLFW_KEY_TAB: return ImGuiKey_Tab;
         case GLFW_KEY_LEFT: return ImGuiKey_LeftArrow;
         case GLFW_KEY_RIGHT: return ImGuiKey_RightArrow;
@@ -344,35 +344,35 @@ static void KeyInputCallback(GLFWwindow* window, int key, int scancode, int acti
         case GLFW_KEY_F24: return ImGuiKey_F24;
         default: return ImGuiKey_None;
         }
-    }(key);
+    }(Key);
 
-    switch (imKey) {
+    switch (ImKey) {
     case ImGuiKey_LeftShift:
     case ImGuiKey_RightShift:
-        io.AddKeyEvent(ImGuiMod_Shift, action == GLFW_PRESS);
+        IO.AddKeyEvent(ImGuiMod_Shift, Action == GLFW_PRESS);
         break;
 
     default:
-        io.AddKeyEvent(imKey, action == GLFW_PRESS);
+        IO.AddKeyEvent(ImKey, Action == GLFW_PRESS);
         break;
     }
 }
 
-static void CharacterInputCallback(GLFWwindow* window, unsigned int codepoint)
+static void CharacterInputCallback(GLFWwindow* Window, unsigned int CodePoint)
 {
-    ImGuiIO& io = ImGui::GetIO();
-    io.AddInputCharacter(codepoint);
+    ImGuiIO& IO = ImGui::GetIO();
+    IO.AddInputCharacter(CodePoint);
 }
 
-static void CreateBasicResources(Scene* scene)
+static void CreateBasicResources(scene* Scene)
 {
-    struct MetalMaterialData {
-        char const* name;
-        glm::vec3 baseColor;
-        glm::vec3 specularColor;
+    struct metal_material_data {
+        char const* Name;
+        glm::vec3 BaseColor;
+        glm::vec3 SpecularColor;
     };
 
-    MetalMaterialData const metals[] = {
+    metal_material_data const METALS[] = {
         { "Silver"   , { 0.9868f, 0.9830f, 0.9667f }, { 0.9929f, 0.9961f, 1.0000f } },
         { "Aluminum" , { 0.9157f, 0.9226f, 0.9236f }, { 0.9090f, 0.9365f, 0.9596f } },
         { "Gold"     , { 1.0000f, 0.7099f, 0.3148f }, { 0.9408f, 0.9636f, 0.9099f } },
@@ -388,42 +388,42 @@ static void CreateBasicResources(Scene* scene)
         { "Zinc"     , { 0.8759f, 0.8685f, 0.8542f }, { 0.8769f, 0.9037f, 0.9341f } },
     };
 
-    for (auto const& metal : metals) {
-        Material* material = CreateMaterial(scene, metal.name);
-        material->baseMetalness = 1.0f;
-        material->baseColor = metal.baseColor;
-        material->specularColor = metal.specularColor;
-        material->specularRoughness = 0.0f;
+    for (auto const& Metal : METALS) {
+        material* Material = CreateMaterial(Scene, Metal.Name);
+        Material->BaseMetalness = 1.0f;
+        Material->BaseColor = Metal.BaseColor;
+        Material->SpecularColor = Metal.SpecularColor;
+        Material->SpecularRoughness = 0.0f;
     }
 }
 
 int main()
 {
-    Scene scene;
+    scene Scene;
 
-    app.scene = &scene;
-    app.camera = nullptr;
+    App.Scene = &Scene;
+    App.Camera = nullptr;
 
-    scene.root.name = "Root";
+    Scene.Root.Name = "Root";
 
-    CreateBasicResources(&scene);
+    CreateBasicResources(&Scene);
 
     {
-        LoadModelOptions options;
-        options.name = "xyzrgb_dragon.obj";
-        options.directoryPath = "../scene";
-        Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/xyzrgb_dragon.obj", &options);
-        CreateEntity(&scene, prefab); 
+        load_model_options Options;
+        Options.Name = "xyzrgb_dragon.obj";
+        Options.DirectoryPath = "../scene";
+        prefab* Prefab = LoadModelAsPrefab(&Scene, "../scene/xyzrgb_dragon.obj", &Options);
+        CreateEntity(&Scene, Prefab); 
     }
 
     {
-        LoadModelOptions options;
-        options.name = "viking_room.obj";
-        options.directoryPath = "../scene";
-        options.defaultMaterial = CreateMaterial(&scene, "viking_room");
-        options.defaultMaterial->baseColorTexture = LoadTexture(&scene, "../scene/viking_room.png", "viking_room.png");
-        Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/viking_room.obj", &options);
-        CreateEntity(&scene, prefab); 
+        load_model_options Options;
+        Options.Name = "viking_room.obj";
+        Options.DirectoryPath = "../scene";
+        Options.DefaultMaterial = CreateMaterial(&Scene, "viking_room");
+        Options.DefaultMaterial->BaseColorTexture = LoadTexture(&Scene, "../scene/viking_room.png", "viking_room.png");
+        prefab* Prefab = LoadModelAsPrefab(&Scene, "../scene/viking_room.obj", &Options);
+        CreateEntity(&Scene, Prefab); 
     }
 
     //{
@@ -437,77 +437,76 @@ int main()
     //    CreateEntity(&scene, prefab);
     //}
 
-    for (int k = 0; k < 1; k++) {
-        auto sphere = new Sphere;
-        sphere->name = std::format("Sphere {}", k+1);
-        sphere->material = CreateMaterial(&scene, std::format("Sphere {} Material", k+1).c_str());
-        sphere->material->transmissionWeight = 0.0f;
-        sphere->material->specularRoughness = 0.0f;
-        sphere->material->specularIOR = 1.5f;
-        scene.root.children.push_back(sphere);
+    for (int I = 0; I < 1; I++) {
+        auto Sphere = new sphere;
+        Sphere->Name = std::format("Sphere {}", I+1);
+        Sphere->Material = CreateMaterial(&Scene, std::format("Sphere {} Material", I+1).c_str());
+        Sphere->Material->TransmissionWeight = 0.0f;
+        Sphere->Material->SpecularRoughness = 0.0f;
+        Sphere->Material->SpecularIOR = 1.5f;
+        Scene.Root.Children.push_back(Sphere);
     }
 
-    auto plane = static_cast<Plane*>(CreateEntity(&scene, ENTITY_TYPE_PLANE));
-    plane->name = "Plane";
-    plane->material = CreateMaterial(&scene, "Plane Material");
-    plane->material->baseColorTexture = CreateCheckerTexture(&scene, "Plane Texture", glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
-    plane->material->baseColorTexture->enableNearestFiltering = true;
-    plane->material->specularRoughness = 0.0f;
+    auto Plane = static_cast<plane*>(CreateEntity(&Scene, ENTITY_TYPE_PLANE));
+    Plane->Name = "Plane";
+    Plane->Material = CreateMaterial(&Scene, "Plane Material");
+    Plane->Material->BaseColorTexture = CreateCheckerTexture(&Scene, "Plane Texture", glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
+    Plane->Material->BaseColorTexture->EnableNearestFiltering = true;
+    Plane->Material->SpecularRoughness = 0.0f;
 
     //auto cube = new Cube;
     //cube->name = "Cube";
     //cube->material = metal;
     //scene.root.children.push_back(cube);
 
-    InitializeUI(&app);
+    InitializeUI(&App);
 
-    PackSceneData(&scene);
-    LoadSkybox(&scene, "../scene/CloudedSunGlow4k.hdr");
+    PackSceneData(&Scene);
+    LoadSkybox(&Scene, "../scene/CloudedSunGlow4k.hdr");
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-    app.window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, APPLICATION_NAME, nullptr, nullptr);
-    app.vulkan = CreateVulkan(app.window, APPLICATION_NAME);
+    App.Window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, APPLICATION_NAME, nullptr, nullptr);
+    App.Vulkan = CreateVulkan(App.Window, APPLICATION_NAME);
 
-    UploadScene(app.vulkan, &scene, SCENE_DIRTY_ALL);
+    UploadScene(App.Vulkan, &Scene, SCENE_DIRTY_ALL);
 
-    app.editorCamera.position = { 0, 0, 0 };
-    app.editorCamera.velocity = { 0, 0, 0 };
-    app.editorCamera.rotation = { 0, 0, 0 };
+    App.EditorCamera.Position = { 0, 0, 0 };
+    App.EditorCamera.Velocity = { 0, 0, 0 };
+    App.EditorCamera.Rotation = { 0, 0, 0 };
 
-    auto camera = new Camera;
-    camera->name = "Camera";
-    scene.root.children.push_back(camera);
+    auto Camera = new camera;
+    Camera->Name = "Camera";
+    Scene.Root.Children.push_back(Camera);
 
-    ImGuiIO& io = ImGui::GetIO();
-    io.DisplaySize.x = WINDOW_WIDTH;
-    io.DisplaySize.y = WINDOW_HEIGHT;
+    ImGuiIO& IO = ImGui::GetIO();
+    IO.DisplaySize.x = WINDOW_WIDTH;
+    IO.DisplaySize.y = WINDOW_HEIGHT;
 
+    glfwSetMouseButtonCallback(App.Window, MouseButtonInputCallback);
+    glfwSetCursorPosCallback(App.Window, MousePositionInputCallback);
+    glfwSetScrollCallback(App.Window, MouseScrollInputCallback);
+    glfwSetKeyCallback(App.Window, KeyInputCallback);
+    glfwSetCharCallback(App.Window, CharacterInputCallback);
 
-    glfwSetMouseButtonCallback(app.window, MouseButtonInputCallback);
-    glfwSetCursorPosCallback(app.window, MousePositionInputCallback);
-    glfwSetScrollCallback(app.window, MouseScrollInputCallback);
-    glfwSetKeyCallback(app.window, KeyInputCallback);
-    glfwSetCharCallback(app.window, CharacterInputCallback);
-
-    double previousTime = glfwGetTime();
-    while (!glfwWindowShouldClose(app.window)) {
+    double PreviousTime = glfwGetTime();
+    while (!glfwWindowShouldClose(App.Window)) {
         glfwPollEvents();
 
-        double currentTime = glfwGetTime();
-        io.DeltaTime = static_cast<float>(currentTime - previousTime);
-        previousTime = currentTime;
+        double CurrentTime = glfwGetTime();
+        IO.DeltaTime = static_cast<float>(CurrentTime - PreviousTime);
+        PreviousTime = CurrentTime;
 
         Frame();
 
-        app.frameIndex++;
+        App.FrameIndex++;
     }
 
-    DestroyVulkan(app.vulkan);
+    DestroyVulkan(App.Vulkan);
 
-    glfwDestroyWindow(app.window);
+    glfwDestroyWindow(App.Window);
     glfwTerminate();
 
     ImGui::DestroyContext();

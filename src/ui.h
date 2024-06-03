@@ -6,14 +6,14 @@
 
 struct GLFWwindow;
 
-struct EditorCamera
+struct editor_camera
 {
-    glm::vec3       position;
-    glm::vec3       velocity;
-    glm::vec3       rotation;
+    glm::vec3       Position;
+    glm::vec3       Velocity;
+    glm::vec3       Rotation;
 };
 
-enum SelectionType
+enum selection_type
 {
     SELECTION_TYPE_NONE         = 0,
     SELECTION_TYPE_TEXTURE      = 1,
@@ -22,26 +22,26 @@ enum SelectionType
     SELECTION_TYPE_ENTITY       = 4,
 };
 
-struct Application
+struct application
 {
-    GLFWwindow*     window              = nullptr;
-    VulkanContext*  vulkan              = nullptr;
+    GLFWwindow*     Window              = nullptr;
+    vulkan_context* Vulkan              = nullptr;
 
-    uint32_t        frameIndex          = 0;
+    uint32_t        FrameIndex          = 0;
 
-    EditorCamera    editorCamera;
+    editor_camera   EditorCamera;
 
-    SelectionType   selectionType       = SELECTION_TYPE_NONE;
-    Texture*        selectedTexture     = nullptr;
-    Material*       selectedMaterial    = nullptr;
-    Mesh*           selectedMesh        = nullptr;
-    Entity*         selectedEntity      = nullptr;
+    selection_type  SelectionType       = SELECTION_TYPE_NONE;
+    texture*        SelectedTexture     = nullptr;
+    material*       SelectedMaterial    = nullptr;
+    mesh*           SelectedMesh        = nullptr;
+    entity*         SelectedEntity      = nullptr;
 
-    Scene*          scene               = nullptr;
-    Camera*         camera              = nullptr;
+    scene*          Scene               = nullptr;
+    camera*         Camera              = nullptr;
 };
 
-void InitializeUI(Application* app);
-void SceneHierarchyWindow(Application* app);
-void InspectorWindow(Application* app);
-void ResourceBrowserWindow(Application* app);
+void InitializeUI(application* App);
+void SceneHierarchyWindow(application* App);
+void InspectorWindow(application* App);
+void ResourceBrowserWindow(application* App);

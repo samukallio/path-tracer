@@ -4,384 +4,385 @@
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
 
-static bool DragEulerAngles(const char* label, glm::vec3* angles)
+static bool DragEulerAngles(const char* Label, glm::vec3* Angles)
 {
-    float degrees[3];
-    for (int k = 0; k < 3; k++)
-        degrees[k] = RepeatRange((*angles)[k], -PI, +PI) * (360 / TAU);
-    bool changed = ImGui::DragFloat3(label, degrees);
-    for (int k = 0; k < 3; k++)
-        (*angles)[k] = RepeatRange(degrees[k] * (TAU / 360), -PI, +PI);
-    return changed;
+    float Degrees[3];
+    for (int I = 0; I < 3; I++)
+        Degrees[I] = RepeatRange((*Angles)[I], -PI, +PI) * (360 / TAU);
+    bool Changed = ImGui::DragFloat3(Label, Degrees);
+    for (int I = 0; I < 3; I++)
+        (*Angles)[I] = RepeatRange(Degrees[I] * (TAU / 360), -PI, +PI);
+    return Changed;
 }
 
-template<typename ResourceT>
+template<typename resource_t>
 static bool ResourceSelectorDropDown(
-    char const* label,
-    std::vector<ResourceT*>& resources,
-    ResourceT** resourcePtr)
+    char const* Label,
+    std::vector<resource_t*>& Resources,
+    resource_t** ResourcePtr)
 {
-    auto getter = [](void* app, int index) {
-        auto& resources = *static_cast<std::vector<ResourceT*>*>(app);
-        if (index <= 0)
+    auto GetItemName = [](void* Context, int Index) {
+        auto& Resources = *static_cast<std::vector<resource_t*>*>(Context);
+        if (Index <= 0)
             return "(none)";
-        if (index > resources.size())
+        if (Index > Resources.size())
             return "";
-        return resources[index-1]->name.c_str();
+        return Resources[Index-1]->Name.c_str();
     };
 
-    int itemIndex = 0;
-    int itemCount = static_cast<int>(resources.size()) + 1;
+    int Index = 0;
+    int Count = static_cast<int>(Resources.size()) + 1;
 
-    for (int k = 0; k < itemCount-1; k++)
-        if (resources[k] == *resourcePtr)
-            itemIndex = k + 1;
+    for (int I = 0; I < Count-1; I++)
+        if (Resources[I] == *ResourcePtr)
+            Index = I + 1;
 
-    bool changed = ImGui::Combo(label, &itemIndex, getter, &resources, itemCount, 6);
+    bool Changed = ImGui::Combo(Label, &Index, GetItemName, &Resources, Count, 6);
 
-    if (changed) {
-        if (itemIndex == 0)
-            *resourcePtr = nullptr;
+    if (Changed) {
+        if (Index == 0)
+            *ResourcePtr = nullptr;
         else
-            *resourcePtr = resources[itemIndex-1];
+            *ResourcePtr = Resources[Index-1];
     }
 
-    return changed;
+    return Changed;
 }
 
-static void TextureInspector(Application* app, Texture* texture)
+static void TextureInspector(application* App, texture* Texture)
 {
-    Scene& scene = *app->scene;
+    scene* Scene = App->Scene;
 
-    if (!texture) return;
+    if (!Texture) return;
 
-    ImGui::PushID(texture);
+    ImGui::PushID(Texture);
 
     ImGui::SeparatorText("Texture");
 
-    bool c = false;
+    bool C = false;
 
-    ImGui::InputText("Name", &texture->name);
-    ImGui::LabelText("Size", "%u x %u", texture->width, texture->height);
-    c |= ImGui::Checkbox("Nearest Filtering", &texture->enableNearestFiltering);
+    ImGui::InputText("Name", &Texture->Name);
+    ImGui::LabelText("Size", "%u x %u", Texture->Width, Texture->Height);
+    C |= ImGui::Checkbox("Nearest Filtering", &Texture->EnableNearestFiltering);
 
-    if (c) scene.dirtyFlags |= SCENE_DIRTY_TEXTURES;
+    if (C) Scene->DirtyFlags |= SCENE_DIRTY_TEXTURES;
 
     ImGui::PopID();
 }
 
-static void MaterialInspector(Application* app, Material* material, bool referenced = false)
+static void MaterialInspector(application* App, material* Material, bool Referenced = false)
 {
-    Scene& scene = *app->scene;
+    scene* Scene = App->Scene;
 
-    if (!material) return;
+    if (!Material) return;
 
-    ImGui::PushID(material);
+    ImGui::PushID(Material);
 
-    if (referenced) {
-        char title[256];
-        snprintf(title, 256, "Material: %s", material->name.c_str());
-        ImGui::SeparatorText(title);
+    if (Referenced) {
+        char Title[256];
+        snprintf(Title, 256, "Material: %s", Material->Name.c_str());
+        ImGui::SeparatorText(Title);
     }
     else {
         ImGui::SeparatorText("Material");
-        ImGui::InputText("Name", &material->name);
+        ImGui::InputText("Name", &Material->Name);
     }
 
-    bool c = false;
+    bool C = false;
 
-    c |= ImGui::DragFloat("Opacity", &material->opacity, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Opacity", &Material->Opacity, 0.01f, 0.0f, 1.0f);
 
-    c |= ImGui::DragFloat("Base Weight", &material->baseWeight, 0.01f, 0.0f, 1.0f);
-    c |= ImGui::ColorEdit3("Base Color", &material->baseColor[0]);
-    c |= ResourceSelectorDropDown("Base Color Texture", scene.textures, &material->baseColorTexture);
-    c |= ImGui::DragFloat("Base Metalness", &material->baseMetalness, 0.01f, 0.0f, 1.0f);
-    c |= ImGui::DragFloat("Base Diffuse Roughness", &material->baseDiffuseRoughness, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Base Weight", &Material->BaseWeight, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::ColorEdit3("Base Color", &Material->BaseColor[0]);
+    C |= ResourceSelectorDropDown("Base Color Texture", Scene->Textures, &Material->BaseColorTexture);
+    C |= ImGui::DragFloat("Base Metalness", &Material->BaseMetalness, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Base Diffuse Roughness", &Material->BaseDiffuseRoughness, 0.01f, 0.0f, 1.0f);
 
-    c |= ImGui::DragFloat("Specular Weight", &material->specularWeight, 0.01f, 0.0f, 1.0f);
-    c |= ImGui::ColorEdit3("Specular Color", &material->specularColor[0]);
-    c |= ImGui::DragFloat("Specular Roughness", &material->specularRoughness, 0.01f, 0.0f, 1.0f);
-    c |= ImGui::DragFloat("Specular Roughness Anisotropy", &material->specularRoughnessAnisotropy, 0.01f, 0.0f, 1.0f);
-    c |= ImGui::DragFloat("Specular IOR", &material->specularIOR, 0.01f, 1.0f, 3.0f);
+    C |= ImGui::DragFloat("Specular Weight", &Material->SpecularWeight, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::ColorEdit3("Specular Color", &Material->SpecularColor[0]);
+    C |= ImGui::DragFloat("Specular Roughness", &Material->SpecularRoughness, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Specular Roughness Anisotropy", &Material->SpecularRoughnessAnisotropy, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Specular IOR", &Material->SpecularIOR, 0.01f, 1.0f, 3.0f);
 
-    c |= ImGui::DragFloat("Transmission Weight", &material->transmissionWeight, 0.01f, 0.0f, 1.0f);
-    c |= ImGui::ColorEdit3("Transmission Color", &material->transmissionColor[0]);
-    c |= ImGui::DragFloat("Transmission Depth", &material->transmissionDepth, 0.01f, 0.0f, 1.0f);
-    c |= ImGui::ColorEdit3("Transmission Scatter", &material->transmissionScatter[0]);
-    c |= ImGui::DragFloat("Transmission Scatter Anisotropy", &material->transmissionScatterAnisotropy, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Transmission Weight", &Material->TransmissionWeight, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::ColorEdit3("Transmission Color", &Material->TransmissionColor[0]);
+    C |= ImGui::DragFloat("Transmission Depth", &Material->TransmissionDepth, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::ColorEdit3("Transmission Scatter", &Material->TransmissionScatter[0]);
+    C |= ImGui::DragFloat("Transmission Scatter Anisotropy", &Material->TransmissionScatterAnisotropy, 0.01f, 0.0f, 1.0f);
 
-    c |= ImGui::DragFloat("Emission Luminance", &material->emissionLuminance, 1.0f, 0.0f, 1000.0f);
-    c |= ImGui::ColorEdit3("Emission Color", &material->emissionColor[0]);
+    C |= ImGui::DragFloat("Emission Luminance", &Material->EmissionLuminance, 1.0f, 0.0f, 1000.0f);
+    C |= ImGui::ColorEdit3("Emission Color", &Material->EmissionColor[0]);
 
-    c |= ImGui::DragFloat("Scattering Rate", &material->scatteringRate, 1.0f, 0.0001f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+    C |= ImGui::DragFloat("Scattering Rate", &Material->ScatteringRate, 1.0f, 0.0001f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
 
-    if (c) scene.dirtyFlags |= SCENE_DIRTY_MATERIALS;
+    if (C) Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
 
     ImGui::PopID();
 }
 
-static void MeshInspector(Application* app, Mesh* mesh, bool referenced = false)
+static void MeshInspector(application* App, mesh* Mesh, bool Referenced = false)
 {
-    Scene& scene = *app->scene;
+    scene* Scene = App->Scene;
 
-    if (!mesh) return;
+    if (!Mesh) return;
 
-    ImGui::PushID(mesh);
+    ImGui::PushID(Mesh);
 
-    if (referenced) {
-        char title[256];
-        snprintf(title, 256, "Mesh: %s", mesh->name.c_str());
-        ImGui::SeparatorText(title);
+    if (Referenced) {
+        char Title[256];
+        snprintf(Title, 256, "Mesh: %s", Mesh->Name.c_str());
+        ImGui::SeparatorText(Title);
     }
     else {
         ImGui::SeparatorText("Mesh");
-        ImGui::InputText("Name", &mesh->name);
+        ImGui::InputText("Name", &Mesh->Name);
     }
 
-    bool c = false;
+    bool C = false;
 
     ImGui::PushID("materials");
-    for (size_t k = 0; k < mesh->materials.size(); k++) {
-        ImGui::PushID(static_cast<int>(k));
+    for (size_t I = 0; I < Mesh->Materials.size(); I++) {
+        ImGui::PushID(static_cast<int>(I));
 
-        char title[32];
-        sprintf_s(title, "Material %llu", k);
-        c |= ResourceSelectorDropDown(title, scene.materials, &mesh->materials[k]);
+        char Title[32];
+        sprintf_s(Title, "Material %llu", I);
+
+        C |= ResourceSelectorDropDown(Title, Scene->Materials, &Mesh->Materials[I]);
 
         ImGui::PopID();
     }
     ImGui::PopID();
 
-    for (size_t k = 0; k < mesh->materials.size(); k++) {
+    for (size_t I = 0; I < Mesh->Materials.size(); I++) {
         ImGui::Spacing();
-        MaterialInspector(app, mesh->materials[k], true);
+        MaterialInspector(App, Mesh->Materials[I], true);
     }
 
-    if (c) scene.dirtyFlags |= SCENE_DIRTY_MESHES;
+    if (C) Scene->DirtyFlags |= SCENE_DIRTY_MESHES;
 
     ImGui::PopID();
 }
 
-static void CameraInspector(Application* app, Camera* camera)
+static void CameraInspector(application* App, camera* Camera)
 {
-    bool c = false;
+    bool C = false;
 
-    if (app->camera == camera) {
-        bool active = true;
-        ImGui::Checkbox("Possess", &active);
-        if (!active) app->camera = nullptr;
+    if (App->Camera == Camera) {
+        bool Active = true;
+        ImGui::Checkbox("Possess", &Active);
+        if (!Active) App->Camera = nullptr;
     }
     else {
-        bool active = false;
-        ImGui::Checkbox("Possess", &active);
-        if (active) app->camera = camera;
+        bool Active = false;
+        ImGui::Checkbox("Possess", &Active);
+        if (Active) App->Camera = Camera;
     }
 
     ImGui::Spacing();
     ImGui::SeparatorText("Rendering");
 
-    if (ImGui::BeginCombo("Render Mode", RenderModeName(camera->renderMode))) {
-        for (int k = 0; k < RENDER_MODE__COUNT; k++) {
-            auto renderMode = static_cast<RenderMode>(k);
-            bool selected = camera->renderMode == renderMode;
-            if (ImGui::Selectable(RenderModeName(renderMode), &selected)) {
-                camera->renderMode = renderMode;
-                c = true;
+    if (ImGui::BeginCombo("Render Mode", RenderModeName(Camera->RenderMode))) {
+        for (int I = 0; I < RENDER_MODE__COUNT; I++) {
+            auto RenderMode = static_cast<render_mode>(I);
+            bool IsSelected = Camera->RenderMode == RenderMode;
+            if (ImGui::Selectable(RenderModeName(RenderMode), &IsSelected)) {
+                Camera->RenderMode = RenderMode;
+                C = true;
             }
         }
         ImGui::EndCombo();
     }
     
-    if (camera->renderMode == RENDER_MODE_PATH_TRACE) {
-        int bounceLimit = static_cast<int>(camera->renderBounceLimit);
-        c |= ImGui::InputInt("Bounce Limit", &bounceLimit);
-        c |= ImGui::DragFloat("Termination Probability", &camera->renderTerminationProbability, 0.001f, 0.0f, 1.0f);
-        camera->renderBounceLimit = std::max(1, bounceLimit);
+    if (Camera->RenderMode == RENDER_MODE_PATH_TRACE) {
+        int BounceLimit = static_cast<int>(Camera->RenderBounceLimit);
+        C |= ImGui::InputInt("Bounce Limit", &BounceLimit);
+        C |= ImGui::DragFloat("Termination Probability", &Camera->RenderTerminationProbability, 0.001f, 0.0f, 1.0f);
+        Camera->RenderBounceLimit = std::max(1, BounceLimit);
     }
 
-    if (camera->renderMode == RENDER_MODE_MESH_COMPLEXITY) {
-        int complexityScale = static_cast<int>(camera->renderMeshComplexityScale);
-        c |= ImGui::InputInt("Maximum Complexity", &complexityScale);
-        camera->renderMeshComplexityScale = std::max(1, complexityScale);
+    if (Camera->RenderMode == RENDER_MODE_MESH_COMPLEXITY) {
+        int ComplexityScale = static_cast<int>(Camera->RenderMeshComplexityScale);
+        C |= ImGui::InputInt("Maximum Complexity", &ComplexityScale);
+        Camera->RenderMeshComplexityScale = std::max(1, ComplexityScale);
     }
 
-    if (camera->renderMode == RENDER_MODE_SCENE_COMPLEXITY) {
-        int complexityScale = static_cast<int>(camera->renderSceneComplexityScale);
-        c |= ImGui::InputInt("Maximum Complexity", &complexityScale);
-        camera->renderSceneComplexityScale = std::max(1, complexityScale);
+    if (Camera->RenderMode == RENDER_MODE_SCENE_COMPLEXITY) {
+        int ComplexityScale = static_cast<int>(Camera->RenderSceneComplexityScale);
+        C |= ImGui::InputInt("Maximum Complexity", &ComplexityScale);
+        Camera->RenderSceneComplexityScale = std::max(1, ComplexityScale);
     }
 
-    char const* const renderSampleBlockSizeLabels[] = { "1x1", "2x2", "4x4", "8x8" };
+    char const* const RenderSampleBlockSizeLabels[] = { "1x1", "2x2", "4x4", "8x8" };
     ImGui::Combo("Sample Block Size",
-        (int*)&camera->renderSampleBlockSizeLog2,
-        renderSampleBlockSizeLabels, 4);
+        (int*)&Camera->RenderSampleBlockSizeLog2,
+        RenderSampleBlockSizeLabels, 4);
 
-    c |= ImGui::CheckboxFlags("Sample Accumulation", &camera->renderFlags, RENDER_FLAG_ACCUMULATE);
-    c |= ImGui::CheckboxFlags("Sample Jitter", &camera->renderFlags, RENDER_FLAG_SAMPLE_JITTER);
+    C |= ImGui::CheckboxFlags("Sample Accumulation", &Camera->RenderFlags, RENDER_FLAG_ACCUMULATE);
+    C |= ImGui::CheckboxFlags("Sample Jitter", &Camera->RenderFlags, RENDER_FLAG_SAMPLE_JITTER);
 
     ImGui::Spacing();
     ImGui::SeparatorText("Post-Processing");
 
-    ImGui::SliderFloat("Brightness", &camera->brightness, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+    ImGui::SliderFloat("Brightness", &Camera->Brightness, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
 
-    if (ImGui::BeginCombo("Tone Mapping", ToneMappingModeName(camera->toneMappingMode))) {
-        for (int k = 0; k < TONE_MAPPING_MODE__COUNT; k++) {
-            auto toneMappingMode = static_cast<ToneMappingMode>(k);
-            bool selected = camera->toneMappingMode == toneMappingMode;
-            if (ImGui::Selectable(ToneMappingModeName(toneMappingMode), &selected)) {
-                camera->toneMappingMode = toneMappingMode;
+    if (ImGui::BeginCombo("Tone Mapping", ToneMappingModeName(Camera->ToneMappingMode))) {
+        for (int I = 0; I < TONE_MAPPING_MODE__COUNT; I++) {
+            auto ToneMappingMode = static_cast<tone_mapping_mode>(I);
+            bool IsSelected = Camera->ToneMappingMode == ToneMappingMode;
+            if (ImGui::Selectable(ToneMappingModeName(ToneMappingMode), &IsSelected)) {
+                Camera->ToneMappingMode = ToneMappingMode;
             }
         }
         ImGui::EndCombo();
     }
 
-    if (camera->toneMappingMode == TONE_MAPPING_MODE_REINHARD) {
-        ImGui::SliderFloat("White Level", &camera->toneMappingWhiteLevel, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+    if (Camera->ToneMappingMode == TONE_MAPPING_MODE_REINHARD) {
+        ImGui::SliderFloat("White Level", &Camera->ToneMappingWhiteLevel, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
     }
 
     ImGui::Spacing();
     ImGui::SeparatorText("Projection");
 
-    if (ImGui::BeginCombo("Camera Model", CameraModelName(camera->cameraModel))) {
-        for (int k = 0; k < CAMERA_MODEL__COUNT; k++) {
-            auto model = static_cast<CameraModel>(k);
-            bool selected = camera->cameraModel == model;
-            if (ImGui::Selectable(CameraModelName(model), &selected)) {
-                camera->cameraModel = model;
-                c = true;
+    if (ImGui::BeginCombo("Camera Model", CameraModelName(Camera->CameraModel))) {
+        for (int I = 0; I < CAMERA_MODEL__COUNT; I++) {
+            auto CameraModel = static_cast<camera_model>(I);
+            bool IsSelected = Camera->CameraModel == CameraModel;
+            if (ImGui::Selectable(CameraModelName(CameraModel), &IsSelected)) {
+                Camera->CameraModel = CameraModel;
+                C = true;
             }
         }
         ImGui::EndCombo();
     }
 
-    if (camera->cameraModel == CAMERA_MODEL_PINHOLE) {
-        c |= ImGui::DragFloat("FOV (degrees)", &camera->pinhole.fieldOfViewInDegrees, 1.0f, 0.01f, 179.99f);
-        c |= ImGui::DragFloat("Aperture (mm)", &camera->pinhole.apertureDiameterInMM, 0.1f, 0.0f, 50.0f);
+    if (Camera->CameraModel == CAMERA_MODEL_PINHOLE) {
+        C |= ImGui::DragFloat("FOV (degrees)", &Camera->Pinhole.FieldOfViewInDegrees, 1.0f, 0.01f, 179.99f);
+        C |= ImGui::DragFloat("Aperture (mm)", &Camera->Pinhole.ApertureDiameterInMM, 0.1f, 0.0f, 50.0f);
     }
 
-    if (camera->cameraModel == CAMERA_MODEL_THIN_LENS) {
-        glm::vec2 sensorSizeInMM = camera->thinLens.sensorSizeInMM;
-        if (ImGui::DragFloat2("Sensor Size (mm)", &sensorSizeInMM[0], 1.0f, 1.0f, 100.0f)) {
+    if (Camera->CameraModel == CAMERA_MODEL_THIN_LENS) {
+        glm::vec2 SensorSizeInMM = Camera->ThinLens.SensorSizeInMM;
+        if (ImGui::DragFloat2("Sensor Size (mm)", &SensorSizeInMM[0], 1.0f, 1.0f, 100.0f)) {
             float const ASPECT_RATIO = 1920.0f / 1080.0f;
-            if (sensorSizeInMM.x != camera->thinLens.sensorSizeInMM.x)
-                sensorSizeInMM.y = sensorSizeInMM.x / ASPECT_RATIO;
+            if (SensorSizeInMM.x != Camera->ThinLens.SensorSizeInMM.x)
+                SensorSizeInMM.y = SensorSizeInMM.x / ASPECT_RATIO;
             else
-                sensorSizeInMM.x = sensorSizeInMM.y * ASPECT_RATIO;
-            camera->thinLens.sensorSizeInMM = sensorSizeInMM;
-            c = true;
+                SensorSizeInMM.x = SensorSizeInMM.y * ASPECT_RATIO;
+            Camera->ThinLens.SensorSizeInMM = SensorSizeInMM;
+            C = true;
         }
 
-        c |= ImGui::DragFloat("Focal Length (mm)", &camera->thinLens.focalLengthInMM, 1.0f, 1.0f, 200.0f);
-        c |= ImGui::DragFloat("Aperture (mm)", &camera->thinLens.apertureDiameterInMM, 0.5f, 0.0f, 100.0f);
-        c |= ImGui::DragFloat("Focus Distance", &camera->thinLens.focusDistance, 1.0f, 0.01f, 1000.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+        C |= ImGui::DragFloat("Focal Length (mm)", &Camera->ThinLens.FocalLengthInMM, 1.0f, 1.0f, 200.0f);
+        C |= ImGui::DragFloat("Aperture (mm)", &Camera->ThinLens.ApertureDiameterInMM, 0.5f, 0.0f, 100.0f);
+        C |= ImGui::DragFloat("Focus Distance", &Camera->ThinLens.FocusDistance, 1.0f, 0.01f, 1000.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
     }
 
-    if (c) app->scene->dirtyFlags |= SCENE_DIRTY_CAMERAS;
+    if (C) App->Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
 }
 
-static void EntityInspector(Application* app, Entity* entity)
+static void EntityInspector(application* App, entity* Entity)
 {
-    Scene& scene = *app->scene;
+    scene* Scene = App->Scene;
 
-    if (!entity) return;
+    if (!Entity) return;
 
-    ImGui::PushID(entity);
-    ImGui::SeparatorText(EntityTypeName(entity->type));
+    ImGui::PushID(Entity);
+    ImGui::SeparatorText(EntityTypeName(Entity->Type));
 
-    bool c = false;
+    bool C = false;
 
-    if (entity->type != ENTITY_TYPE_ROOT) {
-        c |= ImGui::Checkbox("Active", &entity->active);
+    if (Entity->Type != ENTITY_TYPE_ROOT) {
+        C |= ImGui::Checkbox("Active", &Entity->Active);
 
-        ImGui::InputText("Name", &entity->name);
+        ImGui::InputText("Name", &Entity->Name);
 
-        Transform& transform = entity->transform;
-        c |= ImGui::DragFloat3("Position", &transform.position[0], 0.1f);
-        c |= DragEulerAngles("Rotation", &transform.rotation);
+        transform& Transform = Entity->Transform;
+        C |= ImGui::DragFloat3("Position", &Transform.Position[0], 0.1f);
+        C |= DragEulerAngles("Rotation", &Transform.Rotation);
 
-        if (entity->type != ENTITY_TYPE_CAMERA) {
-            glm::vec3 scale = transform.scale;
-            if (ImGui::DragFloat3("Scale", &scale[0], 0.01f)) {
-                if (transform.scaleIsUniform) {
-                    for (int i = 0; i < 3; i++) {
-                        if (scale[i] == transform.scale[i])
+        if (Entity->Type != ENTITY_TYPE_CAMERA) {
+            glm::vec3 Scale = Transform.Scale;
+            if (ImGui::DragFloat3("Scale", &Scale[0], 0.01f)) {
+                if (Transform.ScaleIsUniform) {
+                    for (int I = 0; I < 3; I++) {
+                        if (Scale[I] == Transform.Scale[I])
                             continue;
-                        scale = glm::vec3(1) * scale[i];
+                        Scale = glm::vec3(1) * Scale[I];
                         break;
                     }
                 }
-                c = true;
+                C = true;
             }
-            if (ImGui::Checkbox("Uniform Scale", &transform.scaleIsUniform)) {
-                if (transform.scaleIsUniform)
-                    scale = glm::vec3(1) * scale.x;
-                c = true;
+            if (ImGui::Checkbox("Uniform Scale", &Transform.ScaleIsUniform)) {
+                if (Transform.ScaleIsUniform)
+                    Scale = glm::vec3(1) * Scale.x;
+                C = true;
             }
-            transform.scale = scale;
+            Transform.Scale = Scale;
         }
     }
 
-    switch (entity->type) {
+    switch (Entity->Type) {
         case ENTITY_TYPE_ROOT: {
-            auto root = static_cast<Root*>(entity);
-            c |= ImGui::DragFloat("Scattering Rate", &root->scatterRate, 0.001f, 0.00001f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-            c |= ImGui::DragFloat("Skybox Brightness", &root->skyboxBrightness, 0.01f, 0.0f, 1.0f);
-            c |= ImGui::Checkbox("Skybox White Furnace", &root->skyboxWhiteFurnace);
+            auto Root = static_cast<root*>(Entity);
+            C |= ImGui::DragFloat("Scattering Rate", &Root->ScatterRate, 0.001f, 0.00001f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+            C |= ImGui::DragFloat("Skybox Brightness", &Root->SkyboxBrightness, 0.01f, 0.0f, 1.0f);
+            C |= ImGui::Checkbox("Skybox White Furnace", &Root->SkyboxWhiteFurnace);
             break;
         }
         case ENTITY_TYPE_CAMERA: {
-            CameraInspector(app, static_cast<Camera*>(entity));
+            CameraInspector(App, static_cast<camera*>(Entity));
             break;
         }
         case ENTITY_TYPE_MESH_INSTANCE: {
-            auto instance = static_cast<MeshInstance*>(entity);
-            c |= ResourceSelectorDropDown("Mesh", scene.meshes, &instance->mesh);
+            auto Instance = static_cast<mesh_instance*>(Entity);
+            C |= ResourceSelectorDropDown("Mesh", Scene->Meshes, &Instance->Mesh);
             ImGui::Spacing();
-            MeshInspector(app, instance->mesh, true);
+            MeshInspector(App, Instance->Mesh, true);
             break;
         }
         case ENTITY_TYPE_PLANE: {
-            auto plane = static_cast<Plane*>(entity);
-            c |= ResourceSelectorDropDown("Material", scene.materials, &plane->material);
+            auto Plane = static_cast<plane*>(Entity);
+            C |= ResourceSelectorDropDown("Material", Scene->Materials, &Plane->Material);
             ImGui::Spacing();
-            MaterialInspector(app, plane->material, true);
+            MaterialInspector(App, Plane->Material, true);
             break;
         }
         case ENTITY_TYPE_SPHERE: {
-            auto sphere = static_cast<Sphere*>(entity);
-            c |= ResourceSelectorDropDown("Material", scene.materials, &sphere->material);
+            auto Sphere = static_cast<sphere*>(Entity);
+            C |= ResourceSelectorDropDown("Material", Scene->Materials, &Sphere->Material);
             ImGui::Spacing();
-            MaterialInspector(app, sphere->material, true);
+            MaterialInspector(App, Sphere->Material, true);
             break;
         }
         case ENTITY_TYPE_CUBE: {
-            auto cube = static_cast<Cube*>(entity);
-            c |= ResourceSelectorDropDown("Material", scene.materials, &cube->material);
+            auto Cube = static_cast<cube*>(Entity);
+            C |= ResourceSelectorDropDown("Material", Scene->Materials, &Cube->Material);
             ImGui::Spacing();
-            MaterialInspector(app, cube->material, true);
+            MaterialInspector(App, Cube->Material, true);
             break;
         }
     }
 
-    if (c) scene.dirtyFlags |= SCENE_DIRTY_OBJECTS;
+    if (C) Scene->DirtyFlags |= SCENE_DIRTY_OBJECTS;
 
     ImGui::PopID();
 }
 
-static void EntityTreeNode(Application* app, Entity* entity)
+static void EntityTreeNode(application* App, entity* Entity)
 {
-    ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags_OpenOnDoubleClick;
+    ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_OpenOnDoubleClick;
 
-    if (entity->children.empty())
-        flags |= ImGuiTreeNodeFlags_Leaf;
+    if (Entity->Children.empty())
+        Flags |= ImGuiTreeNodeFlags_Leaf;
 
-    if (entity->type == ENTITY_TYPE_ROOT)
-        flags |= ImGuiTreeNodeFlags_DefaultOpen;
+    if (Entity->Type == ENTITY_TYPE_ROOT)
+        Flags |= ImGuiTreeNodeFlags_DefaultOpen;
 
-    if (app->selectionType == SELECTION_TYPE_ENTITY && app->selectedEntity == entity)
-        flags |= ImGuiTreeNodeFlags_Selected;
+    if (App->SelectionType == SELECTION_TYPE_ENTITY && App->SelectedEntity == Entity)
+        Flags |= ImGuiTreeNodeFlags_Selected;
 
-    if (!entity->active) {
+    if (!Entity->Active) {
         auto color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
         color.x *= 0.5f;
         color.y *= 0.5f;
@@ -389,153 +390,153 @@ static void EntityTreeNode(Application* app, Entity* entity)
         ImGui::PushStyleColor(ImGuiCol_Text, color);
     }
 
-    if (ImGui::TreeNodeEx(entity->name.c_str(), flags)) {
+    if (ImGui::TreeNodeEx(Entity->Name.c_str(), Flags)) {
         if (ImGui::IsItemClicked()) {
-            app->selectionType = SELECTION_TYPE_ENTITY;
-            app->selectedEntity = entity;
+            App->SelectionType = SELECTION_TYPE_ENTITY;
+            App->SelectedEntity = Entity;
         }
 
         if (ImGui::BeginPopupContextItem()) {
-            for (int k = 0; k < ENTITY_TYPE__COUNT; k++) {
-                if (k == ENTITY_TYPE_ROOT) continue;
-                char buffer[256];
-                auto type = static_cast<EntityType>(k);
-                snprintf(buffer, std::size(buffer), "Create %s...", EntityTypeName(type));
-                if (ImGui::MenuItem(buffer)) {
-                    auto child = CreateEntity(app->scene, type, entity);
-                    child->name = std::format("New {}", EntityTypeName(type));
-                    app->scene->dirtyFlags |= SCENE_DIRTY_OBJECTS;
-                    app->selectionType = SELECTION_TYPE_ENTITY;
-                    app->selectedEntity = child;
+            for (int I = 0; I < ENTITY_TYPE__COUNT; I++) {
+                if (I == ENTITY_TYPE_ROOT) continue;
+                char Buffer[256];
+                auto EntityType = static_cast<entity_type>(I);
+                snprintf(Buffer, std::size(Buffer), "Create %s...", EntityTypeName(EntityType));
+                if (ImGui::MenuItem(Buffer)) {
+                    auto Child = CreateEntity(App->Scene, EntityType, Entity);
+                    Child->Name = std::format("New {}", EntityTypeName(EntityType));
+                    App->Scene->DirtyFlags |= SCENE_DIRTY_OBJECTS;
+                    App->SelectionType = SELECTION_TYPE_ENTITY;
+                    App->SelectedEntity = Child;
                 }
             }
             ImGui::EndPopup();
         }
 
-        for (Entity* child : entity->children)
-            EntityTreeNode(app, child);
+        for (entity* Child : Entity->Children)
+            EntityTreeNode(App, Child);
 
         ImGui::TreePop();
     }
 
-    if (!entity->active) {
+    if (!Entity->Active) {
         ImGui::PopStyleColor();
     }
 }
 
-void ResourceBrowserWindow(Application* app)
+void ResourceBrowserWindow(application* App)
 {
-    bool c = false;
+    bool C = false;
 
-    Scene& scene = *app->scene;
+    scene* Scene = App->Scene;
 
     ImGui::Begin("Resources");
 
     // Textures
     {
-        auto getter = [](void* app, int index) {
-            auto scene = static_cast<Scene*>(app);
-            if (index < 0 || index >= scene->textures.size())
+        auto GetItemName = [](void* Context, int Index) {
+            auto Scene = static_cast<scene*>(Context);
+            if (Index < 0 || Index >= Scene->Textures.size())
                 return "";
-            return scene->textures[index]->name.c_str();
+            return Scene->Textures[Index]->Name.c_str();
         };
 
-        int itemIndex = -1;
-        int itemCount = static_cast<int>(scene.textures.size());
+        int Index = -1;
+        int Count = static_cast<int>(Scene->Textures.size());
 
-        if (app->selectionType == SELECTION_TYPE_TEXTURE) {
-            for (int k = 0; k < itemCount; k++)
-                if (scene.textures[k] == app->selectedTexture)
-                    itemIndex = k;
+        if (App->SelectionType == SELECTION_TYPE_TEXTURE) {
+            for (int I = 0; I < Count; I++)
+                if (Scene->Textures[I] == App->SelectedTexture)
+                    Index = I;
         }
 
-        if (ImGui::ListBox("Textures", &itemIndex, getter, &scene, itemCount, 6)) {
-            app->selectionType = SELECTION_TYPE_TEXTURE;
-            app->selectedTexture = scene.textures[itemIndex];
+        if (ImGui::ListBox("Textures", &Index, GetItemName, Scene, Count, 6)) {
+            App->SelectionType = SELECTION_TYPE_TEXTURE;
+            App->SelectedTexture = Scene->Textures[Index];
         }
     }
 
     // Materials
     {
-        auto getter = [](void* app, int index) {
-            auto scene = static_cast<Scene*>(app);
-            if (index < 0 || index >= scene->materials.size())
+        auto GetItemName = [](void* Context, int Index) {
+            auto Scene = static_cast<scene*>(Context);
+            if (Index < 0 || Index >= Scene->Materials.size())
                 return "";
-            return scene->materials[index]->name.c_str();
+            return Scene->Materials[Index]->Name.c_str();
         };
 
-        int itemIndex = -1;
-        int itemCount = static_cast<int>(scene.materials.size());
+        int Index = -1;
+        int Count = static_cast<int>(Scene->Materials.size());
 
-        if (app->selectionType == SELECTION_TYPE_MATERIAL) {
-            for (int k = 0; k < itemCount; k++)
-                if (scene.materials[k] == app->selectedMaterial)
-                    itemIndex = k;
+        if (App->SelectionType == SELECTION_TYPE_MATERIAL) {
+            for (int I = 0; I < Count; I++)
+                if (Scene->Materials[I] == App->SelectedMaterial)
+                    Index = I;
         }
 
-        if (ImGui::ListBox("Materials", &itemIndex, getter, &scene, itemCount, 6)) {
-            app->selectionType = SELECTION_TYPE_MATERIAL;
-            app->selectedMaterial = scene.materials[itemIndex];
+        if (ImGui::ListBox("Materials", &Index, GetItemName, Scene, Count, 6)) {
+            App->SelectionType = SELECTION_TYPE_MATERIAL;
+            App->SelectedMaterial = Scene->Materials[Index];
         }
     }
 
     // Meshes
     {
-        auto getter = [](void* app, int index) {
-            auto scene = static_cast<Scene*>(app);
-            if (index < 0 || index >= scene->meshes.size())
+        auto GetItemName = [](void* Context, int Index) {
+            auto Scene = static_cast<scene*>(Context);
+            if (Index < 0 || Index >= Scene->Meshes.size())
                 return "";
-            return scene->meshes[index]->name.c_str();
+            return Scene->Meshes[Index]->Name.c_str();
         };
 
-        int itemIndex = -1;
-        int itemCount = static_cast<int>(scene.meshes.size());
+        int Index = -1;
+        int Count = static_cast<int>(Scene->Meshes.size());
 
-        if (app->selectionType == SELECTION_TYPE_MESH) {
-            for (int k = 0; k < itemCount; k++)
-                if (scene.meshes[k] == app->selectedMesh)
-                    itemIndex = k;
+        if (App->SelectionType == SELECTION_TYPE_MESH) {
+            for (int I = 0; I < Count; I++)
+                if (Scene->Meshes[I] == App->SelectedMesh)
+                    Index = I;
         }
 
-        if (ImGui::ListBox("Meshes", &itemIndex, getter, &scene, itemCount, 6)) {
-            app->selectionType = SELECTION_TYPE_MESH;
-            app->selectedMesh = scene.meshes[itemIndex];
+        if (ImGui::ListBox("Meshes", &Index, GetItemName, Scene, Count, 6)) {
+            App->SelectionType = SELECTION_TYPE_MESH;
+            App->SelectedMesh = Scene->Meshes[Index];
         }
     }
 
     ImGui::End();
 }
 
-void SceneHierarchyWindow(Application* app)
+void SceneHierarchyWindow(application* App)
 {
-    Scene& scene = *app->scene;
+    scene* Scene = App->Scene;
 
     ImGui::Begin("Scene Hierarchy");
 
-    EntityTreeNode(app, &scene.root);
+    EntityTreeNode(App, &Scene->Root);
 
     ImGui::End();
 }
 
-void InspectorWindow(Application* app)
+void InspectorWindow(application* App)
 {
     ImGui::Begin("Inspector");
     ImGui::PushItemWidth(0.50f * ImGui::GetWindowWidth());
 
-    Scene& scene = *app->scene;
+    scene* Scene = App->Scene;
 
-    switch (app->selectionType) {
+    switch (App->SelectionType) {
         case SELECTION_TYPE_TEXTURE:
-            TextureInspector(app, app->selectedTexture);
+            TextureInspector(App, App->SelectedTexture);
             break;
         case SELECTION_TYPE_MATERIAL:
-            MaterialInspector(app, app->selectedMaterial);
+            MaterialInspector(App, App->SelectedMaterial);
             break;
         case SELECTION_TYPE_MESH:
-            MeshInspector(app, app->selectedMesh);
+            MeshInspector(App, App->SelectedMesh);
             break;
         case SELECTION_TYPE_ENTITY:
-            EntityInspector(app, app->selectedEntity);
+            EntityInspector(App, App->SelectedEntity);
             break;
     }
 
@@ -543,93 +544,93 @@ void InspectorWindow(Application* app)
     ImGui::End();
 }
 
-void InitializeUI(Application* app)
+void InitializeUI(application* App)
 {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
-    ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
-    io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+    ImGuiIO& IO = ImGui::GetIO();
+    IO.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    IO.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
+    IO.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
-    ImVec4* colors = ImGui::GetStyle().Colors;
-    colors[ImGuiCol_Text]                   = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
-    colors[ImGuiCol_TextDisabled]           = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
-    colors[ImGuiCol_WindowBg]               = ImVec4(0.10f, 0.10f, 0.10f, 1.00f);
-    colors[ImGuiCol_ChildBg]                = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-    colors[ImGuiCol_PopupBg]                = ImVec4(0.19f, 0.19f, 0.19f, 0.92f);
-    colors[ImGuiCol_Border]                 = ImVec4(0.19f, 0.19f, 0.19f, 0.29f);
-    colors[ImGuiCol_BorderShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.24f);
-    colors[ImGuiCol_FrameBg]                = ImVec4(0.05f, 0.05f, 0.05f, 0.54f);
-    colors[ImGuiCol_FrameBgHovered]         = ImVec4(0.19f, 0.19f, 0.19f, 0.54f);
-    colors[ImGuiCol_FrameBgActive]          = ImVec4(0.20f, 0.22f, 0.23f, 1.00f);
-    colors[ImGuiCol_TitleBg]                = ImVec4(0.05f, 0.05f, 0.05f, 1.00f);
-    colors[ImGuiCol_TitleBgActive]          = ImVec4(0.06f, 0.06f, 0.06f, 1.00f);
-    colors[ImGuiCol_TitleBgCollapsed]       = ImVec4(0.00f, 0.00f, 0.00f, 1.00f);
-    colors[ImGuiCol_MenuBarBg]              = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
-    colors[ImGuiCol_ScrollbarBg]            = ImVec4(0.05f, 0.05f, 0.05f, 0.54f);
-    colors[ImGuiCol_ScrollbarGrab]          = ImVec4(0.34f, 0.34f, 0.34f, 0.54f);
-    colors[ImGuiCol_ScrollbarGrabHovered]   = ImVec4(0.40f, 0.40f, 0.40f, 0.54f);
-    colors[ImGuiCol_ScrollbarGrabActive]    = ImVec4(0.56f, 0.56f, 0.56f, 0.54f);
-    colors[ImGuiCol_CheckMark]              = ImVec4(0.33f, 0.67f, 0.86f, 1.00f);
-    colors[ImGuiCol_SliderGrab]             = ImVec4(0.34f, 0.34f, 0.34f, 0.54f);
-    colors[ImGuiCol_SliderGrabActive]       = ImVec4(0.56f, 0.56f, 0.56f, 0.54f);
-    colors[ImGuiCol_Button]                 = ImVec4(0.05f, 0.05f, 0.05f, 0.54f);
-    colors[ImGuiCol_ButtonHovered]          = ImVec4(0.19f, 0.19f, 0.19f, 0.54f);
-    colors[ImGuiCol_ButtonActive]           = ImVec4(0.20f, 0.22f, 0.23f, 1.00f);
-    colors[ImGuiCol_Header]                 = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
-    colors[ImGuiCol_HeaderHovered]          = ImVec4(0.00f, 0.00f, 0.00f, 0.36f);
-    colors[ImGuiCol_HeaderActive]           = ImVec4(0.20f, 0.22f, 0.23f, 0.33f);
-    colors[ImGuiCol_Separator]              = ImVec4(0.28f, 0.28f, 0.28f, 0.29f);
-    colors[ImGuiCol_SeparatorHovered]       = ImVec4(0.44f, 0.44f, 0.44f, 0.29f);
-    colors[ImGuiCol_SeparatorActive]        = ImVec4(0.40f, 0.44f, 0.47f, 1.00f);
-    colors[ImGuiCol_ResizeGrip]             = ImVec4(0.28f, 0.28f, 0.28f, 0.29f);
-    colors[ImGuiCol_ResizeGripHovered]      = ImVec4(0.44f, 0.44f, 0.44f, 0.29f);
-    colors[ImGuiCol_ResizeGripActive]       = ImVec4(0.40f, 0.44f, 0.47f, 1.00f);
-    colors[ImGuiCol_Tab]                    = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
-    colors[ImGuiCol_TabHovered]             = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
-    colors[ImGuiCol_TabActive]              = ImVec4(0.20f, 0.20f, 0.20f, 0.36f);
-    colors[ImGuiCol_TabUnfocused]           = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
-    colors[ImGuiCol_TabUnfocusedActive]     = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
-    colors[ImGuiCol_DockingPreview]         = ImVec4(0.33f, 0.67f, 0.86f, 1.00f);
-    colors[ImGuiCol_DockingEmptyBg]         = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
-    colors[ImGuiCol_PlotLines]              = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
-    colors[ImGuiCol_PlotLinesHovered]       = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
-    colors[ImGuiCol_PlotHistogram]          = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
-    colors[ImGuiCol_PlotHistogramHovered]   = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
-    colors[ImGuiCol_TableHeaderBg]          = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
-    colors[ImGuiCol_TableBorderStrong]      = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
-    colors[ImGuiCol_TableBorderLight]       = ImVec4(0.28f, 0.28f, 0.28f, 0.29f);
-    colors[ImGuiCol_TableRowBg]             = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
-    colors[ImGuiCol_TableRowBgAlt]          = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
-    colors[ImGuiCol_TextSelectedBg]         = ImVec4(0.20f, 0.22f, 0.23f, 1.00f);
-    colors[ImGuiCol_DragDropTarget]         = ImVec4(0.33f, 0.67f, 0.86f, 1.00f);
-    colors[ImGuiCol_NavHighlight]           = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
-    colors[ImGuiCol_NavWindowingHighlight]  = ImVec4(1.00f, 0.00f, 0.00f, 0.70f);
-    colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(1.00f, 0.00f, 0.00f, 0.20f);
-    colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(1.00f, 0.00f, 0.00f, 0.35f);
+    ImVec4* Colors = ImGui::GetStyle().Colors;
+    Colors[ImGuiCol_Text]                   = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
+    Colors[ImGuiCol_TextDisabled]           = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
+    Colors[ImGuiCol_WindowBg]               = ImVec4(0.10f, 0.10f, 0.10f, 1.00f);
+    Colors[ImGuiCol_ChildBg]                = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    Colors[ImGuiCol_PopupBg]                = ImVec4(0.19f, 0.19f, 0.19f, 0.92f);
+    Colors[ImGuiCol_Border]                 = ImVec4(0.19f, 0.19f, 0.19f, 0.29f);
+    Colors[ImGuiCol_BorderShadow]           = ImVec4(0.00f, 0.00f, 0.00f, 0.24f);
+    Colors[ImGuiCol_FrameBg]                = ImVec4(0.05f, 0.05f, 0.05f, 0.54f);
+    Colors[ImGuiCol_FrameBgHovered]         = ImVec4(0.19f, 0.19f, 0.19f, 0.54f);
+    Colors[ImGuiCol_FrameBgActive]          = ImVec4(0.20f, 0.22f, 0.23f, 1.00f);
+    Colors[ImGuiCol_TitleBg]                = ImVec4(0.05f, 0.05f, 0.05f, 1.00f);
+    Colors[ImGuiCol_TitleBgActive]          = ImVec4(0.06f, 0.06f, 0.06f, 1.00f);
+    Colors[ImGuiCol_TitleBgCollapsed]       = ImVec4(0.00f, 0.00f, 0.00f, 1.00f);
+    Colors[ImGuiCol_MenuBarBg]              = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
+    Colors[ImGuiCol_ScrollbarBg]            = ImVec4(0.05f, 0.05f, 0.05f, 0.54f);
+    Colors[ImGuiCol_ScrollbarGrab]          = ImVec4(0.34f, 0.34f, 0.34f, 0.54f);
+    Colors[ImGuiCol_ScrollbarGrabHovered]   = ImVec4(0.40f, 0.40f, 0.40f, 0.54f);
+    Colors[ImGuiCol_ScrollbarGrabActive]    = ImVec4(0.56f, 0.56f, 0.56f, 0.54f);
+    Colors[ImGuiCol_CheckMark]              = ImVec4(0.33f, 0.67f, 0.86f, 1.00f);
+    Colors[ImGuiCol_SliderGrab]             = ImVec4(0.34f, 0.34f, 0.34f, 0.54f);
+    Colors[ImGuiCol_SliderGrabActive]       = ImVec4(0.56f, 0.56f, 0.56f, 0.54f);
+    Colors[ImGuiCol_Button]                 = ImVec4(0.05f, 0.05f, 0.05f, 0.54f);
+    Colors[ImGuiCol_ButtonHovered]          = ImVec4(0.19f, 0.19f, 0.19f, 0.54f);
+    Colors[ImGuiCol_ButtonActive]           = ImVec4(0.20f, 0.22f, 0.23f, 1.00f);
+    Colors[ImGuiCol_Header]                 = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+    Colors[ImGuiCol_HeaderHovered]          = ImVec4(0.00f, 0.00f, 0.00f, 0.36f);
+    Colors[ImGuiCol_HeaderActive]           = ImVec4(0.20f, 0.22f, 0.23f, 0.33f);
+    Colors[ImGuiCol_Separator]              = ImVec4(0.28f, 0.28f, 0.28f, 0.29f);
+    Colors[ImGuiCol_SeparatorHovered]       = ImVec4(0.44f, 0.44f, 0.44f, 0.29f);
+    Colors[ImGuiCol_SeparatorActive]        = ImVec4(0.40f, 0.44f, 0.47f, 1.00f);
+    Colors[ImGuiCol_ResizeGrip]             = ImVec4(0.28f, 0.28f, 0.28f, 0.29f);
+    Colors[ImGuiCol_ResizeGripHovered]      = ImVec4(0.44f, 0.44f, 0.44f, 0.29f);
+    Colors[ImGuiCol_ResizeGripActive]       = ImVec4(0.40f, 0.44f, 0.47f, 1.00f);
+    Colors[ImGuiCol_Tab]                    = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+    Colors[ImGuiCol_TabHovered]             = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
+    Colors[ImGuiCol_TabActive]              = ImVec4(0.20f, 0.20f, 0.20f, 0.36f);
+    Colors[ImGuiCol_TabUnfocused]           = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+    Colors[ImGuiCol_TabUnfocusedActive]     = ImVec4(0.14f, 0.14f, 0.14f, 1.00f);
+    Colors[ImGuiCol_DockingPreview]         = ImVec4(0.33f, 0.67f, 0.86f, 1.00f);
+    Colors[ImGuiCol_DockingEmptyBg]         = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+    Colors[ImGuiCol_PlotLines]              = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+    Colors[ImGuiCol_PlotLinesHovered]       = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+    Colors[ImGuiCol_PlotHistogram]          = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+    Colors[ImGuiCol_PlotHistogramHovered]   = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+    Colors[ImGuiCol_TableHeaderBg]          = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+    Colors[ImGuiCol_TableBorderStrong]      = ImVec4(0.00f, 0.00f, 0.00f, 0.52f);
+    Colors[ImGuiCol_TableBorderLight]       = ImVec4(0.28f, 0.28f, 0.28f, 0.29f);
+    Colors[ImGuiCol_TableRowBg]             = ImVec4(0.00f, 0.00f, 0.00f, 0.00f);
+    Colors[ImGuiCol_TableRowBgAlt]          = ImVec4(1.00f, 1.00f, 1.00f, 0.06f);
+    Colors[ImGuiCol_TextSelectedBg]         = ImVec4(0.20f, 0.22f, 0.23f, 1.00f);
+    Colors[ImGuiCol_DragDropTarget]         = ImVec4(0.33f, 0.67f, 0.86f, 1.00f);
+    Colors[ImGuiCol_NavHighlight]           = ImVec4(1.00f, 0.00f, 0.00f, 1.00f);
+    Colors[ImGuiCol_NavWindowingHighlight]  = ImVec4(1.00f, 0.00f, 0.00f, 0.70f);
+    Colors[ImGuiCol_NavWindowingDimBg]      = ImVec4(1.00f, 0.00f, 0.00f, 0.20f);
+    Colors[ImGuiCol_ModalWindowDimBg]       = ImVec4(1.00f, 0.00f, 0.00f, 0.35f);
 
-    ImGuiStyle& style = ImGui::GetStyle();
-    style.WindowPadding                     = ImVec2(8.00f, 8.00f);
-    style.FramePadding                      = ImVec2(10.00f, 4.00f);
-    style.CellPadding                       = ImVec2(6.00f, 6.00f);
-    style.ItemSpacing                       = ImVec2(3.00f, 3.00f);
-    style.ItemInnerSpacing                  = ImVec2(3.00f, 3.00f);
-    style.TouchExtraPadding                 = ImVec2(0.00f, 0.00f);
-    style.IndentSpacing                     = 25;
-    style.ScrollbarSize                     = 15;
-    style.GrabMinSize                       = 10;
-    style.WindowBorderSize                  = 1;
-    style.ChildBorderSize                   = 1;
-    style.PopupBorderSize                   = 1;
-    style.FrameBorderSize                   = 1;
-    style.TabBorderSize                     = 1;
-    style.WindowRounding                    = 7;
-    style.ChildRounding                     = 4;
-    style.FrameRounding                     = 3;
-    style.PopupRounding                     = 4;
-    style.ScrollbarRounding                 = 9;
-    style.GrabRounding                      = 3;
-    style.LogSliderDeadzone                 = 4;
-    style.TabRounding                       = 4;
+    ImGuiStyle& Style = ImGui::GetStyle();
+    Style.WindowPadding                     = ImVec2(8.00f, 8.00f);
+    Style.FramePadding                      = ImVec2(10.00f, 4.00f);
+    Style.CellPadding                       = ImVec2(6.00f, 6.00f);
+    Style.ItemSpacing                       = ImVec2(3.00f, 3.00f);
+    Style.ItemInnerSpacing                  = ImVec2(3.00f, 3.00f);
+    Style.TouchExtraPadding                 = ImVec2(0.00f, 0.00f);
+    Style.IndentSpacing                     = 25;
+    Style.ScrollbarSize                     = 15;
+    Style.GrabMinSize                       = 10;
+    Style.WindowBorderSize                  = 1;
+    Style.ChildBorderSize                   = 1;
+    Style.PopupBorderSize                   = 1;
+    Style.FrameBorderSize                   = 1;
+    Style.TabBorderSize                     = 1;
+    Style.WindowRounding                    = 7;
+    Style.ChildRounding                     = 4;
+    Style.FrameRounding                     = 3;
+    Style.PopupRounding                     = 4;
+    Style.ScrollbarRounding                 = 9;
+    Style.GrabRounding                      = 3;
+    Style.LogSliderDeadzone                 = 4;
+    Style.TabRounding                       = 4;
 }

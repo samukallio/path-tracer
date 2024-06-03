@@ -2,81 +2,81 @@
 
 #include "common.h"
 
-struct Texture
+struct texture
 {
-    std::string                     name                    = "New Texture";
-    uint32_t                        width                   = 0;
-    uint32_t                        height                  = 0;
-    uint32_t const*                 pixels                  = nullptr;
+    std::string                     Name                    = "New Texture";
+    uint32_t                        Width                   = 0;
+    uint32_t                        Height                  = 0;
+    uint32_t const*                 Pixels                  = nullptr;
 
-    bool                            enableNearestFiltering  = false;
+    bool                            EnableNearestFiltering  = false;
 
-    uint32_t                        packedTextureIndex      = 0;
+    uint32_t                        PackedTextureIndex      = 0;
 };
 
-struct Material
+struct material
 {
-    std::string                     name                    = "New Material";
-    uint32_t                        flags                   = 0;
+    std::string                     Name                    = "New Material";
+    uint32_t                        Flags                   = 0;
 
-    float                           opacity                 = 1.0f;
+    float                           Opacity                 = 1.0f;
 
-    float                           baseWeight              = 1.0f;
-    glm::vec3                       baseColor               = glm::vec3(1, 1, 1);
-    Texture*                        baseColorTexture        = nullptr;
-    float                           baseMetalness           = 0.0f;
-    float                           baseDiffuseRoughness    = 0.0f;
+    float                           BaseWeight              = 1.0f;
+    glm::vec3                       BaseColor               = glm::vec3(1, 1, 1);
+    texture*                        BaseColorTexture        = nullptr;
+    float                           BaseMetalness           = 0.0f;
+    float                           BaseDiffuseRoughness    = 0.0f;
 
-    float                           specularWeight          = 1.0f;
-    glm::vec3                       specularColor           = glm::vec3(1, 1, 1);
-    float                           specularRoughness       = 0.3f;
-    float                           specularRoughnessAnisotropy = 0.0f;
-    float                           specularIOR             = 1.5f;
+    float                           SpecularWeight          = 1.0f;
+    glm::vec3                       SpecularColor           = glm::vec3(1, 1, 1);
+    float                           SpecularRoughness       = 0.3f;
+    float                           SpecularRoughnessAnisotropy = 0.0f;
+    float                           SpecularIOR             = 1.5f;
 
-    float                           transmissionWeight      = 0.0f;
-    glm::vec3                       transmissionColor       = glm::vec3(1, 1, 1);
-    float                           transmissionDepth       = 0.0f;
-    glm::vec3                       transmissionScatter     = glm::vec3(0, 0, 0);
-    float                           transmissionScatterAnisotropy = 0.0f;
+    float                           TransmissionWeight      = 0.0f;
+    glm::vec3                       TransmissionColor       = glm::vec3(1, 1, 1);
+    float                           TransmissionDepth       = 0.0f;
+    glm::vec3                       TransmissionScatter     = glm::vec3(0, 0, 0);
+    float                           TransmissionScatterAnisotropy = 0.0f;
 
-    float                           emissionLuminance       = 0.0f;
-    glm::vec3                       emissionColor           = glm::vec3(0, 0, 0);
-    Texture*                        emissionColorTexture    = nullptr;
+    float                           EmissionLuminance       = 0.0f;
+    glm::vec3                       EmissionColor           = glm::vec3(0, 0, 0);
+    texture*                        EmissionColorTexture    = nullptr;
 
-    float                           scatteringRate          = 0.0f;
+    float                           ScatteringRate          = 0.0f;
 
-    uint32_t                        packedMaterialIndex     = 0;
+    uint32_t                        PackedMaterialIndex     = 0;
 };
 
-struct MeshFace
+struct mesh_face
 {
-    glm::vec3                       vertices[3];
-    glm::vec3                       centroid;
-    glm::vec3                       normals[3];
-    glm::vec2                       uvs[3];
-    uint32_t                        materialIndex;
+    glm::vec3                       Vertices[3];
+    glm::vec3                       Centroid;
+    glm::vec3                       Normals[3];
+    glm::vec2                       UVs[3];
+    uint32_t                        MaterialIndex;
 };
 
-struct MeshNode
+struct mesh_node
 {
-    glm::vec3                       minimum;
-    glm::vec3                       maximum;
-    uint32_t                        faceBeginIndex;
-    uint32_t                        faceEndIndex;
-    uint32_t                        childNodeIndex;
+    glm::vec3                       Minimum;
+    glm::vec3                       Maximum;
+    uint32_t                        FaceBeginIndex;
+    uint32_t                        FaceEndIndex;
+    uint32_t                        ChildNodeIndex;
 };
 
-struct Mesh
+struct mesh
 {
-    std::string                     name;
-    std::vector<MeshFace>           faces;
-    std::vector<MeshNode>           nodes;
-    uint32_t                        depth;
-    uint32_t                        packedRootNodeIndex;
-    std::vector<Material*>          materials;
+    std::string                     Name;
+    std::vector<mesh_face>          Faces;
+    std::vector<mesh_node>          Nodes;
+    uint32_t                        Depth;
+    uint32_t                        PackedRootNodeIndex;
+    std::vector<material*>          Materials;
 };
 
-enum EntityType
+enum entity_type
 {
     ENTITY_TYPE_ROOT                = 0,
     ENTITY_TYPE_CONTAINER           = 1,
@@ -89,128 +89,128 @@ enum EntityType
     ENTITY_TYPE__COUNT              = 7,
 };
 
-struct Entity
+struct entity
 {
-    std::string                     name                    = "Entity";
-    EntityType                      type                    = ENTITY_TYPE_ROOT;
-    bool                            active                  = true;
-    Transform                       transform               = {};
-    std::vector<Entity*>            children                = {};
-    uint32_t                        packedObjectIndex       = 0xFFFFFFFF;
+    std::string                     Name                    = "Entity";
+    entity_type                     Type                    = ENTITY_TYPE_ROOT;
+    bool                            Active                  = true;
+    transform                       Transform               = {};
+    std::vector<entity*>            Children                = {};
+    uint32_t                        PackedObjectIndex       = 0xFFFFFFFF;
 };
 
-struct Root : Entity
+struct root : entity
 {
-    float                           scatterRate             = 0.0f;
-    float                           skyboxBrightness        = 1.0f;
-    bool                            skyboxWhiteFurnace      = false;
+    float                           ScatterRate             = 0.0f;
+    float                           SkyboxBrightness        = 1.0f;
+    bool                            SkyboxWhiteFurnace      = false;
 
-    Root() { type = ENTITY_TYPE_ROOT; }
+    root() { Type = ENTITY_TYPE_ROOT; }
 };
 
-struct Container : Entity
+struct container : entity
 {
-    Container() { type = ENTITY_TYPE_CONTAINER; }
+    container() { Type = ENTITY_TYPE_CONTAINER; }
 };
 
-struct CameraParametersPinhole
+struct camera_pinhole
 {
-    float                           fieldOfViewInDegrees    = 90.000f;
-    float                           apertureDiameterInMM    = 0.0f;
+    float                           FieldOfViewInDegrees    = 90.000f;
+    float                           ApertureDiameterInMM    = 0.0f;
 };
 
-struct CameraParametersThinLens
+struct camera_thin_lens
 {
-    glm::vec2                       sensorSizeInMM          = { 32.0f, 18.0f };
-    float                           focalLengthInMM         = 20.0f;
-    float                           apertureDiameterInMM    = 10.0f;
-    float                           focusDistance           = 1.0f;
+    glm::vec2                       SensorSizeInMM          = { 32.0f, 18.0f };
+    float                           FocalLengthInMM         = 20.0f;
+    float                           ApertureDiameterInMM    = 10.0f;
+    float                           FocusDistance           = 1.0f;
 };
 
-struct Camera : Entity
+struct camera : entity
 {
-    RenderMode                      renderMode              = RENDER_MODE_PATH_TRACE;
-    uint32_t                        renderFlags             = 0;
-    uint32_t                        renderBounceLimit       = 5;
-    uint32_t                        renderMeshComplexityScale = 32;
-    uint32_t                        renderSceneComplexityScale = 32;
-    uint32_t                        renderSampleBlockSizeLog2 = 0;
-    float                           renderTerminationProbability = 0.0f;
+    render_mode                     RenderMode              = RENDER_MODE_PATH_TRACE;
+    uint32_t                        RenderFlags             = 0;
+    uint32_t                        RenderBounceLimit       = 5;
+    uint32_t                        RenderMeshComplexityScale = 32;
+    uint32_t                        RenderSceneComplexityScale = 32;
+    uint32_t                        RenderSampleBlockSizeLog2 = 0;
+    float                           RenderTerminationProbability = 0.0f;
 
-    float                           brightness              = 1.0f;
-    ToneMappingMode                 toneMappingMode         = TONE_MAPPING_MODE_CLAMP;
-    float                           toneMappingWhiteLevel   = 1.0f;
+    float                           Brightness              = 1.0f;
+    tone_mapping_mode               ToneMappingMode         = TONE_MAPPING_MODE_CLAMP;
+    float                           ToneMappingWhiteLevel   = 1.0f;
 
-    CameraModel                     cameraModel             = CAMERA_MODEL_PINHOLE;
-    CameraParametersPinhole         pinhole                 = {};
-    CameraParametersThinLens        thinLens                = {};
+    camera_model                    CameraModel             = CAMERA_MODEL_PINHOLE;
+    camera_pinhole                  Pinhole                 = {};
+    camera_thin_lens                ThinLens                = {};
 
-    glm::vec3                       velocity                = { 0, 0, 0 };
+    glm::vec3                       Velocity                = { 0, 0, 0 };
 
-    Camera() { ((Entity*)this)->type = ENTITY_TYPE_CAMERA; }
+    camera() { ((entity*)this)->Type = ENTITY_TYPE_CAMERA; }
 };
 
-struct MeshInstance : Entity
+struct mesh_instance : entity
 {
-    Mesh*                           mesh = nullptr;
+    mesh*                           Mesh = nullptr;
 
-    MeshInstance() { type = ENTITY_TYPE_MESH_INSTANCE; }
+    mesh_instance() { Type = ENTITY_TYPE_MESH_INSTANCE; }
 };
 
-struct Plane : Entity
+struct plane : entity
 {
-    Material*                       material = nullptr;
+    material*                       Material = nullptr;
 
-    Plane() { type = ENTITY_TYPE_PLANE; }
+    plane() { Type = ENTITY_TYPE_PLANE; }
 };
 
-struct Sphere : Entity
+struct sphere : entity
 {
-    Material*                       material = nullptr;
+    material*                       Material = nullptr;
 
-    Sphere() { type = ENTITY_TYPE_SPHERE; }
+    sphere() { Type = ENTITY_TYPE_SPHERE; }
 };
 
-struct Cube : Entity
+struct cube : entity
 {
-    Material*                       material = nullptr;
+    material*                       Material = nullptr;
 
-    Cube() { type = ENTITY_TYPE_CUBE; }
+    cube() { Type = ENTITY_TYPE_CUBE; }
 };
 
-struct Prefab
+struct prefab
 {
-    Entity*                         entity                  = nullptr;
+    entity*                         Entity                  = nullptr;
 };
 
-struct Scene
+struct scene
 {
-    Root                            root;
-    std::vector<Mesh*>              meshes;
-    std::vector<Material*>          materials;
-    std::vector<Texture*>           textures;
-    std::vector<Prefab*>            prefabs;
+    root                                Root;
+    std::vector<mesh*>                  Meshes;
+    std::vector<material*>              Materials;
+    std::vector<texture*>               Textures;
+    std::vector<prefab*>                Prefabs;
 
-    std::vector<Image>              images;
-    std::vector<PackedTexture>      texturePack;
-    std::vector<PackedSceneObject>  sceneObjectPack;
-    std::vector<PackedSceneNode>    sceneNodePack;
-    std::vector<PackedMaterial>     materialPack;
-    std::vector<PackedMeshFace>     meshFacePack;
-    std::vector<PackedMeshFaceExtra> meshFaceExtraPack;
-    std::vector<PackedMeshNode>     meshNodePack;
+    std::vector<image>                  Images;
+    std::vector<packed_texture>         TexturePack;
+    std::vector<packed_scene_object>    SceneObjectPack;
+    std::vector<packed_scene_node>      SceneNodePack;
+    std::vector<packed_material>        MaterialPack;
+    std::vector<packed_mesh_face>       MeshFacePack;
+    std::vector<packed_mesh_face_extra> MeshFaceExtraPack;
+    std::vector<packed_mesh_node>       MeshNodePack;
 
-    uint32_t                        skyboxWidth;
-    uint32_t                        skyboxHeight;
-    float*                          skyboxPixels;
+    uint32_t                            SkyboxWidth;
+    uint32_t                            SkyboxHeight;
+    float*                              SkyboxPixels;
 
-    glm::mat3                       skyboxDistributionFrame;
-    float                           skyboxDistributionConcentration;
+    glm::mat3                           SkyboxDistributionFrame;
+    float                               SkyboxDistributionConcentration;
 
-    uint32_t                        dirtyFlags;
+    uint32_t                            DirtyFlags;
 };
 
-enum SceneDirtyFlag
+enum scene_dirty_flag
 {
     SCENE_DIRTY_SKYBOX              = 1 << 0,
     SCENE_DIRTY_TEXTURES            = 1 << 1,
@@ -221,28 +221,28 @@ enum SceneDirtyFlag
     SCENE_DIRTY_ALL                 = 0xFFFFFFFF,
 };
 
-struct LoadModelOptions
+struct load_model_options
 {
-    char const*     name                        = nullptr;
-    Material*       defaultMaterial             = nullptr;
-    std::string     directoryPath               = ".";
-    glm::mat4       vertexTransform             = glm::mat4(1);
-    glm::mat4       normalTransform             = glm::mat4(1);
-    glm::mat3       textureCoordinateTransform  = glm::mat3(1);
-    bool            mergeIntoSingleMesh         = false;
+    char const*     Name                        = nullptr;
+    material*       DefaultMaterial             = nullptr;
+    std::string     DirectoryPath               = ".";
+    glm::mat4       VertexTransform             = glm::mat4(1);
+    glm::mat4       NormalTransform             = glm::mat4(1);
+    glm::mat3       TextureCoordinateTransform  = glm::mat3(1);
+    bool            MergeIntoSingleMesh         = false;
 };
 
-char const* EntityTypeName(EntityType type);
+char const* EntityTypeName(entity_type Type);
 
-Entity* CreateEntity(Scene* scene, EntityType type, Entity* parent = nullptr);
-Entity* CreateEntity(Scene* scene, Entity* source, Entity* parent = nullptr);
-Entity* CreateEntity(Scene* scene, Prefab* prefab, Entity* parent = nullptr);
-Material* CreateMaterial(Scene* scene, char const* name);
-Texture* CreateCheckerTexture(Scene* scene, char const* name, glm::vec4 const& colorA, glm::vec4 const& colorB);
-Texture* LoadTexture(Scene* scene, char const* path, char const* name = nullptr);
-Prefab* LoadModelAsPrefab(Scene* scene, char const* path, LoadModelOptions* options = nullptr);
-bool LoadSkybox(Scene* scene, char const* path);
+entity*     CreateEntity(scene* Scene, entity_type Type, entity* Parent = nullptr);
+entity*     CreateEntity(scene* Scene, entity* Source, entity* Parent = nullptr);
+entity*     CreateEntity(scene* Scene, prefab* Prefab, entity* Parent = nullptr);
+material*   CreateMaterial(scene* Scene, char const* Name);
+texture*    CreateCheckerTexture(scene* Scene, char const* Name, glm::vec4 const& ColorA, glm::vec4 const& ColorB);
+texture*    LoadTexture(scene* Scene, char const* Path, char const* Name = nullptr);
+prefab*     LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Options = nullptr);
+bool        LoadSkybox(scene* Scene, char const* Path);
 
-uint32_t PackSceneData(Scene* scene);
+uint32_t    PackSceneData(scene* Scene);
 
-bool Trace(Scene* scene, Ray const& ray, Hit& hit);
+bool        Trace(scene* Scene, ray const& Ray, hit& Hit);

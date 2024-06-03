@@ -35,260 +35,260 @@ const uint OBJECT_TYPE_CUBE                 = 3;
 
 const uint TEXTURE_FLAG_FILTER_NEAREST      = 1 << 0;
 
-struct PackedTransform
+struct packed_transform
 {
-    mat4            to;
-    mat4            from;
+    mat4            To;
+    mat4            From;
 };
 
-struct PackedTexture
+struct packed_texture
 {
-    vec2            atlasPlacementMinimum;
-    vec2            atlasPlacementMaximum;
-    uint            atlasImageIndex;
-    uint            flags;
-    uint            dummy1;
-    uint            dummy2;
+    vec2            AtlasPlacementMinimum;
+    vec2            AtlasPlacementMaximum;
+    uint            AtlasImageIndex;
+    uint            Flags;
+    uint            Dummy1;
+    uint            Dummy2;
 };
 
-struct PackedMaterial
+struct packed_material
 {
-    vec3            baseColor;
-    float           baseWeight;
-    vec3            specularColor;
-    float           specularWeight;
-    vec3            transmissionColor;
-    float           transmissionWeight;
-    vec3            transmissionScatter;
-    float           transmissionScatterAnisotropy;
-    vec3            emissionColor;
-    float           emissionLuminance;
+    vec3            BaseColor;
+    float           BaseWeight;
+    vec3            SpecularColor;
+    float           SpecularWeight;
+    vec3            TransmissionColor;
+    float           TransmissionWeight;
+    vec3            TransmissionScatter;
+    float           TransmissionScatterAnisotropy;
+    vec3            EmissionColor;
+    float           EmissionLuminance;
 
-    vec2            specularRoughnessAlpha;
+    vec2            SpecularRoughnessAlpha;
 
-    float           opacity;
-    float           baseMetalness;
-    float           baseDiffuseRoughness;
-    float           specularIOR;
-    float           transmissionDepth;
-    float           scatteringRate;
+    float           Opacity;
+    float           BaseMetalness;
+    float           BaseDiffuseRoughness;
+    float           SpecularIOR;
+    float           TransmissionDepth;
+    float           ScatteringRate;
 
-    uint            baseColorTextureIndex;
-    uint            emissionColorTextureIndex;
+    uint            BaseColorTextureIndex;
+    uint            EmissionColorTextureIndex;
 };
 
-struct PackedSceneObject
+struct packed_scene_object
 {
-    uint            type;
-    uint            materialIndex;
-    uint            meshRootNodeIndex;
-    uint            priority;
-    PackedTransform transform;
+    uint                Type;
+    uint                MaterialIndex;
+    uint                MeshRootNodeIndex;
+    uint                Priority;
+    packed_transform    Transform;
 };
 
-struct PackedSceneNode
+struct packed_scene_node
 {
-    vec3            minimum;
-    uint            childNodeIndices;
-    vec3            maximum;
-    uint            objectIndex;
+    vec3            Minimum;
+    uint            ChildNodeIndices;
+    vec3            Maximum;
+    uint            ObjectIndex;
 };
 
-struct PackedMeshFace
+struct packed_mesh_face
 {
-    vec3            position;
-    vec4            plane;
-    vec3            base1;
-    vec3            base2;
+    vec3            Position;
+    vec4            Plane;
+    vec3            Base1;
+    vec3            Base2;
 };
 
-struct PackedMeshFaceExtra
+struct packed_mesh_face_extra
 {
-    vec3            normals[3];
-    vec2            uvs[3];
-    uint            materialIndex;
+    vec3            Normals[3];
+    vec2            UVs[3];
+    uint            MaterialIndex;
 };
 
-struct PackedMeshNode
+struct packed_mesh_node
 {
-    vec3            minimum;
-    uint            faceBeginOrNodeIndex;
-    vec3            maximum;
-    uint            faceEndIndex;
+    vec3            Minimum;
+    uint            FaceBeginOrNodeIndex;
+    vec3            Maximum;
+    uint            FaceEndIndex;
 };
 
-struct Medium
+struct medium
 {
-    uint            objectIndex;
-    uint            objectPriority;
-    float           specularIOR;
-    float           scatteringRate;
+    uint            ObjectIndex;
+    uint            ObjectPriority;
+    float           SpecularIOR;
+    float           ScatteringRate;
 };
 
-struct Hit
+struct hit
 {
     // Populated by the Intersect*() routines.
-    float           time;
-    uint            objectType;
-    uint            objectIndex;
-    uint            primitiveIndex;
-    vec3            primitiveCoordinates;
-    uint            sceneComplexity;
-    uint            meshComplexity;
+    float           Time;
+    uint            ObjectType;
+    uint            ObjectIndex;
+    uint            PrimitiveIndex;
+    vec3            PrimitiveCoordinates;
+    uint            SceneComplexity;
+    uint            MeshComplexity;
 
     // Populated by ResolveHit().
-    uint            objectPriority;
-    vec3            position;
-    vec3            normal;
-    vec3            tangentX;
-    vec3            tangentY;
-    vec2            uv;
-    uint            materialIndex;
-    PackedMaterial  material;
+    uint            ObjectPriority;
+    vec3            Position;
+    vec3            Normal;
+    vec3            TangentX;
+    vec3            TangentY;
+    vec2            UV;
+    uint            MaterialIndex;
+    packed_material Material;
 };
 
-struct Ray
+struct ray
 {
-    vec3            origin;
-    vec3            vector;
+    vec3            Origin;
+    vec3            Vector;
 };
 
-vec3 TransformPosition(vec3 position, PackedTransform transform)
+vec3 TransformPosition(vec3 P, packed_transform Transform)
 {
-    return (transform.to * vec4(position, 1)).xyz;
+    return (Transform.To * vec4(P, 1)).xyz;
 }
 
-vec3 TransformVector(vec3 vector, PackedTransform transform)
+vec3 TransformVector(vec3 V, packed_transform Transform)
 {
-    return (transform.to * vec4(vector, 0)).xyz;
+    return (Transform.To * vec4(V, 0)).xyz;
 }
 
-vec3 TransformNormal(vec3 normal, PackedTransform transform)
+vec3 TransformNormal(vec3 N, packed_transform Transform)
 {
-    return normalize((vec4(normal, 0) * transform.from).xyz);
+    return normalize((vec4(N, 0) * Transform.From).xyz);
 }
 
-vec3 TransformDirection(vec3 direction, PackedTransform transform)
+vec3 TransformDirection(vec3 D, packed_transform Transform)
 {
-    return normalize(TransformVector(direction, transform));
+    return normalize(TransformVector(D, Transform));
 }
 
-Ray TransformRay(Ray ray, PackedTransform transform)
+ray TransformRay(ray R, packed_transform Transform)
 {
-    Ray r;
-    r.origin = TransformPosition(ray.origin, transform);
-    r.vector = TransformVector(ray.vector, transform);
-    return r;
+    ray OutR;
+    OutR.Origin = TransformPosition(R.Origin, Transform);
+    OutR.Vector = TransformVector(R.Vector, Transform);
+    return OutR;
 }
 
-vec3 InverseTransformPosition(vec3 position, PackedTransform transform)
+vec3 InverseTransformPosition(vec3 P, packed_transform Transform)
 {
-    return (transform.from * vec4(position, 1)).xyz;
+    return (Transform.From * vec4(P, 1)).xyz;
 }
 
-vec3 InverseTransformVector(vec3 vector, PackedTransform transform)
+vec3 InverseTransformVector(vec3 V, packed_transform Transform)
 {
-    return (transform.from * vec4(vector, 0)).xyz;
+    return (Transform.From * vec4(V, 0)).xyz;
 }
 
-vec3 InverseTransformNormal(vec3 normal, PackedTransform transform)
+vec3 InverseTransformNormal(vec3 N, packed_transform Transform)
 {
-    return normalize((vec4(normal, 0) * transform.to).xyz);
+    return normalize((vec4(N, 0) * Transform.To).xyz);
 }
 
-Ray InverseTransformRay(Ray ray, PackedTransform transform)
+ray InverseTransformRay(ray R, packed_transform Transform)
 {
-    Ray r;
-    r.origin = InverseTransformPosition(ray.origin, transform);
-    r.vector = InverseTransformVector(ray.vector, transform);
-    return r;
+    ray OutR;
+    OutR.Origin = InverseTransformPosition(R.Origin, Transform);
+    OutR.Vector = InverseTransformVector(R.Vector, Transform);
+    return OutR;
 }
 
 // Compute an arbitrary tangent space basis for a given normal vector.
-void ComputeTangentVectors(vec3 normal, out vec3 tangentX, out vec3 tangentY)
+void ComputeTangentVectors(vec3 Normal, out vec3 TangentX, out vec3 TangentY)
 {
-    vec3 nonparallel = abs(normal.x) < 0.9 ? vec3(1, 0, 0) : vec3(0, 1, 0);
-    tangentX = normalize(cross(nonparallel, normal));
-    tangentY = cross(tangentX, normal);
+    vec3 NonParallel = abs(Normal.x) < 0.9 ? vec3(1, 0, 0) : vec3(0, 1, 0);
+    TangentX = normalize(cross(NonParallel, Normal));
+    TangentY = cross(TangentX, Normal);
 }
 
 // Sample a normal from the GGX distribution that is visible from the given
 // direction according to the procedure outlined in the paper "Sampling the
 // GGX Distribution of Visible Normals" by Eric Heitz.
-vec3 SampleVisibleNormalGGX(vec3 omega, vec2 alpha, float xi0, float xi1)
+vec3 SampleVisibleNormalGGX(vec3 Direction, vec2 Roughness, float U1, float U2)
 {
     vec3 vz = normalize(vec3(
-        alpha.x * omega.x,
-        alpha.y * omega.y,
-        omega.z));
+        Roughness.x * Direction.x,
+        Roughness.y * Direction.y,
+        Direction.z));
 
     float lensq = dot(vz.xy, vz.xy);
     vec3 vx = lensq > 0 ? vec3(-vz.y, vz.x, 0) / sqrt(lensq) : vec3(1, 0, 0);
     vec3 vy = cross(vz, vx);
 
-    float r = sqrt(xi0);
-    float phi = TAU * xi1;
+    float r = sqrt(U1);
+    float phi = TAU * U2;
     float s = 0.5 * (1.0 + vz.z);
 
     float tx = r * cos(phi);
     float ty = (1.0 - s) * sqrt(1.0 - tx * tx) + s * r * sin(phi);
     float tz = sqrt(max(0.0, 1.0 - tx * tx - ty * ty));
 
-    vec3 normal = tx * vx + ty * vy + tz * vz;
+    vec3 Normal = tx * vx + ty * vy + tz * vz;
 
     return normalize(vec3(
-        alpha.x * normal.x,
-        alpha.y * normal.y,
-        max(0.0, normal.z)));
+        Roughness.x * Normal.x,
+        Roughness.y * Normal.y,
+        max(0.0, Normal.z)));
 }
 
-float SchlickFresnelDielectric(float f0, float cosTheta)
+float SchlickFresnelDielectric(float F0, float CosTheta)
 {
-    return f0 + (1 - f0) * pow(1 - cosTheta, 5);
+    return F0 + (1 - F0) * pow(1 - CosTheta, 5);
 }
 
-vec3 SchlickFresnelMetal(vec3 f0, float cosTheta)
+vec3 SchlickFresnelMetal(vec3 F0, float CosTheta)
 {
-    return f0 + (1 - f0) * pow(1 - cosTheta, 5);
+    return F0 + (1 - F0) * pow(1 - CosTheta, 5);
 }
 
 // Computes the Fresnel term for a metallic surface using the "F82-tint"
 // formulation presented in the paper "Novel aspects of the Adobe Standard
 // Material" by Kutz et al.
-vec3 SchlickFresnelMetalWithTint(vec3 f0, vec3 f82tint, float cosTheta)
+vec3 SchlickFresnelMetalWithTint(vec3 F0, vec3 F82Tint, float CosTheta)
 {
-    const float cosThetaMax = 1 / 7.0f;
-    const float denominator = cosThetaMax * pow(1 - cosThetaMax, 6);
-    float nominator = cosTheta * pow(1 - cosTheta, 6);
-    float factor = nominator / denominator;
-    vec3 base = SchlickFresnelMetal(f0, cosTheta);
-    vec3 offset = factor * (1 - f82tint) * SchlickFresnelMetal(f0, cosThetaMax);
-    return base - offset;
+    const float CosThetaMax = 1 / 7.0f;
+    const float Denominator = CosThetaMax * pow(1 - CosThetaMax, 6);
+    float Nominator = CosTheta * pow(1 - CosTheta, 6);
+    float Factor = Nominator / Denominator;
+    vec3 Base = SchlickFresnelMetal(F0, CosTheta);
+    vec3 Offset = Factor * (1 - F82Tint) * SchlickFresnelMetal(F0, CosThetaMax);
+    return Base - Offset;
 }
 
 // One half of the uncorrelated Smith shadowing-masking function for the
 // anisotropic GGX distribution of normals as presented in the paper
 // "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"
 // by Eric Heitz.
-float SmithG1(vec3 omega, vec2 alpha)
+float SmithG1(vec3 Direction, vec2 Roughness)
 {
-    vec2 alphaSq = alpha * alpha;
-    float cosPhiSq = omega.x * omega.x;
-    float sinPhiSq = omega.y * omega.y;
-    float cosThetaSq = omega.z * omega.z;
-    float tanThetaSq = (1 - cosThetaSq) / cosThetaSq;
-    float orientedAlphaSq = (cosPhiSq * alphaSq.x + sinPhiSq * alphaSq.y) / (cosPhiSq + sinPhiSq);
-    return 2.0 / (1.0 + sqrt(1.0 + orientedAlphaSq * tanThetaSq));
+    vec2 RoughnessSq = Roughness * Roughness;
+    float CosPhiSq = Direction.x * Direction.x;
+    float SinPhiSq = Direction.y * Direction.y;
+    float CosThetaSq = Direction.z * Direction.z;
+    float TanThetaSq = (1 - CosThetaSq) / CosThetaSq;
+    float AlphaSq = (CosPhiSq * RoughnessSq.x + SinPhiSq * RoughnessSq.y) / (CosPhiSq + SinPhiSq);
+    return 2.0 / (1.0 + sqrt(1.0 + AlphaSq * TanThetaSq));
 }
 
 /* --- Random -------------------------------------------------------------- */
 
-uint randomState;
+uint RandomState;
 
 uint Random()
 {
-    randomState = randomState * 747796405u + 2891336453u;
-    uint s = randomState;
+    RandomState = RandomState * 747796405u + 2891336453u;
+    uint s = RandomState;
     uint w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
     return (w >> 22u) ^ w;
 }
@@ -301,67 +301,67 @@ float Random0To1()
 
 vec2 RandomPointOnDisk()
 {
-    float r = sqrt(Random0To1());
-    float theta = Random0To1() * TAU;
-    return r * vec2(cos(theta), sin(theta));
+    float R = sqrt(Random0To1());
+    float Theta = Random0To1() * TAU;
+    return R * vec2(cos(Theta), sin(Theta));
 }
 
 vec3 RandomDirection()
 {
-    float z = 2 * Random0To1() - 1;
-    float r = sqrt(1 - z * z);
-    float phi = TAU * Random0To1();
-    return vec3(r * cos(phi), r * sin(phi), z);
+    float Z = 2 * Random0To1() - 1;
+    float R = sqrt(1 - Z * Z);
+    float Phi = TAU * Random0To1();
+    return vec3(R * cos(Phi), R * sin(Phi), Z);
 }
 
-vec3 RandomHemisphereDirection(vec3 normal)
+vec3 RandomHemisphereDirection(vec3 Normal)
 {
-    vec3 direction = RandomDirection();
-    return direction * sign(dot(normal, direction));
+    vec3 Direction = RandomDirection();
+    return Direction * sign(dot(Normal, Direction));
 }
 
 // Generate a random direction from a von Mises-Fisher distribution on
-// a sphere, with concentration parameter kappa and mean direction (0,0,1).
-vec3 RandomVonMisesFisher(float kappa)
+// a sphere, with concentration parameter Kappa and mean direction (0,0,1).
+vec3 RandomVonMisesFisher(float Kappa)
 {
-    float xi = Random0To1();
-    float z = 1 + (1 / kappa) * log(xi - exp(-2 * kappa) * (xi - 1));
+    float Xi = Random0To1();
+    float Z = 1 + (1 / Kappa) * log(Xi - exp(-2 * Kappa) * (Xi - 1));
 
-    float r = sqrt(1 - z * z);
-    float phi = Random0To1() * TAU;
-    float x = r * cos(phi);
-    float y = r * sin(phi);
+    float R = sqrt(1 - Z * Z);
+    float Phi = Random0To1() * TAU;
+    float X = R * cos(Phi);
+    float Y = R * sin(Phi);
 
-    return vec3(x, y, z);
+    return vec3(X, Y, Z);
 }
 
 /* --- Shader Per-Frame Uniforms ------------------------------------------- */
 
 layout(binding = 0)
-uniform FrameUniformBuffer
+uniform frame_uniform_buffer
 {
-    uint            frameRandomSeed;
-    uint            sceneObjectCount;
-    float           sceneScatterRate;
-    uint            cameraModel;
-    float           cameraFocalLength;
-    float           cameraApertureRadius;
-    float           cameraSensorDistance;
-    vec2            cameraSensorSize;
-    PackedTransform cameraTransform;
-    uint            renderMode;
-    uint            renderFlags;
-    uint            renderSampleBlockSize;
-    uint            renderBounceLimit;
-    float           renderTerminationProbability;
-    uint            renderMeshComplexityScale;
-    uint            renderSceneComplexityScale;
-    uint            highlightObjectIndex;
-    float           brightness;
-    uint            toneMappingMode;
-    float           toneMappingWhiteLevel;
-    mat3            skyboxDistributionFrame;
-    float           skyboxDistributionConcentration;
-    float           skyboxBrightness;
-    uint            skyboxWhiteFurnace;
+    uint                FrameRandomSeed;
+    uint                SceneObjectCount;
+    float               SceneScatterRate;
+    uint                CameraModel;
+    float               CameraFocalLength;
+    float               CameraApertureRadius;
+    float               CameraSensorDistance;
+    vec2                CameraSensorSize;
+    packed_transform    CameraTransform;
+    uint                RenderMode;
+    uint                RenderFlags;
+    uint                RenderSampleBlockSize;
+    uint                RenderBounceLimit;
+    float               RenderTerminationProbability;
+    uint                RenderMeshComplexityScale;
+    uint                RenderSceneComplexityScale;
+    uint                HighlightObjectIndex;
+    float               Brightness;
+    uint                ToneMappingMode;
+    float               ToneMappingWhiteLevel;
+    mat3                SkyboxDistributionFrame;
+    float               SkyboxDistributionConcentration;
+    float               SkyboxBrightness;
+    uint                SkyboxWhiteFurnace;
 };

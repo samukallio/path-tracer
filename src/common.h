@@ -21,7 +21,7 @@ float const TAU         = 6.283185306f;
 uint32_t const OBJECT_INDEX_NONE    = 0xFFFFFFFF;
 uint32_t const TEXTURE_INDEX_NONE   = 0xFFFFFFFF;
 
-enum RenderMode : int32_t
+enum render_mode : int32_t
 {
     RENDER_MODE_PATH_TRACE              = 0,
     RENDER_MODE_PATH_TRACE_SPECTRAL     = 1,
@@ -35,13 +35,13 @@ enum RenderMode : int32_t
     RENDER_MODE__COUNT                  = 9,
 };
 
-enum RenderFlag : uint32_t
+enum render_flag : uint32_t
 {
     RENDER_FLAG_ACCUMULATE              = 1 << 0,
     RENDER_FLAG_SAMPLE_JITTER           = 1 << 1,
 };
 
-enum ToneMappingMode : int32_t
+enum tone_mapping_mode : int32_t
 {
     TONE_MAPPING_MODE_CLAMP             = 0,
     TONE_MAPPING_MODE_REINHARD          = 1,
@@ -50,7 +50,7 @@ enum ToneMappingMode : int32_t
     TONE_MAPPING_MODE__COUNT            = 4,
 };
 
-enum CameraModel : int32_t
+enum camera_model : int32_t
 {
     CAMERA_MODEL_PINHOLE                = 0,
     CAMERA_MODEL_THIN_LENS              = 1,
@@ -58,7 +58,7 @@ enum CameraModel : int32_t
     CAMERA_MODEL__COUNT                 = 3,
 };
 
-enum ObjectType : int32_t
+enum object_type : int32_t
 {
     OBJECT_TYPE_MESH_INSTANCE           = 0,
     OBJECT_TYPE_PLANE                   = 1,
@@ -66,173 +66,173 @@ enum ObjectType : int32_t
     OBJECT_TYPE_CUBE                    = 3,
 };
 
-enum TextureFlag : uint32_t
+enum texture_flag : uint32_t
 {
     TEXTURE_FLAG_FILTER_NEAREST         = 1 << 0,
 };
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) PackedTransform
+struct alignas(16) packed_transform
 {
-    glm::aligned_mat4           to      = glm::mat4(1);
-    glm::aligned_mat4           from    = glm::mat4(1);
+    glm::aligned_mat4           To      = glm::mat4(1);
+    glm::aligned_mat4           From    = glm::mat4(1);
 };
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) PackedTexture
+struct alignas(16) packed_texture
 {
-    glm::vec2                   atlasPlacementMinimum;
-    glm::vec2                   atlasPlacementMaximum;
-    uint32_t                    atlasImageIndex;
-    uint32_t                    flags;
-    uint32_t                    dummy1;
-    uint32_t                    dummy2;
+    glm::vec2                   AtlasPlacementMinimum;
+    glm::vec2                   AtlasPlacementMaximum;
+    uint32_t                    AtlasImageIndex;
+    uint32_t                    Flags;
+    uint32_t                    Dummy1;
+    uint32_t                    Dummy2;
 };
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) PackedMaterial
+struct alignas(16) packed_material
 {
-    glm::vec3                   baseColor;
-    float                       baseWeight;
-    glm::vec3                   specularColor;
-    float                       specularWeight;
-    glm::vec3                   transmissionColor;
-    float                       transmissionWeight;
-    glm::vec3                   transmissionScatter;
-    float                       transmissionScatterAnisotropy;
-    glm::vec3                   emissionColor;
-    float                       emissionLuminance;
+    glm::vec3                   BaseColor;
+    float                       BaseWeight;
+    glm::vec3                   SpecularColor;
+    float                       SpecularWeight;
+    glm::vec3                   TransmissionColor;
+    float                       TransmissionWeight;
+    glm::vec3                   TransmissionScatter;
+    float                       TransmissionScatterAnisotropy;
+    glm::vec3                   EmissionColor;
+    float                       EmissionLuminance;
 
-    glm::vec2                   specularRoughnessAlpha;
+    glm::vec2                   SpecularRoughnessAlpha;
 
-    float                       opacity;
-    float                       baseMetalness;
-    float                       baseDiffuseRoughness;
-    float                       specularIOR;
-    float                       transmissionDepth;
-    float                       scatteringRate;
+    float                       Opacity;
+    float                       BaseMetalness;
+    float                       BaseDiffuseRoughness;
+    float                       SpecularIOR;
+    float                       TransmissionDepth;
+    float                       ScatteringRate;
 
-    uint32_t                    baseColorTextureIndex;
-    uint32_t                    emissionColorTextureIndex;
+    uint32_t                    BaseColorTextureIndex;
+    uint32_t                    EmissionColorTextureIndex;
 };
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) PackedSceneObject
+struct alignas(16) packed_scene_object
 {
-    ObjectType                  type;
-    uint32_t                    materialIndex;
-    uint32_t                    meshRootNodeIndex;
-    int32_t                     priority;
-    PackedTransform             transform;
+    object_type                 Type;
+    uint32_t                    MaterialIndex;
+    uint32_t                    MeshRootNodeIndex;
+    int32_t                     Priority;
+    packed_transform            Transform;
 };
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) PackedSceneNode
+struct alignas(16) packed_scene_node
 {
-    glm::vec3                   minimum;
-    uint32_t                    childNodeIndices;
-    glm::vec3                   maximum;
-    uint32_t                    objectIndex;
+    glm::vec3                   Minimum;
+    uint32_t                    ChildNodeIndices;
+    glm::vec3                   Maximum;
+    uint32_t                    ObjectIndex;
 };
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) PackedMeshFace
+struct alignas(16) packed_mesh_face
 {
-    alignas(16) glm::vec3       position;
-    alignas(16) glm::vec4       plane;
-    alignas(16) glm::vec3       base1;
-    alignas(16) glm::vec3       base2;
+    alignas(16) glm::vec3       Position;
+    alignas(16) glm::vec4       Plane;
+    alignas(16) glm::vec3       Base1;
+    alignas(16) glm::vec3       Base2;
 };
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) PackedMeshFaceExtra
+struct alignas(16) packed_mesh_face_extra
 {
-    glm::aligned_vec3           normals[3];
-    glm::aligned_vec2           uvs[3];
-    uint32_t                    materialIndex;
+    glm::aligned_vec3           Normals[3];
+    glm::aligned_vec2           UVs[3];
+    uint32_t                    MaterialIndex;
 };
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) PackedMeshNode
+struct alignas(16) packed_mesh_node
 {
 
-    glm::vec3                   minimum;
-    uint32_t                    faceBeginOrNodeIndex;
-    glm::vec3                   maximum;
-    uint32_t                    faceEndIndex;
+    glm::vec3                   Minimum;
+    uint32_t                    FaceBeginOrNodeIndex;
+    glm::vec3                   Maximum;
+    uint32_t                    FaceEndIndex;
 };
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct FrameUniformBuffer
+struct frame_uniform_buffer
 {
-    uint32_t                    frameRandomSeed             = 0;
-    uint32_t                    sceneObjectCount            = 0;
-    float                       sceneScatterRate            = 0.0f;
-    CameraModel                 cameraModel                 = CAMERA_MODEL_THIN_LENS;
-    float                       cameraFocalLength           = 0.020f;
-    float                       cameraApertureRadius        = 0.040f;
-    float                       cameraSensorDistance        = 0.0202f;
-    glm::aligned_vec2           cameraSensorSize            = { 0.032f, 0.018f };
-    PackedTransform             cameraTransform             = {};
-    RenderMode                  renderMode                  = RENDER_MODE_PATH_TRACE;
-    uint32_t                    renderFlags                 = 0;
-    uint32_t                    renderSampleBlockSize       = 1;
-    uint32_t                    renderBounceLimit           = 0;
-    float                       renderTerminationProbability = 0.0f;
-    uint32_t                    renderMeshComplexityScale   = 32;
-    uint32_t                    renderSceneComplexityScale  = 32;
-    uint32_t                    highlightObjectIndex        = 0xFFFFFFFF;
-    float                       brightness                  = 1.0f;
-    ToneMappingMode             toneMappingMode             = TONE_MAPPING_MODE_CLAMP;
-    float                       toneMappingWhiteLevel       = 1.0f;
-    glm::aligned_mat3           skyboxDistributionFrame     = {};
-    float                       skyboxDistributionConcentration = 1.0f;
-    float                       skyboxBrightness            = 1.0f;
-    uint32_t                    skyboxWhiteFurnace          = 0;
+    uint32_t                    FrameRandomSeed             = 0;
+    uint32_t                    SceneObjectCount            = 0;
+    float                       SceneScatterRate            = 0.0f;
+    camera_model                CameraModel                 = CAMERA_MODEL_THIN_LENS;
+    float                       CameraFocalLength           = 0.020f;
+    float                       CameraApertureRadius        = 0.040f;
+    float                       CameraSensorDistance        = 0.0202f;
+    glm::aligned_vec2           CameraSensorSize            = { 0.032f, 0.018f };
+    packed_transform            CameraTransform             = {};
+    render_mode                 RenderMode                  = RENDER_MODE_PATH_TRACE;
+    uint32_t                    RenderFlags                 = 0;
+    uint32_t                    RenderSampleBlockSize       = 1;
+    uint32_t                    RenderBounceLimit           = 0;
+    float                       RenderTerminationProbability = 0.0f;
+    uint32_t                    RenderMeshComplexityScale   = 32;
+    uint32_t                    RenderSceneComplexityScale  = 32;
+    uint32_t                    HighlightObjectIndex        = 0xFFFFFFFF;
+    float                       Brightness                  = 1.0f;
+    tone_mapping_mode           ToneMappingMode             = TONE_MAPPING_MODE_CLAMP;
+    float                       ToneMappingWhiteLevel       = 1.0f;
+    glm::aligned_mat3           SkyboxDistributionFrame     = {};
+    float                       SkyboxDistributionConcentration = 1.0f;
+    float                       SkyboxBrightness            = 1.0f;
+    uint32_t                    SkyboxWhiteFurnace          = 0;
 };
 
-struct Image
+struct image
 {
-    uint32_t                    width;
-    uint32_t                    height;
-    uint32_t const*             pixels;
+    uint32_t                    Width;
+    uint32_t                    Height;
+    uint32_t const*             Pixels;
 };
 
-struct Transform
+struct transform
 {
-    glm::vec3                   position                    = glm::vec3(0, 0, 0);
-    glm::vec3                   rotation                    = glm::vec3(0, 0, 0);
-    glm::vec3                   scale                       = glm::vec3(1, 1, 1);
-    bool                        scaleIsUniform              = true;
+    glm::vec3                   Position                    = glm::vec3(0, 0, 0);
+    glm::vec3                   Rotation                    = glm::vec3(0, 0, 0);
+    glm::vec3                   Scale                       = glm::vec3(1, 1, 1);
+    bool                        ScaleIsUniform              = true;
 };
 
-struct Ray
+struct ray
 {
-    glm::vec3                   origin;
-    glm::vec3                   direction;
+    glm::vec3                   Origin;
+    glm::vec3                   Direction;
 };
 
-struct Hit
+struct hit
 {
-    float                       time;
-    ObjectType                  objectType;
-    uint32_t                    objectIndex;
-    uint32_t                    primitiveIndex;
-    glm::vec3                   primitiveCoordinates;
+    float                       Time;
+    object_type                 ObjectType;
+    uint32_t                    ObjectIndex;
+    uint32_t                    PrimitiveIndex;
+    glm::vec3                   PrimitiveCoordinates;
 };
 
-inline char const* RenderModeName(RenderMode mode)
+inline char const* RenderModeName(render_mode Mode)
 {
-    switch (mode) {
+    switch (Mode) {
         case RENDER_MODE_PATH_TRACE:
             return "Path Trace";
         case RENDER_MODE_PATH_TRACE_SPECTRAL:
@@ -256,9 +256,9 @@ inline char const* RenderModeName(RenderMode mode)
     return nullptr;
 }
 
-inline char const* ToneMappingModeName(ToneMappingMode mode)
+inline char const* ToneMappingModeName(tone_mapping_mode Mode)
 {
-    switch (mode) {
+    switch (Mode) {
         case TONE_MAPPING_MODE_CLAMP:
             return "Clamp";
         case TONE_MAPPING_MODE_REINHARD:
@@ -272,9 +272,9 @@ inline char const* ToneMappingModeName(ToneMappingMode mode)
     return nullptr;
 }
 
-inline char const* CameraModelName(CameraModel model)
+inline char const* CameraModelName(camera_model Model)
 {
-    switch (model) {
+    switch (Model) {
         case CAMERA_MODEL_PINHOLE:
             return "Pinhole";
         case CAMERA_MODEL_THIN_LENS:
@@ -286,16 +286,16 @@ inline char const* CameraModelName(CameraModel model)
     return nullptr;
 }
 
-inline Ray TransformRay(Ray const& ray, glm::mat4 const& matrix)
+inline ray TransformRay(ray const& Ray, glm::mat4 const& Matrix)
 {
     return {
-        .origin = (matrix * glm::vec4(ray.origin, 1)).xyz(),
-        .direction = (matrix * glm::vec4(ray.direction, 0)).xyz(),
+        .Origin = (Matrix * glm::vec4(Ray.Origin, 1)).xyz(),
+        .Direction = (Matrix * glm::vec4(Ray.Direction, 0)).xyz(),
     };
 }
 
-inline float RepeatRange(float value, float min, float max)
+inline float RepeatRange(float Value, float Min, float Max)
 {
-    float range = max - min;
-    return min + range * glm::fract((value + min) / range);
+    float Range = Max - Min;
+    return Min + Range * glm::fract((Value + Min) / Range);
 }

@@ -4,11 +4,11 @@
 
 #include "common.glsl.inc"
 
-layout(binding = 1) uniform sampler2D textureSampler;
+layout(binding = 1) uniform sampler2D TextureSampler;
 
 #if VERTEX
 
-vec2 positions[6] = vec2[](
+vec2 Positions[6] = vec2[](
     vec2(-1.0, -1.0),
     vec2( 1.0, -1.0),
     vec2( 1.0,  1.0),
@@ -17,7 +17,7 @@ vec2 positions[6] = vec2[](
     vec2(-1.0,  1.0)
 );
 
-vec2 uvs[6] = vec2[](
+vec2 UVs[6] = vec2[](
 	vec2(0.0, 0.0),
 	vec2(1.0, 0.0),
 	vec2(1.0, 1.0),
@@ -26,32 +26,32 @@ vec2 uvs[6] = vec2[](
 	vec2(0.0, 1.0)
 );
 
-layout(location = 0) out vec2 fragmentUV;
+layout(location = 0) out vec2 FragmentUV;
 
 void main()
 {
-    gl_Position = vec4(positions[gl_VertexIndex], 0.0, 1.0);
-    fragmentUV = uvs[gl_VertexIndex];
+    gl_Position = vec4(Positions[gl_VertexIndex], 0.0, 1.0);
+    FragmentUV = UVs[gl_VertexIndex];
 }
 
 #elif FRAGMENT
 
-layout(location = 0) in vec2 fragmentUV;
+layout(location = 0) in vec2 FragmentUV;
 
-layout(location = 0) out vec4 outColor;
+layout(location = 0) out vec4 OutColor;
 
-float Luminance(vec3 color)
+float Luminance(vec3 Color)
 {
-    return dot(color, vec3(0.2126f, 0.7152f, 0.0722f));
+    return dot(Color, vec3(0.2126f, 0.7152f, 0.0722f));
 }
 
-vec3 ToneMapReinhard(vec3 color)
+vec3 ToneMapReinhard(vec3 Color)
 {
-    float oldL = Luminance(color);
-    float maxL = toneMappingWhiteLevel;
-    float n = oldL * (1.0f + (oldL / (maxL * maxL)));
-    float newL = n / (1.0f + oldL);
-    return color * newL / oldL;
+    float OldL = Luminance(Color);
+    float MaxL = ToneMappingWhiteLevel;
+    float N = OldL * (1.0f + (OldL / (MaxL * MaxL)));
+    float NewL = N / (1.0f + OldL);
+    return Color * NewL / OldL;
 }
 
 vec3 ToneMapHablePartial(vec3 x)
@@ -61,13 +61,13 @@ vec3 ToneMapHablePartial(vec3 x)
     return ((x*(a*x+c*b)+d*e)/(x*(a*x+b)+d*f))-e/f;
 }
 
-vec3 ToneMapHable(vec3 color)
+vec3 ToneMapHable(vec3 Color)
 {
-    float exposureBias = 2.0f;
-    vec3 current = ToneMapHablePartial(color * exposureBias);
-    vec3 w = vec3(11.2f);
-    vec3 whiteScale = vec3(1.0f) / ToneMapHablePartial(w);
-    return current * whiteScale;
+    float ExposureBias = 2.0f;
+    vec3 Current = ToneMapHablePartial(Color * ExposureBias);
+    vec3 W = vec3(11.2f);
+    vec3 WhiteScale = vec3(1.0f) / ToneMapHablePartial(W);
+    return Current * WhiteScale;
 }
 
 const mat3 ACES_INPUT_MATRIX = mat3(
@@ -82,32 +82,32 @@ const mat3 ACES_OUTPUT_MATRIX = mat3(
     -0.07367f, -0.00605f,  1.07602f
 );
 
-vec3 ToneMapACES(vec3 color)
+vec3 ToneMapACES(vec3 Color)
 {
-    vec3 v = ACES_INPUT_MATRIX * color;
-    vec3 a = v * (v + 0.0245786f) - 0.000090537f;
-    vec3 b = v * (0.983729f * v + 0.4329510f) + 0.238081f;
-    return ACES_OUTPUT_MATRIX * (a / b);
+    vec3 V = ACES_INPUT_MATRIX * Color;
+    vec3 A = V * (V + 0.0245786f) - 0.000090537f;
+    vec3 B = V * (0.983729f * V + 0.4329510f) + 0.238081f;
+    return ACES_OUTPUT_MATRIX * (A / B);
 }
 
 void main()
 {
-    vec3 color = vec3(0, 0, 0);
+    vec3 Color = vec3(0, 0, 0);
 
-    vec4 value = texture(textureSampler, fragmentUV);
-    if (value.a > 0)
-        color = brightness * value.rgb / value.a;
+    vec4 Value = texture(TextureSampler, FragmentUV);
+    if (Value.a > 0)
+        Color = Brightness * Value.rgb / Value.a;
 
-    if (toneMappingMode == TONE_MAPPING_MODE_CLAMP)
-        color = clamp(color, 0, 1);
-    if (toneMappingMode == TONE_MAPPING_MODE_REINHARD)
-        color = ToneMapReinhard(color);
-    if (toneMappingMode == TONE_MAPPING_MODE_HABLE)
-        color = ToneMapHable(color);
-    if (toneMappingMode == TONE_MAPPING_MODE_ACES)
-        color = ToneMapACES(color);
+    if (ToneMappingMode == TONE_MAPPING_MODE_CLAMP)
+        Color = clamp(Color, 0, 1);
+    if (ToneMappingMode == TONE_MAPPING_MODE_REINHARD)
+        Color = ToneMapReinhard(Color);
+    if (ToneMappingMode == TONE_MAPPING_MODE_HABLE)
+        Color = ToneMapHable(Color);
+    if (ToneMappingMode == TONE_MAPPING_MODE_ACES)
+        Color = ToneMapACES(Color);
 
-    outColor = vec4(color, 1);
+    OutColor = vec4(Color, 1);
 }
 
 #endif

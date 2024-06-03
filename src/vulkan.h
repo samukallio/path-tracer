@@ -1,6 +1,6 @@
 #pragma once
 
-struct Scene;
+struct scene;
 
 #include "common.h"
 
@@ -11,153 +11,153 @@ struct Scene;
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 
-struct ImGuiUniformBuffer
+struct imgui_uniform_buffer
 {
-    glm::mat4                   projectionMatrix            = {};
+    glm::mat4                   ProjectionMatrix            = {};
 };
 
-struct VulkanBuffer
+struct vulkan_buffer
 {
-    VkBuffer                    buffer                      = VK_NULL_HANDLE;
-    VkDeviceMemory              memory                      = VK_NULL_HANDLE;
-    VkDeviceSize                size                        = 0;
+    VkBuffer                    Buffer                      = VK_NULL_HANDLE;
+    VkDeviceMemory              Memory                      = VK_NULL_HANDLE;
+    VkDeviceSize                Size                        = 0;
 };
 
-struct VulkanImage
+struct vulkan_image
 {
-    VkImage                     image                       = VK_NULL_HANDLE;
-    VkDeviceMemory              memory                      = VK_NULL_HANDLE;
-    VkImageView                 view                        = VK_NULL_HANDLE;
-    VkImageType                 type                        = VK_IMAGE_TYPE_1D;
-    VkFormat                    format                      = VK_FORMAT_UNDEFINED;
-    VkExtent3D                  extent                      = {};
-    VkImageTiling               tiling                      = VK_IMAGE_TILING_OPTIMAL;
-    uint32_t                    layerCount                  = 0;
+    VkImage                     Image                       = VK_NULL_HANDLE;
+    VkDeviceMemory              Memory                      = VK_NULL_HANDLE;
+    VkImageView                 View                        = VK_NULL_HANDLE;
+    VkImageType                 Type                        = VK_IMAGE_TYPE_1D;
+    VkFormat                    Format                      = VK_FORMAT_UNDEFINED;
+    VkExtent3D                  Extent                      = {};
+    VkImageTiling               Tiling                      = VK_IMAGE_TILING_OPTIMAL;
+    uint32_t                    LayerCount                  = 0;
 };
 
-struct VulkanDescriptor
+struct vulkan_descriptor
 {
-    VkDescriptorBufferInfo      buffer                      = {};
-    VkDescriptorImageInfo       image                       = {};
+    VkDescriptorBufferInfo      Buffer                      = {};
+    VkDescriptorImageInfo       Image                       = {};
 };
 
-struct VulkanPipeline
+struct vulkan_pipeline
 {
-    VkPipeline                  pipeline                    = VK_NULL_HANDLE;
-    VkPipelineLayout            pipelineLayout              = VK_NULL_HANDLE;
-    VkDescriptorSetLayout       descriptorSetLayout         = VK_NULL_HANDLE;
+    VkPipeline                  Pipeline                    = VK_NULL_HANDLE;
+    VkPipelineLayout            PipelineLayout              = VK_NULL_HANDLE;
+    VkDescriptorSetLayout       DescriptorSetLayout         = VK_NULL_HANDLE;
 };
 
-struct VulkanFrameState
+struct vulkan_frame_state
 {
-    uint32_t                    index                       = 0;
-    bool                        fresh                       = false;
+    uint32_t                    Index                       = 0;
+    bool                        Fresh                       = false;
 
     // Fence that gets signaled when the previous commands
     // accessing the resources of this frame state have been
     // completed.
-    VkFence                     availableFence              = VK_NULL_HANDLE;
+    VkFence                     AvailableFence              = VK_NULL_HANDLE;
 
     // Swap chain image state for this frame.
-    uint32_t                    imageIndex                  = 0;
-    VkSemaphore                 imageAvailableSemaphore     = VK_NULL_HANDLE;
-    VkSemaphore                 imageFinishedSemaphore      = VK_NULL_HANDLE;
+    uint32_t                    ImageIndex                  = 0;
+    VkSemaphore                 ImageAvailableSemaphore     = VK_NULL_HANDLE;
+    VkSemaphore                 ImageFinishedSemaphore      = VK_NULL_HANDLE;
 
-    VkSemaphore                 computeToComputeSemaphore   = VK_NULL_HANDLE;
-    VkSemaphore                 computeToGraphicsSemaphore  = VK_NULL_HANDLE;
-    VkCommandBuffer             graphicsCommandBuffer       = VK_NULL_HANDLE;
-    VkCommandBuffer             computeCommandBuffer        = VK_NULL_HANDLE;
+    VkSemaphore                 ComputeToComputeSemaphore   = VK_NULL_HANDLE;
+    VkSemaphore                 ComputeToGraphicsSemaphore  = VK_NULL_HANDLE;
+    VkCommandBuffer             GraphicsCommandBuffer       = VK_NULL_HANDLE;
+    VkCommandBuffer             ComputeCommandBuffer        = VK_NULL_HANDLE;
 
-    VulkanBuffer                frameUniformBuffer          = {};
+    vulkan_buffer               FrameUniformBuffer          = {};
 
-    VulkanImage                 renderTarget                = {};
-    VulkanImage                 renderTargetGraphicsCopy    = {};
-    VkDescriptorSet             renderDescriptorSet         = VK_NULL_HANDLE;
+    vulkan_image                RenderTarget                = {};
+    vulkan_image                RenderTargetGraphicsCopy    = {};
+    VkDescriptorSet             RenderDescriptorSet         = VK_NULL_HANDLE;
 
-    VkDescriptorSet             resolveDescriptorSet        = VK_NULL_HANDLE;
+    VkDescriptorSet             ResolveDescriptorSet        = VK_NULL_HANDLE;
 
-    VulkanBuffer                imguiUniformBuffer          = {};
-    VulkanBuffer                imguiIndexBuffer            = {};
-    VulkanBuffer                imguiVertexBuffer           = {};
-    VkDescriptorSet             imguiDescriptorSet          = {};
+    vulkan_buffer               ImguiUniformBuffer          = {};
+    vulkan_buffer               ImguiIndexBuffer            = {};
+    vulkan_buffer               ImguiVertexBuffer           = {};
+    VkDescriptorSet             ImguiDescriptorSet          = {};
 };
 
-struct VulkanContext
+struct vulkan_context
 {
-    VkInstance                  instance                    = VK_NULL_HANDLE;
-    VkDebugUtilsMessengerEXT    messenger                   = VK_NULL_HANDLE;
+    VkInstance                  Instance                    = VK_NULL_HANDLE;
+    VkDebugUtilsMessengerEXT    Messenger                   = VK_NULL_HANDLE;
 
-    VkPhysicalDevice            physicalDevice              = VK_NULL_HANDLE;
-    VkPhysicalDeviceFeatures    physicalDeviceFeatures      = {};
-    VkPhysicalDeviceProperties  physicalDeviceProperties    = {};
+    VkPhysicalDevice            PhysicalDevice              = VK_NULL_HANDLE;
+    VkPhysicalDeviceFeatures    PhysicalDeviceFeatures      = {};
+    VkPhysicalDeviceProperties  PhysicalDeviceProperties    = {};
 
-    VkDevice                    device                      = VK_NULL_HANDLE;
+    VkDevice                    Device                      = VK_NULL_HANDLE;
 
-    uint32_t                    graphicsQueueFamilyIndex    = 0;
-    VkQueue                     graphicsQueue               = VK_NULL_HANDLE;
-    VkCommandPool               graphicsCommandPool         = VK_NULL_HANDLE;
+    uint32_t                    GraphicsQueueFamilyIndex    = 0;
+    VkQueue                     GraphicsQueue               = VK_NULL_HANDLE;
+    VkCommandPool               GraphicsCommandPool         = VK_NULL_HANDLE;
 
-    uint32_t                    computeQueueFamilyIndex     = 0;
-    VkQueue                     computeQueue                = VK_NULL_HANDLE;
-    VkCommandPool               computeCommandPool          = VK_NULL_HANDLE;
+    uint32_t                    ComputeQueueFamilyIndex     = 0;
+    VkQueue                     ComputeQueue                = VK_NULL_HANDLE;
+    VkCommandPool               ComputeCommandPool          = VK_NULL_HANDLE;
 
-    uint32_t                    presentQueueFamilyIndex     = 0;
-    VkQueue                     presentQueue                = VK_NULL_HANDLE;
-    VkPresentModeKHR            presentMode                 = VK_PRESENT_MODE_IMMEDIATE_KHR;
+    uint32_t                    PresentQueueFamilyIndex     = 0;
+    VkQueue                     PresentQueue                = VK_NULL_HANDLE;
+    VkPresentModeKHR            PresentMode                 = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
-    GLFWwindow*                 window                      = nullptr;
-    VkSurfaceKHR                surface                     = VK_NULL_HANDLE;
-    VkSurfaceFormatKHR          surfaceFormat               = {};
+    GLFWwindow*                 Window                      = nullptr;
+    VkSurfaceKHR                Surface                     = VK_NULL_HANDLE;
+    VkSurfaceFormatKHR          SurfaceFormat               = {};
 
-    VkSwapchainKHR              swapchain                   = VK_NULL_HANDLE;
-    VkExtent2D                  swapchainExtent             = {};
-    VkFormat                    swapchainFormat             = VK_FORMAT_UNDEFINED;
-    std::vector<VkImage>        swapchainImages             = {};
-    std::vector<VkImageView>    swapchainImageViews         = {};
-    std::vector<VkFramebuffer>  swapchainFramebuffers       = {};
+    VkSwapchainKHR              SwapChain                   = VK_NULL_HANDLE;
+    VkExtent2D                  SwapChainExtent             = {};
+    VkFormat                    SwapChainFormat             = VK_FORMAT_UNDEFINED;
+    std::vector<VkImage>        SwapChainImages             = {};
+    std::vector<VkImageView>    SwapChainImageViews         = {};
+    std::vector<VkFramebuffer>  SwapChainFrameBuffers       = {};
 
-    VkDescriptorPool            descriptorPool              = VK_NULL_HANDLE;
+    VkDescriptorPool            DescriptorPool              = VK_NULL_HANDLE;
 
-    VkRenderPass                mainRenderPass              = VK_NULL_HANDLE;
+    VkRenderPass                MainRenderPass              = VK_NULL_HANDLE;
 
-    uint32_t                    frameIndex                  = 0;
-    VulkanFrameState            frameStates[2]              = {};
+    uint32_t                    FrameIndex                  = 0;
+    vulkan_frame_state          FrameStates[2]              = {};
 
-    VkSampler                   imageSamplerNearestNoMip    = VK_NULL_HANDLE;
-    VkSampler                   imageSamplerLinear          = VK_NULL_HANDLE;
-    VkSampler                   imageSamplerLinearNoMip     = VK_NULL_HANDLE;
+    VkSampler                   ImageSamplerNearestNoMip    = VK_NULL_HANDLE;
+    VkSampler                   ImageSamplerLinear          = VK_NULL_HANDLE;
+    VkSampler                   ImageSamplerLinearNoMip     = VK_NULL_HANDLE;
 
-    VulkanImage                 imageArray                  = {};
-    VulkanBuffer                textureBuffer               = {};
-    VulkanBuffer                materialBuffer              = {};
-    VulkanBuffer                sceneObjectBuffer           = {};
-    VulkanBuffer                sceneNodeBuffer             = {};
-    VulkanBuffer                meshFaceBuffer              = {};
-    VulkanBuffer                meshFaceExtraBuffer         = {};
-    VulkanBuffer                meshNodeBuffer              = {};
-    VulkanImage                 skyboxImage                 = {};
+    vulkan_image                ImageArray                  = {};
+    vulkan_buffer               TextureBuffer               = {};
+    vulkan_buffer               MaterialBuffer              = {};
+    vulkan_buffer               SceneObjectBuffer           = {};
+    vulkan_buffer               SceneNodeBuffer             = {};
+    vulkan_buffer               MeshFaceBuffer              = {};
+    vulkan_buffer               MeshFaceExtraBuffer         = {};
+    vulkan_buffer               MeshNodeBuffer              = {};
+    vulkan_image                SkyboxImage                 = {};
 
-    VulkanPipeline              resolvePipeline             = {};
-    VulkanPipeline              renderPipeline              = {};
+    vulkan_pipeline             ResolvePipeline             = {};
+    vulkan_pipeline             RenderPipeline              = {};
 
-    VulkanImage                 imguiTexture                = {};
-    VulkanPipeline              imguiPipeline               = {};
+    vulkan_image                ImguiTexture                = {};
+    vulkan_pipeline             ImguiPipeline               = {};
 };
 
 
-VulkanContext* CreateVulkan(
-    GLFWwindow* window,
-    char const* applicationName);
+vulkan_context* CreateVulkan(
+    GLFWwindow* Window,
+    char const* ApplicationName);
 
 void DestroyVulkan(
-    VulkanContext* vulkan);
+    vulkan_context* Vulkan);
 
 VkResult UploadScene(
-    VulkanContext* vulkan,
-    Scene const* scene,
-    uint32_t flags);
+    vulkan_context* Vulkan,
+    scene const* Scene,
+    uint32_t Flags);
 
 VkResult RenderFrame(
-    VulkanContext* vulkan,
-    FrameUniformBuffer const* parameters,
-    ImDrawData* imguiDrawData);
+    vulkan_context* Vulkan,
+    frame_uniform_buffer const* Parameters,
+    ImDrawData* ImguiDrawData);
