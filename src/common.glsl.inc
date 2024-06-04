@@ -64,12 +64,12 @@ struct packed_material
     vec3            EmissionColor;
     float           EmissionLuminance;
 
-    vec2            SpecularRoughnessAlpha;
-
     float           Opacity;
     float           BaseMetalness;
     float           BaseDiffuseRoughness;
     float           SpecularIOR;
+    float           SpecularRoughness;
+    float           SpecularRoughnessAnisotropy;
     float           TransmissionDepth;
     float           ScatteringRate;
 
@@ -212,14 +212,24 @@ void ComputeTangentVectors(vec3 Normal, out vec3 TangentX, out vec3 TangentY)
     TangentY = cross(TangentX, Normal);
 }
 
+// Compute the 2D roughness alpha parameter for the GGX distribution of normals.
+vec2 ComputeRoughnessAlphaGGX(float Roughness, float Anisotropy)
+{
+    float R = Roughness;
+    float S = 1 - Anisotropy;
+    float AlphaX = R * R * sqrt(2 / (1 + S * S));
+    float AlphaY = S * AlphaX;
+    return vec2(AlphaX, AlphaY);
+}
+
 // Sample a normal from the GGX distribution that is visible from the given
 // direction according to the procedure outlined in the paper "Sampling the
 // GGX Distribution of Visible Normals" by Eric Heitz.
-vec3 SampleVisibleNormalGGX(vec3 Direction, vec2 Roughness, float U1, float U2)
+vec3 SampleVisibleNormalGGX(vec3 Direction, vec2 RoughnessAlpha, float U1, float U2)
 {
     vec3 vz = normalize(vec3(
-        Roughness.x * Direction.x,
-        Roughness.y * Direction.y,
+        RoughnessAlpha.x * Direction.x,
+        RoughnessAlpha.y * Direction.y,
         Direction.z));
 
     float lensq = dot(vz.xy, vz.xy);
@@ -237,8 +247,8 @@ vec3 SampleVisibleNormalGGX(vec3 Direction, vec2 Roughness, float U1, float U2)
     vec3 Normal = tx * vx + ty * vy + tz * vz;
 
     return normalize(vec3(
-        Roughness.x * Normal.x,
-        Roughness.y * Normal.y,
+        RoughnessAlpha.x * Normal.x,
+        RoughnessAlpha.y * Normal.y,
         max(0.0, Normal.z)));
 }
 

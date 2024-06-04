@@ -551,8 +551,12 @@ vec4 Trace(ray Ray)
             RelativeIOR = 1.0 / RelativeIOR;
         }
 
+        vec2 SpecularRoughnessAlpha = ComputeRoughnessAlphaGGX(
+            Material.SpecularRoughness,
+            Material.SpecularRoughnessAnisotropy);
+
         // Sample a microsurface normal.
-        vec3 SpecularNormal = SampleVisibleNormalGGX(Outgoing, Material.SpecularRoughnessAlpha, Random0To1(), Random0To1());
+        vec3 SpecularNormal = SampleVisibleNormalGGX(Outgoing, SpecularRoughnessAlpha, Random0To1(), Random0To1());
         // Compute cosine between microsurface normal and outgoing direction.
         float SpecularCosine = dot(SpecularNormal, Outgoing);
 
@@ -574,7 +578,7 @@ vec4 Trace(ray Ray)
             vec3 F = Material.SpecularWeight * SchlickFresnelMetalWithTint(F0, Material.SpecularColor, SpecularCosine);
 
             // Compute shadowing term.
-            float G = SmithG1(Incoming, Material.SpecularRoughnessAlpha);
+            float G = SmithG1(Incoming, SpecularRoughnessAlpha);
 
             FilterColor *= F * G;
         }
@@ -618,7 +622,7 @@ vec4 Trace(ray Ray)
             // and we terminate.
             if (IncomingCosine * Incoming.z <= 0) break;
 
-            float G = SmithG1(Incoming, Material.SpecularRoughnessAlpha);
+            float G = SmithG1(Incoming, SpecularRoughnessAlpha);
 
             FilterColor *= G;
         }
@@ -643,7 +647,7 @@ vec4 Trace(ray Ray)
                     FilterColor *= Material.SpecularColor;
                 }
 
-                float G = SmithG1(Incoming, Material.SpecularRoughnessAlpha);
+                float G = SmithG1(Incoming, SpecularRoughnessAlpha);
 
                 FilterColor *= G;
             }
