@@ -114,11 +114,10 @@ void Frame()
 
             hit Hit;
             if (Trace(App.Scene, Ray, Hit)) {
-                for (entity* Entity : App.Scene->Root.Children) {
-                    if (Entity->PackedObjectIndex == Hit.ObjectIndex) {
-                        App.SelectedEntity = Entity;
-                        App.SelectionType = SELECTION_TYPE_ENTITY;
-                    }
+                entity* Entity = FindEntityByPackedIndex(App.Scene, Hit.ObjectIndex);
+                if (Entity) {
+                    App.SelectedEntity = Entity;
+                    App.SelectionType = SELECTION_TYPE_ENTITY;
                 }
             }
         }

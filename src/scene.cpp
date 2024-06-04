@@ -1148,6 +1148,23 @@ uint32_t PackSceneData(scene* Scene)
     return DirtyFlags;
 }
 
+static entity* FindEntityByPackedIndexRecursive(entity* Entity, uint32_t PackedObjectIndex)
+{
+    if (Entity->Active) {
+        if (Entity->PackedObjectIndex == PackedObjectIndex)
+            return Entity;
+        for (entity* Child : Entity->Children)
+            if (entity* Found = FindEntityByPackedIndexRecursive(Child, PackedObjectIndex); Found)
+                return Found;
+    }
+    return nullptr;
+};
+
+entity* FindEntityByPackedIndex(scene* Scene, uint32_t PackedObjectIndex)
+{
+    return FindEntityByPackedIndexRecursive(&Scene->Root, PackedObjectIndex);
+}
+
 static void IntersectMeshFace(scene* Scene, ray Ray, uint32_t MeshFaceIndex, hit& Hit)
 {
     packed_mesh_face Face = Scene->MeshFacePack[MeshFaceIndex];
@@ -1308,6 +1325,8 @@ static void IntersectObject(scene* Scene, ray const& WorldRay, uint32_t ObjectIn
         Hit.Time = S / V;
         Hit.ObjectType = OBJECT_TYPE_SPHERE;
         Hit.ObjectIndex = ObjectIndex;
+        Hit.PrimitiveIndex = 0;
+        Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * Hit.Time;
     }
 
     if (Object.Type == OBJECT_TYPE_CUBE) {
@@ -1326,6 +1345,8 @@ static void IntersectObject(scene* Scene, ray const& WorldRay, uint32_t ObjectIn
         Hit.Time = T;
         Hit.ObjectType = OBJECT_TYPE_CUBE;
         Hit.ObjectIndex = ObjectIndex;
+        Hit.PrimitiveIndex = 0;
+        Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * T;
     }
 }
 

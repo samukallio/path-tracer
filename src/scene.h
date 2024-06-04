@@ -243,5 +243,6 @@ prefab*     LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options
 bool        LoadSkybox(scene* Scene, char const* Path);
 
 uint32_t    PackSceneData(scene* Scene);
+entity*     FindEntityByPackedIndex(scene* Scene, uint32_t PackedObjectIndex);
 
 bool        Trace(scene* Scene, ray const& Ray, hit& Hit);
