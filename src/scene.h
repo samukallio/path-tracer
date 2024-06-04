@@ -59,8 +59,7 @@ struct mesh_face
 
 struct mesh_node
 {
-    glm::vec3                       Minimum;
-    glm::vec3                       Maximum;
+    bounds                          Bounds;
     uint32_t                        FaceBeginIndex;
     uint32_t                        FaceEndIndex;
     uint32_t                        ChildNodeIndex;

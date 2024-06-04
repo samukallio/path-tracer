@@ -54,11 +54,11 @@ vec3 ToneMapReinhard(vec3 Color)
     return Color * NewL / OldL;
 }
 
-vec3 ToneMapHablePartial(vec3 x)
+vec3 ToneMapHablePartial(vec3 X)
 {
-    float a = 0.15f, b = 0.50f, c = 0.10f;
-    float d = 0.20f, e = 0.02f, f = 0.30f;
-    return ((x*(a*x+c*b)+d*e)/(x*(a*x+b)+d*f))-e/f;
+    float A = 0.15f, B = 0.50f, C = 0.10f;
+    float D = 0.20f, E = 0.02f, F = 0.30f;
+    return ((X * (A * X + C * B) + D * E) / (X * (A * X + B) + D * F)) - E / F;
 }
 
 vec3 ToneMapHable(vec3 Color)

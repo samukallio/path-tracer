@@ -14,9 +14,10 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/euler_angles.hpp>
 
-float const EPSILON     = 1e-9f;
-float const PI          = 3.141592653f;
-float const TAU         = 6.283185306f;
+constexpr float EPSILON     = 1e-9f;
+constexpr float PI          = 3.141592653f;
+constexpr float TAU         = 6.283185306f;
+constexpr float INF         = std::numeric_limits<float>::infinity();
 
 uint32_t const OBJECT_INDEX_NONE    = 0xFFFFFFFF;
 uint32_t const TEXTURE_INDEX_NONE   = 0xFFFFFFFF;
@@ -215,6 +216,12 @@ struct transform
     bool                        ScaleIsUniform              = true;
 };
 
+struct bounds
+{
+    glm::vec3                   Minimum                     = { +INF, +INF, +INF };
+    glm::vec3                   Maximum                     = { -INF, -INF, -INF };
+};
+
 struct ray
 {
     glm::vec3                   Origin;
@@ -233,24 +240,15 @@ struct hit
 inline char const* RenderModeName(render_mode Mode)
 {
     switch (Mode) {
-        case RENDER_MODE_PATH_TRACE:
-            return "Path Trace";
-        case RENDER_MODE_PATH_TRACE_SPECTRAL:
-            return "Path Trace (Spectral)";
-        case RENDER_MODE_BASE_COLOR:
-            return "Base Color";
-        case RENDER_MODE_BASE_COLOR_SHADED:
-            return "Base Color (Shaded)";
-        case RENDER_MODE_NORMAL:
-            return "Normal";
-        case RENDER_MODE_MATERIAL_INDEX:
-            return "Material ID";
-        case RENDER_MODE_PRIMITIVE_INDEX:
-            return "Primitive ID";
-        case RENDER_MODE_MESH_COMPLEXITY:
-            return "Mesh Complexity";
-        case RENDER_MODE_SCENE_COMPLEXITY:
-            return "Scene Complexity";
+    case RENDER_MODE_PATH_TRACE:            return "Path Trace";
+    case RENDER_MODE_PATH_TRACE_SPECTRAL:   return "Path Trace (Spectral)";
+    case RENDER_MODE_BASE_COLOR:            return "Base Color";
+    case RENDER_MODE_BASE_COLOR_SHADED:     return "Base Color (Shaded)";
+    case RENDER_MODE_NORMAL:                return "Normal";
+    case RENDER_MODE_MATERIAL_INDEX:        return "Material ID";
+    case RENDER_MODE_PRIMITIVE_INDEX:       return "Primitive ID";
+    case RENDER_MODE_MESH_COMPLEXITY:       return "Mesh Complexity";
+    case RENDER_MODE_SCENE_COMPLEXITY:      return "Scene Complexity";
     }
     assert(false);
     return nullptr;
@@ -259,14 +257,10 @@ inline char const* RenderModeName(render_mode Mode)
 inline char const* ToneMappingModeName(tone_mapping_mode Mode)
 {
     switch (Mode) {
-        case TONE_MAPPING_MODE_CLAMP:
-            return "Clamp";
-        case TONE_MAPPING_MODE_REINHARD:
-            return "Reinhard";
-        case TONE_MAPPING_MODE_HABLE:
-            return "Hable";
-        case TONE_MAPPING_MODE_ACES:
-            return "ACES";
+    case TONE_MAPPING_MODE_CLAMP:           return "Clamp";
+    case TONE_MAPPING_MODE_REINHARD:        return "Reinhard";
+    case TONE_MAPPING_MODE_HABLE:           return "Hable";
+    case TONE_MAPPING_MODE_ACES:            return "ACES";
     }
     assert(false);
     return nullptr;
@@ -275,12 +269,9 @@ inline char const* ToneMappingModeName(tone_mapping_mode Mode)
 inline char const* CameraModelName(camera_model Model)
 {
     switch (Model) {
-        case CAMERA_MODEL_PINHOLE:
-            return "Pinhole";
-        case CAMERA_MODEL_THIN_LENS:
-            return "Thin Lens";
-        case CAMERA_MODEL_360:
-            return "360";
+    case CAMERA_MODEL_PINHOLE:              return "Pinhole";
+    case CAMERA_MODEL_THIN_LENS:            return "Thin Lens";
+    case CAMERA_MODEL_360:                  return "360";
     }
     assert(false);
     return nullptr;

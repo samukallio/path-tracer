@@ -11,14 +11,6 @@
 #include <format>
 #include <stdio.h>
 
-constexpr float INF = std::numeric_limits<float>::infinity();
-
-struct bounds
-{
-    glm::vec3   Minimum = { +INF, +INF, +INF };
-    glm::vec3   Maximum = { -INF, -INF, -INF };
-};
-
 static void Grow(glm::vec3& Minimum, glm::vec3& Maximum, glm::vec3 Point)
 {
     Minimum = glm::min(Minimum, Point);
@@ -236,14 +228,10 @@ static void BuildMeshNode(mesh* Mesh, uint32_t NodeIndex, uint32_t Depth)
     uint32_t FaceCount = Node.FaceEndIndex - Node.FaceBeginIndex;
 
     // Compute node bounds.
-    Node.Minimum = { +INF, +INF, +INF };
-    Node.Maximum = { -INF, -INF, -INF };
+    Node.Bounds = {};
     for (uint32_t Index = Node.FaceBeginIndex; Index < Node.FaceEndIndex; Index++) {
-        for (int J = 0; J < 3; J++) {
-            glm::vec3 const& Position = Mesh->Faces[Index].Vertices[J];
-            Node.Minimum = glm::min(Node.Minimum, Position);
-            Node.Maximum = glm::max(Node.Maximum, Position);
-        }
+        for (int J = 0; J < 3; J++)
+            Grow(Node.Bounds, Mesh->Faces[Index].Vertices[J]);
     }
 
     int SplitAxis = 0;
@@ -337,7 +325,7 @@ static void BuildMeshNode(mesh* Mesh, uint32_t NodeIndex, uint32_t Depth)
     }
 
     // If splitting is more costly than not splitting, then leave this node as a leaf.
-    float NoSplitCost = FaceCount * HalfArea(Node.Minimum, Node.Maximum);
+    float NoSplitCost = FaceCount * HalfArea(Node.Bounds);
     if (SplitCost >= NoSplitCost) return;
 
     // Partition the faces within the node by the chosen split plane.
@@ -1036,8 +1024,8 @@ uint32_t PackSceneData(scene* Scene)
             for (mesh_node const& Node : Mesh->Nodes) {
                 packed_mesh_node Packed;
 
-                Packed.Minimum = Node.Minimum;
-                Packed.Maximum = Node.Maximum;
+                Packed.Minimum = Node.Bounds.Minimum;
+                Packed.Maximum = Node.Bounds.Maximum;
 
                 if (Node.ChildNodeIndex > 0) {
                     Packed.FaceBeginOrNodeIndex = NodeIndexBase + Node.ChildNodeIndex;
