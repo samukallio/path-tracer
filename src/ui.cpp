@@ -101,6 +101,7 @@ static void MaterialInspector(application* App, material* Material, bool Referen
     C |= ImGui::DragFloat("Specular Weight", &Material->SpecularWeight, 0.01f, 0.0f, 1.0f);
     C |= ImGui::ColorEdit3("Specular Color", &Material->SpecularColor[0]);
     C |= ImGui::DragFloat("Specular Roughness", &Material->SpecularRoughness, 0.01f, 0.0f, 1.0f);
+    C |= ResourceSelectorDropDown("Specular Roughness Texture", Scene->Textures, &Material->SpecularRoughnessTexture);
     C |= ImGui::DragFloat("Specular Roughness Anisotropy", &Material->SpecularRoughnessAnisotropy, 0.01f, 0.0f, 1.0f);
     C |= ImGui::DragFloat("Specular IOR", &Material->SpecularIOR, 0.01f, 1.0f, 3.0f);
 

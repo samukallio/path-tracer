@@ -74,6 +74,7 @@ struct packed_material
     float           ScatteringRate;
 
     uint            BaseColorTextureIndex;
+    uint            SpecularRoughnessTextureIndex;
     uint            EmissionColorTextureIndex;
 };
 

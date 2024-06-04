@@ -117,6 +117,7 @@ struct alignas(16) packed_material
     float                       ScatteringRate;
 
     uint32_t                    BaseColorTextureIndex;
+    uint32_t                    SpecularRoughnessTextureIndex;
     uint32_t                    EmissionColorTextureIndex;
 };
 

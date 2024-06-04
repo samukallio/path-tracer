@@ -30,6 +30,7 @@ struct material
     float                           SpecularWeight          = 1.0f;
     glm::vec3                       SpecularColor           = glm::vec3(1, 1, 1);
     float                           SpecularRoughness       = 0.3f;
+    texture*                        SpecularRoughnessTexture = nullptr;
     float                           SpecularRoughnessAnisotropy = 0.0f;
     float                           SpecularIOR             = 1.5f;
 

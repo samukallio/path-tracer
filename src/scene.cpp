@@ -950,6 +950,7 @@ uint32_t PackSceneData(scene* Scene)
             Packed.ScatteringRate = Material->ScatteringRate;
 
             Packed.BaseColorTextureIndex = GetPackedTextureIndex(Material->BaseColorTexture);
+            Packed.SpecularRoughnessTextureIndex = GetPackedTextureIndex(Material->SpecularRoughnessTexture);
 
             Scene->MaterialPack.push_back(Packed);
         }

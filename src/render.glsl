@@ -478,6 +478,11 @@ void ResolveHit(ray Ray, inout hit Hit)
         Hit.Material.Opacity *= Value.a;
     }
 
+    if (Hit.Material.SpecularRoughnessTextureIndex != TEXTURE_INDEX_NONE) {
+        vec4 Value = SampleTexture(Hit.Material.SpecularRoughnessTextureIndex, Hit.UV);
+        Hit.Material.SpecularRoughness *= Value.r;
+    }
+
     Hit.InteriorMediumPriority = Shape.InteriorMediumPriority;
 
     Hit.Position = TransformPosition(Position, Shape.Transform);
