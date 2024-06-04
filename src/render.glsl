@@ -55,13 +55,13 @@ readonly buffer MaterialBuffer
 layout(binding = 8, std430)
 readonly buffer ObjectBuffer
 {
-    packed_scene_object Objects[];
+    packed_shape Shapes[];
 };
 
 layout(binding = 9, std430)
-readonly buffer SceneNodeBuffer
+readonly buffer ShapeNodeBuffer
 {
-    packed_scene_node SceneNodes[];
+    packed_shape_node ShapeNodes[];
 };
 
 layout(binding = 10, std430)
@@ -213,8 +213,8 @@ void IntersectMeshFace(ray Ray, uint MeshFaceIndex, inout hit Hit)
     if (Gamma < 0 || Beta + Gamma > 1) return;
 
     Hit.Time = T;
-    Hit.ObjectType = OBJECT_TYPE_MESH_INSTANCE;
-    Hit.ObjectIndex = OBJECT_INDEX_NONE;
+    Hit.ShapeType = SHAPE_TYPE_MESH_INSTANCE;
+    Hit.ShapeIndex = SHAPE_INDEX_NONE;
     Hit.PrimitiveIndex = MeshFaceIndex;
     Hit.PrimitiveCoordinates = vec3(1 - Beta - Gamma, Beta, Gamma);
 }
@@ -279,28 +279,28 @@ void IntersectMeshNode(ray Ray, uint MeshNodeIndex, inout hit Hit)
     }
 }
 
-void IntersectObject(ray Ray, uint ObjectIndex, inout hit Hit)
+void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
 {
-    packed_scene_object Object = Objects[ObjectIndex];
+    packed_shape Shape = Shapes[ShapeIndex];
 
-    Ray = InverseTransformRay(Ray, Object.Transform);
+    Ray = InverseTransformRay(Ray, Shape.Transform);
 
-    if (Object.Type == OBJECT_TYPE_MESH_INSTANCE) {
-        IntersectMeshNode(Ray, Object.MeshRootNodeIndex, Hit);
-        if (Hit.ObjectIndex == OBJECT_INDEX_NONE)
-            Hit.ObjectIndex = ObjectIndex;
+    if (Shape.Type == SHAPE_TYPE_MESH_INSTANCE) {
+        IntersectMeshNode(Ray, Shape.MeshRootNodeIndex, Hit);
+        if (Hit.ShapeIndex == SHAPE_INDEX_NONE)
+            Hit.ShapeIndex = ShapeIndex;
     }
-    else if (Object.Type == OBJECT_TYPE_PLANE) {
+    else if (Shape.Type == SHAPE_TYPE_PLANE) {
         float T = -Ray.Origin.z / Ray.Vector.z;
         if (T < 0 || T > Hit.Time) return;
 
         Hit.Time = T;
-        Hit.ObjectType = OBJECT_TYPE_PLANE;
-        Hit.ObjectIndex = ObjectIndex;
+        Hit.ShapeType = SHAPE_TYPE_PLANE;
+        Hit.ShapeIndex = ShapeIndex;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * T;
     }
-    else if (Object.Type == OBJECT_TYPE_SPHERE) {
+    else if (Shape.Type == SHAPE_TYPE_SPHERE) {
         float V = dot(Ray.Vector, Ray.Vector);
         float P = dot(Ray.Origin, Ray.Vector);
         float Q = dot(Ray.Origin, Ray.Origin) - 1.0;
@@ -316,12 +316,12 @@ void IntersectObject(ray Ray, uint ObjectIndex, inout hit Hit)
         if (S < 0 || S > V * Hit.Time) return;
 
         Hit.Time = S / V;
-        Hit.ObjectType = OBJECT_TYPE_SPHERE;
-        Hit.ObjectIndex = ObjectIndex;
+        Hit.ShapeType = SHAPE_TYPE_SPHERE;
+        Hit.ShapeIndex = ShapeIndex;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * Hit.Time;
     }
-    else if (Object.Type == OBJECT_TYPE_CUBE) {
+    else if (Shape.Type == SHAPE_TYPE_CUBE) {
         vec3 Minimum = (vec3(-1,-1,-1) - Ray.Origin) / Ray.Vector;
         vec3 Maximum = (vec3(+1,+1,+1) - Ray.Origin) / Ray.Vector;
         vec3 Earlier = min(Minimum, Maximum);
@@ -335,8 +335,8 @@ void IntersectObject(ray Ray, uint ObjectIndex, inout hit Hit)
         if (T >= Hit.Time) return;
 
         Hit.Time = T;
-        Hit.ObjectType = OBJECT_TYPE_CUBE;
-        Hit.ObjectIndex = ObjectIndex;
+        Hit.ShapeType = SHAPE_TYPE_CUBE;
+        Hit.ShapeIndex = ShapeIndex;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * T;
     }
@@ -347,8 +347,8 @@ void Intersect(ray Ray, inout hit Hit)
     uint Stack[32];
     uint Depth = 0;
 
-    packed_scene_node NodeA = SceneNodes[0];
-    packed_scene_node NodeB;
+    packed_shape_node NodeA = ShapeNodes[0];
+    packed_shape_node NodeB;
 
     while (true) {
         Hit.SceneComplexity++;
@@ -356,15 +356,15 @@ void Intersect(ray Ray, inout hit Hit)
         // Leaf node or internal?
         if (NodeA.ChildNodeIndices == 0) {
             // Leaf node, intersect object.
-            IntersectObject(Ray, NodeA.ObjectIndex, Hit);
+            IntersectShape(Ray, NodeA.ShapeIndex, Hit);
         }
         else {
             // Internal node.
             uint IndexA = NodeA.ChildNodeIndices & 0xFFFF;
             uint IndexB = NodeA.ChildNodeIndices >> 16;
 
-            NodeA = SceneNodes[IndexA];
-            NodeB = SceneNodes[IndexB];
+            NodeA = ShapeNodes[IndexA];
+            NodeB = ShapeNodes[IndexB];
 
             float TimeA = IntersectBoundingBox(Ray, Hit.Time, NodeA.Minimum, NodeA.Maximum);
             float TimeB = IntersectBoundingBox(Ray, Hit.Time, NodeB.Minimum, NodeB.Maximum);
@@ -385,21 +385,21 @@ void Intersect(ray Ray, inout hit Hit)
 
         if (Depth == 0) break;
 
-        NodeA = SceneNodes[Stack[--Depth]];
+        NodeA = ShapeNodes[Stack[--Depth]];
     }
 }
 
 void ResolveHit(ray Ray, inout hit Hit)
 {
-    packed_scene_object Object = Objects[Hit.ObjectIndex];
-    ray ObjectRay = InverseTransformRay(Ray, Object.Transform);
+    packed_shape Shape = Shapes[Hit.ShapeIndex];
+    ray ShapeRay = InverseTransformRay(Ray, Shape.Transform);
 
-    vec3 Position = ObjectRay.Origin + ObjectRay.Vector * Hit.Time;
+    vec3 Position = ShapeRay.Origin + ShapeRay.Vector * Hit.Time;
     vec3 Normal = vec3(0, 0, 1);
     vec3 TangentX = vec3(1, 0, 0);
     vec3 TangentY = vec3(0, 1, 0);
 
-    if (Hit.ObjectType == OBJECT_TYPE_MESH_INSTANCE) {
+    if (Hit.ShapeType == SHAPE_TYPE_MESH_INSTANCE) {
         packed_mesh_face Face = MeshFaces[Hit.PrimitiveIndex];
         packed_mesh_face_extra Extra = MeshFaceExtras[Hit.PrimitiveIndex];
 
@@ -416,20 +416,20 @@ void ResolveHit(ray Ray, inout hit Hit)
         Hit.MaterialIndex = Extra.MaterialIndex;
         Hit.Material = Materials[Extra.MaterialIndex];
     }
-    else if (Hit.ObjectType == OBJECT_TYPE_PLANE) {
-        packed_scene_object Object = Objects[Hit.ObjectIndex];
+    else if (Hit.ShapeType == SHAPE_TYPE_PLANE) {
+        packed_shape Shape = Shapes[Hit.ShapeIndex];
 
         Hit.PrimitiveIndex = 0;
-        Hit.MaterialIndex = Object.MaterialIndex;
-        Hit.Material = Materials[Object.MaterialIndex];
+        Hit.MaterialIndex = Shape.MaterialIndex;
+        Hit.Material = Materials[Shape.MaterialIndex];
         Hit.UV = fract(Hit.PrimitiveCoordinates.xy);
     }
-    else if (Hit.ObjectType == OBJECT_TYPE_SPHERE) {
-        packed_scene_object Object = Objects[Hit.ObjectIndex];
+    else if (Hit.ShapeType == SHAPE_TYPE_SPHERE) {
+        packed_shape Shape = Shapes[Hit.ShapeIndex];
 
         Hit.PrimitiveIndex = 0;
-        Hit.MaterialIndex = Object.MaterialIndex;
-        Hit.Material = Materials[Object.MaterialIndex];
+        Hit.MaterialIndex = Shape.MaterialIndex;
+        Hit.Material = Materials[Shape.MaterialIndex];
 
         vec3 P = Hit.PrimitiveCoordinates;
         float U = (atan(P.y, P.x) + PI) / TAU;
@@ -440,11 +440,11 @@ void ResolveHit(ray Ray, inout hit Hit)
         TangentX = normalize(cross(Normal, vec3(-Normal.y, Normal.x, 0)));
         TangentY = cross(Normal, TangentX);
     }
-    else if (Hit.ObjectType == OBJECT_TYPE_CUBE) {
-        packed_scene_object Object = Objects[Hit.ObjectIndex];
+    else if (Hit.ShapeType == SHAPE_TYPE_CUBE) {
+        packed_shape Shape = Shapes[Hit.ShapeIndex];
 
-        Hit.MaterialIndex = Object.MaterialIndex;
-        Hit.Material = Materials[Object.MaterialIndex];
+        Hit.MaterialIndex = Shape.MaterialIndex;
+        Hit.Material = Materials[Shape.MaterialIndex];
         Hit.PrimitiveIndex = 0;
 
         vec3 P = Hit.PrimitiveCoordinates;
@@ -478,12 +478,12 @@ void ResolveHit(ray Ray, inout hit Hit)
         Hit.Material.Opacity *= Value.a;
     }
 
-    Hit.ObjectPriority = Object.Priority;
+    Hit.InteriorMediumPriority = Shape.InteriorMediumPriority;
 
-    Hit.Position = TransformPosition(Position, Object.Transform);
-    Hit.Normal = TransformNormal(Normal, Object.Transform);
-    Hit.TangentX = TransformDirection(TangentX, Object.Transform);
-    Hit.TangentY = TransformDirection(TangentY, Object.Transform);
+    Hit.Position = TransformPosition(Position, Shape.Transform);
+    Hit.Normal = TransformNormal(Normal, Shape.Transform);
+    Hit.TangentX = TransformDirection(TangentX, Shape.Transform);
+    Hit.TangentY = TransformDirection(TangentY, Shape.Transform);
 }
 
 vec4 Trace(ray Ray)
@@ -495,11 +495,11 @@ vec4 Trace(ray Ray)
 
     medium Mediums[MAX_MEDIUM_COUNT];
     for (int I = 0; I < MAX_MEDIUM_COUNT; I++)
-        Mediums[I].ObjectIndex = OBJECT_INDEX_NONE;
+        Mediums[I].ShapeIndex = SHAPE_INDEX_NONE;
 
     medium Ambient;
-    Ambient.ObjectIndex = OBJECT_INDEX_NONE;
-    Ambient.ObjectPriority = 0;
+    Ambient.Priority = 0;
+    Ambient.ShapeIndex = SHAPE_INDEX_NONE;
     Ambient.SpecularIOR = 1.0f;
     Ambient.ScatteringRate = SceneScatterRate;
 
@@ -558,7 +558,7 @@ vec4 Trace(ray Ray)
 
         // Pass through the surface if embedded in a higher-priority
         // medium, or probabilistically based on geometric opacity.
-        if (Random0To1() > Material.Opacity || Medium.ObjectPriority > Hit.ObjectPriority) {
+        if (Random0To1() > Material.Opacity || Medium.Priority > Hit.InteriorMediumPriority) {
             Incoming = -Outgoing;
         }
         // Metal base.
@@ -670,8 +670,8 @@ vec4 Trace(ray Ray)
                 // We are tracing out of the material, so remove the medium
                 // entry associated with the object.
                 for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
-                    if (Mediums[I].ObjectIndex == Hit.ObjectIndex) {
-                        Mediums[I].ObjectIndex = OBJECT_INDEX_NONE;
+                    if (Mediums[I].ShapeIndex == Hit.ShapeIndex) {
+                        Mediums[I].ShapeIndex = SHAPE_INDEX_NONE;
                         break;
                     }
                 }
@@ -680,9 +680,9 @@ vec4 Trace(ray Ray)
                 // We are tracing into the material, so add a medium entry
                 // associated with the object.
                 for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
-                    if (Mediums[I].ObjectIndex == OBJECT_INDEX_NONE) {
-                        Mediums[I].ObjectIndex = Hit.ObjectIndex;
-                        Mediums[I].ObjectPriority = Hit.ObjectPriority;
+                    if (Mediums[I].ShapeIndex == SHAPE_INDEX_NONE) {
+                        Mediums[I].Priority = Hit.InteriorMediumPriority;
+                        Mediums[I].ShapeIndex = Hit.ShapeIndex;
                         Mediums[I].SpecularIOR = Hit.Material.SpecularIOR;
                         Mediums[I].ScatteringRate = Hit.Material.ScatteringRate;
                         break;
@@ -694,9 +694,9 @@ vec4 Trace(ray Ray)
             // in, and set it as the active one.
             Medium = Ambient;
             for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
-                if (Mediums[I].ObjectIndex == OBJECT_INDEX_NONE)
+                if (Mediums[I].ShapeIndex == SHAPE_INDEX_NONE)
                     continue;
-                if (Mediums[I].ObjectPriority < Medium.ObjectPriority)
+                if (Mediums[I].Priority < Medium.Priority)
                     continue;
                 Medium = Mediums[I];
             }
@@ -745,7 +745,7 @@ vec4 TraceBaseColor(ray Ray, bool IsShaded)
 
     if (IsShaded) {
         float Shading = dot(Hit.Normal, -Ray.Vector);
-        if (Hit.ObjectIndex == HighlightObjectIndex)
+        if (Hit.ShapeIndex == SelectedShapeIndex)
             return vec4((Hit.Material.BaseColor + vec3(1,0,0)) * Shading, 1.0);
         else
             return vec4(Hit.Material.BaseColor * Shading, 1.0);

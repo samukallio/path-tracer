@@ -671,7 +671,7 @@ bool LoadSkybox(scene* Scene, char const* Path)
     return true;
 }
 
-static void PackSceneObject(scene* Scene, glm::mat4 const& OuterTransform, entity* Entity, uint32_t& Priority)
+static void PackShape(scene* Scene, glm::mat4 const& OuterTransform, entity* Entity, uint32_t& Priority)
 {
     if (!Entity->Active)
         return;
@@ -683,40 +683,40 @@ static void PackSceneObject(scene* Scene, glm::mat4 const& OuterTransform, entit
         * glm::scale(glm::mat4(1), Entity->Transform.Scale);
 
     for (entity* Child : Entity->Children)
-        PackSceneObject(Scene, InnerTransform, Child, Priority);
+        PackShape(Scene, InnerTransform, Child, Priority);
 
-    packed_scene_object Packed;
+    packed_shape Packed;
 
     Packed.MaterialIndex = 0;
-    Packed.Priority = Priority++;
+    Packed.InteriorMediumPriority = Priority++;
 
     switch (Entity->Type) {
         case ENTITY_TYPE_MESH_INSTANCE: {
             auto Instance = static_cast<mesh_instance*>(Entity);
             if (!Instance->Mesh) return;
             Packed.MeshRootNodeIndex = Instance->Mesh->PackedRootNodeIndex;
-            Packed.Type = OBJECT_TYPE_MESH_INSTANCE;
+            Packed.Type = SHAPE_TYPE_MESH_INSTANCE;
             break;
         }
         case ENTITY_TYPE_PLANE: {
             auto Plane = static_cast<plane*>(Entity);
             if (Plane->Material)
                 Packed.MaterialIndex = Plane->Material->PackedMaterialIndex;
-            Packed.Type = OBJECT_TYPE_PLANE;
+            Packed.Type = SHAPE_TYPE_PLANE;
             break;
         }
         case ENTITY_TYPE_SPHERE: {
             auto Sphere = static_cast<sphere*>(Entity);
             if (Sphere->Material)
                 Packed.MaterialIndex = Sphere->Material->PackedMaterialIndex;
-            Packed.Type = OBJECT_TYPE_SPHERE;
+            Packed.Type = SHAPE_TYPE_SPHERE;
             break;
         }
         case ENTITY_TYPE_CUBE: {
             auto Cube = static_cast<cube*>(Entity);
             if (Cube->Material)
                 Packed.MaterialIndex = Cube->Material->PackedMaterialIndex;
-            Packed.Type = OBJECT_TYPE_CUBE;
+            Packed.Type = SHAPE_TYPE_CUBE;
             break;
         }
         default: {
@@ -727,17 +727,17 @@ static void PackSceneObject(scene* Scene, glm::mat4 const& OuterTransform, entit
     Packed.Transform.To = InnerTransform;
     Packed.Transform.From = glm::inverse(InnerTransform);
 
-    Entity->PackedObjectIndex = static_cast<uint32_t>(Scene->SceneObjectPack.size());
+    Entity->PackedShapeIndex = static_cast<uint32_t>(Scene->ShapePack.size());
 
-    Scene->SceneObjectPack.push_back(Packed);
+    Scene->ShapePack.push_back(Packed);
 }
 
-static bounds SceneObjectBounds(scene const* Scene, packed_scene_object const& Object)
+static bounds ShapeBounds(scene const* Scene, packed_shape const& Object)
 {
     glm::vec4 Corners[8] = {};
 
     switch (Object.Type) {
-        case OBJECT_TYPE_MESH_INSTANCE: {
+        case SHAPE_TYPE_MESH_INSTANCE: {
             glm::vec3 MeshMin = Scene->MeshNodePack[Object.MeshRootNodeIndex].Minimum;
             glm::vec3 MeshMax = Scene->MeshNodePack[Object.MeshRootNodeIndex].Maximum;
 
@@ -752,7 +752,7 @@ static bounds SceneObjectBounds(scene const* Scene, packed_scene_object const& O
 
             break;
         }
-        case OBJECT_TYPE_PLANE: {
+        case SHAPE_TYPE_PLANE: {
             Corners[0] = { -1e9f, -1e9f, -EPSILON, 1 };
             Corners[1] = { +1e9f, -1e9f, -EPSILON, 1 };
             Corners[2] = { -1e9f, +1e9f, -EPSILON, 1 };
@@ -764,8 +764,8 @@ static bounds SceneObjectBounds(scene const* Scene, packed_scene_object const& O
 
             break;
         }
-        case OBJECT_TYPE_SPHERE:
-        case OBJECT_TYPE_CUBE: {
+        case SHAPE_TYPE_SPHERE:
+        case SHAPE_TYPE_CUBE: {
             Corners[0] = { -1, -1, -1, 1 };
             Corners[1] = { +1, -1, -1, 1 };
             Corners[2] = { -1, +1, -1, 1 };
@@ -791,9 +791,9 @@ static bounds SceneObjectBounds(scene const* Scene, packed_scene_object const& O
     return { WorldMin, WorldMax };
 }
 
-void PrintSceneNode(scene* Scene, uint16_t Index, int Depth)
+void PrintShapeNode(scene* Scene, uint16_t Index, int Depth)
 {
-    packed_scene_node const& Node = Scene->SceneNodePack[Index];
+    packed_shape_node const& Node = Scene->ShapeNodePack[Index];
 
     for (int I = 0; I < Depth; I++) printf("  ");
 
@@ -801,11 +801,11 @@ void PrintSceneNode(scene* Scene, uint16_t Index, int Depth)
         uint16_t IndexA = Node.ChildNodeIndices & 0xFFFF;
         uint16_t IndexB = Node.ChildNodeIndices >> 16;
         printf("Node %u\n", Index);
-        PrintSceneNode(Scene, IndexA, Depth+1);
-        PrintSceneNode(Scene, IndexB, Depth+1);
+        PrintShapeNode(Scene, IndexA, Depth+1);
+        PrintShapeNode(Scene, IndexB, Depth+1);
     }
     else {
-        printf("Leaf %u (object %lu)\n", Index, Node.ObjectIndex);
+        printf("Leaf %u (object %lu)\n", Index, Node.ShapeIndex);
     }
 }
 
@@ -962,7 +962,7 @@ uint32_t PackSceneData(scene* Scene)
         }
 
         DirtyFlags |= SCENE_DIRTY_MESHES;
-        DirtyFlags |= SCENE_DIRTY_OBJECTS;
+        DirtyFlags |= SCENE_DIRTY_SHAPES;
     }
 
     // Pack mesh face and node data.
@@ -1042,36 +1042,36 @@ uint32_t PackSceneData(scene* Scene)
             Mesh->PackedRootNodeIndex = NodeIndexBase;
         }
 
-        DirtyFlags |= SCENE_DIRTY_OBJECTS;
+        DirtyFlags |= SCENE_DIRTY_SHAPES;
     }
 
     // Pack object data.
-    if (DirtyFlags & SCENE_DIRTY_OBJECTS) {
-        Scene->SceneObjectPack.clear();
-        Scene->SceneNodePack.resize(1);
+    if (DirtyFlags & SCENE_DIRTY_SHAPES) {
+        Scene->ShapePack.clear();
+        Scene->ShapeNodePack.resize(1);
 
         glm::mat4 const& OuterTransform = glm::mat4(1);
 
         uint32_t Priority = 0;
         for (entity* Entity : Scene->Root.Children)
-            PackSceneObject(Scene, OuterTransform, Entity, Priority);
+            PackShape(Scene, OuterTransform, Entity, Priority);
 
         std::vector<uint16_t> Map;
 
-        for (uint32_t ObjectIndex = 0; ObjectIndex < Scene->SceneObjectPack.size(); ObjectIndex++) {
-            packed_scene_object const& Object = Scene->SceneObjectPack[ObjectIndex];
-            bounds Bounds = SceneObjectBounds(Scene, Object);
+        for (uint32_t ObjectIndex = 0; ObjectIndex < Scene->ShapePack.size(); ObjectIndex++) {
+            packed_shape const& Object = Scene->ShapePack[ObjectIndex];
+            bounds Bounds = ShapeBounds(Scene, Object);
 
-            uint16_t NodeIndex = static_cast<uint16_t>(Scene->SceneNodePack.size());
+            uint16_t NodeIndex = static_cast<uint16_t>(Scene->ShapeNodePack.size());
             Map.push_back(NodeIndex);
 
-            packed_scene_node Node = {
+            packed_shape_node Node = {
                 .Minimum = Bounds.Minimum,
                 .ChildNodeIndices = 0,
                 .Maximum = Bounds.Maximum,
-                .ObjectIndex = ObjectIndex,
+                .ShapeIndex = ObjectIndex,
             };
-            Scene->SceneNodePack.push_back(Node);
+            Scene->ShapeNodePack.push_back(Node);
         }
 
         auto FindBestMatch = [](
@@ -1079,8 +1079,8 @@ uint32_t PackSceneData(scene* Scene)
             std::vector<uint16_t> const& Map,
             uint16_t IndexA
         ) -> uint16_t {
-            glm::vec3 MinA = Scene->SceneNodePack[Map[IndexA]].Minimum;
-            glm::vec3 MaxA = Scene->SceneNodePack[Map[IndexA]].Maximum;
+            glm::vec3 MinA = Scene->ShapeNodePack[Map[IndexA]].Minimum;
+            glm::vec3 MaxA = Scene->ShapeNodePack[Map[IndexA]].Maximum;
 
             float BestArea = INFINITY;
             uint16_t BestIndexB = 0xFFFF;
@@ -1088,8 +1088,8 @@ uint32_t PackSceneData(scene* Scene)
             for (uint16_t IndexB = 0; IndexB < Map.size(); IndexB++) {
                 if (IndexA == IndexB) continue;
 
-                glm::vec3 MinB = Scene->SceneNodePack[Map[IndexB]].Minimum;
-                glm::vec3 MaxB = Scene->SceneNodePack[Map[IndexB]].Maximum;
+                glm::vec3 MinB = Scene->ShapeNodePack[Map[IndexB]].Minimum;
+                glm::vec3 MaxB = Scene->ShapeNodePack[Map[IndexB]].Maximum;
                 glm::vec3 Size = glm::max(MaxA, MaxB) - glm::min(MinA, MinB);
                 float Area = Size.x * Size.y + Size.y * Size.z + Size.z * Size.z;
                 if (Area <= BestArea) {
@@ -1108,25 +1108,25 @@ uint32_t PackSceneData(scene* Scene)
             uint16_t IndexC = FindBestMatch(Scene, Map, IndexB);
             if (IndexA == IndexC) {
                 uint16_t NodeIndexA = Map[IndexA];
-                packed_scene_node const& NodeA = Scene->SceneNodePack[NodeIndexA];
+                packed_shape_node const& NodeA = Scene->ShapeNodePack[NodeIndexA];
                 uint16_t NodeIndexB = Map[IndexB];
-                packed_scene_node const& NodeB = Scene->SceneNodePack[NodeIndexB];
+                packed_shape_node const& NodeB = Scene->ShapeNodePack[NodeIndexB];
 
-                packed_scene_node Node = {
+                packed_shape_node Node = {
                     .Minimum = glm::min(NodeA.Minimum, NodeB.Minimum),
                     .ChildNodeIndices = uint32_t(NodeIndexA) | uint32_t(NodeIndexB) << 16,
                     .Maximum = glm::max(NodeA.Maximum, NodeB.Maximum),
-                    .ObjectIndex = OBJECT_INDEX_NONE,
+                    .ShapeIndex = SHAPE_INDEX_NONE,
                 };
 
-                Map[IndexA] = static_cast<uint16_t>(Scene->SceneNodePack.size());
+                Map[IndexA] = static_cast<uint16_t>(Scene->ShapeNodePack.size());
                 Map[IndexB] = Map.back();
                 Map.pop_back();
 
                 if (IndexA == Map.size())
                     IndexA = IndexB;
 
-                Scene->SceneNodePack.push_back(Node);
+                Scene->ShapeNodePack.push_back(Node);
 
                 IndexB = FindBestMatch(Scene, Map, IndexA);
             }
@@ -1136,11 +1136,11 @@ uint32_t PackSceneData(scene* Scene)
             }
         }
 
-        Scene->SceneNodePack[0] = Scene->SceneNodePack[Map[IndexA]];
-        Scene->SceneNodePack[Map[IndexA]] = Scene->SceneNodePack.back();
-        Scene->SceneNodePack.pop_back();
+        Scene->ShapeNodePack[0] = Scene->ShapeNodePack[Map[IndexA]];
+        Scene->ShapeNodePack[Map[IndexA]] = Scene->ShapeNodePack.back();
+        Scene->ShapeNodePack.pop_back();
 
-        //PrintSceneNode(scene, 0, 0);
+        //PrintShapeNode(scene, 0, 0);
     }
 
     Scene->DirtyFlags = 0;
@@ -1148,21 +1148,21 @@ uint32_t PackSceneData(scene* Scene)
     return DirtyFlags;
 }
 
-static entity* FindEntityByPackedIndexRecursive(entity* Entity, uint32_t PackedObjectIndex)
+static entity* FindEntityByPackedShapeIndexRecursive(entity* Entity, uint32_t PackedShapeIndex)
 {
     if (Entity->Active) {
-        if (Entity->PackedObjectIndex == PackedObjectIndex)
+        if (Entity->PackedShapeIndex == PackedShapeIndex)
             return Entity;
         for (entity* Child : Entity->Children)
-            if (entity* Found = FindEntityByPackedIndexRecursive(Child, PackedObjectIndex); Found)
+            if (entity* Found = FindEntityByPackedShapeIndexRecursive(Child, PackedShapeIndex); Found)
                 return Found;
     }
     return nullptr;
 };
 
-entity* FindEntityByPackedIndex(scene* Scene, uint32_t PackedObjectIndex)
+entity* FindEntityByPackedShapeIndex(scene* Scene, uint32_t PackedShapeIndex)
 {
-    return FindEntityByPackedIndexRecursive(&Scene->Root, PackedObjectIndex);
+    return FindEntityByPackedShapeIndexRecursive(&Scene->Root, PackedShapeIndex);
 }
 
 static void IntersectMeshFace(scene* Scene, ray Ray, uint32_t MeshFaceIndex, hit& Hit)
@@ -1182,8 +1182,8 @@ static void IntersectMeshFace(scene* Scene, ray Ray, uint32_t MeshFaceIndex, hit
     if (Gamma < 0 || Beta + Gamma > 1) return;
 
     Hit.Time = T;
-    Hit.ObjectType = OBJECT_TYPE_MESH_INSTANCE;
-    Hit.ObjectIndex = OBJECT_INDEX_NONE;
+    Hit.ShapeType = SHAPE_TYPE_MESH_INSTANCE;
+    Hit.ShapeIndex = SHAPE_INDEX_NONE;
     Hit.PrimitiveIndex = MeshFaceIndex;
     Hit.PrimitiveCoordinates = glm::vec3(1 - Beta - Gamma, Beta, Gamma);
 }
@@ -1286,28 +1286,28 @@ static void IntersectMesh(scene* Scene, ray const& Ray, uint32_t RootNodeIndex, 
 
 static void IntersectObject(scene* Scene, ray const& WorldRay, uint32_t ObjectIndex, hit& Hit)
 {
-    packed_scene_object Object = Scene->SceneObjectPack[ObjectIndex];
+    packed_shape Object = Scene->ShapePack[ObjectIndex];
 
     ray Ray = TransformRay(WorldRay, Object.Transform.From);
 
-    if (Object.Type == OBJECT_TYPE_MESH_INSTANCE) {
+    if (Object.Type == SHAPE_TYPE_MESH_INSTANCE) {
         IntersectMesh(Scene, Ray, Object.MeshRootNodeIndex, Hit);
-        if (Hit.ObjectIndex == OBJECT_INDEX_NONE)
-            Hit.ObjectIndex = ObjectIndex;
+        if (Hit.ShapeIndex == SHAPE_INDEX_NONE)
+            Hit.ShapeIndex = ObjectIndex;
     }
 
-    if (Object.Type == OBJECT_TYPE_PLANE) {
+    if (Object.Type == SHAPE_TYPE_PLANE) {
         float T = -Ray.Origin.z / Ray.Vector.z;
         if (T < 0 || T > Hit.Time) return;
 
         Hit.Time = T;
-        Hit.ObjectType = OBJECT_TYPE_PLANE;
-        Hit.ObjectIndex = ObjectIndex;
+        Hit.ShapeType = SHAPE_TYPE_PLANE;
+        Hit.ShapeIndex = ObjectIndex;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = glm::vec3(glm::fract(Ray.Origin.xy() + Ray.Vector.xy() * T), 0);
     }
 
-    if (Object.Type == OBJECT_TYPE_SPHERE) {
+    if (Object.Type == SHAPE_TYPE_SPHERE) {
         float V = glm::dot(Ray.Vector, Ray.Vector);
         float P = glm::dot(Ray.Origin, Ray.Vector);
         float Q = glm::dot(Ray.Origin, Ray.Origin) - 1.0f;
@@ -1323,13 +1323,13 @@ static void IntersectObject(scene* Scene, ray const& WorldRay, uint32_t ObjectIn
         if (S < 0 || S > V * Hit.Time) return;
 
         Hit.Time = S / V;
-        Hit.ObjectType = OBJECT_TYPE_SPHERE;
-        Hit.ObjectIndex = ObjectIndex;
+        Hit.ShapeType = SHAPE_TYPE_SPHERE;
+        Hit.ShapeIndex = ObjectIndex;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * Hit.Time;
     }
 
-    if (Object.Type == OBJECT_TYPE_CUBE) {
+    if (Object.Type == SHAPE_TYPE_CUBE) {
         glm::vec3 Minimum = (glm::vec3(-1,-1,-1) - Ray.Origin) / Ray.Vector;
         glm::vec3 Maximum = (glm::vec3(+1,+1,+1) - Ray.Origin) / Ray.Vector;
         glm::vec3 Earlier = min(Minimum, Maximum);
@@ -1343,8 +1343,8 @@ static void IntersectObject(scene* Scene, ray const& WorldRay, uint32_t ObjectIn
         float T = T0 < 0 ? T1 : T0;
 
         Hit.Time = T;
-        Hit.ObjectType = OBJECT_TYPE_CUBE;
-        Hit.ObjectIndex = ObjectIndex;
+        Hit.ShapeType = SHAPE_TYPE_CUBE;
+        Hit.ShapeIndex = ObjectIndex;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * T;
     }
@@ -1352,7 +1352,7 @@ static void IntersectObject(scene* Scene, ray const& WorldRay, uint32_t ObjectIn
 
 static void Intersect(scene* Scene, ray const& WorldRay, hit& Hit)
 {
-    for (uint32_t ObjectIndex = 0; ObjectIndex < Scene->SceneObjectPack.size(); ObjectIndex++)
+    for (uint32_t ObjectIndex = 0; ObjectIndex < Scene->ShapePack.size(); ObjectIndex++)
         IntersectObject(Scene, WorldRay, ObjectIndex, Hit);
 }
 

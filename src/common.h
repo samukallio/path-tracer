@@ -19,7 +19,7 @@ constexpr float PI          = 3.141592653f;
 constexpr float TAU         = 6.283185306f;
 constexpr float INF         = std::numeric_limits<float>::infinity();
 
-uint32_t const OBJECT_INDEX_NONE    = 0xFFFFFFFF;
+uint32_t const SHAPE_INDEX_NONE     = 0xFFFFFFFF;
 uint32_t const TEXTURE_INDEX_NONE   = 0xFFFFFFFF;
 
 enum render_mode : int32_t
@@ -59,12 +59,12 @@ enum camera_model : int32_t
     CAMERA_MODEL__COUNT                 = 3,
 };
 
-enum object_type : int32_t
+enum shape_type : int32_t
 {
-    OBJECT_TYPE_MESH_INSTANCE           = 0,
-    OBJECT_TYPE_PLANE                   = 1,
-    OBJECT_TYPE_SPHERE                  = 2,
-    OBJECT_TYPE_CUBE                    = 3,
+    SHAPE_TYPE_MESH_INSTANCE            = 0,
+    SHAPE_TYPE_PLANE                    = 1,
+    SHAPE_TYPE_SPHERE                   = 2,
+    SHAPE_TYPE_CUBE                     = 3,
 };
 
 enum texture_flag : uint32_t
@@ -122,23 +122,23 @@ struct alignas(16) packed_material
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) packed_scene_object
+struct alignas(16) packed_shape
 {
-    object_type                 Type;
+    shape_type                  Type;
     uint32_t                    MaterialIndex;
     uint32_t                    MeshRootNodeIndex;
-    int32_t                     Priority;
+    int32_t                     InteriorMediumPriority;
     packed_transform            Transform;
 };
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) packed_scene_node
+struct alignas(16) packed_shape_node
 {
     glm::vec3                   Minimum;
     uint32_t                    ChildNodeIndices;
     glm::vec3                   Maximum;
-    uint32_t                    ObjectIndex;
+    uint32_t                    ShapeIndex;
 };
 
 // This structure is shared between CPU and GPU,
@@ -155,7 +155,7 @@ struct alignas(16) packed_mesh_face
 // and must follow std430 layout rules.
 struct alignas(16) packed_mesh_face_extra
 {
-    glm::aligned_vec3           Normals[3];
+    glm::quat                   Normals[3];
     glm::aligned_vec2           UVs[3];
     uint32_t                    MaterialIndex;
 };
@@ -176,7 +176,7 @@ struct alignas(16) packed_mesh_node
 struct frame_uniform_buffer
 {
     uint32_t                    FrameRandomSeed             = 0;
-    uint32_t                    SceneObjectCount            = 0;
+    uint32_t                    ShapeCount                  = 0;
     float                       SceneScatterRate            = 0.0f;
     camera_model                CameraModel                 = CAMERA_MODEL_THIN_LENS;
     float                       CameraFocalLength           = 0.020f;
@@ -191,7 +191,7 @@ struct frame_uniform_buffer
     float                       RenderTerminationProbability = 0.0f;
     uint32_t                    RenderMeshComplexityScale   = 32;
     uint32_t                    RenderSceneComplexityScale  = 32;
-    uint32_t                    HighlightObjectIndex        = 0xFFFFFFFF;
+    uint32_t                    SelectedShapeIndex          = SHAPE_INDEX_NONE;
     float                       Brightness                  = 1.0f;
     tone_mapping_mode           ToneMappingMode             = TONE_MAPPING_MODE_CLAMP;
     float                       ToneMappingWhiteLevel       = 1.0f;
@@ -231,8 +231,8 @@ struct ray
 struct hit
 {
     float                       Time;
-    object_type                 ObjectType;
-    uint32_t                    ObjectIndex;
+    shape_type                  ShapeType;
+    uint32_t                    ShapeIndex;
     uint32_t                    PrimitiveIndex;
     glm::vec3                   PrimitiveCoordinates;
 };

@@ -95,7 +95,7 @@ struct entity
     bool                            Active                  = true;
     transform                       Transform               = {};
     std::vector<entity*>            Children                = {};
-    uint32_t                        PackedObjectIndex       = 0xFFFFFFFF;
+    uint32_t                        PackedShapeIndex        = SHAPE_INDEX_NONE;
 };
 
 struct root : entity
@@ -192,8 +192,8 @@ struct scene
 
     std::vector<image>                  Images;
     std::vector<packed_texture>         TexturePack;
-    std::vector<packed_scene_object>    SceneObjectPack;
-    std::vector<packed_scene_node>      SceneNodePack;
+    std::vector<packed_shape>    ShapePack;
+    std::vector<packed_shape_node>      ShapeNodePack;
     std::vector<packed_material>        MaterialPack;
     std::vector<packed_mesh_face>       MeshFacePack;
     std::vector<packed_mesh_face_extra> MeshFaceExtraPack;
@@ -214,7 +214,7 @@ enum scene_dirty_flag
     SCENE_DIRTY_SKYBOX              = 1 << 0,
     SCENE_DIRTY_TEXTURES            = 1 << 1,
     SCENE_DIRTY_MATERIALS           = 1 << 2,
-    SCENE_DIRTY_OBJECTS             = 1 << 3,
+    SCENE_DIRTY_SHAPES              = 1 << 3,
     SCENE_DIRTY_MESHES              = 1 << 4,
     SCENE_DIRTY_CAMERAS             = 1 << 5,
     SCENE_DIRTY_ALL                 = 0xFFFFFFFF,
@@ -243,6 +243,6 @@ prefab*     LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options
 bool        LoadSkybox(scene* Scene, char const* Path);
 
 uint32_t    PackSceneData(scene* Scene);
-entity*     FindEntityByPackedIndex(scene* Scene, uint32_t PackedObjectIndex);
+entity*     FindEntityByPackedShapeIndex(scene* Scene, uint32_t PackedShapeIndex);
 
 bool        Trace(scene* Scene, ray const& Ray, hit& Hit);

@@ -364,7 +364,7 @@ static void EntityInspector(application* App, entity* Entity)
         }
     }
 
-    if (C) Scene->DirtyFlags |= SCENE_DIRTY_OBJECTS;
+    if (C) Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
 
     ImGui::PopID();
 }
@@ -405,7 +405,7 @@ static void EntityTreeNode(application* App, entity* Entity)
                 if (ImGui::MenuItem(Buffer)) {
                     auto Child = CreateEntity(App->Scene, EntityType, Entity);
                     Child->Name = std::format("New {}", EntityTypeName(EntityType));
-                    App->Scene->DirtyFlags |= SCENE_DIRTY_OBJECTS;
+                    App->Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
                     App->SelectionType = SELECTION_TYPE_ENTITY;
                     App->SelectedEntity = Child;
                 }

@@ -114,7 +114,7 @@ void Frame()
 
             hit Hit;
             if (Trace(App.Scene, Ray, Hit)) {
-                entity* Entity = FindEntityByPackedIndex(App.Scene, Hit.ObjectIndex);
+                entity* Entity = FindEntityByPackedShapeIndex(App.Scene, Hit.ShapeIndex);
                 if (Entity) {
                     App.SelectedEntity = Entity;
                     App.SelectionType = SELECTION_TYPE_ENTITY;
@@ -139,9 +139,9 @@ void Frame()
         Uniforms.ToneMappingWhiteLevel = 1.0f;
 
         if (App.SelectionType == SELECTION_TYPE_ENTITY)
-            Uniforms.HighlightObjectIndex = App.SelectedEntity->PackedObjectIndex;
+            Uniforms.SelectedShapeIndex = App.SelectedEntity->PackedShapeIndex;
         else
-            Uniforms.HighlightObjectIndex = OBJECT_INDEX_NONE;
+            Uniforms.SelectedShapeIndex = SHAPE_INDEX_NONE;
     }
     else {
         camera* Camera = App.Camera;
@@ -173,7 +173,7 @@ void Frame()
             .To = WorldMatrix,
             .From = ViewMatrix,
         };
-        Uniforms.HighlightObjectIndex         = OBJECT_INDEX_NONE;
+        Uniforms.SelectedShapeIndex         = SHAPE_INDEX_NONE;
         Uniforms.RenderFlags                  = RENDER_FLAG_SAMPLE_JITTER;
         Uniforms.RenderSampleBlockSize        = 1u << Camera->RenderSampleBlockSizeLog2;
         Uniforms.RenderBounceLimit            = Camera->RenderBounceLimit;
@@ -192,7 +192,7 @@ void Frame()
     uint32_t DirtyFlags = PackSceneData(App.Scene);
     UploadScene(App.Vulkan, App.Scene, DirtyFlags);
 
-    Uniforms.SceneObjectCount = static_cast<uint32_t>(App.Scene->SceneObjectPack.size());
+    Uniforms.ShapeCount = static_cast<uint32_t>(App.Scene->ShapePack.size());
 
     RenderFrame(App.Vulkan, &Uniforms, ImGui::GetDrawData());
 }

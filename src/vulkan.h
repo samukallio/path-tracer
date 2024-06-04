@@ -130,8 +130,8 @@ struct vulkan_context
     vulkan_image                ImageArray                  = {};
     vulkan_buffer               TextureBuffer               = {};
     vulkan_buffer               MaterialBuffer              = {};
-    vulkan_buffer               SceneObjectBuffer           = {};
-    vulkan_buffer               SceneNodeBuffer             = {};
+    vulkan_buffer               ShapeBuffer                 = {};
+    vulkan_buffer               ShapeNodeBuffer             = {};
     vulkan_buffer               MeshFaceBuffer              = {};
     vulkan_buffer               MeshFaceExtraBuffer         = {};
     vulkan_buffer               MeshNodeBuffer              = {};

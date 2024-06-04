@@ -3,7 +3,7 @@ const float EPSILON     = 1e-9f;
 const float PI          = 3.141592653f;
 const float TAU         = 6.283185306f;
 
-const uint OBJECT_INDEX_NONE                = 0xFFFFFFFF;
+const uint SHAPE_INDEX_NONE                = 0xFFFFFFFF;
 const uint TEXTURE_INDEX_NONE               = 0xFFFFFFFF;
 
 const uint RENDER_MODE_PATH_TRACE           = 0;
@@ -28,10 +28,10 @@ const uint CAMERA_MODEL_PINHOLE             = 0;
 const uint CAMERA_MODEL_THIN_LENS           = 1;
 const uint CAMERA_MODEL_360                 = 2;
 
-const uint OBJECT_TYPE_MESH_INSTANCE        = 0;
-const uint OBJECT_TYPE_PLANE                = 1;
-const uint OBJECT_TYPE_SPHERE               = 2;
-const uint OBJECT_TYPE_CUBE                 = 3;
+const uint SHAPE_TYPE_MESH_INSTANCE         = 0;
+const uint SHAPE_TYPE_PLANE                 = 1;
+const uint SHAPE_TYPE_SPHERE                = 2;
+const uint SHAPE_TYPE_CUBE                  = 3;
 
 const uint TEXTURE_FLAG_FILTER_NEAREST      = 1 << 0;
 
@@ -77,21 +77,21 @@ struct packed_material
     uint            EmissionColorTextureIndex;
 };
 
-struct packed_scene_object
+struct packed_shape
 {
     uint                Type;
     uint                MaterialIndex;
     uint                MeshRootNodeIndex;
-    uint                Priority;
+    uint                InteriorMediumPriority;
     packed_transform    Transform;
 };
 
-struct packed_scene_node
+struct packed_shape_node
 {
     vec3            Minimum;
     uint            ChildNodeIndices;
     vec3            Maximum;
-    uint            ObjectIndex;
+    uint            ShapeIndex;
 };
 
 struct packed_mesh_face
@@ -119,8 +119,8 @@ struct packed_mesh_node
 
 struct medium
 {
-    uint            ObjectIndex;
-    uint            ObjectPriority;
+    uint            Priority;
+    uint            ShapeIndex;
     float           SpecularIOR;
     float           ScatteringRate;
 };
@@ -129,15 +129,15 @@ struct hit
 {
     // Populated by the Intersect*() routines.
     float           Time;
-    uint            ObjectType;
-    uint            ObjectIndex;
+    uint            ShapeType;
+    uint            ShapeIndex;
     uint            PrimitiveIndex;
     vec3            PrimitiveCoordinates;
     uint            SceneComplexity;
     uint            MeshComplexity;
 
     // Populated by ResolveHit().
-    uint            ObjectPriority;
+    uint            InteriorMediumPriority;
     vec3            Position;
     vec3            Normal;
     vec3            TangentX;
@@ -341,7 +341,7 @@ layout(binding = 0)
 uniform frame_uniform_buffer
 {
     uint                FrameRandomSeed;
-    uint                SceneObjectCount;
+    uint                ShapeCount;
     float               SceneScatterRate;
     uint                CameraModel;
     float               CameraFocalLength;
@@ -356,7 +356,7 @@ uniform frame_uniform_buffer
     float               RenderTerminationProbability;
     uint                RenderMeshComplexityScale;
     uint                RenderSceneComplexityScale;
-    uint                HighlightObjectIndex;
+    uint                SelectedShapeIndex;
     float               Brightness;
     uint                ToneMappingMode;
     float               ToneMappingWhiteLevel;

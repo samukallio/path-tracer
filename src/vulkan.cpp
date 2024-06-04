@@ -1949,8 +1949,8 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // TextureArrayLinear
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // TextureBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // MaterialBuffer
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // SceneObjectBuffer
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // SceneNodeBuffer
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // ShapeBuffer
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // ShapeNodeBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // MeshFaceBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // MeshFaceExtraBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // MeshNodeBuffer
@@ -2014,8 +2014,8 @@ void DestroyVulkan(vulkan_context* Vulkan)
 
     InternalDestroyBuffer(Vulkan, &Vulkan->TextureBuffer);
     InternalDestroyBuffer(Vulkan, &Vulkan->MaterialBuffer);
-    InternalDestroyBuffer(Vulkan, &Vulkan->SceneNodeBuffer);
-    InternalDestroyBuffer(Vulkan, &Vulkan->SceneObjectBuffer);
+    InternalDestroyBuffer(Vulkan, &Vulkan->ShapeNodeBuffer);
+    InternalDestroyBuffer(Vulkan, &Vulkan->ShapeBuffer);
     InternalDestroyBuffer(Vulkan, &Vulkan->MeshNodeBuffer);
     InternalDestroyBuffer(Vulkan, &Vulkan->MeshFaceExtraBuffer);
     InternalDestroyBuffer(Vulkan, &Vulkan->MeshFaceBuffer);
@@ -2149,16 +2149,16 @@ static void InternalUpdateSceneDataDescriptors(
         .range      = Vulkan->MaterialBuffer.Size,
     };
 
-    auto SceneObjectBufferInfo = VkDescriptorBufferInfo {
-        .buffer     = Vulkan->SceneObjectBuffer.Buffer,
+    auto ShapeBufferInfo = VkDescriptorBufferInfo {
+        .buffer     = Vulkan->ShapeBuffer.Buffer,
         .offset     = 0,
-        .range      = Vulkan->SceneObjectBuffer.Size,
+        .range      = Vulkan->ShapeBuffer.Size,
     };
 
-    auto SceneNodeBufferInfo = VkDescriptorBufferInfo {
-        .buffer     = Vulkan->SceneNodeBuffer.Buffer,
+    auto ShapeNodeBufferInfo = VkDescriptorBufferInfo {
+        .buffer     = Vulkan->ShapeNodeBuffer.Buffer,
         .offset     = 0,
-        .range      = Vulkan->SceneNodeBuffer.Size,
+        .range      = Vulkan->ShapeNodeBuffer.Size,
     };
 
     auto MeshFaceBufferInfo = VkDescriptorBufferInfo {
@@ -2235,7 +2235,7 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .pBufferInfo     = &SceneObjectBufferInfo,
+                .pBufferInfo     = &ShapeBufferInfo,
             },
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -2244,7 +2244,7 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .pBufferInfo     = &SceneNodeBufferInfo,
+                .pBufferInfo     = &ShapeNodeBufferInfo,
             },
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -2296,8 +2296,8 @@ VkResult UploadScene(
     vulkan_image ImageArrayOld = {};
     vulkan_buffer TextureBufferOld = {};
     vulkan_buffer MaterialBufferOld = {};
-    vulkan_buffer SceneObjectBufferOld = {};
-    vulkan_buffer SceneNodeBufferOld = {};
+    vulkan_buffer ShapeBufferOld = {};
+    vulkan_buffer ShapeNodeBufferOld = {};
     vulkan_buffer MeshFaceBufferOld = {};
     vulkan_buffer MeshFaceExtraBufferOld = {};
     vulkan_buffer MeshNodeBufferOld = {};
@@ -2395,35 +2395,35 @@ VkResult UploadScene(
         InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MaterialBuffer, Scene->MaterialPack.data(), MaterialBufferSize);
     }
 
-    if (DirtyFlags & SCENE_DIRTY_OBJECTS) {
-        size_t ObjectBufferSize = sizeof(packed_scene_object) * Scene->SceneObjectPack.size();
-        if (ObjectBufferSize > Vulkan->SceneObjectBuffer.Size) {
-            SceneObjectBufferOld = Vulkan->SceneObjectBuffer;
-            Vulkan->SceneObjectBuffer = vulkan_buffer {};
+    if (DirtyFlags & SCENE_DIRTY_SHAPES) {
+        size_t ShapeBufferSize = sizeof(packed_shape) * Scene->ShapePack.size();
+        if (ShapeBufferSize > Vulkan->ShapeBuffer.Size) {
+            ShapeBufferOld = Vulkan->ShapeBuffer;
+            Vulkan->ShapeBuffer = vulkan_buffer {};
 
             Result = InternalCreateBuffer(
                 Vulkan,
-                &Vulkan->SceneObjectBuffer,
+                &Vulkan->ShapeBuffer,
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                ObjectBufferSize);
+                ShapeBufferSize);
 
         }
-        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->SceneObjectBuffer, Scene->SceneObjectPack.data(), ObjectBufferSize);
+        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->ShapeBuffer, Scene->ShapePack.data(), ShapeBufferSize);
 
-        size_t SceneNodeBufferSize = sizeof(packed_scene_node) * Scene->SceneNodePack.size();
-        if (SceneNodeBufferSize > Vulkan->SceneNodeBuffer.Size) {
-            SceneNodeBufferOld = Vulkan->SceneNodeBuffer;
-            Vulkan->SceneNodeBuffer = vulkan_buffer {};
+        size_t ShapeNodeBufferSize = sizeof(packed_shape_node) * Scene->ShapeNodePack.size();
+        if (ShapeNodeBufferSize > Vulkan->ShapeNodeBuffer.Size) {
+            ShapeNodeBufferOld = Vulkan->ShapeNodeBuffer;
+            Vulkan->ShapeNodeBuffer = vulkan_buffer {};
 
             Result = InternalCreateBuffer(
                 Vulkan,
-                &Vulkan->SceneNodeBuffer,
+                &Vulkan->ShapeNodeBuffer,
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                SceneNodeBufferSize);
+                ShapeNodeBufferSize);
         }
-        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->SceneNodeBuffer, Scene->SceneNodePack.data(), SceneNodeBufferSize);
+        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->ShapeNodeBuffer, Scene->ShapeNodePack.data(), ShapeNodeBufferSize);
     }
 
     if (DirtyFlags & SCENE_DIRTY_MESHES) {
@@ -2468,8 +2468,8 @@ VkResult UploadScene(
     InternalDestroyBuffer(Vulkan, &MeshFaceExtraBufferOld);
     InternalDestroyBuffer(Vulkan, &MeshFaceBufferOld);
     InternalDestroyBuffer(Vulkan, &MeshNodeBufferOld);
-    InternalDestroyBuffer(Vulkan, &SceneObjectBufferOld);
-    InternalDestroyBuffer(Vulkan, &SceneNodeBufferOld);
+    InternalDestroyBuffer(Vulkan, &ShapeBufferOld);
+    InternalDestroyBuffer(Vulkan, &ShapeNodeBufferOld);
     InternalDestroyBuffer(Vulkan, &MaterialBufferOld);
     InternalDestroyBuffer(Vulkan, &TextureBufferOld);
     InternalDestroyImage(Vulkan, &ImageArrayOld);
