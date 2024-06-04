@@ -505,16 +505,16 @@ vec4 Trace(ray Ray)
     medium Ambient;
     Ambient.Priority = 0;
     Ambient.ShapeIndex = SHAPE_INDEX_NONE;
-    Ambient.SpecularIOR = 1.0f;
+    Ambient.IOR = 1.0f;
     Ambient.ScatteringRate = SceneScatterRate;
 
-    medium Medium = Ambient;
+    medium MediumA = Ambient;
 
     for (uint Bounce = 0; Bounce <= RenderBounceLimit; Bounce++) {
         float ScatteringTime = INFINITY;
 
-        if (Medium.ScatteringRate > 0) {
-            ScatteringTime = -log(Random0To1()) / Medium.ScatteringRate;
+        if (MediumA.ScatteringRate > 0) {
+            ScatteringTime = -log(Random0To1()) / MediumA.ScatteringRate;
         }
 
         hit Hit;
@@ -538,8 +538,6 @@ vec4 Trace(ray Ray)
 
         packed_material Material = Hit.Material;
 
-        float RelativeIOR = Medium.SpecularIOR / Material.SpecularIOR;
-
         // Incoming ray direction in normal/tangent space.
         vec3 Incoming;
 
@@ -551,10 +549,30 @@ vec4 Trace(ray Ray)
 
         bool IsBackFace = Outgoing.z < 0;
 
+        // Determine the highest-priority medium that we are currently
+        // in, and set it as the active one.
+        medium MediumB = Ambient;
         if (IsBackFace) {
             Outgoing.z = -Outgoing.z;
-            RelativeIOR = 1.0 / RelativeIOR;
+
+            for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
+                if (Mediums[I].ShapeIndex == SHAPE_INDEX_NONE)
+                    continue;
+                if (Mediums[I].ShapeIndex == MediumA.ShapeIndex)
+                    continue;
+                if (Mediums[I].Priority < MediumA.Priority)
+                    continue;
+                MediumB = Mediums[I];
+            }
         }
+        else {
+            MediumB.Priority       = Hit.InteriorMediumPriority;
+            MediumB.ShapeIndex     = Hit.ShapeIndex;
+            MediumB.IOR            = Material.SpecularIOR;
+            MediumB.ScatteringRate = Material.ScatteringRate;
+        }
+
+        float RelativeIOR = MediumA.IOR / MediumB.IOR;
 
         vec2 SpecularRoughnessAlpha = ComputeRoughnessAlphaGGX(
             Material.SpecularRoughness,
@@ -567,7 +585,7 @@ vec4 Trace(ray Ray)
 
         // Pass through the surface if embedded in a higher-priority
         // medium, or probabilistically based on geometric opacity.
-        if (Random0To1() > Material.Opacity || Medium.Priority > Hit.InteriorMediumPriority) {
+        if (Random0To1() > Material.Opacity || MediumA.Priority > MediumB.Priority) {
             Incoming = -Outgoing;
         }
         // Metal base.
@@ -690,10 +708,7 @@ vec4 Trace(ray Ray)
                 // associated with the object.
                 for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
                     if (Mediums[I].ShapeIndex == SHAPE_INDEX_NONE) {
-                        Mediums[I].Priority = Hit.InteriorMediumPriority;
-                        Mediums[I].ShapeIndex = Hit.ShapeIndex;
-                        Mediums[I].SpecularIOR = Hit.Material.SpecularIOR;
-                        Mediums[I].ScatteringRate = Hit.Material.ScatteringRate;
+                        Mediums[I] = MediumB;
                         break;
                     }
                 }
@@ -701,13 +716,13 @@ vec4 Trace(ray Ray)
 
             // Determine the highest-priority medium that we are currently
             // in, and set it as the active one.
-            Medium = Ambient;
+            MediumA = Ambient;
             for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
                 if (Mediums[I].ShapeIndex == SHAPE_INDEX_NONE)
                     continue;
-                if (Mediums[I].Priority < Medium.Priority)
+                if (Mediums[I].Priority < MediumA.Priority)
                     continue;
-                Medium = Mediums[I];
+                MediumA = Mediums[I];
             }
         }
 

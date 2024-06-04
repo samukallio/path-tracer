@@ -122,7 +122,7 @@ struct medium
 {
     uint            Priority;
     uint            ShapeIndex;
-    float           SpecularIOR;
+    float           IOR;
     float           ScatteringRate;
 };
 

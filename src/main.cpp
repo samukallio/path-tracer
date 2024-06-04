@@ -425,6 +425,8 @@ int main()
         CreateEntity(&Scene, Prefab); 
     }
 
+    LoadTexture(&Scene, "../scene/earth.png", "Earth");
+
     //{
     //    float s = 0.01f;
     //    LoadModelOptions options;
