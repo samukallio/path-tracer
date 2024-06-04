@@ -100,17 +100,17 @@ void Frame()
                 IO.MousePos.y / WINDOW_HEIGHT
             };
 
-            glm::vec3 sensorPositionNormalized = {
+            glm::vec3 SensorPositionNormalized = {
                 -SensorSize.x * (SamplePositionNormalized.x - 0.5),
                 -SensorSize.y * (0.5 - SamplePositionNormalized.y),
                 0.020f
             };
 
-            glm::vec3 rayVector = -sensorPositionNormalized;
+            glm::vec3 RayVector = -SensorPositionNormalized;
 
             ray Ray;
             Ray.Origin = (WorldMatrix * glm::vec4(0, 0, 0, 1)).xyz;
-            Ray.Direction = glm::normalize(WorldMatrix * glm::vec4(rayVector, 0)).xyz;
+            Ray.Vector = glm::normalize(WorldMatrix * glm::vec4(RayVector, 0)).xyz;
 
             hit Hit;
             if (Trace(App.Scene, Ray, Hit)) {
@@ -158,33 +158,33 @@ void Frame()
         if (Camera->CameraModel == CAMERA_MODEL_PINHOLE) {
             float const ASPECT_RATIO = WINDOW_WIDTH / float(WINDOW_HEIGHT);
             Uniforms.CameraApertureRadius = Camera->Pinhole.ApertureDiameterInMM / 2000.0f;
-            Uniforms.CameraSensorSize.x = 2 * glm::tan(glm::radians(Camera->Pinhole.FieldOfViewInDegrees / 2));
-            Uniforms.CameraSensorSize.y = Uniforms.CameraSensorSize.x / ASPECT_RATIO;
+            Uniforms.CameraSensorSize.x   = 2 * glm::tan(glm::radians(Camera->Pinhole.FieldOfViewInDegrees / 2));
+            Uniforms.CameraSensorSize.y   = Uniforms.CameraSensorSize.x / ASPECT_RATIO;
             Uniforms.CameraSensorDistance = 1.0f;
         }
 
         if (Camera->CameraModel == CAMERA_MODEL_THIN_LENS) {
-            Uniforms.CameraFocalLength = Camera->ThinLens.FocalLengthInMM / 1000.0f;
+            Uniforms.CameraFocalLength    = Camera->ThinLens.FocalLengthInMM / 1000.0f;
             Uniforms.CameraApertureRadius = Camera->ThinLens.ApertureDiameterInMM / 2000.0f;
             Uniforms.CameraSensorDistance = 1.0f / (1000.0f / Camera->ThinLens.FocalLengthInMM - 1.0f / Camera->ThinLens.FocusDistance);
-            Uniforms.CameraSensorSize = Camera->ThinLens.SensorSizeInMM / 1000.0f;
+            Uniforms.CameraSensorSize     = Camera->ThinLens.SensorSizeInMM / 1000.0f;
         }
 
         Uniforms.CameraTransform = {
             .To = WorldMatrix,
             .From = ViewMatrix,
         };
-        Uniforms.HighlightObjectIndex = OBJECT_INDEX_NONE;
-        Uniforms.RenderFlags = RENDER_FLAG_SAMPLE_JITTER;
-        Uniforms.RenderSampleBlockSize = 1u << App.Camera->RenderSampleBlockSizeLog2;
-        Uniforms.RenderBounceLimit = App.Camera->RenderBounceLimit;
-        Uniforms.RenderTerminationProbability = App.Camera->RenderTerminationProbability;
-        Uniforms.RenderMeshComplexityScale = App.Camera->RenderMeshComplexityScale;
-        Uniforms.RenderSceneComplexityScale = App.Camera->RenderSceneComplexityScale;
-        Uniforms.Brightness = App.Camera->Brightness;
-        Uniforms.ToneMappingMode = App.Camera->ToneMappingMode;
-        Uniforms.ToneMappingWhiteLevel = App.Camera->ToneMappingWhiteLevel;
-        Uniforms.RenderFlags = App.Camera->RenderFlags;
+        Uniforms.HighlightObjectIndex         = OBJECT_INDEX_NONE;
+        Uniforms.RenderFlags                  = RENDER_FLAG_SAMPLE_JITTER;
+        Uniforms.RenderSampleBlockSize        = 1u << Camera->RenderSampleBlockSizeLog2;
+        Uniforms.RenderBounceLimit            = Camera->RenderBounceLimit;
+        Uniforms.RenderTerminationProbability = Camera->RenderTerminationProbability;
+        Uniforms.RenderMeshComplexityScale    = Camera->RenderMeshComplexityScale;
+        Uniforms.RenderSceneComplexityScale   = Camera->RenderSceneComplexityScale;
+        Uniforms.Brightness                   = Camera->Brightness;
+        Uniforms.ToneMappingMode              = Camera->ToneMappingMode;
+        Uniforms.ToneMappingWhiteLevel        = Camera->ToneMappingWhiteLevel;
+        Uniforms.RenderFlags                  = Camera->RenderFlags;
 
         if (App.Scene->DirtyFlags != 0)
             Uniforms.RenderFlags &= ~RENDER_FLAG_ACCUMULATE;

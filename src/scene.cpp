@@ -1152,13 +1152,13 @@ static void IntersectMeshFace(scene* Scene, ray Ray, uint32_t MeshFaceIndex, hit
 {
     packed_mesh_face Face = Scene->MeshFacePack[MeshFaceIndex];
 
-    float R = glm::dot(Face.Plane.xyz(), Ray.Direction);
+    float R = glm::dot(Face.Plane.xyz(), Ray.Vector);
     if (R > -EPSILON && R < +EPSILON) return;
 
     float T = -(glm::dot(Face.Plane.xyz(), Ray.Origin) + Face.Plane.w) / R;
     if (T < 0 || T > Hit.Time) return;
 
-    glm::vec3 V = Ray.Origin + Ray.Direction * T - Face.Position;
+    glm::vec3 V = Ray.Origin + Ray.Vector * T - Face.Position;
     float Beta = glm::dot(glm::vec3(Face.Base1), V);
     if (Beta < 0 || Beta > 1) return;
     float Gamma = glm::dot(glm::vec3(Face.Base2), V);
@@ -1175,8 +1175,8 @@ static float IntersectMeshNodeBounds(ray Ray, float Reach, packed_mesh_node cons
 {
     // Compute ray time to the axis-aligned planes at the node bounding
     // box minimum and maximum corners.
-    glm::vec3 Minimum = (Node.Minimum - Ray.Origin) / Ray.Direction;
-    glm::vec3 Maximum = (Node.Maximum - Ray.Origin) / Ray.Direction;
+    glm::vec3 Minimum = (Node.Minimum - Ray.Origin) / Ray.Vector;
+    glm::vec3 Maximum = (Node.Maximum - Ray.Origin) / Ray.Vector;
 
     // For each coordinate axis, sort out which of the two coordinate
     // planes (at bounding box min/max points) comes earlier in time and
@@ -1280,19 +1280,19 @@ static void IntersectObject(scene* Scene, ray const& WorldRay, uint32_t ObjectIn
     }
 
     if (Object.Type == OBJECT_TYPE_PLANE) {
-        float T = -Ray.Origin.z / Ray.Direction.z;
+        float T = -Ray.Origin.z / Ray.Vector.z;
         if (T < 0 || T > Hit.Time) return;
 
         Hit.Time = T;
         Hit.ObjectType = OBJECT_TYPE_PLANE;
         Hit.ObjectIndex = ObjectIndex;
         Hit.PrimitiveIndex = 0;
-        Hit.PrimitiveCoordinates = glm::vec3(glm::fract(Ray.Origin.xy() + Ray.Direction.xy() * T), 0);
+        Hit.PrimitiveCoordinates = glm::vec3(glm::fract(Ray.Origin.xy() + Ray.Vector.xy() * T), 0);
     }
 
     if (Object.Type == OBJECT_TYPE_SPHERE) {
-        float V = glm::dot(Ray.Direction, Ray.Direction);
-        float P = glm::dot(Ray.Origin, Ray.Direction);
+        float V = glm::dot(Ray.Vector, Ray.Vector);
+        float P = glm::dot(Ray.Origin, Ray.Vector);
         float Q = glm::dot(Ray.Origin, Ray.Origin) - 1.0f;
         float D2 = P * P - Q * V;
         if (D2 < 0) return;
@@ -1311,8 +1311,8 @@ static void IntersectObject(scene* Scene, ray const& WorldRay, uint32_t ObjectIn
     }
 
     if (Object.Type == OBJECT_TYPE_CUBE) {
-        glm::vec3 Minimum = (glm::vec3(-1,-1,-1) - Ray.Origin) / Ray.Direction;
-        glm::vec3 Maximum = (glm::vec3(+1,+1,+1) - Ray.Origin) / Ray.Direction;
+        glm::vec3 Minimum = (glm::vec3(-1,-1,-1) - Ray.Origin) / Ray.Vector;
+        glm::vec3 Maximum = (glm::vec3(+1,+1,+1) - Ray.Origin) / Ray.Vector;
         glm::vec3 Earlier = min(Minimum, Maximum);
         glm::vec3 Later = max(Minimum, Maximum);
         float T0 = glm::max(glm::max(Earlier.x, Earlier.y), Earlier.z);

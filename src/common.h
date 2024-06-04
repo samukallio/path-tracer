@@ -225,7 +225,7 @@ struct bounds
 struct ray
 {
     glm::vec3                   Origin;
-    glm::vec3                   Direction;
+    glm::vec3                   Vector;
 };
 
 struct hit
@@ -281,7 +281,7 @@ inline ray TransformRay(ray const& Ray, glm::mat4 const& Matrix)
 {
     return {
         .Origin = (Matrix * glm::vec4(Ray.Origin, 1)).xyz(),
-        .Direction = (Matrix * glm::vec4(Ray.Direction, 0)).xyz(),
+        .Vector = (Matrix * glm::vec4(Ray.Vector, 0)).xyz(),
     };
 }
 
