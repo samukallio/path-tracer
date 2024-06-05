@@ -389,7 +389,7 @@ void Intersect(ray Ray, inout hit Hit)
     }
 }
 
-void ResolveHit(ray Ray, inout hit Hit)
+void ResolveHitSurfaceData(ray Ray, inout hit Hit)
 {
     packed_shape Shape = Shapes[Hit.ShapeIndex];
     ray ShapeRay = InverseTransformRay(Ray, Shape.Transform);
@@ -491,7 +491,7 @@ void ResolveHit(ray Ray, inout hit Hit)
     Hit.TangentY = TransformDirection(TangentY, Shape.Transform);
 }
 
-vec4 Trace(ray Ray)
+vec4 TracePath(ray Ray)
 {
     vec3 OutputColor = vec3(0, 0, 0);
     vec3 FilterColor = vec3(1, 1, 1);
@@ -535,7 +535,7 @@ vec4 Trace(ray Ray)
         }
 
         // We hit a surface.  Resolve the surface details.
-        ResolveHit(Ray, Hit);
+        ResolveHitSurfaceData(Ray, Hit);
         packed_material Material = Hit.Material;
 
         // Incoming ray direction in normal/tangent space.
@@ -771,7 +771,7 @@ vec4 Trace(ray Ray)
     return vec4(OutputColor.rgb, 1);
 }
 
-vec4 TraceSpectral(ray Ray)
+vec4 TracePathSpectral(ray Ray)
 {
     return vec4(1, 0, 0, 1);
 }
@@ -782,7 +782,7 @@ hit IntersectAndResolve(ray Ray)
     Hit.Time = INFINITY;
     Intersect(Ray, Hit);
     if (Hit.Time != INFINITY)
-        ResolveHit(Ray, Hit);
+        ResolveHitSurfaceData(Ray, Hit);
     return Hit;
 }
 
@@ -922,9 +922,9 @@ void main()
     vec4 SampleValue;
 
     if (RenderMode == RENDER_MODE_PATH_TRACE)
-        SampleValue = Trace(Ray);
+        SampleValue = TracePath(Ray);
     else if (RenderMode == RENDER_MODE_PATH_TRACE_SPECTRAL)
-        SampleValue = TraceSpectral(Ray);
+        SampleValue = TracePathSpectral(Ray);
     else if (RenderMode == RENDER_MODE_BASE_COLOR)
         SampleValue = TraceBaseColor(Ray, false);
     else if (RenderMode == RENDER_MODE_BASE_COLOR_SHADED)
