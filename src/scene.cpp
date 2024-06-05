@@ -688,7 +688,7 @@ static void PackShape(scene* Scene, glm::mat4 const& OuterTransform, entity* Ent
     packed_shape Packed;
 
     Packed.MaterialIndex = 0;
-    Packed.InteriorMediumPriority = Priority++;
+    Packed.Priority = Priority++;
 
     switch (Entity->Type) {
         case ENTITY_TYPE_MESH_INSTANCE: {
@@ -1046,7 +1046,7 @@ uint32_t PackSceneData(scene* Scene)
 
         glm::mat4 const& OuterTransform = glm::mat4(1);
 
-        uint32_t Priority = 0;
+        uint32_t Priority = 1;
         for (entity* Entity : Scene->Root.Children)
             PackShape(Scene, OuterTransform, Entity, Priority);
 

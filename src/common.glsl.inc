@@ -83,7 +83,7 @@ struct packed_shape
     uint                Type;
     uint                MaterialIndex;
     uint                MeshRootNodeIndex;
-    uint                InteriorMediumPriority;
+    uint                Priority;
     packed_transform    Transform;
 };
 
@@ -120,8 +120,8 @@ struct packed_mesh_node
 
 struct medium
 {
-    uint            Priority;
     uint            ShapeIndex;
+    uint            ShapePriority;
     float           IOR;
     float           ScatteringRate;
 };
@@ -138,7 +138,7 @@ struct hit
     uint            MeshComplexity;
 
     // Populated by ResolveHit().
-    uint            InteriorMediumPriority;
+    uint            ShapePriority;
     vec3            Position;
     vec3            Normal;
     vec3            TangentX;

@@ -483,7 +483,7 @@ void ResolveHit(ray Ray, inout hit Hit)
         Hit.Material.SpecularRoughness *= Value.r;
     }
 
-    Hit.InteriorMediumPriority = Shape.InteriorMediumPriority;
+    Hit.ShapePriority = Shape.Priority;
 
     Hit.Position = TransformPosition(Position, Shape.Transform);
     Hit.Normal = TransformNormal(Normal, Shape.Transform);
@@ -502,19 +502,19 @@ vec4 Trace(ray Ray)
     for (int I = 0; I < MAX_MEDIUM_COUNT; I++)
         Mediums[I].ShapeIndex = SHAPE_INDEX_NONE;
 
-    medium Ambient;
-    Ambient.Priority = 0;
-    Ambient.ShapeIndex = SHAPE_INDEX_NONE;
-    Ambient.IOR = 1.0f;
-    Ambient.ScatteringRate = SceneScatterRate;
+    medium AmbientMedium;
+    AmbientMedium.ShapeIndex = SHAPE_INDEX_NONE;
+    AmbientMedium.ShapePriority = 0;
+    AmbientMedium.IOR = 1.0f;
+    AmbientMedium.ScatteringRate = SceneScatterRate;
 
-    medium MediumA = Ambient;
+    medium CurrentMedium = AmbientMedium;
 
     for (uint Bounce = 0; Bounce <= RenderBounceLimit; Bounce++) {
         float ScatteringTime = INFINITY;
 
-        if (MediumA.ScatteringRate > 0) {
-            ScatteringTime = -log(Random0To1()) / MediumA.ScatteringRate;
+        if (CurrentMedium.ScatteringRate > 0) {
+            ScatteringTime = -log(Random0To1()) / CurrentMedium.ScatteringRate;
         }
 
         hit Hit;
@@ -534,8 +534,8 @@ vec4 Trace(ray Ray)
             }
         }
 
+        // We hit a surface.  Resolve the surface details.
         ResolveHit(Ray, Hit);
-
         packed_material Material = Hit.Material;
 
         // Incoming ray direction in normal/tangent space.
@@ -547,32 +547,55 @@ vec4 Trace(ray Ray)
             dot(Ray.Vector, Hit.TangentY),
             dot(Ray.Vector, Hit.Normal));
 
-        bool IsBackFace = Outgoing.z < 0;
+        bool IsFrontFace = Outgoing.z > 0;
 
-        // Determine the highest-priority medium that we are currently
-        // in, and set it as the active one.
-        medium MediumB = Ambient;
-        if (IsBackFace) {
-            Outgoing.z = -Outgoing.z;
+        // Determines if the surface we hit is a virtual surface.  A surface
+        // is virtual if it belongs to a shape with a lower priority than the
+        // highest priority shape that we are currently traversing through.
+        // In that case the medium associated with the higher priority shape
+        // supersedes the lower priority one, and it is as if an interface
+        // does not exist at that point at all.
+        bool IsVirtualSurface;
 
-            for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
-                if (Mediums[I].ShapeIndex == SHAPE_INDEX_NONE)
-                    continue;
-                if (Mediums[I].ShapeIndex == MediumA.ShapeIndex)
-                    continue;
-                if (Mediums[I].Priority < MediumA.Priority)
-                    continue;
-                MediumB = Mediums[I];
-            }
+        // Relative index of refraction between the current medium and the
+        // medium at the other side of the surface.
+        float RelativeIOR = 1.0;
+
+        if (IsFrontFace) {
+            // If we are hitting the exterior side of a shape, then the surface
+            // interface should affect the ray if the surface belongs to
+            // a higher priority shape than we are currently traversing through.
+            IsVirtualSurface = CurrentMedium.ShapePriority >= Hit.ShapePriority;
+
+            if (!IsVirtualSurface)
+                RelativeIOR = CurrentMedium.IOR / Material.SpecularIOR;
         }
         else {
-            MediumB.Priority       = Hit.InteriorMediumPriority;
-            MediumB.ShapeIndex     = Hit.ShapeIndex;
-            MediumB.IOR            = Material.SpecularIOR;
-            MediumB.ScatteringRate = Material.ScatteringRate;
-        }
+            Outgoing.z = -Outgoing.z;
 
-        float RelativeIOR = MediumA.IOR / MediumB.IOR;
+            // If we are hitting the interior side of a shape, then the surface
+            // interface should affect the ray only if the surface belongs to
+            // the highest-priority shape that we are currently traversing
+            // through.
+            IsVirtualSurface = CurrentMedium.ShapeIndex != Hit.ShapeIndex;
+
+            // If the surface is real, then we need to determine the relative IOR.
+            if (!IsVirtualSurface) {
+                // The medium beyond the surface will be that of the highest
+                // priority shape other than the one we are currently in.
+                medium ExteriorMedium = AmbientMedium;
+                for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
+                    if (Mediums[I].ShapeIndex == SHAPE_INDEX_NONE)
+                        continue;
+                    if (Mediums[I].ShapeIndex == CurrentMedium.ShapeIndex)
+                        continue;
+                    if (Mediums[I].ShapePriority < ExteriorMedium.ShapePriority)
+                        continue;
+                    ExteriorMedium = Mediums[I];
+                }
+                RelativeIOR = CurrentMedium.IOR / ExteriorMedium.IOR;
+            }
+        }
 
         vec2 SpecularRoughnessAlpha = ComputeRoughnessAlphaGGX(
             Material.SpecularRoughness,
@@ -585,7 +608,7 @@ vec4 Trace(ray Ray)
 
         // Pass through the surface if embedded in a higher-priority
         // medium, or probabilistically based on geometric opacity.
-        if (Random0To1() > Material.Opacity || MediumA.Priority > MediumB.Priority) {
+        if (Random0To1() > Material.Opacity || IsVirtualSurface) {
             Incoming = -Outgoing;
         }
         // Metal base.
@@ -627,7 +650,7 @@ vec4 Trace(ray Ray)
                 IncomingCosine = SpecularCosine;
                 Incoming = 2 * SpecularCosine * SpecularNormal - Outgoing;
 
-                if (!IsBackFace) {
+                if (IsFrontFace) {
                     // Per the OpenPBR specification: the specular color material
                     // parameter modulates the Fresnel factor of the dielectric,
                     // but only for reflections from above (and not below).
@@ -663,7 +686,7 @@ vec4 Trace(ray Ray)
                 Incoming = 2 * SpecularCosine * SpecularNormal - Outgoing;
                 if (Incoming.z <= 0) break;
 
-                if (!IsBackFace) {
+                if (IsFrontFace) {
                     // Per the OpenPBR specification: the specular color material
                     // parameter modulates the Fresnel factor of the dielectric,
                     // but only for reflections from above (and not below).
@@ -693,8 +716,21 @@ vec4 Trace(ray Ray)
         // then the ray is crossing the material interface boundary.  We need to
         // perform bookkeeping to determine the current Medium.
         if (Incoming.z < 0) {
-            if (IsBackFace) {
-                // We are tracing out of the material, so remove the medium
+            if (IsFrontFace) {
+                // We are tracing into the object, so add a medium entry
+                // associated with the object.
+                for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
+                    if (Mediums[I].ShapeIndex == SHAPE_INDEX_NONE) {
+                        Mediums[I].ShapeIndex     = Hit.ShapeIndex;
+                        Mediums[I].ShapePriority  = Hit.ShapePriority;
+                        Mediums[I].IOR            = Material.SpecularIOR;
+                        Mediums[I].ScatteringRate = Material.ScatteringRate;
+                        break;
+                    }
+                }
+            }
+            else {
+                // We are tracing out of the object, so remove the medium
                 // entry associated with the object.
                 for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
                     if (Mediums[I].ShapeIndex == Hit.ShapeIndex) {
@@ -703,30 +739,20 @@ vec4 Trace(ray Ray)
                     }
                 }
             }
-            else {
-                // We are tracing into the material, so add a medium entry
-                // associated with the object.
-                for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
-                    if (Mediums[I].ShapeIndex == SHAPE_INDEX_NONE) {
-                        Mediums[I] = MediumB;
-                        break;
-                    }
-                }
-            }
 
             // Determine the highest-priority medium that we are currently
             // in, and set it as the active one.
-            MediumA = Ambient;
+            CurrentMedium = AmbientMedium;
             for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
                 if (Mediums[I].ShapeIndex == SHAPE_INDEX_NONE)
                     continue;
-                if (Mediums[I].Priority < MediumA.Priority)
+                if (Mediums[I].ShapePriority < CurrentMedium.ShapePriority)
                     continue;
-                MediumA = Mediums[I];
+                CurrentMedium = Mediums[I];
             }
         }
 
-        if (IsBackFace) {
+        if (!IsFrontFace) {
             Incoming.z = -Incoming.z;
         }
 
