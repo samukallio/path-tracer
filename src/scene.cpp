@@ -1052,8 +1052,8 @@ uint32_t PackSceneData(scene* Scene)
 
         std::vector<uint16_t> Map;
 
-        for (uint32_t ObjectIndex = 0; ObjectIndex < Scene->ShapePack.size(); ObjectIndex++) {
-            packed_shape const& Object = Scene->ShapePack[ObjectIndex];
+        for (uint32_t ShapeIndex = 0; ShapeIndex < Scene->ShapePack.size(); ShapeIndex++) {
+            packed_shape const& Object = Scene->ShapePack[ShapeIndex];
             bounds Bounds = ShapeBounds(Scene, Object);
 
             uint16_t NodeIndex = static_cast<uint16_t>(Scene->ShapeNodePack.size());
@@ -1063,7 +1063,7 @@ uint32_t PackSceneData(scene* Scene)
                 .Minimum = Bounds.Minimum,
                 .ChildNodeIndices = 0,
                 .Maximum = Bounds.Maximum,
-                .ShapeIndex = ObjectIndex,
+                .ShapeIndex = ShapeIndex,
             };
             Scene->ShapeNodePack.push_back(Node);
         }
@@ -1278,30 +1278,30 @@ static void IntersectMesh(scene* Scene, ray const& Ray, uint32_t RootNodeIndex, 
     }
 }
 
-static void IntersectObject(scene* Scene, ray const& WorldRay, uint32_t ObjectIndex, hit& Hit)
+static void IntersectShape(scene* Scene, ray const& WorldRay, uint32_t ShapeIndex, hit& Hit)
 {
-    packed_shape Object = Scene->ShapePack[ObjectIndex];
+    packed_shape Shape = Scene->ShapePack[ShapeIndex];
 
-    ray Ray = TransformRay(WorldRay, Object.Transform.From);
+    ray Ray = TransformRay(WorldRay, Shape.Transform.From);
 
-    if (Object.Type == SHAPE_TYPE_MESH_INSTANCE) {
-        IntersectMesh(Scene, Ray, Object.MeshRootNodeIndex, Hit);
+    if (Shape.Type == SHAPE_TYPE_MESH_INSTANCE) {
+        IntersectMesh(Scene, Ray, Shape.MeshRootNodeIndex, Hit);
         if (Hit.ShapeIndex == SHAPE_INDEX_NONE)
-            Hit.ShapeIndex = ObjectIndex;
+            Hit.ShapeIndex = ShapeIndex;
     }
 
-    if (Object.Type == SHAPE_TYPE_PLANE) {
+    if (Shape.Type == SHAPE_TYPE_PLANE) {
         float T = -Ray.Origin.z / Ray.Vector.z;
         if (T < 0 || T > Hit.Time) return;
 
         Hit.Time = T;
         Hit.ShapeType = SHAPE_TYPE_PLANE;
-        Hit.ShapeIndex = ObjectIndex;
+        Hit.ShapeIndex = ShapeIndex;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = glm::vec3(glm::fract(Ray.Origin.xy() + Ray.Vector.xy() * T), 0);
     }
 
-    if (Object.Type == SHAPE_TYPE_SPHERE) {
+    if (Shape.Type == SHAPE_TYPE_SPHERE) {
         float V = glm::dot(Ray.Vector, Ray.Vector);
         float P = glm::dot(Ray.Origin, Ray.Vector);
         float Q = glm::dot(Ray.Origin, Ray.Origin) - 1.0f;
@@ -1318,12 +1318,12 @@ static void IntersectObject(scene* Scene, ray const& WorldRay, uint32_t ObjectIn
 
         Hit.Time = S / V;
         Hit.ShapeType = SHAPE_TYPE_SPHERE;
-        Hit.ShapeIndex = ObjectIndex;
+        Hit.ShapeIndex = ShapeIndex;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * Hit.Time;
     }
 
-    if (Object.Type == SHAPE_TYPE_CUBE) {
+    if (Shape.Type == SHAPE_TYPE_CUBE) {
         glm::vec3 Minimum = (glm::vec3(-1,-1,-1) - Ray.Origin) / Ray.Vector;
         glm::vec3 Maximum = (glm::vec3(+1,+1,+1) - Ray.Origin) / Ray.Vector;
         glm::vec3 Earlier = min(Minimum, Maximum);
@@ -1338,7 +1338,7 @@ static void IntersectObject(scene* Scene, ray const& WorldRay, uint32_t ObjectIn
 
         Hit.Time = T;
         Hit.ShapeType = SHAPE_TYPE_CUBE;
-        Hit.ShapeIndex = ObjectIndex;
+        Hit.ShapeIndex = ShapeIndex;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * T;
     }
@@ -1346,8 +1346,8 @@ static void IntersectObject(scene* Scene, ray const& WorldRay, uint32_t ObjectIn
 
 static void Intersect(scene* Scene, ray const& WorldRay, hit& Hit)
 {
-    for (uint32_t ObjectIndex = 0; ObjectIndex < Scene->ShapePack.size(); ObjectIndex++)
-        IntersectObject(Scene, WorldRay, ObjectIndex, Hit);
+    for (uint32_t ShapeIndex = 0; ShapeIndex < Scene->ShapePack.size(); ShapeIndex++)
+        IntersectShape(Scene, WorldRay, ShapeIndex, Hit);
 }
 
 bool Trace(scene* Scene, ray const& Ray, hit& Hit)
