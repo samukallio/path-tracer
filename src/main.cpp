@@ -5,6 +5,7 @@
 #include "vulkan.h"
 #include "scene.h"
 #include "ui.h"
+#include "spectral.h"
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>

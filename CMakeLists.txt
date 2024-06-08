@@ -17,6 +17,8 @@ add_executable (path-tracer
 	src/vulkan.cpp
 	src/scene.h
 	src/scene.cpp
+	src/spectral.cpp
+	src/spectral.h
 	src/ui.h
 	src/ui.cpp
 	src/ui_font.h

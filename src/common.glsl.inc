@@ -3,7 +3,10 @@ const float EPSILON     = 1e-9f;
 const float PI          = 3.141592653f;
 const float TAU         = 6.283185306f;
 
-const uint SHAPE_INDEX_NONE                = 0xFFFFFFFF;
+const float CIE_LAMBDA_MIN = 360.0;
+const float CIE_LAMBDA_MAX = 830.0;
+
+const uint SHAPE_INDEX_NONE                 = 0xFFFFFFFF;
 const uint TEXTURE_INDEX_NONE               = 0xFFFFFFFF;
 
 const uint RENDER_MODE_PATH_TRACE           = 0;
@@ -290,6 +293,49 @@ float SmithG1(vec3 Direction, vec2 Roughness)
     float TanThetaSq = (1 - CosThetaSq) / CosThetaSq;
     float AlphaSq = (CosPhiSq * RoughnessSq.x + SinPhiSq * RoughnessSq.y) / (CosPhiSq + SinPhiSq);
     return 2.0 / (1.0 + sqrt(1.0 + AlphaSq * TanThetaSq));
+}
+
+// Compute the CIE XYZ tristimulus values of a single-wavelength Dirac spectrum
+// using the multi-lobe piecewise Gaussian fit of the CIE 1931 standard observer
+// presented in the paper "Simple Analytic Approximations to the CIE XYZ Color
+// Matching Functions" by Chris Wyman et al.
+vec3 StandardObserverXYZ(float Lambda)
+{
+    vec3 Result;
+    {
+        float T1 = (Lambda - 442.0) * (Lambda < 442.0 ? 0.0624 : 0.0374);
+        float T2 = (Lambda - 599.8) * (Lambda < 599.8 ? 0.0264 : 0.0323);
+        float T3 = (Lambda - 501.1) * (Lambda < 501.1 ? 0.0490 : 0.0382);
+        Result.x = 0.362 * exp(-0.5 * T1 * T1)
+                 + 1.056 * exp(-0.5 * T2 * T2)
+                 - 0.065 * exp(-0.5 * T3 * T3);
+    }
+    {
+        float T1 = (Lambda - 568.8) * (Lambda < 568.8 ? 0.0213 : 0.0247);
+        float T2 = (Lambda - 530.9) * (Lambda < 530.9 ? 0.0613 : 0.0322);
+        Result.y = 0.821 * exp(-0.5 * T1 * T1)
+                 + 0.286 * exp(-0.5 * T2 * T2);
+    }
+    {
+        float T1 = (Lambda - 437.0) * (Lambda < 437.0 ? 0.0845 : 0.0278);
+        float T2 = (Lambda - 459.0) * (Lambda < 459.0 ? 0.0385 : 0.0725);
+        Result.z = 1.217 * exp(-0.5 * T1 * T1)
+                 + 0.681 * exp(-0.5 * T2 * T2);
+    }
+    return Result;
+}
+
+// Conversion from CIE XYZ to (linear) sRGB tristimulus values.
+const mat3 CIE_XYZ_TO_SRGB = mat3(
+    +3.2406, -0.9689, +0.0557,
+    -1.5372, +1.8758, -0.2040,
+    -0.4986, +0.0415, +1.0570
+);
+
+// Like StandardObserverXYZ(), but gives linear sRGB values.
+vec3 StandardObserverSRGB(float Lambda)
+{
+    return CIE_XYZ_TO_SRGB * StandardObserverXYZ(Lambda);
 }
 
 /* --- Random -------------------------------------------------------------- */
