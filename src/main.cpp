@@ -27,6 +27,7 @@ void Frame()
     InspectorWindow(&App);
     ResourceBrowserWindow(&App);
     SceneHierarchyWindow(&App);
+    ParametricSpectrumViewerWindow(&App);
     ImGui::EndFrame();
 
     ImGui::Render();
@@ -403,6 +404,9 @@ int main()
 
     App.Scene = &Scene;
     App.Camera = nullptr;
+
+    App.SRGBSpectrumTable = new parametric_spectrum_table;
+    LoadParametricSpectrumTable(App.SRGBSpectrumTable, "../sRGBToSpectrum.dat");
 
     Scene.Root.Name = "Root";
 

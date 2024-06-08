@@ -3,6 +3,7 @@
 #include "common.h"
 #include "scene.h"
 #include "vulkan.h"
+#include "spectral.h"
 
 struct GLFWwindow;
 
@@ -39,9 +40,12 @@ struct application
 
     scene*          Scene               = nullptr;
     camera*         Camera              = nullptr;
+
+    parametric_spectrum_table* SRGBSpectrumTable = nullptr;
 };
 
 void InitializeUI(application* App);
 void SceneHierarchyWindow(application* App);
 void InspectorWindow(application* App);
 void ResourceBrowserWindow(application* App);
+void ParametricSpectrumViewerWindow(application* App);

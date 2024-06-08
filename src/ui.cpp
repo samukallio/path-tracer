@@ -1,5 +1,6 @@
 #include "common.h"
 #include "ui.h"
+#include "spectral.h"
 
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
@@ -542,6 +543,29 @@ void InspectorWindow(application* App)
     }
 
     ImGui::PopItemWidth();
+    ImGui::End();
+}
+
+void ParametricSpectrumViewerWindow(application* App)
+{
+    static float Spectrum[512] = {};
+    static glm::vec3 Color = {};
+
+    ImGui::Begin("Parametric Spectrum Viewer");
+
+    if (ImGui::ColorEdit3("Color", &Color[0], ImGuiColorEditFlags_Float)) {
+        glm::vec3 Beta = GetParametricSpectrumCoefficients(App->SRGBSpectrumTable, Color);
+        for (int I = 0; I < IM_ARRAYSIZE(Spectrum); I++) {
+            float Lambda = glm::mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, I / 512.f);
+            Spectrum[I] = SampleParametricSpectrum(Beta, Lambda);
+        }
+    }
+
+    ImVec2 Size = ImGui::GetWindowSize();
+    Size.x -= 40.0f;
+    Size.y -= 100.0f;
+
+    ImGui::PlotLines("Spectrum", Spectrum, IM_ARRAYSIZE(Spectrum), 0, 0, 0.0f, 1.0f, Size);
     ImGui::End();
 }
 
