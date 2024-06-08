@@ -306,7 +306,7 @@ static std::pair<glm::ivec4, glm::vec3> ColorToIndex(glm::vec3 const& Color)
         if (Color[I] >= Color[L])
             L = I;
 
-    float Scale = Color[L];
+    float Scale = glm::max(Color[L], 1e-6f);
 
     float X = (N - 1) * Color[(L + 1) % 3] / Scale;
     float Y = (N - 1) * Color[(L + 2) % 3] / Scale;
