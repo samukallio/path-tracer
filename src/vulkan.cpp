@@ -2352,7 +2352,7 @@ VkResult UploadScene(
             VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             VK_IMAGE_TYPE_2D,
-            VK_FORMAT_R8G8B8A8_SRGB,
+            VK_FORMAT_R32G32B32A32_SFLOAT,
             { .width = 4096, .height = 4096, .depth = 1 },
             LayerCount,
             VK_IMAGE_TILING_OPTIMAL,
@@ -2364,7 +2364,7 @@ VkResult UploadScene(
                 &Vulkan->ImageArray,
                 Index, 1,
                 Image.Pixels,
-                Image.Width, Image.Height, sizeof(uint32_t),
+                Image.Width, Image.Height, sizeof(glm::vec4),
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         }
 

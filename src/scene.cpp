@@ -6,6 +6,7 @@
 #include "stb_rect_pack.h"
 
 #include "scene.h"
+#include "spectral.h"
 
 #include <unordered_map>
 #include <format>
@@ -81,6 +82,12 @@ char const* EntityTypeName(entity_type Type)
         case ENTITY_TYPE_CUBE:          return "Cube";
     }
     return "Entity";
+}
+
+glm::vec4 ColorToSpectrum(scene* Scene, glm::vec4 const& Color)
+{
+    glm::vec3 Beta = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Color.xyz());
+    return glm::vec4(Beta, Color.a);
 }
 
 entity* CreateEntity(scene* Scene, entity_type Type, entity* Parent)
@@ -171,12 +178,12 @@ entity* CreateEntity(scene* Scene, prefab* Prefab, entity* Parent)
 
 texture* CreateCheckerTexture(scene* Scene, char const* Name, glm::vec4 const& ColorA, glm::vec4 const& ColorB)
 {
-    auto Pixels = new uint32_t[4];
+    auto Pixels = new glm::vec4[4];
 
-    Pixels[0] = ToSRGB(ColorA);
-    Pixels[1] = ToSRGB(ColorB);
-    Pixels[2] = ToSRGB(ColorB);
-    Pixels[3] = ToSRGB(ColorA);
+    Pixels[0] = ColorToSpectrum(Scene, ColorA);
+    Pixels[1] = ColorToSpectrum(Scene, ColorB);
+    Pixels[2] = ColorToSpectrum(Scene, ColorB);
+    Pixels[3] = ColorToSpectrum(Scene, ColorA);
 
     auto Texture = new texture {
         .Name = Name,
@@ -194,14 +201,23 @@ texture* CreateCheckerTexture(scene* Scene, char const* Name, glm::vec4 const& C
 texture* LoadTexture(scene* Scene, char const* Path, char const* Name)
 {
     int Width, Height, ChannelsInFile;
-    stbi_uc* Pixels = stbi_load(Path, &Width, &Height, &ChannelsInFile, 4);
+    glm::vec4* Pixels = reinterpret_cast<glm::vec4*>(stbi_loadf(Path, &Width, &Height, &ChannelsInFile, 4));
     if (!Pixels) return nullptr;
+
+    for (int Y = 0; Y < Height; Y++) {
+        for (int X = 0; X < Width; X++) {
+            int Index = Y * Width + X;
+            glm::vec4 Color = Pixels[Index];
+            glm::vec3 Beta = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Color.xyz());
+            Pixels[Index] = glm::vec4(Beta, Color.a);
+        }
+    }
 
     auto Texture = new texture {
         .Name = Name ? Name : Path,
         .Width = static_cast<uint32_t>(Width),
         .Height = static_cast<uint32_t>(Height),
-        .Pixels = reinterpret_cast<uint32_t*>(Pixels),
+        .Pixels = Pixels,
     };
     Scene->Textures.push_back(Texture);
 
@@ -621,52 +637,63 @@ bool LoadSkybox(scene* Scene, char const* Path)
 {
     int Width, Height, Components;
 
-    Scene->SkyboxPixels = stbi_loadf(Path, &Width, &Height, &Components, STBI_rgb_alpha);
+    Scene->SkyboxPixels = reinterpret_cast<glm::vec4*>(stbi_loadf(Path, &Width, &Height, &Components, STBI_rgb_alpha));
     Scene->SkyboxWidth = static_cast<uint32_t>(Width);
     Scene->SkyboxHeight = static_cast<uint32_t>(Height);
 
-    Scene->DirtyFlags |= SCENE_DIRTY_SKYBOX;
-
-    float* Pixels = Scene->SkyboxPixels;
-
-    glm::vec3 Mean = {};
-    float WeightSum = 0.0f;
     for (int Y = 0; Y < Height; Y++) {
-        float Theta = (0.5f - (Y + 0.5f) / Height) * PI;
         for (int X = 0; X < Width; X++) {
-            float Phi = ((X + 0.5f) / Width - 0.5f) * TAU;
+            int Index = Y * Width + X;
 
-            int Index = (Y * Width + X) * 4;
-            float R = Pixels[Index+0];
-            float G = Pixels[Index+1];
-            float B = Pixels[Index+2];
-            float Luminance = 0.2126f * R + 0.7152f * G + 0.0722f * B;
-            float Area = glm::cos(Theta);
-
-            float Weight = Area * Luminance * Luminance;
-
-            glm::vec3 Direction = {
-                glm::cos(Theta) * glm::cos(Phi),
-                glm::cos(Theta) * glm::sin(Phi),
-                glm::sin(Theta),
-            };
-
-            Mean += Weight * Direction;
-            WeightSum += Weight;
+            glm::vec3 Color = Scene->SkyboxPixels[Index].rgb();
+            float Intensity = 2 * glm::max(glm::max(Color.r, Color.g), Color.b);
+            glm::vec3 Beta = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Color / Intensity);
+            Scene->SkyboxPixels[Index] = glm::vec4(Beta, Intensity);
         }
     }
-    Mean /= WeightSum;
 
-    float MeanLength = glm::length(Mean);
+    Scene->DirtyFlags |= SCENE_DIRTY_SKYBOX;
 
-    glm::vec3 FrameZ = Mean / MeanLength;
-    glm::vec3 FrameX = OrthogonalVector(FrameZ);
-    glm::vec3 FrameY = glm::cross(FrameX, FrameZ);
+    //float* Pixels = Scene->SkyboxPixels;
 
-    float Concentration = MeanLength * (3.0f - MeanLength * MeanLength) / (1 - MeanLength * MeanLength);
+    //glm::vec3 Mean = {};
+    //float WeightSum = 0.0f;
+    //for (int Y = 0; Y < Height; Y++) {
+    //    float Theta = (0.5f - (Y + 0.5f) / Height) * PI;
+    //    for (int X = 0; X < Width; X++) {
+    //        float Phi = ((X + 0.5f) / Width - 0.5f) * TAU;
 
-    Scene->SkyboxDistributionFrame = glm::mat3(FrameX, FrameY, FrameZ);
-    Scene->SkyboxDistributionConcentration = Concentration;
+    //        int Index = (Y * Width + X) * 4;
+    //        float R = Pixels[Index+0];
+    //        float G = Pixels[Index+1];
+    //        float B = Pixels[Index+2];
+    //        float Luminance = 0.2126f * R + 0.7152f * G + 0.0722f * B;
+    //        float Area = glm::cos(Theta);
+
+    //        float Weight = Area * Luminance * Luminance;
+
+    //        glm::vec3 Direction = {
+    //            glm::cos(Theta) * glm::cos(Phi),
+    //            glm::cos(Theta) * glm::sin(Phi),
+    //            glm::sin(Theta),
+    //        };
+
+    //        Mean += Weight * Direction;
+    //        WeightSum += Weight;
+    //    }
+    //}
+    //Mean /= WeightSum;
+
+    //float MeanLength = glm::length(Mean);
+
+    //glm::vec3 FrameZ = Mean / MeanLength;
+    //glm::vec3 FrameX = OrthogonalVector(FrameZ);
+    //glm::vec3 FrameY = glm::cross(FrameX, FrameZ);
+
+    //float Concentration = MeanLength * (3.0f - MeanLength * MeanLength) / (1 - MeanLength * MeanLength);
+
+    //Scene->SkyboxDistributionFrame = glm::mat3(FrameX, FrameY, FrameZ);
+    //Scene->SkyboxDistributionConcentration = Concentration;
 
     return true;
 }
@@ -845,7 +872,7 @@ uint32_t PackSceneData(scene* Scene)
             stbrp_init_target(&Context, 4096, 4096, Nodes.data(), static_cast<int>(Nodes.size()));
             stbrp_pack_rects(&Context, Rects.data(), static_cast<int>(Rects.size()));
 
-            uint32_t* Pixels = new uint32_t[4096 * 4096];
+            glm::vec4* Pixels = new glm::vec4[4096 * 4096];
 
             uint32_t ImageIndex = static_cast<uint32_t>(Scene->Images.size());
 
@@ -872,10 +899,30 @@ uint32_t PackSceneData(scene* Scene)
                     (Rect.y + 0.5f) / float(ATLAS_HEIGHT),
                 };
 
+                auto SRGBGammaToLinear = [](float X) -> float {
+                    if (X <= 0.04045f)
+                        return X / 12.92f;
+                    else
+                        return glm::pow((X + 0.055f) / 1.055f, 2.4f);
+                };
+
                 for (uint32_t Y = 0; Y < Texture->Height; Y++) {
-                    uint32_t const* Src = Texture->Pixels + Y * Texture->Width;
-                    uint32_t* Dst = Pixels + (Rect.y + Y) * ATLAS_WIDTH + Rect.x;
-                    memcpy(Dst, Src, Texture->Width * sizeof(uint32_t));
+                    glm::vec4 const* Src = Texture->Pixels + Y * Texture->Width;
+                    glm::vec4* Dst = Pixels + (Rect.y + Y) * ATLAS_WIDTH + Rect.x;
+                    memcpy(Dst, Src, Texture->Width * sizeof(glm::vec4));
+                    //for (uint32_t X = 0; X < Texture->Width; X++) {
+                    //    uint32_t SrcColor = *Src++;
+                    //    uint32_t R = (SrcColor      ) & 0xFF;
+                    //    uint32_t G = (SrcColor >>  8) & 0xFF;
+                    //    uint32_t B = (SrcColor >> 16) & 0xFF;
+                    //    uint32_t A = (SrcColor >> 24) & 0xFF;
+
+                    //    glm::vec4& DstColor = *Dst++;
+                    //    DstColor.r = SRGBGammaToLinear(R / 255.0f);
+                    //    DstColor.g = SRGBGammaToLinear(G / 255.0f);
+                    //    DstColor.b = SRGBGammaToLinear(B / 255.0f);
+                    //    DstColor.a = A / 255.0f;
+                    //}
                 }
 
                 if (Texture->EnableNearestFiltering)
@@ -927,24 +974,24 @@ uint32_t PackSceneData(scene* Scene)
 
             Packed.Opacity = Material->Opacity;
 
-            Packed.BaseColor = Material->BaseColor;
+            Packed.BaseColor = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->BaseColor);
             Packed.BaseWeight = Material->BaseWeight;
             Packed.BaseMetalness = Material->BaseMetalness;
             Packed.BaseDiffuseRoughness = Material->BaseDiffuseRoughness;
 
-            Packed.SpecularColor = Material->SpecularColor;
+            Packed.SpecularColor = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->SpecularColor);
             Packed.SpecularWeight = Material->SpecularWeight;
 
             Packed.SpecularIOR = Material->SpecularIOR;
             Packed.SpecularRoughness = Material->SpecularRoughness;
             Packed.SpecularRoughnessAnisotropy = Material->SpecularRoughnessAnisotropy;
 
-            Packed.TransmissionColor = Material->TransmissionColor;
+            Packed.TransmissionColor = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->TransmissionColor);
             Packed.TransmissionWeight = Material->TransmissionWeight;
             Packed.TransmissionScatter = Material->TransmissionScatter;
             Packed.TransmissionScatterAnisotropy = Material->TransmissionScatterAnisotropy;
 
-            Packed.EmissionColor = Material->EmissionColor;
+            Packed.EmissionColor = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->EmissionColor);
             Packed.EmissionLuminance = Material->EmissionLuminance;
 
             Packed.ScatteringRate = Material->ScatteringRate;

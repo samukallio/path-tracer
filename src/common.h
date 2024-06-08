@@ -25,15 +25,14 @@ uint32_t const TEXTURE_INDEX_NONE   = 0xFFFFFFFF;
 enum render_mode : int32_t
 {
     RENDER_MODE_PATH_TRACE              = 0,
-    RENDER_MODE_PATH_TRACE_SPECTRAL     = 1,
-    RENDER_MODE_BASE_COLOR              = 2,
-    RENDER_MODE_BASE_COLOR_SHADED       = 3,
-    RENDER_MODE_NORMAL                  = 4,
-    RENDER_MODE_MATERIAL_INDEX          = 5,
-    RENDER_MODE_PRIMITIVE_INDEX         = 6,
-    RENDER_MODE_MESH_COMPLEXITY         = 7,
-    RENDER_MODE_SCENE_COMPLEXITY        = 8,
-    RENDER_MODE__COUNT                  = 9,
+    RENDER_MODE_BASE_COLOR              = 1,
+    RENDER_MODE_BASE_COLOR_SHADED       = 2,
+    RENDER_MODE_NORMAL                  = 3,
+    RENDER_MODE_MATERIAL_INDEX          = 4,
+    RENDER_MODE_PRIMITIVE_INDEX         = 5,
+    RENDER_MODE_MESH_COMPLEXITY         = 6,
+    RENDER_MODE_SCENE_COMPLEXITY        = 7,
+    RENDER_MODE__COUNT                  = 8,
 };
 
 enum render_flag : uint32_t
@@ -206,7 +205,7 @@ struct image
 {
     uint32_t                    Width;
     uint32_t                    Height;
-    uint32_t const*             Pixels;
+    glm::vec4 const*            Pixels;
 };
 
 struct transform
@@ -242,7 +241,6 @@ inline char const* RenderModeName(render_mode Mode)
 {
     switch (Mode) {
     case RENDER_MODE_PATH_TRACE:            return "Path Trace";
-    case RENDER_MODE_PATH_TRACE_SPECTRAL:   return "Path Trace (Spectral)";
     case RENDER_MODE_BASE_COLOR:            return "Base Color";
     case RENDER_MODE_BASE_COLOR_SHADED:     return "Base Color (Shaded)";
     case RENDER_MODE_NORMAL:                return "Normal";

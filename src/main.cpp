@@ -405,8 +405,8 @@ int main()
     App.Scene = &Scene;
     App.Camera = nullptr;
 
-    App.SRGBSpectrumTable = new parametric_spectrum_table;
-    LoadParametricSpectrumTable(App.SRGBSpectrumTable, "../sRGBToSpectrum.dat");
+    Scene.RGBSpectrumTable = new parametric_spectrum_table;
+    LoadParametricSpectrumTable(Scene.RGBSpectrumTable, "../sRGBToSpectrum.dat");
 
     Scene.Root.Name = "Root";
 

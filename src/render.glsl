@@ -140,6 +140,19 @@ vec3 SampleSkybox(ray Ray)
     return Color * SkyboxBrightness;
 }
 
+float SampleSpectralSkybox(ray Ray, float Lambda)
+{
+    float Phi = atan(Ray.Vector.y, Ray.Vector.x);
+    float Theta = asin(Ray.Vector.z);
+
+    float U = 0.5 + Phi / TAU;
+    float V = 0.5 - Theta / PI;
+
+    vec4 Value = textureLod(SkyboxImage, vec2(U, V), 0);
+
+    return SampleParametricSpectrum(Value.xyz, Lambda) * Value.a;
+}
+
 vec4 SampleTexture(uint Index, vec2 UV)
 {
     packed_texture Texture = Textures[Index];
@@ -474,7 +487,7 @@ void ResolveHitSurfaceData(ray Ray, inout hit Hit)
 
     if (Hit.Material.BaseColorTextureIndex != TEXTURE_INDEX_NONE) {
         vec4 Value = SampleTexture(Hit.Material.BaseColorTextureIndex, Hit.UV);
-        Hit.Material.BaseColor *= Value.rgb;
+        Hit.Material.BaseColor = Value.rgb;
         Hit.Material.Opacity *= Value.a;
     }
 
@@ -493,8 +506,10 @@ void ResolveHitSurfaceData(ray Ray, inout hit Hit)
 
 vec4 TracePath(ray Ray)
 {
-    vec3 OutputColor = vec3(0, 0, 0);
-    vec3 FilterColor = vec3(1, 1, 1);
+    float Lambda = mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, Random0To1());
+
+    float Output = 0.0;
+    float Filter = 1.0; //* (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN);
 
     const int MAX_MEDIUM_COUNT = 8;
 
@@ -529,7 +544,7 @@ vec4 TracePath(ray Ray)
                 continue;
             }
             else {
-                OutputColor += FilterColor * SampleSkybox(Ray);
+                Output += Filter * SampleSpectralSkybox(Ray, Lambda);
                 break;
             }
         }
@@ -619,14 +634,17 @@ vec4 TracePath(ray Ray)
             Incoming = 2 * SpecularCosine * SpecularNormal - Outgoing;
             if (Incoming.z <= 0) break;
 
+            float Base = SampleParametricSpectrum(Material.BaseColor, Lambda);
+            float Specular = SampleParametricSpectrum(Material.SpecularColor, Lambda);
+
             // Compute Fresnel term.
-            vec3 F0 = Material.BaseWeight * Material.BaseColor;
-            vec3 F = Material.SpecularWeight * SchlickFresnelMetalWithTint(F0, Material.SpecularColor, SpecularCosine);
+            float F0 = Material.BaseWeight * Base;
+            float F = Material.SpecularWeight * SchlickFresnelMetal(Base, Specular, SpecularCosine);
 
             // Compute shadowing term.
             float G = SmithG1(Incoming, SpecularRoughnessAlpha);
 
-            FilterColor *= F * G;
+            Filter *= F * G;
         }
         // Translucent dielectric base.
         else if (Random0To1() < Hit.Material.TransmissionWeight) {
@@ -654,7 +672,7 @@ vec4 TracePath(ray Ray)
                     // Per the OpenPBR specification: the specular color material
                     // parameter modulates the Fresnel factor of the dielectric,
                     // but only for reflections from above (and not below).
-                    FilterColor *= Material.SpecularColor;
+                    Filter *= SampleParametricSpectrum(Material.SpecularColor, Lambda);
                 }
             }
             else {
@@ -670,7 +688,7 @@ vec4 TracePath(ray Ray)
 
             float G = SmithG1(Incoming, SpecularRoughnessAlpha);
 
-            FilterColor *= G;
+            Filter *= G;
         }
         // Glossy-diffuse dielectric base.
         else {
@@ -690,12 +708,12 @@ vec4 TracePath(ray Ray)
                     // Per the OpenPBR specification: the specular color material
                     // parameter modulates the Fresnel factor of the dielectric,
                     // but only for reflections from above (and not below).
-                    FilterColor *= Material.SpecularColor;
+                    Filter *= SampleParametricSpectrum(Material.SpecularColor, Lambda);
                 }
 
                 float G = SmithG1(Incoming, SpecularRoughnessAlpha);
 
-                FilterColor *= G;
+                Filter *= G;
             }
             else {
                 // Diffuse reflection.
@@ -704,11 +722,13 @@ vec4 TracePath(ray Ray)
                 float S = dot(Incoming, Outgoing) - Incoming.z * Outgoing.z;
                 float T = S > 0 ? max(Incoming.z, Outgoing.z) : 1.0;
 
+                float BaseColorSample = SampleParametricSpectrum(Material.BaseColor, Lambda);
+
                 float SigmaSq = Material.BaseDiffuseRoughness * Material.BaseDiffuseRoughness;
-                vec3 A = 1 - 0.5 * SigmaSq / (SigmaSq + 0.33) + 0.17 * Material.BaseColor * SigmaSq / (SigmaSq + 0.13);
+                float A = 1 - 0.5 * SigmaSq / (SigmaSq + 0.33) + 0.17 * BaseColorSample * SigmaSq / (SigmaSq + 0.13);
                 float B = 0.45 * SigmaSq / (SigmaSq + 0.09);
 
-                FilterColor *= Material.BaseColor * (A + B * S / T);
+                Filter *= BaseColorSample * (A + B * S / T);
             }
         }
 
@@ -765,15 +785,12 @@ vec4 TracePath(ray Ray)
         if (Random0To1() < RenderTerminationProbability)
             break;
 
-        FilterColor /= 1.0 - RenderTerminationProbability;
+        Filter /= 1.0 - RenderTerminationProbability;
     }
 
-    return vec4(OutputColor.rgb, 1);
-}
+    vec3 OutputColor = StandardObserverSRGB(Lambda) * Output;
 
-vec4 TracePathSpectral(ray Ray)
-{
-    return vec4(1, 0, 0, 1);
+    return vec4(OutputColor, 1);
 }
 
 hit IntersectAndResolve(ray Ray)
@@ -923,8 +940,6 @@ void main()
 
     if (RenderMode == RENDER_MODE_PATH_TRACE)
         SampleValue = TracePath(Ray);
-    else if (RenderMode == RENDER_MODE_PATH_TRACE_SPECTRAL)
-        SampleValue = TracePathSpectral(Ray);
     else if (RenderMode == RENDER_MODE_BASE_COLOR)
         SampleValue = TraceBaseColor(Ray, false);
     else if (RenderMode == RENDER_MODE_BASE_COLOR_SHADED)
