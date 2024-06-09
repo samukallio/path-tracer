@@ -514,6 +514,9 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
         for (tinyobj::shape_t const& Shape : Shapes) {
             size_t ShapeIndexCount = Shape.mesh.indices.size();
 
+            if (ShapeIndexCount == 0)
+                continue;
+
             if (!Options->MergeIntoSingleMesh) {
                 Mesh = new mesh;
                 Mesh->Name = !Shape.name.empty() ? Shape.name : "Shape";
