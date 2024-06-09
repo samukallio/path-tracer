@@ -536,6 +536,9 @@ void ResolveSurfaceParameters(hit Hit, float Lambda, out surface_parameters Surf
         Surface.SpecularRoughness *= Value.r;
     }
 
+    // Transmission.
+    Surface.TransmissionWeight = Material.TransmissionWeight;
+
     // Medium.
     Surface.MediumScatteringRate = Material.ScatteringRate;
 }
