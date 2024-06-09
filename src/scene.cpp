@@ -419,9 +419,16 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
         size_t n = Normals.size();
         for (size_t i = 0; i < n; i += 3) {
             float length = glm::length(glm::vec3(Normals[i+0], Normals[i+1], Normals[i+2]));
-            Normals[i+0] /= length;
-            Normals[i+1] /= length;
-            Normals[i+2] /= length;
+            if (length > EPSILON) {
+                Normals[i+0] /= length;
+                Normals[i+1] /= length;
+                Normals[i+2] /= length;
+            }
+            else {
+                Normals[i+0] = 0;
+                Normals[i+1] = 0;
+                Normals[i+2] = 1;
+            }
         }
     }
 
