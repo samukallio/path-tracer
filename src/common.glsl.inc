@@ -313,7 +313,7 @@ float SmithG1(vec3 Direction, vec2 Roughness)
 // using the multi-lobe piecewise Gaussian fit of the CIE 1931 standard observer
 // presented in the paper "Simple Analytic Approximations to the CIE XYZ Color
 // Matching Functions" by Chris Wyman et al.
-vec3 StandardObserverXYZ(float Lambda)
+vec3 SampleStandardObserverXYZ(float Lambda)
 {
     vec3 Result;
     {
@@ -347,15 +347,32 @@ const mat3 CIE_XYZ_TO_SRGB = mat3(
 );
 
 // Like StandardObserverXYZ(), but gives linear sRGB values.
-vec3 StandardObserverSRGB(float Lambda)
+vec3 SampleStandardObserverSRGB(float Lambda)
 {
-    return CIE_XYZ_TO_SRGB * StandardObserverXYZ(Lambda);
+    return CIE_XYZ_TO_SRGB * SampleStandardObserverXYZ(Lambda);
 }
 
+// Sample a parametric reflectance spectrum at a given wavelength.
 float SampleParametricSpectrum(vec3 Beta, float Lambda)
 {
     float X = (Beta.x * Lambda + Beta.y) * Lambda + Beta.z;
     return 0.5 + X / (2.0 * sqrt(1.0 + X * X));
+}
+
+// Compute the SRGB tristimulus response of a parametric spectrum under
+// an illuminant with a constant power spectrum.  This is useful to retrieve
+// the SRGB color corresponding to a parametric spectrum for simple surface
+// color visualization.
+vec3 ObserveParametricSpectrumSRGB(vec3 Beta)
+{
+    const int SampleCount = 16;
+    const float DeltaLambda = (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN) / SampleCount;
+    vec3 Color = vec3(0, 0, 0);
+    for (int I = 0; I < SampleCount; I++) {
+        float Lambda = mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, I / float(SampleCount - 1));
+        Color += SampleParametricSpectrum(Beta, Lambda) * SampleStandardObserverSRGB(Lambda) * DeltaLambda;
+    }
+    return Color / 50.0;
 }
 
 /* --- Random -------------------------------------------------------------- */

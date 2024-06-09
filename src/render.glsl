@@ -791,7 +791,7 @@ vec4 TracePath(ray Ray)
         Filter /= 1.0 - RenderTerminationProbability;
     }
 
-    vec3 OutputColor = StandardObserverSRGB(Lambda) * Output;
+    vec3 OutputColor = SampleStandardObserverSRGB(Lambda) * Output;
 
     return vec4(OutputColor, 1);
 }
@@ -813,15 +813,17 @@ vec4 TraceBaseColor(ray Ray, bool IsShaded)
     if (Hit.Time == INFINITY)
         return vec4(SampleSkybox(Ray), 1);
 
+    vec3 BaseColor = ObserveParametricSpectrumSRGB(Hit.Material.BaseColor);
+
     if (IsShaded) {
         float Shading = dot(Hit.Normal, -Ray.Vector);
         if (Hit.ShapeIndex == SelectedShapeIndex)
-            return vec4((Hit.Material.BaseColor + vec3(1,0,0)) * Shading, 1.0);
+            return vec4((BaseColor + vec3(1,0,0)) * Shading, 1.0);
         else
-            return vec4(Hit.Material.BaseColor * Shading, 1.0);
+            return vec4(BaseColor * Shading, 1.0);
     }
     else {
-        return vec4(Hit.Material.BaseColor, 1);
+        return vec4(BaseColor, 1);
     }
 }
 
