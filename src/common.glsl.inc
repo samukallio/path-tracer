@@ -257,6 +257,7 @@ vec3 SampleVisibleNormalGGX(vec3 Direction, vec2 RoughnessAlpha, float U1, float
         max(0.0, Normal.z)));
 }
 
+// Computes the Fresnel term for a dielectric surface using the Schlick approximation.
 float SchlickFresnelDielectric(float F0, float CosTheta)
 {
     return F0 + (1 - F0) * pow(1 - CosTheta, 5);
@@ -280,7 +281,7 @@ float SchlickFresnelMetal(float Base, float Specular, float CosTheta)
 
 // Computes a wavelength-dependent refractive index according to
 // the Cauchy empirical formula.
-float ComputeIOR(float BaseIOR, float AbbeNumber, float Lambda)
+float CauchyEmpiricalIOR(float BaseIOR, float AbbeNumber, float Lambda)
 {
     // Fraunhofer C, d, and F spectral lines.
     const float LC = 656.3;

@@ -584,7 +584,7 @@ vec4 TracePath(ray Ray)
 
             if (!IsVirtualSurface) {
                 float AbbeNumber = Material.TransmissionDispersionAbbeNumber / Material.TransmissionDispersionScale;
-                float IOR = ComputeIOR(Material.SpecularIOR, AbbeNumber, Lambda);
+                float IOR = CauchyEmpiricalIOR(Material.SpecularIOR, AbbeNumber, Lambda);
                 RelativeIOR = CurrentMedium.IOR / IOR;
             }
         }
