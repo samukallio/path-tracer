@@ -488,5 +488,5 @@ uniform frame_uniform_buffer
     mat3                SkyboxDistributionFrame;
     float               SkyboxDistributionConcentration;
     float               SkyboxBrightness;
-    uint                SkyboxWhiteFurnace;
+    uint                SkyboxTextureIndex;
 };

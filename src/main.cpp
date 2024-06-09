@@ -85,7 +85,7 @@ void Frame()
         .SkyboxDistributionFrame = App.Scene->SkyboxDistributionFrame,
         .SkyboxDistributionConcentration = App.Scene->SkyboxDistributionConcentration,
         .SkyboxBrightness = App.Scene->Root.SkyboxBrightness,
-        .SkyboxWhiteFurnace = App.Scene->Root.SkyboxWhiteFurnace,
+        .SkyboxTextureIndex = GetPackedTextureIndex(App.Scene->Root.SkyboxTexture),
     };
 
     if (!App.Camera) {
@@ -415,6 +415,7 @@ int main()
     }
 
     Scene.Root.Name = "Root";
+    Scene.Root.SkyboxTexture = LoadTexture(&Scene, "../scene/CloudedSunGlow4k.hdr", TEXTURE_TYPE_RADIANCE);
 
     CreateBasicResources(&Scene);
 
@@ -474,7 +475,6 @@ int main()
     InitializeUI(&App);
 
     PackSceneData(&Scene);
-    LoadSkybox(&Scene, "../scene/CloudedSunGlow4k.hdr");
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);

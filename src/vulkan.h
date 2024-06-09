@@ -135,7 +135,6 @@ struct vulkan_context
     vulkan_buffer               MeshFaceBuffer              = {};
     vulkan_buffer               MeshFaceExtraBuffer         = {};
     vulkan_buffer               MeshNodeBuffer              = {};
-    vulkan_image                SkyboxImage                 = {};
 
     vulkan_pipeline             ResolvePipeline             = {};
     vulkan_pipeline             RenderPipeline              = {};

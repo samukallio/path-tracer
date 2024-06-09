@@ -209,7 +209,7 @@ struct frame_uniform_buffer
     glm::aligned_mat3           SkyboxDistributionFrame     = {};
     float                       SkyboxDistributionConcentration = 1.0f;
     float                       SkyboxBrightness            = 1.0f;
-    uint32_t                    SkyboxWhiteFurnace          = 0;
+    uint32_t                    SkyboxTextureIndex          = TEXTURE_INDEX_NONE;
 };
 
 struct image
@@ -294,6 +294,8 @@ inline char const* TextureTypeName(texture_type Type)
     case TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA: return "Reflectance (with alpha)";
     case TEXTURE_TYPE_RADIANCE:             return "Radiance";
     }
+    assert(false);
+    return nullptr;
 }
 
 inline ray TransformRay(ray const& Ray, glm::mat4 const& Matrix)

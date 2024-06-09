@@ -32,51 +32,48 @@ layout(binding = 2, rgba32f)
 uniform writeonly image2D OutputImage;
 
 layout(binding = 3)
-uniform sampler2D SkyboxImage;
-
-layout(binding = 4)
 uniform sampler2DArray TextureArrayNearest;
 
-layout(binding = 5)
+layout(binding = 4)
 uniform sampler2DArray TextureArrayLinear;
 
-layout(binding = 6)
+layout(binding = 5)
 readonly buffer TextureBuffer
 {
     packed_texture Textures[];
 };
 
-layout(binding = 7, std430)
+layout(binding = 6, std430)
 readonly buffer MaterialBuffer
 {
     packed_material Materials[];
 };
 
-layout(binding = 8, std430)
+layout(binding = 7, std430)
 readonly buffer ObjectBuffer
 {
     packed_shape Shapes[];
 };
 
-layout(binding = 9, std430)
+layout(binding = 8, std430)
 readonly buffer ShapeNodeBuffer
 {
     packed_shape_node ShapeNodes[];
 };
 
-layout(binding = 10, std430)
+layout(binding = 9, std430)
 readonly buffer MeshFaceBuffer
 {
     packed_mesh_face MeshFaces[];
 };
 
-layout(binding = 11, std430)
+layout(binding = 10, std430)
 readonly buffer MeshFaceExtraBuffer
 {
     packed_mesh_face_extra MeshFaceExtras[];
 };
 
-layout(binding = 12, std430)
+layout(binding = 11, std430)
 readonly buffer MeshNodeBuffer
 {
     packed_mesh_node MeshNodes[];
@@ -118,32 +115,6 @@ float HemisphereSkyboxDirectionPDF(vec3 Direction)
     return C * (exp(Z) + exp(-Z));
 }
 
-vec4 SampleSkyboxSpectrum(ray Ray)
-{
-//    mat3 frame = skyboxDistributionFrame;
-//    float x = (1 + dot(Ray.Vector, frame[0])) / 2.0;
-//    float y = (1 + dot(Ray.Vector, frame[1])) / 2.0;
-//    float z = (1 + dot(Ray.Vector, frame[2])) / 2.0;
-//    return vec3(x, y, z);
-
-    if (SkyboxWhiteFurnace != 0)
-        return vec4(0, 0, 100, 1);
-
-    float Phi = atan(Ray.Vector.y, Ray.Vector.x);
-    float Theta = asin(Ray.Vector.z);
-
-    float U = 0.5 + Phi / TAU;
-    float V = 0.5 - Theta / PI;
-
-    return textureLod(SkyboxImage, vec2(U, V), 0);
-}
-
-float SampleSkyboxRadiance(ray Ray, float Lambda)
-{
-    vec4 Spectrum = SampleSkyboxSpectrum(Ray);
-    return SampleParametricSpectrum(Spectrum, Lambda);
-}
-
 vec4 SampleTexture(uint Index, vec2 UV)
 {
     packed_texture Texture = Textures[Index];
@@ -164,6 +135,32 @@ vec4 SampleTexture(uint Index, vec2 UV)
         return textureLod(TextureArrayNearest, UVW, 0);
     else
         return textureLod(TextureArrayLinear, UVW, 0);
+}
+
+vec4 SampleSkyboxSpectrum(ray Ray)
+{
+//    mat3 frame = skyboxDistributionFrame;
+//    float x = (1 + dot(Ray.Vector, frame[0])) / 2.0;
+//    float y = (1 + dot(Ray.Vector, frame[1])) / 2.0;
+//    float z = (1 + dot(Ray.Vector, frame[2])) / 2.0;
+//    return vec3(x, y, z);
+
+    if (SkyboxTextureIndex == TEXTURE_INDEX_NONE)
+        return vec4(0, 0, 100, 1);
+
+    float Phi = atan(Ray.Vector.y, Ray.Vector.x);
+    float Theta = asin(Ray.Vector.z);
+
+    float U = 0.5 + Phi / TAU;
+    float V = 0.5 + Theta / PI;
+
+    return SampleTexture(SkyboxTextureIndex, vec2(U, V));
+}
+
+float SampleSkyboxRadiance(ray Ray, float Lambda)
+{
+    vec4 Spectrum = SampleSkyboxSpectrum(Ray);
+    return SampleParametricSpectrum(Spectrum, Lambda);
 }
 
 /* --- Tracing ------------------------------------------------------------- */

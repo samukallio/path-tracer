@@ -633,26 +633,26 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
     return Prefab;
 }
 
-bool LoadSkybox(scene* Scene, char const* Path)
-{
-    int Width, Height, Components;
+//bool LoadSkybox(scene* Scene, char const* Path)
+//{
+    //int Width, Height, Components;
 
-    Scene->SkyboxPixels = reinterpret_cast<glm::vec4*>(stbi_loadf(Path, &Width, &Height, &Components, STBI_rgb_alpha));
-    Scene->SkyboxWidth = static_cast<uint32_t>(Width);
-    Scene->SkyboxHeight = static_cast<uint32_t>(Height);
+    //Scene->SkyboxPixels = reinterpret_cast<glm::vec4*>(stbi_loadf(Path, &Width, &Height, &Components, STBI_rgb_alpha));
+    //Scene->SkyboxWidth = static_cast<uint32_t>(Width);
+    //Scene->SkyboxHeight = static_cast<uint32_t>(Height);
 
-    for (int Y = 0; Y < Height; Y++) {
-        for (int X = 0; X < Width; X++) {
-            int Index = Y * Width + X;
+    //for (int Y = 0; Y < Height; Y++) {
+    //    for (int X = 0; X < Width; X++) {
+    //        int Index = Y * Width + X;
 
-            glm::vec3 Color = Scene->SkyboxPixels[Index].rgb();
-            float Intensity = 2 * glm::max(glm::max(Color.r, Color.g), Color.b);
-            glm::vec3 Beta = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Color / Intensity);
-            Scene->SkyboxPixels[Index] = glm::vec4(Beta, Intensity);
-        }
-    }
+    //        glm::vec3 Color = Scene->SkyboxPixels[Index].rgb();
+    //        float Intensity = 2 * glm::max(glm::max(Color.r, Color.g), Color.b);
+    //        glm::vec3 Beta = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Color / Intensity);
+    //        Scene->SkyboxPixels[Index] = glm::vec4(Beta, Intensity);
+    //    }
+    //}
 
-    Scene->DirtyFlags |= SCENE_DIRTY_SKYBOX;
+    //Scene->DirtyFlags |= SCENE_DIRTY_SKYBOX;
 
     //float* Pixels = Scene->SkyboxPixels;
 
@@ -695,8 +695,8 @@ bool LoadSkybox(scene* Scene, char const* Path)
     //Scene->SkyboxDistributionFrame = glm::mat3(FrameX, FrameY, FrameZ);
     //Scene->SkyboxDistributionConcentration = Concentration;
 
-    return true;
-}
+//    return true;
+//}
 
 static void PackShape(scene* Scene, glm::mat4 const& OuterTransform, entity* Entity, uint32_t& Priority)
 {
@@ -834,12 +834,6 @@ void PrintShapeNode(scene* Scene, uint16_t Index, int Depth)
     else {
         printf("Leaf %u (object %lu)\n", Index, Node.ShapeIndex);
     }
-}
-
-static uint32_t GetPackedTextureIndex(texture* Texture)
-{
-    if (!Texture) return TEXTURE_INDEX_NONE;
-    return Texture->PackedTextureIndex;
 }
 
 uint32_t PackSceneData(scene* Scene)

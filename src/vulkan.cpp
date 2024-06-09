@@ -1944,7 +1944,6 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,  // FrameUniformBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // InputImage
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,   // OutputImage
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // SkyboxImage
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // TextureArrayNearest
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // TextureArrayLinear
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // TextureBuffer
@@ -2019,7 +2018,6 @@ void DestroyVulkan(vulkan_context* Vulkan)
     InternalDestroyBuffer(Vulkan, &Vulkan->MeshNodeBuffer);
     InternalDestroyBuffer(Vulkan, &Vulkan->MeshFaceExtraBuffer);
     InternalDestroyBuffer(Vulkan, &Vulkan->MeshFaceBuffer);
-    InternalDestroyImage(Vulkan, &Vulkan->SkyboxImage);
     InternalDestroyImage(Vulkan, &Vulkan->ImageArray);
 
     InternalDestroyFrameResources(Vulkan);
@@ -2119,12 +2117,6 @@ static void InternalUpdateSceneDataDescriptors(
     if (Vulkan->MeshFaceBuffer.Buffer == VK_NULL_HANDLE)
         return;
 
-    auto SkyboxImageInfo = VkDescriptorImageInfo {
-        .sampler     = Vulkan->ImageSamplerLinearNoMip,
-        .imageView   = Vulkan->SkyboxImage.View,
-        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-    };
-
     auto TextureArrayNearestInfo = VkDescriptorImageInfo {
         .sampler     = Vulkan->ImageSamplerNearestNoMip,
         .imageView   = Vulkan->ImageArray.View,
@@ -2190,7 +2182,7 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .pImageInfo      = &SkyboxImageInfo,
+                .pImageInfo      = &TextureArrayNearestInfo,
             },
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -2199,21 +2191,12 @@ static void InternalUpdateSceneDataDescriptors(
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .pImageInfo      = &TextureArrayNearestInfo,
-            },
-            {
-                .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstSet          = Frame->RenderDescriptorSet,
-                .dstBinding      = 5,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 .pImageInfo      = &TextureArrayLinearInfo,
             },
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet          = Frame->RenderDescriptorSet,
-                .dstBinding      = 6,
+                .dstBinding      = 5,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -2222,7 +2205,7 @@ static void InternalUpdateSceneDataDescriptors(
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet          = Frame->RenderDescriptorSet,
-                .dstBinding      = 7,
+                .dstBinding      = 6,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -2231,7 +2214,7 @@ static void InternalUpdateSceneDataDescriptors(
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet          = Frame->RenderDescriptorSet,
-                .dstBinding      = 8,
+                .dstBinding      = 7,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -2240,7 +2223,7 @@ static void InternalUpdateSceneDataDescriptors(
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet          = Frame->RenderDescriptorSet,
-                .dstBinding      = 9,
+                .dstBinding      = 8,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -2249,7 +2232,7 @@ static void InternalUpdateSceneDataDescriptors(
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet          = Frame->RenderDescriptorSet,
-                .dstBinding      = 10,
+                .dstBinding      = 9,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -2258,7 +2241,7 @@ static void InternalUpdateSceneDataDescriptors(
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet          = Frame->RenderDescriptorSet,
-                .dstBinding      = 11,
+                .dstBinding      = 10,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -2267,7 +2250,7 @@ static void InternalUpdateSceneDataDescriptors(
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet          = Frame->RenderDescriptorSet,
-                .dstBinding      = 12,
+                .dstBinding      = 11,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -2292,7 +2275,6 @@ VkResult UploadScene(
 
     // Remove the old resources, but don't destroy them yet.
     // We must update descriptors to point to the new ones first.
-    vulkan_image SkyboxImageOld = {};
     vulkan_image ImageArrayOld = {};
     vulkan_buffer TextureBufferOld = {};
     vulkan_buffer MaterialBufferOld = {};
@@ -2301,31 +2283,6 @@ VkResult UploadScene(
     vulkan_buffer MeshFaceBufferOld = {};
     vulkan_buffer MeshFaceExtraBufferOld = {};
     vulkan_buffer MeshNodeBufferOld = {};
-
-    if (DirtyFlags & SCENE_DIRTY_SKYBOX) {
-        SkyboxImageOld = Vulkan->SkyboxImage;
-        Vulkan->SkyboxImage = vulkan_image {};
-
-        Result = InternalCreateImage(
-            Vulkan,
-            &Vulkan->SkyboxImage,
-            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            VK_IMAGE_TYPE_2D,
-            VK_FORMAT_R32G32B32A32_SFLOAT,
-            { .width = Scene->SkyboxWidth, .height = Scene->SkyboxHeight, .depth = 1 },
-            0,
-            VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            true);
-        InternalWriteToDeviceLocalImage(Vulkan,
-            &Vulkan->SkyboxImage, 0, 1,
-            Scene->SkyboxPixels,
-            Scene->SkyboxWidth,
-            Scene->SkyboxHeight,
-            sizeof(glm::vec4),
-            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-    }
 
     if (DirtyFlags & SCENE_DIRTY_TEXTURES) {
         ImageArrayOld = Vulkan->ImageArray;
@@ -2464,7 +2421,6 @@ VkResult UploadScene(
 
     InternalUpdateSceneDataDescriptors(Vulkan);
 
-    InternalDestroyImage(Vulkan, &SkyboxImageOld);
     InternalDestroyBuffer(Vulkan, &MeshFaceExtraBufferOld);
     InternalDestroyBuffer(Vulkan, &MeshFaceBufferOld);
     InternalDestroyBuffer(Vulkan, &MeshNodeBufferOld);

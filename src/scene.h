@@ -107,7 +107,7 @@ struct root : entity
 {
     float                           ScatterRate             = 0.0f;
     float                           SkyboxBrightness        = 1.0f;
-    bool                            SkyboxWhiteFurnace      = false;
+    texture*                        SkyboxTexture           = nullptr;
 
     root() { Type = ENTITY_TYPE_ROOT; }
 };
@@ -189,12 +189,11 @@ struct prefab
 
 enum scene_dirty_flag
 {
-    SCENE_DIRTY_SKYBOX              = 1 << 0,
-    SCENE_DIRTY_TEXTURES            = 1 << 1,
-    SCENE_DIRTY_MATERIALS           = 1 << 2,
-    SCENE_DIRTY_SHAPES              = 1 << 3,
-    SCENE_DIRTY_MESHES              = 1 << 4,
-    SCENE_DIRTY_CAMERAS             = 1 << 5,
+    SCENE_DIRTY_TEXTURES            = 1 << 0,
+    SCENE_DIRTY_MATERIALS           = 1 << 1,
+    SCENE_DIRTY_SHAPES              = 1 << 2,
+    SCENE_DIRTY_MESHES              = 1 << 3,
+    SCENE_DIRTY_CAMERAS             = 1 << 4,
     SCENE_DIRTY_ALL                 = 0xFFFFFFFF,
 };
 
@@ -219,9 +218,6 @@ struct scene
     std::vector<packed_mesh_face_extra> MeshFaceExtraPack;
     std::vector<packed_mesh_node>       MeshNodePack;
 
-    uint32_t                            SkyboxWidth;
-    uint32_t                            SkyboxHeight;
-    glm::vec4*                          SkyboxPixels;
     glm::mat3                           SkyboxDistributionFrame;
     float                               SkyboxDistributionConcentration;
 
@@ -242,6 +238,12 @@ struct load_model_options
     bool            MergeIntoSingleMesh         = false;
 };
 
+inline uint32_t GetPackedTextureIndex(texture* Texture)
+{
+    if (!Texture) return TEXTURE_INDEX_NONE;
+    return Texture->PackedTextureIndex;
+}
+
 char const* EntityTypeName(entity_type Type);
 
 entity*     CreateEntity(scene* Scene, entity_type Type, entity* Parent = nullptr);
@@ -251,7 +253,6 @@ material*   CreateMaterial(scene* Scene, char const* Name);
 texture*    CreateCheckerTexture(scene* Scene, char const* Name, glm::vec4 const& ColorA, glm::vec4 const& ColorB);
 texture*    LoadTexture(scene* Scene, char const* Path, texture_type Type, char const* Name = nullptr);
 prefab*     LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Options = nullptr);
-bool        LoadSkybox(scene* Scene, char const* Path);
 
 uint32_t    PackSceneData(scene* Scene);
 entity*     FindEntityByPackedShapeIndex(scene* Scene, uint32_t PackedShapeIndex);
