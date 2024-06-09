@@ -55,15 +55,15 @@ struct packed_texture
 
 struct packed_material
 {
-    vec3            BaseColor;
+    vec3            BaseColorSpectrum;
     float           BaseWeight;
-    vec3            SpecularColor;
+    vec3            SpecularColorSpectrum;
     float           SpecularWeight;
-    vec3            TransmissionColor;
+    vec3            TransmissionColorSpectrum;
     float           TransmissionWeight;
-    vec3            TransmissionScatter;
+    vec3            TransmissionScatterSpectrum;
     float           TransmissionScatterAnisotropy;
-    vec3            EmissionColor;
+    vec3            EmissionColorSpectrum;
     float           EmissionLuminance;
 
     float           Opacity;

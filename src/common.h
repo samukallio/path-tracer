@@ -95,15 +95,15 @@ struct alignas(16) packed_texture
 // and must follow std430 layout rules.
 struct alignas(16) packed_material
 {
-    glm::vec3                   BaseColor;
+    glm::vec3                   BaseColorSpectrum;
     float                       BaseWeight;
-    glm::vec3                   SpecularColor;
+    glm::vec3                   SpecularColorSpectrum;
     float                       SpecularWeight;
-    glm::vec3                   TransmissionColor;
+    glm::vec3                   TransmissionColorSpectrum;
     float                       TransmissionWeight;
-    glm::vec3                   TransmissionScatter;
+    glm::vec3                   TransmissionScatterSpectrum;
     float                       TransmissionScatterAnisotropy;
-    glm::vec3                   EmissionColor;
+    glm::vec3                   EmissionColorSpectrum;
     float                       EmissionLuminance;
 
     float                       Opacity;
