@@ -240,8 +240,8 @@ static glm::vec3 OptimizeSpectrum(
         if (glm::abs(glm::determinant(Jacobian)) < 1e-15) {
             // The Jacobian is degenerate, so we are probably
             // very close to a local optimum.  Stop iterating.
-            printf("Degenerate Jacobian: TargetXYZ=(%.5f,%.5f,%.5f), Iteration=%d, Error=%e\n",
-                TargetXYZ.x, TargetXYZ.y, TargetXYZ.z, I, Error);
+            //printf("Degenerate Jacobian: TargetXYZ=(%.5f,%.5f,%.5f), Iteration=%d, Error=%e\n",
+            //    TargetXYZ.x, TargetXYZ.y, TargetXYZ.z, I, Error);
             break;
         }
 
@@ -254,14 +254,14 @@ static glm::vec3 OptimizeSpectrum(
     }
 
     // Report a poor fit.  A CIELAB distance of 2.3 is a "just noticeable difference".
-    if (Error > 2) {
-        glm::dvec3 FitXYZ = ObserveSpectrumUnderD65(NormalizedBeta);
-        printf("Poor fit: TargetXYZ=(%.5f,%.5f,%.5f), FitXYZ=(%.5f,%.5f,%.5f), Beta=(%.3f,%.3f,%.3f), Error=%e\n",
-            TargetXYZ.x, TargetXYZ.y, TargetXYZ.z,
-            FitXYZ.x, FitXYZ.y, FitXYZ.z,
-            NormalizedBeta.x, NormalizedBeta.y, NormalizedBeta.z,
-            Error);
-    }
+    //if (Error > 2) {
+    //    glm::dvec3 FitXYZ = ObserveSpectrumUnderD65(NormalizedBeta);
+    //    printf("Poor fit: TargetXYZ=(%.5f,%.5f,%.5f), FitXYZ=(%.5f,%.5f,%.5f), Beta=(%.3f,%.3f,%.3f), Error=%e\n",
+    //        TargetXYZ.x, TargetXYZ.y, TargetXYZ.z,
+    //        FitXYZ.x, FitXYZ.y, FitXYZ.z,
+    //        NormalizedBeta.x, NormalizedBeta.y, NormalizedBeta.z,
+    //        Error);
+    //}
 
     return NormalizedBeta;
 }

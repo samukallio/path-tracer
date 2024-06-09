@@ -13,6 +13,7 @@
 int const WINDOW_WIDTH = 1920;
 int const WINDOW_HEIGHT = 1080;
 char const* APPLICATION_NAME = "Path Tracer";
+char const* SRGB_SPECTRUM_TABLE_FILE = "sRGBSpectrumTable.dat";
 
 application App;
 
@@ -406,7 +407,12 @@ int main()
     App.Camera = nullptr;
 
     Scene.RGBSpectrumTable = new parametric_spectrum_table;
-    LoadParametricSpectrumTable(Scene.RGBSpectrumTable, "../sRGBToSpectrum.dat");
+    if (!LoadParametricSpectrumTable(Scene.RGBSpectrumTable, SRGB_SPECTRUM_TABLE_FILE)) {
+        printf("%s not found, generating it.\n", SRGB_SPECTRUM_TABLE_FILE);
+        printf("This will probably take a few minutes...\n");
+        BuildParametricSpectrumTableForSRGB(Scene.RGBSpectrumTable);
+        SaveParametricSpectrumTable(Scene.RGBSpectrumTable, SRGB_SPECTRUM_TABLE_FILE);
+    }
 
     Scene.Root.Name = "Root";
 
