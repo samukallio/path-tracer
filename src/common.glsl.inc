@@ -73,6 +73,8 @@ struct packed_material
     float           SpecularRoughness;
     float           SpecularRoughnessAnisotropy;
     float           TransmissionDepth;
+    float           TransmissionDispersionScale;
+    float           TransmissionDispersionAbbeNumber;
     float           ScatteringRate;
 
     uint            BaseColorTextureIndex;
@@ -274,6 +276,21 @@ float SchlickFresnelMetal(float Base, float Specular, float CosTheta)
     const float Denominator = CosThetaMax * pow(1 - CosThetaMax, 6);
     float Nominator = CosTheta * pow(1 - CosTheta, 6);
     return FSchlick - (Nominator / Denominator) * (FSchlickMax - FMax);
+}
+
+// Computes a wavelength-dependent refractive index according to
+// the Cauchy empirical formula.
+float ComputeIOR(float BaseIOR, float AbbeNumber, float Lambda)
+{
+    // Fraunhofer C, d, and F spectral lines.
+    const float LC = 656.3;
+    const float Ld = 587.6;
+    const float LF = 486.1;
+
+    float B = (BaseIOR - 1) / (AbbeNumber * (1.0 / (LF * LF) - 1.0 / (LC * LC)));
+    float A = BaseIOR - B / (Ld * Ld);
+
+    return A + B / (Lambda * Lambda);
 }
 
 // One half of the uncorrelated Smith shadowing-masking function for the

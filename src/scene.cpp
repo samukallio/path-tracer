@@ -990,6 +990,8 @@ uint32_t PackSceneData(scene* Scene)
             Packed.TransmissionWeight = Material->TransmissionWeight;
             Packed.TransmissionScatter = Material->TransmissionScatter;
             Packed.TransmissionScatterAnisotropy = Material->TransmissionScatterAnisotropy;
+            Packed.TransmissionDispersionScale = Material->TransmissionDispersionScale;
+            Packed.TransmissionDispersionAbbeNumber = Material->TransmissionDispersionAbbeNumber;
 
             Packed.EmissionColor = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->EmissionColor);
             Packed.EmissionLuminance = Material->EmissionLuminance;

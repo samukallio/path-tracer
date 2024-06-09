@@ -111,6 +111,8 @@ static void MaterialInspector(application* App, material* Material, bool Referen
     C |= ImGui::DragFloat("Transmission Depth", &Material->TransmissionDepth, 0.01f, 0.0f, 1.0f);
     C |= ImGui::ColorEdit3("Transmission Scatter", &Material->TransmissionScatter[0]);
     C |= ImGui::DragFloat("Transmission Scatter Anisotropy", &Material->TransmissionScatterAnisotropy, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Transmission Dispersion Scale", &Material->TransmissionDispersionScale, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Transmission Dispersion Abbe Number", &Material->TransmissionDispersionAbbeNumber, 0.01f, 0.0f, 10000.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
 
     C |= ImGui::DragFloat("Emission Luminance", &Material->EmissionLuminance, 1.0f, 0.0f, 1000.0f);
     C |= ImGui::ColorEdit3("Emission Color", &Material->EmissionColor[0]);

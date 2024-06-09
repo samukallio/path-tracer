@@ -40,6 +40,8 @@ struct material
     float                           TransmissionDepth       = 0.0f;
     glm::vec3                       TransmissionScatter     = glm::vec3(0, 0, 0);
     float                           TransmissionScatterAnisotropy = 0.0f;
+    float                           TransmissionDispersionScale = 0.0f;
+    float                           TransmissionDispersionAbbeNumber = 20.0f;
 
     float                           EmissionLuminance       = 0.0f;
     glm::vec3                       EmissionColor           = glm::vec3(0, 0, 0);

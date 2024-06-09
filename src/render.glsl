@@ -582,8 +582,11 @@ vec4 TracePath(ray Ray)
             // a higher priority shape than we are currently traversing through.
             IsVirtualSurface = CurrentMedium.ShapePriority >= Hit.ShapePriority;
 
-            if (!IsVirtualSurface)
-                RelativeIOR = CurrentMedium.IOR / Material.SpecularIOR;
+            if (!IsVirtualSurface) {
+                float AbbeNumber = Material.TransmissionDispersionAbbeNumber / Material.TransmissionDispersionScale;
+                float IOR = ComputeIOR(Material.SpecularIOR, AbbeNumber, Lambda);
+                RelativeIOR = CurrentMedium.IOR / IOR;
+            }
         }
         else {
             Outgoing.z = -Outgoing.z;

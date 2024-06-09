@@ -113,7 +113,10 @@ struct alignas(16) packed_material
     float                       SpecularRoughness;
     float                       SpecularRoughnessAnisotropy;
     float                       TransmissionDepth;
+    float                       TransmissionDispersionScale;
+    float                       TransmissionDispersionAbbeNumber;
     float                       ScatteringRate;
+
 
     uint32_t                    BaseColorTextureIndex;
     uint32_t                    SpecularRoughnessTextureIndex;
