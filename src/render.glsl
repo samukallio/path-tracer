@@ -118,7 +118,7 @@ float HemisphereSkyboxDirectionPDF(vec3 Direction)
     return C * (exp(Z) + exp(-Z));
 }
 
-vec4 SampleSkyboxColorSpectrum(ray Ray)
+vec4 SampleSkyboxSpectrum(ray Ray)
 {
 //    mat3 frame = skyboxDistributionFrame;
 //    float x = (1 + dot(Ray.Vector, frame[0])) / 2.0;
@@ -140,7 +140,7 @@ vec4 SampleSkyboxColorSpectrum(ray Ray)
 
 float SampleSkyboxRadiance(ray Ray, float Lambda)
 {
-    vec4 Spectrum = SampleSkyboxColorSpectrum(Ray);
+    vec4 Spectrum = SampleSkyboxSpectrum(Ray);
     return SampleParametricSpectrum(Spectrum, Lambda);
 }
 
@@ -514,19 +514,19 @@ void ResolveSurfaceParameters(hit Hit, float Lambda, out surface_parameters Surf
     // Base reflectance and opacity.
     Surface.Opacity = Material.Opacity;
     Surface.BaseWeight = Material.BaseWeight;
-    Surface.BaseReflectance = SampleParametricSpectrum(Material.BaseColorSpectrum, Lambda);
+    Surface.BaseReflectance = SampleParametricSpectrum(Material.BaseSpectrum, Lambda);
     Surface.BaseMetalness = Material.BaseMetalness;
     Surface.BaseDiffuseRoughness = Material.BaseDiffuseRoughness;
 
-    if (Material.BaseColorTextureIndex != TEXTURE_INDEX_NONE) {
-        vec4 Value = SampleTexture(Material.BaseColorTextureIndex, Hit.UV);
+    if (Material.BaseSpectrumTextureIndex != TEXTURE_INDEX_NONE) {
+        vec4 Value = SampleTexture(Material.BaseSpectrumTextureIndex, Hit.UV);
         Surface.BaseReflectance *= SampleParametricSpectrum(Value.xyz, Lambda);
         Surface.Opacity *= Value.a;
     }
 
     // Specular.
     Surface.SpecularWeight = Material.SpecularWeight;
-    Surface.SpecularReflectance = SampleParametricSpectrum(Material.SpecularColorSpectrum, Lambda);
+    Surface.SpecularReflectance = SampleParametricSpectrum(Material.SpecularSpectrum, Lambda);
     Surface.SpecularRoughness = Material.SpecularRoughness;
     Surface.SpecularRoughnessAnisotropy = Material.SpecularRoughnessAnisotropy;
 
@@ -843,7 +843,7 @@ vec4 RenderBaseColor(ray Ray, bool IsShaded)
     if (Hit.Time == INFINITY) {
         // We hit the skybox.  Generate a color sample from the skybox radiance
         // spectrum by integrating against the standard observer.
-        vec4 Spectrum = SampleSkyboxColorSpectrum(Ray);
+        vec4 Spectrum = SampleSkyboxSpectrum(Ray);
         vec3 Color = ObserveParametricSpectrumSRGB(Spectrum);
         return vec4(Color, 1);
     }
@@ -851,9 +851,9 @@ vec4 RenderBaseColor(ray Ray, bool IsShaded)
     // We hit a surface.  Resolve the base color sample from the reflectance
     // spectrum by integrating against the standard observer.
     packed_material Material = Materials[Hit.MaterialIndex];
-    vec3 BaseColor = ObserveParametricSpectrumSRGB(Material.BaseColorSpectrum);
-    if (Material.BaseColorTextureIndex != TEXTURE_INDEX_NONE) {
-        vec4 Value = SampleTexture(Material.BaseColorTextureIndex, Hit.UV);
+    vec3 BaseColor = ObserveParametricSpectrumSRGB(Material.BaseSpectrum);
+    if (Material.BaseSpectrumTextureIndex != TEXTURE_INDEX_NONE) {
+        vec4 Value = SampleTexture(Material.BaseSpectrumTextureIndex, Hit.UV);
         BaseColor *= ObserveParametricSpectrumSRGB(Value.xyz);
     }
 

@@ -951,11 +951,11 @@ uint32_t PackSceneData(scene* Scene)
         // Fallback material.
         {
             packed_material Packed = {
-                .BaseColorSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, glm::vec3(1, 1, 1)),
+                .BaseSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, glm::vec3(1, 1, 1)),
                 .BaseWeight = 1.0f,
                 .SpecularWeight = 0.0f,
                 .TransmissionWeight = 0.0f,
-                .EmissionColorSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, glm::vec3(0, 0, 0)),
+                .EmissionSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, glm::vec3(0, 0, 0)),
                 .EmissionLuminance = 0.0f,
                 .BaseMetalness = 0.0f,
                 .BaseDiffuseRoughness = 1.0f,
@@ -974,31 +974,31 @@ uint32_t PackSceneData(scene* Scene)
 
             Packed.Opacity = Material->Opacity;
 
-            Packed.BaseColorSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->BaseColor);
+            Packed.BaseSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->BaseColor);
             Packed.BaseWeight = Material->BaseWeight;
             Packed.BaseMetalness = Material->BaseMetalness;
             Packed.BaseDiffuseRoughness = Material->BaseDiffuseRoughness;
 
-            Packed.SpecularColorSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->SpecularColor);
+            Packed.SpecularSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->SpecularColor);
             Packed.SpecularWeight = Material->SpecularWeight;
 
             Packed.SpecularIOR = Material->SpecularIOR;
             Packed.SpecularRoughness = Material->SpecularRoughness;
             Packed.SpecularRoughnessAnisotropy = Material->SpecularRoughnessAnisotropy;
 
-            Packed.TransmissionColorSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->TransmissionColor);
+            Packed.TransmissionSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->TransmissionColor);
             Packed.TransmissionWeight = Material->TransmissionWeight;
             Packed.TransmissionScatterSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->TransmissionScatter);
             Packed.TransmissionScatterAnisotropy = Material->TransmissionScatterAnisotropy;
             Packed.TransmissionDispersionScale = Material->TransmissionDispersionScale;
             Packed.TransmissionDispersionAbbeNumber = Material->TransmissionDispersionAbbeNumber;
 
-            Packed.EmissionColorSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->EmissionColor);
+            Packed.EmissionSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->EmissionColor);
             Packed.EmissionLuminance = Material->EmissionLuminance;
 
             Packed.ScatteringRate = Material->ScatteringRate;
 
-            Packed.BaseColorTextureIndex = GetPackedTextureIndex(Material->BaseColorTexture);
+            Packed.BaseSpectrumTextureIndex = GetPackedTextureIndex(Material->BaseColorTexture);
             Packed.SpecularRoughnessTextureIndex = GetPackedTextureIndex(Material->SpecularRoughnessTexture);
 
             Scene->MaterialPack.push_back(Packed);

@@ -95,15 +95,15 @@ struct alignas(16) packed_texture
 // and must follow std430 layout rules.
 struct alignas(16) packed_material
 {
-    glm::vec3                   BaseColorSpectrum;
+    glm::vec3                   BaseSpectrum;
     float                       BaseWeight;
-    glm::vec3                   SpecularColorSpectrum;
+    glm::vec3                   SpecularSpectrum;
     float                       SpecularWeight;
-    glm::vec3                   TransmissionColorSpectrum;
+    glm::vec3                   TransmissionSpectrum;
     float                       TransmissionWeight;
     glm::vec3                   TransmissionScatterSpectrum;
     float                       TransmissionScatterAnisotropy;
-    glm::vec3                   EmissionColorSpectrum;
+    glm::vec3                   EmissionSpectrum;
     float                       EmissionLuminance;
 
     float                       Opacity;
@@ -118,9 +118,9 @@ struct alignas(16) packed_material
     float                       ScatteringRate;
 
 
-    uint32_t                    BaseColorTextureIndex;
+    uint32_t                    BaseSpectrumTextureIndex;
     uint32_t                    SpecularRoughnessTextureIndex;
-    uint32_t                    EmissionColorTextureIndex;
+    uint32_t                    EmissionSpectrumTextureIndex;
 };
 
 // This structure is shared between CPU and GPU,
