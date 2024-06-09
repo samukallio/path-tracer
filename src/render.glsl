@@ -118,7 +118,7 @@ float HemisphereSkyboxDirectionPDF(vec3 Direction)
     return C * (exp(Z) + exp(-Z));
 }
 
-vec3 SampleSkybox(ray Ray)
+vec4 SampleSkyboxColorSpectrum(ray Ray)
 {
 //    mat3 frame = skyboxDistributionFrame;
 //    float x = (1 + dot(Ray.Vector, frame[0])) / 2.0;
@@ -127,7 +127,7 @@ vec3 SampleSkybox(ray Ray)
 //    return vec3(x, y, z);
 
     if (SkyboxWhiteFurnace != 0)
-        return vec3(1, 1, 1);
+        return vec4(0, 0, 100, 1);
 
     float Phi = atan(Ray.Vector.y, Ray.Vector.x);
     float Theta = asin(Ray.Vector.z);
@@ -135,22 +135,26 @@ vec3 SampleSkybox(ray Ray)
     float U = 0.5 + Phi / TAU;
     float V = 0.5 - Theta / PI;
 
-    vec3 Color = textureLod(SkyboxImage, vec2(U, V), 0).rgb;
-
-    return Color * SkyboxBrightness;
+    return textureLod(SkyboxImage, vec2(U, V), 0);
 }
 
-float SampleSpectralSkybox(ray Ray, float Lambda)
+float SampleSkybox(ray Ray, float Lambda)
 {
-    float Phi = atan(Ray.Vector.y, Ray.Vector.x);
-    float Theta = asin(Ray.Vector.z);
+    vec4 Spectrum = SampleSkyboxColorSpectrum(Ray);
+    return SampleParametricSpectrum(Spectrum, Lambda);
+}
 
-    float U = 0.5 + Phi / TAU;
-    float V = 0.5 - Theta / PI;
-
-    vec4 Value = textureLod(SkyboxImage, vec2(U, V), 0);
-
-    return SampleParametricSpectrum(Value.xyz, Lambda) * Value.a;
+vec3 SampleSkyboxSRGB(ray Ray)
+{
+    const int SampleCount = 16;
+    const float DeltaLambda = (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN) / SampleCount;
+    vec4 Spectrum = SampleSkyboxColorSpectrum(Ray);
+    vec3 Color = vec3(0, 0, 0);
+    for (int I = 0; I < SampleCount; I++) {
+        float Lambda = mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, I / float(SampleCount - 1));
+        Color += SampleParametricSpectrum(Spectrum, Lambda) * SampleStandardObserverSRGB(Lambda) * DeltaLambda;
+    }
+    return Color / 50.0;
 }
 
 vec4 SampleTexture(uint Index, vec2 UV)
@@ -544,7 +548,7 @@ vec4 TracePath(ray Ray)
                 continue;
             }
             else {
-                Output += Filter * SampleSpectralSkybox(Ray, Lambda);
+                Output += Filter * SampleSkybox(Ray, Lambda);
                 break;
             }
         }
@@ -810,8 +814,9 @@ vec4 TraceBaseColor(ray Ray, bool IsShaded)
 {
     hit Hit = IntersectAndResolve(Ray);
 
-    if (Hit.Time == INFINITY)
-        return vec4(SampleSkybox(Ray), 1);
+    if (Hit.Time == INFINITY) {
+        return vec4(SampleSkyboxSRGB(Ray), 1);
+    }
 
     vec3 BaseColor = ObserveParametricSpectrumSRGB(Hit.Material.BaseColorSpectrum);
 

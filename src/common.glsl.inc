@@ -359,6 +359,12 @@ float SampleParametricSpectrum(vec3 Beta, float Lambda)
     return 0.5 + X / (2.0 * sqrt(1.0 + X * X));
 }
 
+// Sample a parametric spectrum at a given wavelength.
+float SampleParametricSpectrum(vec4 BetaAndIntensity, float Lambda)
+{
+    return BetaAndIntensity.w * SampleParametricSpectrum(BetaAndIntensity.xyz, Lambda);
+}
+
 // Compute the SRGB tristimulus response of a parametric spectrum under
 // an illuminant with a constant power spectrum.  This is useful to retrieve
 // the SRGB color corresponding to a parametric spectrum for simple surface
