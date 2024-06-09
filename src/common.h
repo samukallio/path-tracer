@@ -166,7 +166,7 @@ struct alignas(16) packed_mesh_face
 // and must follow std430 layout rules.
 struct alignas(16) packed_mesh_face_extra
 {
-    glm::quat                   Normals[3];
+    glm::aligned_vec3           Normals[3];
     glm::aligned_vec2           UVs[3];
     uint32_t                    MaterialIndex;
 };
