@@ -132,24 +132,40 @@ struct medium
 
 struct hit
 {
-    // Populated by the Intersect*() routines.
     float           Time;
     uint            ShapeType;
     uint            ShapeIndex;
+    uint            ShapePriority;
     uint            PrimitiveIndex;
     vec3            PrimitiveCoordinates;
     uint            SceneComplexity;
     uint            MeshComplexity;
 
-    // Populated by ResolveHit().
-    uint            ShapePriority;
     vec3            Position;
     vec3            Normal;
     vec3            TangentX;
     vec3            TangentY;
     vec2            UV;
     uint            MaterialIndex;
-    packed_material Material;
+};
+
+struct surface_parameters
+{
+    float           Opacity;
+    float           BaseWeight;
+    float           BaseReflectance;
+    float           BaseMetalness;
+    float           BaseDiffuseRoughness;
+
+    float           SpecularWeight;
+    float           SpecularIOR;
+    float           SpecularReflectance;
+    float           SpecularRoughness;
+    float           SpecularRoughnessAnisotropy;
+
+    float           TransmissionWeight;
+
+    float           MediumScatteringRate;
 };
 
 struct ray

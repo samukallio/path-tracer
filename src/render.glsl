@@ -144,19 +144,6 @@ float SampleSkybox(ray Ray, float Lambda)
     return SampleParametricSpectrum(Spectrum, Lambda);
 }
 
-vec3 SampleSkyboxSRGB(ray Ray)
-{
-    const int SampleCount = 16;
-    const float DeltaLambda = (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN) / SampleCount;
-    vec4 Spectrum = SampleSkyboxColorSpectrum(Ray);
-    vec3 Color = vec3(0, 0, 0);
-    for (int I = 0; I < SampleCount; I++) {
-        float Lambda = mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, I / float(SampleCount - 1));
-        Color += SampleParametricSpectrum(Spectrum, Lambda) * SampleStandardObserverSRGB(Lambda) * DeltaLambda;
-    }
-    return Color / 50.0;
-}
-
 vec4 SampleTexture(uint Index, vec2 UV)
 {
     packed_texture Texture = Textures[Index];
@@ -178,6 +165,8 @@ vec4 SampleTexture(uint Index, vec2 UV)
     else
         return textureLod(TextureArrayLinear, UVW, 0);
 }
+
+/* --- Tracing ------------------------------------------------------------- */
 
 float IntersectBoundingBox(ray Ray, float Reach, vec3 Min, vec3 Max)
 {
@@ -304,8 +293,10 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
 
     if (Shape.Type == SHAPE_TYPE_MESH_INSTANCE) {
         IntersectMeshNode(Ray, Shape.MeshRootNodeIndex, Hit);
-        if (Hit.ShapeIndex == SHAPE_INDEX_NONE)
+        if (Hit.ShapeIndex == SHAPE_INDEX_NONE) {
             Hit.ShapeIndex = ShapeIndex;
+            Hit.ShapePriority = Shape.Priority;
+        }
     }
     else if (Shape.Type == SHAPE_TYPE_PLANE) {
         float T = -Ray.Origin.z / Ray.Vector.z;
@@ -314,6 +305,7 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
         Hit.Time = T;
         Hit.ShapeType = SHAPE_TYPE_PLANE;
         Hit.ShapeIndex = ShapeIndex;
+        Hit.ShapePriority = Shape.Priority;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * T;
     }
@@ -335,6 +327,7 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
         Hit.Time = S / V;
         Hit.ShapeType = SHAPE_TYPE_SPHERE;
         Hit.ShapeIndex = ShapeIndex;
+        Hit.ShapePriority = Shape.Priority;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * Hit.Time;
     }
@@ -354,6 +347,7 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
         Hit.Time = T;
         Hit.ShapeType = SHAPE_TYPE_CUBE;
         Hit.ShapeIndex = ShapeIndex;
+        Hit.ShapePriority = Shape.Priority;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * T;
     }
@@ -406,8 +400,18 @@ void Intersect(ray Ray, inout hit Hit)
     }
 }
 
-void ResolveHitSurfaceData(ray Ray, inout hit Hit)
+hit Trace(ray Ray, float MaxTime)
 {
+    hit Hit;
+    Hit.Time = MaxTime;
+    Hit.MeshComplexity = 0;
+    Hit.SceneComplexity = 0;
+
+    Intersect(Ray, Hit);
+
+    if (Hit.Time == MaxTime)
+        return Hit;
+
     packed_shape Shape = Shapes[Hit.ShapeIndex];
     ray ShapeRay = InverseTransformRay(Ray, Shape.Transform);
 
@@ -431,22 +435,17 @@ void ResolveHitSurfaceData(ray Ray, inout hit Hit)
                + Extra.UVs[2] * Hit.PrimitiveCoordinates.z;
 
         Hit.MaterialIndex = Extra.MaterialIndex;
-        Hit.Material = Materials[Extra.MaterialIndex];
     }
     else if (Hit.ShapeType == SHAPE_TYPE_PLANE) {
         packed_shape Shape = Shapes[Hit.ShapeIndex];
 
-        Hit.PrimitiveIndex = 0;
         Hit.MaterialIndex = Shape.MaterialIndex;
-        Hit.Material = Materials[Shape.MaterialIndex];
         Hit.UV = fract(Hit.PrimitiveCoordinates.xy);
     }
     else if (Hit.ShapeType == SHAPE_TYPE_SPHERE) {
         packed_shape Shape = Shapes[Hit.ShapeIndex];
 
-        Hit.PrimitiveIndex = 0;
         Hit.MaterialIndex = Shape.MaterialIndex;
-        Hit.Material = Materials[Shape.MaterialIndex];
 
         vec3 P = Hit.PrimitiveCoordinates;
         float U = (atan(P.y, P.x) + PI) / TAU;
@@ -461,8 +460,6 @@ void ResolveHitSurfaceData(ray Ray, inout hit Hit)
         packed_shape Shape = Shapes[Hit.ShapeIndex];
 
         Hit.MaterialIndex = Shape.MaterialIndex;
-        Hit.Material = Materials[Shape.MaterialIndex];
-        Hit.PrimitiveIndex = 0;
 
         vec3 P = Hit.PrimitiveCoordinates;
         vec3 Q = abs(P);
@@ -489,31 +486,63 @@ void ResolveHitSurfaceData(ray Ray, inout hit Hit)
         TangentY = cross(Normal, TangentX);
     }
 
-    if (Hit.Material.BaseColorTextureIndex != TEXTURE_INDEX_NONE) {
-        vec4 Value = SampleTexture(Hit.Material.BaseColorTextureIndex, Hit.UV);
-        Hit.Material.BaseColorSpectrum = Value.rgb;
-        Hit.Material.Opacity *= Value.a;
-    }
-
-    if (Hit.Material.SpecularRoughnessTextureIndex != TEXTURE_INDEX_NONE) {
-        vec4 Value = SampleTexture(Hit.Material.SpecularRoughnessTextureIndex, Hit.UV);
-        Hit.Material.SpecularRoughness *= Value.r;
-    }
-
-    Hit.ShapePriority = Shape.Priority;
-
     Hit.Position = TransformPosition(Position, Shape.Transform);
     Hit.Normal = TransformNormal(Normal, Shape.Transform);
     Hit.TangentX = TransformDirection(TangentX, Shape.Transform);
     Hit.TangentY = TransformDirection(TangentY, Shape.Transform);
+
+    return Hit;
 }
 
-vec4 TracePath(ray Ray)
+/* --- Material ------------------------------------------------------------ */
+
+void ResolveSurfaceParameters(hit Hit, float Lambda, out surface_parameters Surface)
 {
+    packed_material Material = Materials[Hit.MaterialIndex];
+
+    // Base reflectance and opacity.
+    Surface.Opacity = Material.Opacity;
+    Surface.BaseWeight = Material.BaseWeight;
+    Surface.BaseReflectance = SampleParametricSpectrum(Material.BaseColorSpectrum, Lambda);
+    Surface.BaseMetalness = Material.BaseMetalness;
+    Surface.BaseDiffuseRoughness = Material.BaseDiffuseRoughness;
+
+    if (Material.BaseColorTextureIndex != TEXTURE_INDEX_NONE) {
+        vec4 Value = SampleTexture(Material.BaseColorTextureIndex, Hit.UV);
+        Surface.BaseReflectance *= SampleParametricSpectrum(Value.xyz, Lambda);
+        Surface.Opacity *= Value.a;
+    }
+
+    // Specular.
+    Surface.SpecularWeight = Material.SpecularWeight;
+    Surface.SpecularReflectance = SampleParametricSpectrum(Material.SpecularColorSpectrum, Lambda);
+    Surface.SpecularRoughness = Material.SpecularRoughness;
+    Surface.SpecularRoughnessAnisotropy = Material.SpecularRoughnessAnisotropy;
+
+    float AbbeNumber = Material.TransmissionDispersionAbbeNumber / Material.TransmissionDispersionScale;
+    Surface.SpecularIOR = CauchyEmpiricalIOR(Material.SpecularIOR, AbbeNumber, Lambda);
+
+    if (Material.SpecularRoughnessTextureIndex != TEXTURE_INDEX_NONE) {
+        vec4 Value = SampleTexture(Material.SpecularRoughnessTextureIndex, Hit.UV);
+        Surface.SpecularRoughness *= Value.r;
+    }
+
+    // Medium.
+    Surface.MediumScatteringRate = Material.ScatteringRate;
+}
+
+/* --- Rendering ----------------------------------------------------------- */
+
+vec4 RenderPath(ray Ray)
+{
+    // Wavelength of this sample.
     float Lambda = mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, Random0To1());
 
-    float Output = 0.0;
-    float Filter = 1.0; //* (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN);
+    // Accumulated radiance along the path.
+    float Radiance = 0.0;
+
+    // Cumulative importance at the current path vertex.
+    float Importance = 1.0; //* (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN);
 
     const int MAX_MEDIUM_COUNT = 8;
 
@@ -536,10 +565,7 @@ vec4 TracePath(ray Ray)
             ScatteringTime = -log(Random0To1()) / CurrentMedium.ScatteringRate;
         }
 
-        hit Hit;
-        Hit.Time = ScatteringTime;
-
-        Intersect(Ray, Hit);
+        hit Hit = Trace(Ray, ScatteringTime);
 
         if (Hit.Time == ScatteringTime) {
             if (ScatteringTime < INFINITY) {
@@ -548,14 +574,14 @@ vec4 TracePath(ray Ray)
                 continue;
             }
             else {
-                Output += Filter * SampleSkybox(Ray, Lambda);
+                Radiance += Importance * SampleSkybox(Ray, Lambda);
                 break;
             }
         }
 
         // We hit a surface.  Resolve the surface details.
-        ResolveHitSurfaceData(Ray, Hit);
-        packed_material Material = Hit.Material;
+        surface_parameters Surface;
+        ResolveSurfaceParameters(Hit, Lambda, Surface);
 
         // Incoming ray direction in normal/tangent space.
         vec3 Incoming;
@@ -587,9 +613,7 @@ vec4 TracePath(ray Ray)
             IsVirtualSurface = CurrentMedium.ShapePriority >= Hit.ShapePriority;
 
             if (!IsVirtualSurface) {
-                float AbbeNumber = Material.TransmissionDispersionAbbeNumber / Material.TransmissionDispersionScale;
-                float IOR = CauchyEmpiricalIOR(Material.SpecularIOR, AbbeNumber, Lambda);
-                RelativeIOR = CurrentMedium.IOR / IOR;
+                RelativeIOR = CurrentMedium.IOR / Surface.SpecularIOR;
             }
         }
         else {
@@ -620,8 +644,8 @@ vec4 TracePath(ray Ray)
         }
 
         vec2 SpecularRoughnessAlpha = ComputeRoughnessAlphaGGX(
-            Material.SpecularRoughness,
-            Material.SpecularRoughnessAnisotropy);
+            Surface.SpecularRoughness,
+            Surface.SpecularRoughnessAnisotropy);
 
         // Sample a microsurface normal.
         vec3 SpecularNormal = SampleVisibleNormalGGX(Outgoing, SpecularRoughnessAlpha, Random0To1(), Random0To1());
@@ -630,31 +654,28 @@ vec4 TracePath(ray Ray)
 
         // Pass through the surface if embedded in a higher-priority
         // medium, or probabilistically based on geometric opacity.
-        if (Random0To1() > Material.Opacity || IsVirtualSurface) {
+        if (Random0To1() > Surface.Opacity || IsVirtualSurface) {
             Incoming = -Outgoing;
         }
         // Metal base.
-        else if (Random0To1() < Material.BaseMetalness) {
+        else if (Random0To1() < Surface.BaseMetalness) {
             // Compute incoming direction.  If the incoming ray appears to be
             // coming from within the macrosurface, then it is shadowed, and we
             // terminate.
             Incoming = 2 * SpecularCosine * SpecularNormal - Outgoing;
             if (Incoming.z <= 0) break;
 
-            float Base = SampleParametricSpectrum(Material.BaseColorSpectrum, Lambda);
-            float Specular = SampleParametricSpectrum(Material.SpecularColorSpectrum, Lambda);
-
             // Compute Fresnel term.
-            float F0 = Material.BaseWeight * Base;
-            float F = Material.SpecularWeight * SchlickFresnelMetal(Base, Specular, SpecularCosine);
+            float F0 = Surface.BaseWeight * Surface.BaseReflectance;
+            float F = Surface.SpecularWeight * SchlickFresnelMetal(F0, Surface.SpecularReflectance, SpecularCosine);
 
             // Compute shadowing term.
             float G = SmithG1(Incoming, SpecularRoughnessAlpha);
 
-            Filter *= F * G;
+            Importance *= F * G;
         }
         // Translucent dielectric base.
-        else if (Random0To1() < Hit.Material.TransmissionWeight) {
+        else if (Random0To1() < Surface.TransmissionWeight) {
             float RefractedCosineSquared = 1 - RelativeIOR * RelativeIOR * (1 - SpecularCosine * SpecularCosine);
 
             // Compute reflectance (Fresnel).
@@ -664,7 +685,7 @@ vec4 TracePath(ray Ray)
                 F = 1.0;
             }
             else {
-                float F0 = Material.SpecularWeight * pow((1 - RelativeIOR) / (1 + RelativeIOR), 2);
+                float F0 = Surface.SpecularWeight * pow((1 - RelativeIOR) / (1 + RelativeIOR), 2);
                 F = SchlickFresnelDielectric(F0, SpecularCosine);
             }
 
@@ -679,7 +700,7 @@ vec4 TracePath(ray Ray)
                     // Per the OpenPBR specification: the specular color material
                     // parameter modulates the Fresnel factor of the dielectric,
                     // but only for reflections from above (and not below).
-                    Filter *= SampleParametricSpectrum(Material.SpecularColorSpectrum, Lambda);
+                    Importance *= Surface.SpecularReflectance;
                 }
             }
             else {
@@ -695,11 +716,11 @@ vec4 TracePath(ray Ray)
 
             float G = SmithG1(Incoming, SpecularRoughnessAlpha);
 
-            Filter *= G;
+            Importance *= G;
         }
         // Glossy-diffuse dielectric base.
         else {
-            float F0 = Material.SpecularWeight * pow((1 - RelativeIOR) / (1 + RelativeIOR), 2);
+            float F0 = Surface.SpecularWeight * pow((1 - RelativeIOR) / (1 + RelativeIOR), 2);
             float F = SchlickFresnelDielectric(F0, SpecularCosine);
 
             if (Random0To1() < F) {
@@ -715,12 +736,12 @@ vec4 TracePath(ray Ray)
                     // Per the OpenPBR specification: the specular color material
                     // parameter modulates the Fresnel factor of the dielectric,
                     // but only for reflections from above (and not below).
-                    Filter *= SampleParametricSpectrum(Material.SpecularColorSpectrum, Lambda);
+                    Importance *= Surface.SpecularReflectance;
                 }
 
                 float G = SmithG1(Incoming, SpecularRoughnessAlpha);
 
-                Filter *= G;
+                Importance *= G;
             }
             else {
                 // Diffuse reflection.
@@ -729,13 +750,11 @@ vec4 TracePath(ray Ray)
                 float S = dot(Incoming, Outgoing) - Incoming.z * Outgoing.z;
                 float T = S > 0 ? max(Incoming.z, Outgoing.z) : 1.0;
 
-                float BaseColorSample = SampleParametricSpectrum(Material.BaseColorSpectrum, Lambda);
-
-                float SigmaSq = Material.BaseDiffuseRoughness * Material.BaseDiffuseRoughness;
-                float A = 1 - 0.5 * SigmaSq / (SigmaSq + 0.33) + 0.17 * BaseColorSample * SigmaSq / (SigmaSq + 0.13);
+                float SigmaSq = Surface.BaseDiffuseRoughness * Surface.BaseDiffuseRoughness;
+                float A = 1 - 0.5 * SigmaSq / (SigmaSq + 0.33) + 0.17 * Surface.BaseReflectance * SigmaSq / (SigmaSq + 0.13);
                 float B = 0.45 * SigmaSq / (SigmaSq + 0.09);
 
-                Filter *= BaseColorSample * (A + B * S / T);
+                Importance *= Surface.BaseReflectance * (A + B * S / T);
             }
         }
 
@@ -750,8 +769,8 @@ vec4 TracePath(ray Ray)
                     if (Mediums[I].ShapeIndex == SHAPE_INDEX_NONE) {
                         Mediums[I].ShapeIndex     = Hit.ShapeIndex;
                         Mediums[I].ShapePriority  = Hit.ShapePriority;
-                        Mediums[I].IOR            = Material.SpecularIOR;
-                        Mediums[I].ScatteringRate = Material.ScatteringRate;
+                        Mediums[I].IOR            = Surface.SpecularIOR;
+                        Mediums[I].ScatteringRate = Surface.MediumScatteringRate;
                         break;
                     }
                 }
@@ -792,36 +811,40 @@ vec4 TracePath(ray Ray)
         if (Random0To1() < RenderTerminationProbability)
             break;
 
-        Filter /= 1.0 - RenderTerminationProbability;
+        Importance /= 1.0 - RenderTerminationProbability;
     }
 
-    vec3 OutputColor = SampleStandardObserverSRGB(Lambda) * Output;
+    vec3 OutputColor = SampleStandardObserverSRGB(Lambda) * Radiance;
 
     return vec4(OutputColor, 1);
 }
 
-hit IntersectAndResolve(ray Ray)
+vec4 RenderBaseColor(ray Ray, bool IsShaded)
 {
-    hit Hit;
-    Hit.Time = INFINITY;
-    Intersect(Ray, Hit);
-    if (Hit.Time != INFINITY)
-        ResolveHitSurfaceData(Ray, Hit);
-    return Hit;
-}
-
-vec4 TraceBaseColor(ray Ray, bool IsShaded)
-{
-    hit Hit = IntersectAndResolve(Ray);
+    hit Hit = Trace(Ray, INFINITY);
 
     if (Hit.Time == INFINITY) {
-        return vec4(SampleSkyboxSRGB(Ray), 1);
+        const int SampleCount = 16;
+        const float DeltaLambda = (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN) / SampleCount;
+        vec4 Spectrum = SampleSkyboxColorSpectrum(Ray);
+        vec3 Color = vec3(0, 0, 0);
+        for (int I = 0; I < SampleCount; I++) {
+            float Lambda = mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, I / float(SampleCount - 1));
+            Color += SampleParametricSpectrum(Spectrum, Lambda) * SampleStandardObserverSRGB(Lambda) * DeltaLambda;
+        }
+        return vec4(Color / 50.0, 1);
     }
 
-    vec3 BaseColor = ObserveParametricSpectrumSRGB(Hit.Material.BaseColorSpectrum);
+    packed_material Material = Materials[Hit.MaterialIndex];
+
+    vec3 BaseColor = ObserveParametricSpectrumSRGB(Material.BaseColorSpectrum);
+    if (Material.BaseColorTextureIndex != TEXTURE_INDEX_NONE) {
+        vec4 Value = SampleTexture(Material.BaseColorTextureIndex, Hit.UV);
+        BaseColor *= ObserveParametricSpectrumSRGB(Value.xyz);
+    }
 
     if (IsShaded) {
-        float Shading = dot(Hit.Normal, -Ray.Vector);
+        float Shading = dot(Hit.Normal, -Ray.Vector); 
         if (Hit.ShapeIndex == SelectedShapeIndex)
             return vec4((BaseColor + vec3(1,0,0)) * Shading, 1.0);
         else
@@ -832,49 +855,41 @@ vec4 TraceBaseColor(ray Ray, bool IsShaded)
     }
 }
 
-vec4 TraceNormal(ray Ray)
+vec4 RenderNormal(ray Ray)
 {
-    hit Hit = IntersectAndResolve(Ray);
+    hit Hit = Trace(Ray, INFINITY);
     if (Hit.Time == INFINITY)
         return vec4(0.5 * (1 - Ray.Vector), 1);
     return vec4(0.5 * (Hit.Normal + 1), 1);
 }
 
-vec4 TraceMaterialIndex(ray Ray)
+vec4 RenderMaterialIndex(ray Ray)
 {
-    hit Hit = IntersectAndResolve(Ray);
+    hit Hit = Trace(Ray, INFINITY);
     if (Hit.Time == INFINITY)
         return vec4(0, 0, 0, 1);
     return vec4(COLORS[Hit.MaterialIndex % 20], 1);
 }
 
-vec4 TracePrimitiveIndex(ray Ray)
+vec4 RenderPrimitiveIndex(ray Ray)
 {
-    hit Hit = IntersectAndResolve(Ray);
+    hit Hit = Trace(Ray, INFINITY);
     if (Hit.Time == INFINITY)
         return vec4(0, 0, 0, 1);
     return vec4(COLORS[Hit.PrimitiveIndex % 20], 1);
 }
 
-vec4 TraceMeshComplexity(ray Ray)
+vec4 RenderMeshComplexity(ray Ray)
 {
-    hit Hit;
-    Hit.Time = INFINITY;
-    Hit.MeshComplexity = 0;
-    Intersect(Ray, Hit);
-
+    hit Hit = Trace(Ray, INFINITY);
     float Alpha = min(Hit.MeshComplexity / float(RenderMeshComplexityScale), 1.0);
     vec3 Color = mix(vec3(0,0,0), vec3(0,1,0), Alpha);
     return vec4(Color, 1);
 }
 
-vec4 TraceSceneComplexity(ray Ray)
+vec4 RenderSceneComplexity(ray Ray)
 {
-    hit Hit;
-    Hit.Time = INFINITY;
-    Hit.SceneComplexity = 0;
-    Intersect(Ray, Hit);
-
+    hit Hit = Trace(Ray, INFINITY);
     float Alpha = min(Hit.SceneComplexity / float(RenderSceneComplexityScale), 1.0);
     vec3 Color = mix(vec3(0,0,0), vec3(0,1,0), Alpha);
     return vec4(Color, 1);
@@ -946,24 +961,24 @@ void main()
 
     Ray = TransformRay(Ray, CameraTransform);
 
-    vec4 SampleValue;
+    vec4 SampleRadiance;
 
     if (RenderMode == RENDER_MODE_PATH_TRACE)
-        SampleValue = TracePath(Ray);
+        SampleRadiance = RenderPath(Ray);
     else if (RenderMode == RENDER_MODE_BASE_COLOR)
-        SampleValue = TraceBaseColor(Ray, false);
+        SampleRadiance = RenderBaseColor(Ray, false);
     else if (RenderMode == RENDER_MODE_BASE_COLOR_SHADED)
-        SampleValue = TraceBaseColor(Ray, true);
+        SampleRadiance = RenderBaseColor(Ray, true);
     else if (RenderMode == RENDER_MODE_NORMAL)
-        SampleValue = TraceNormal(Ray);
+        SampleRadiance = RenderNormal(Ray);
     else if (RenderMode == RENDER_MODE_MATERIAL_INDEX)
-        SampleValue = TraceMaterialIndex(Ray);
+        SampleRadiance = RenderMaterialIndex(Ray);
     else if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
-        SampleValue = TracePrimitiveIndex(Ray);
+        SampleRadiance = RenderPrimitiveIndex(Ray);
     else if (RenderMode == RENDER_MODE_MESH_COMPLEXITY)
-        SampleValue = TraceMeshComplexity(Ray);
+        SampleRadiance = RenderMeshComplexity(Ray);
     else if (RenderMode == RENDER_MODE_SCENE_COMPLEXITY)
-        SampleValue = TraceSceneComplexity(Ray);
+        SampleRadiance = RenderSceneComplexity(Ray);
 
     // Transfer the sample block from the input image to the output image,
     // adding the sample value that we produced at the relevant pixel
@@ -974,12 +989,12 @@ void main()
             ivec2 TransferPixelPosition = XY + ivec2(I,J);
             if (TransferPixelPosition.x >= ImageSizeInPixels.x) break;
             if (TransferPixelPosition.y >= ImageSizeInPixels.y) return;
-            vec4 OutputValue = vec4(0,0,0,0);
+            vec4 OutputRadiance = vec4(0,0,0,0);
             if ((RenderFlags & RENDER_FLAG_ACCUMULATE) != 0)
-                OutputValue = imageLoad(InputImage, TransferPixelPosition);
+                OutputRadiance = imageLoad(InputImage, TransferPixelPosition);
             if (TransferPixelPosition == SamplePixelPosition)
-                OutputValue += SampleValue;
-            imageStore(OutputImage, TransferPixelPosition, OutputValue);
+                OutputRadiance += SampleRadiance;
+            imageStore(OutputImage, TransferPixelPosition, OutputRadiance);
         }
     }
 }
