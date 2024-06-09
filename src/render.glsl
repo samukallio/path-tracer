@@ -138,7 +138,7 @@ vec4 SampleSkyboxColorSpectrum(ray Ray)
     return textureLod(SkyboxImage, vec2(U, V), 0);
 }
 
-float SampleSkybox(ray Ray, float Lambda)
+float SampleSkyboxRadiance(ray Ray, float Lambda)
 {
     vec4 Spectrum = SampleSkyboxColorSpectrum(Ray);
     return SampleParametricSpectrum(Spectrum, Lambda);
@@ -202,6 +202,7 @@ float IntersectBoundingBox(ray Ray, float Reach, vec3 Min, vec3 Max)
     return EntryT;
 }
 
+// Compute ray intersection against a single mesh face (triangle).
 void IntersectMeshFace(ray Ray, uint MeshFaceIndex, inout hit Hit)
 {
     packed_mesh_face Face = MeshFaces[MeshFaceIndex];
@@ -225,6 +226,7 @@ void IntersectMeshFace(ray Ray, uint MeshFaceIndex, inout hit Hit)
     Hit.PrimitiveCoordinates = vec3(1 - Beta - Gamma, Beta, Gamma);
 }
 
+// Compute ray intersection against a mesh BVH node.
 void IntersectMeshNode(ray Ray, uint MeshNodeIndex, inout hit Hit)
 {
     uint Stack[32];
@@ -285,6 +287,7 @@ void IntersectMeshNode(ray Ray, uint MeshNodeIndex, inout hit Hit)
     }
 }
 
+// Compute ray intersection against a shape.
 void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
 {
     packed_shape Shape = Shapes[ShapeIndex];
@@ -353,6 +356,7 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
     }
 }
 
+// Compute ray intersection against the whole scene.
 void Intersect(ray Ray, inout hit Hit)
 {
     uint Stack[32];
@@ -400,6 +404,7 @@ void Intersect(ray Ray, inout hit Hit)
     }
 }
 
+// Trace a ray into the scene and return information about the hit.
 hit Trace(ray Ray, float MaxTime)
 {
     hit Hit;
@@ -409,12 +414,16 @@ hit Trace(ray Ray, float MaxTime)
 
     Intersect(Ray, Hit);
 
+    // If we didn't hit any shape, exit.
     if (Hit.Time == MaxTime)
         return Hit;
 
     packed_shape Shape = Shapes[Hit.ShapeIndex];
+
+    // Ray in shape-local space.
     ray ShapeRay = InverseTransformRay(Ray, Shape.Transform);
 
+    // Hit position and tangent space basis in shape-local space.
     vec3 Position = ShapeRay.Origin + ShapeRay.Vector * Hit.Time;
     vec3 Normal = vec3(0, 0, 1);
     vec3 TangentX = vec3(1, 0, 0);
@@ -486,6 +495,7 @@ hit Trace(ray Ray, float MaxTime)
         TangentY = cross(Normal, TangentX);
     }
 
+    // Transform the hit position and tangent space basis to world space.
     Hit.Position = TransformPosition(Position, Shape.Transform);
     Hit.Normal = TransformNormal(Normal, Shape.Transform);
     Hit.TangentX = TransformDirection(TangentX, Shape.Transform);
@@ -496,6 +506,7 @@ hit Trace(ray Ray, float MaxTime)
 
 /* --- Material ------------------------------------------------------------ */
 
+// Evaluate the surface properties of a hit surface at a given wavelength.
 void ResolveSurfaceParameters(hit Hit, float Lambda, out surface_parameters Surface)
 {
     packed_material Material = Materials[Hit.MaterialIndex];
@@ -565,16 +576,20 @@ vec4 RenderPath(ray Ray)
             ScatteringTime = -log(Random0To1()) / CurrentMedium.ScatteringRate;
         }
 
+        // Trace the ray against the scene geometry.
         hit Hit = Trace(Ray, ScatteringTime);
 
+        // If we hit no geometry before the scattering time...
         if (Hit.Time == ScatteringTime) {
+            // If the scattering time is finite, then it's a scattering event.
             if (ScatteringTime < INFINITY) {
                 Ray.Origin = Ray.Origin + Ray.Vector * ScatteringTime;
                 Ray.Vector = RandomDirection();
                 continue;
             }
+            // Otherwise, we hit the skybox.
             else {
-                Radiance += Importance * SampleSkybox(Ray, Lambda);
+                Radiance += Importance * SampleSkyboxRadiance(Ray, Lambda);
                 break;
             }
         }
@@ -802,21 +817,23 @@ vec4 RenderPath(ray Ray)
             Incoming.z = -Incoming.z;
         }
 
+        // Prepare the extension ray.
         Ray.Vector = Incoming.x * Hit.TangentX
                    + Incoming.y * Hit.TangentY
                    + Incoming.z * Hit.Normal;
 
         Ray.Origin = Hit.Position + 1e-3 * Ray.Vector;
 
+        // Handle probabilistic termination.
         if (Random0To1() < RenderTerminationProbability)
             break;
 
         Importance /= 1.0 - RenderTerminationProbability;
     }
 
-    vec3 OutputColor = SampleStandardObserverSRGB(Lambda) * Radiance;
+    vec3 Color = SampleStandardObserverSRGB(Lambda) * Radiance;
 
-    return vec4(OutputColor, 1);
+    return vec4(Color, 1);
 }
 
 vec4 RenderBaseColor(ray Ray, bool IsShaded)
@@ -824,19 +841,16 @@ vec4 RenderBaseColor(ray Ray, bool IsShaded)
     hit Hit = Trace(Ray, INFINITY);
 
     if (Hit.Time == INFINITY) {
-        const int SampleCount = 16;
-        const float DeltaLambda = (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN) / SampleCount;
+        // We hit the skybox.  Generate a color sample from the skybox radiance
+        // spectrum by integrating against the standard observer.
         vec4 Spectrum = SampleSkyboxColorSpectrum(Ray);
-        vec3 Color = vec3(0, 0, 0);
-        for (int I = 0; I < SampleCount; I++) {
-            float Lambda = mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, I / float(SampleCount - 1));
-            Color += SampleParametricSpectrum(Spectrum, Lambda) * SampleStandardObserverSRGB(Lambda) * DeltaLambda;
-        }
-        return vec4(Color / 50.0, 1);
+        vec3 Color = ObserveParametricSpectrumSRGB(Spectrum);
+        return vec4(Color, 1);
     }
 
+    // We hit a surface.  Resolve the base color sample from the reflectance
+    // spectrum by integrating against the standard observer.
     packed_material Material = Materials[Hit.MaterialIndex];
-
     vec3 BaseColor = ObserveParametricSpectrumSRGB(Material.BaseColorSpectrum);
     if (Material.BaseColorTextureIndex != TEXTURE_INDEX_NONE) {
         vec4 Value = SampleTexture(Material.BaseColorTextureIndex, Hit.UV);
@@ -915,24 +929,24 @@ void main()
     SamplePosition *= RenderSampleBlockSize;
 
     // Get the integer position of the pixel that contains the chosen sample.
-    ivec2 SamplePixelPosition = ivec2(floor(SamplePosition));
+    ivec2 SampleImagePosition = ivec2(floor(SamplePosition));
 
     // This position can be outside the target image if the image size is not
-    // a multiple of the region size (16 * renderSampleBlockSize) handled by
+    // a multiple of the region size (16 * RenderSampleBlockSize) handled by
     // one invocation.  If that happens, just exit.
-    ivec2 ImageSizeInPixels = imageSize(OutputImage);
-    if (SamplePixelPosition.x >= ImageSizeInPixels.x) return;
-    if (SamplePixelPosition.y >= ImageSizeInPixels.y) return;
+    ivec2 ImageSize = imageSize(OutputImage);
+    if (SampleImagePosition.x >= ImageSize.x) return;
+    if (SampleImagePosition.y >= ImageSize.y) return;
 
     // Compute normalized sample position from (0, 0) to (1, 1).
-    vec2 SampleNormalizedPosition = SamplePosition / ImageSizeInPixels;
+    vec2 NormalizedSamplePosition = SamplePosition / ImageSize;
 
     ray Ray;
 
     if (CameraModel == CAMERA_MODEL_PINHOLE) {
         vec3 SensorPosition = vec3(
-            -CameraSensorSize.x * (SampleNormalizedPosition.x - 0.5),
-            -CameraSensorSize.y * (0.5 - SampleNormalizedPosition.y),
+            -CameraSensorSize.x * (NormalizedSamplePosition.x - 0.5),
+            -CameraSensorSize.y * (0.5 - NormalizedSamplePosition.y),
             CameraSensorDistance);
 
         Ray.Origin = vec3(CameraApertureRadius * RandomPointOnDisk(), 0);
@@ -941,8 +955,8 @@ void main()
 
     else if (CameraModel == CAMERA_MODEL_THIN_LENS) {
         vec3 SensorPosition = vec3(
-            -CameraSensorSize.x * (SampleNormalizedPosition.x - 0.5),
-            -CameraSensorSize.y * (0.5 - SampleNormalizedPosition.y),
+            -CameraSensorSize.x * (NormalizedSamplePosition.x - 0.5),
+            -CameraSensorSize.y * (0.5 - NormalizedSamplePosition.y),
             CameraSensorDistance);
 
         vec3 ObjectPosition = -SensorPosition * CameraFocalLength / (SensorPosition.z - CameraFocalLength);
@@ -952,8 +966,8 @@ void main()
     }
 
     else if (CameraModel == CAMERA_MODEL_360) {
-        float Phi = (SampleNormalizedPosition.x - 0.5f) * TAU;
-        float Theta = (0.5f - SampleNormalizedPosition.y) * PI;
+        float Phi = (NormalizedSamplePosition.x - 0.5f) * TAU;
+        float Theta = (0.5f - NormalizedSamplePosition.y) * PI;
 
         Ray.Origin = vec3(0, 0, 0);
         Ray.Vector = vec3(cos(Theta) * sin(Phi), sin(Theta), -cos(Theta) * cos(Phi));
@@ -986,15 +1000,15 @@ void main()
     ivec2 XY = ivec2(gl_GlobalInvocationID.xy * RenderSampleBlockSize);
     for (int I = 0; I < RenderSampleBlockSize; I++) {
         for (int J = 0; J < RenderSampleBlockSize; J++) {
-            ivec2 TransferPixelPosition = XY + ivec2(I,J);
-            if (TransferPixelPosition.x >= ImageSizeInPixels.x) break;
-            if (TransferPixelPosition.y >= ImageSizeInPixels.y) return;
+            ivec2 TransferImagePosition = XY + ivec2(I,J);
+            if (TransferImagePosition.x >= ImageSize.x) break;
+            if (TransferImagePosition.y >= ImageSize.y) return;
             vec4 OutputRadiance = vec4(0,0,0,0);
             if ((RenderFlags & RENDER_FLAG_ACCUMULATE) != 0)
-                OutputRadiance = imageLoad(InputImage, TransferPixelPosition);
-            if (TransferPixelPosition == SamplePixelPosition)
+                OutputRadiance = imageLoad(InputImage, TransferImagePosition);
+            if (TransferImagePosition == SampleImagePosition)
                 OutputRadiance += SampleRadiance;
-            imageStore(OutputImage, TransferPixelPosition, OutputRadiance);
+            imageStore(OutputImage, TransferImagePosition, OutputRadiance);
         }
     }
 }

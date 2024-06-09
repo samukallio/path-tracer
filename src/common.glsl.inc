@@ -385,16 +385,21 @@ float SampleParametricSpectrum(vec4 BetaAndIntensity, float Lambda)
 // an illuminant with a constant power spectrum.  This is useful to retrieve
 // the SRGB color corresponding to a parametric spectrum for simple surface
 // color visualization.
-vec3 ObserveParametricSpectrumSRGB(vec3 Beta)
+vec3 ObserveParametricSpectrumSRGB(vec4 BetaAndIntensity)
 {
     const int SampleCount = 16;
     const float DeltaLambda = (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN) / SampleCount;
     vec3 Color = vec3(0, 0, 0);
     for (int I = 0; I < SampleCount; I++) {
         float Lambda = mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, I / float(SampleCount - 1));
-        Color += SampleParametricSpectrum(Beta, Lambda) * SampleStandardObserverSRGB(Lambda) * DeltaLambda;
+        Color += SampleParametricSpectrum(BetaAndIntensity, Lambda) * SampleStandardObserverSRGB(Lambda) * DeltaLambda;
     }
     return Color / 50.0;
+}
+
+vec3 ObserveParametricSpectrumSRGB(vec3 Beta)
+{
+    return ObserveParametricSpectrumSRGB(vec4(Beta, 1));
 }
 
 /* --- Random -------------------------------------------------------------- */
