@@ -40,8 +40,6 @@ struct application
 
     scene*          Scene               = nullptr;
     camera*         Camera              = nullptr;
-
-    parametric_spectrum_table* SRGBSpectrumTable = nullptr;
 };
 
 void InitializeUI(application* App);

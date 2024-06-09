@@ -556,7 +556,7 @@ void ParametricSpectrumViewerWindow(application* App)
     ImGui::Begin("Parametric Spectrum Viewer");
 
     if (ImGui::ColorEdit3("Color", &Color[0], ImGuiColorEditFlags_Float)) {
-        glm::vec3 Beta = GetParametricSpectrumCoefficients(App->SRGBSpectrumTable, Color);
+        glm::vec3 Beta = GetParametricSpectrumCoefficients(App->Scene->RGBSpectrumTable, Color);
         for (int I = 0; I < IM_ARRAYSIZE(Spectrum); I++) {
             float Lambda = glm::mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, I / 512.f);
             Spectrum[I] = SampleParametricSpectrum(Beta, Lambda);
