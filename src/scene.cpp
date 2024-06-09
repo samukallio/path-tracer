@@ -198,23 +198,15 @@ texture* CreateCheckerTexture(scene* Scene, char const* Name, glm::vec4 const& C
     return Texture;
 }
 
-texture* LoadTexture(scene* Scene, char const* Path, char const* Name)
+texture* LoadTexture(scene* Scene, char const* Path, texture_type Type, char const* Name)
 {
     int Width, Height, ChannelsInFile;
     glm::vec4* Pixels = reinterpret_cast<glm::vec4*>(stbi_loadf(Path, &Width, &Height, &ChannelsInFile, 4));
     if (!Pixels) return nullptr;
 
-    for (int Y = 0; Y < Height; Y++) {
-        for (int X = 0; X < Width; X++) {
-            int Index = Y * Width + X;
-            glm::vec4 Color = Pixels[Index];
-            glm::vec3 Beta = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Color.xyz());
-            Pixels[Index] = glm::vec4(Beta, Color.a);
-        }
-    }
-
     auto Texture = new texture {
         .Name = Name ? Name : Path,
+        .Type = Type,
         .Width = static_cast<uint32_t>(Width),
         .Height = static_cast<uint32_t>(Height),
         .Pixels = Pixels,
@@ -459,16 +451,24 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
         Material->SpecularIOR = 0.0f;
         Material->TransmissionWeight = 0.0f;
 
-        std::pair<std::string, texture**> Textures[] = {
-            { FileMaterial.diffuse_texname, &Material->BaseColorTexture },
-            { FileMaterial.emissive_texname, &Material->EmissionColorTexture },
+        std::tuple<std::string, texture_type, texture**> Textures[] = {
+            {
+                FileMaterial.diffuse_texname,
+                TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA,
+                &Material->BaseColorTexture,
+            },
+            {
+                FileMaterial.emissive_texname,
+                TEXTURE_TYPE_RADIANCE,
+                &Material->EmissionColorTexture,
+            },
         };
 
-        for (auto const& [Name, TexturePtr] : Textures) {
+        for (auto const& [Name, Type, TexturePtr] : Textures) {
             if (!Name.empty()) {
                 if (!TextureMap.contains(Name)) {
                     std::string Path = std::format("{}/{}", Options->DirectoryPath, Name);
-                    TextureMap[Name] = LoadTexture(Scene, Path.c_str(), Name.c_str());
+                    TextureMap[Name] = LoadTexture(Scene, Path.c_str(), Type, Name.c_str());
                 }
                 *TexturePtr = TextureMap[Name];
             }
@@ -899,30 +899,32 @@ uint32_t PackSceneData(scene* Scene)
                     (Rect.y + 0.5f) / float(ATLAS_HEIGHT),
                 };
 
-                auto SRGBGammaToLinear = [](float X) -> float {
-                    if (X <= 0.04045f)
-                        return X / 12.92f;
-                    else
-                        return glm::pow((X + 0.055f) / 1.055f, 2.4f);
-                };
-
                 for (uint32_t Y = 0; Y < Texture->Height; Y++) {
                     glm::vec4 const* Src = Texture->Pixels + Y * Texture->Width;
                     glm::vec4* Dst = Pixels + (Rect.y + Y) * ATLAS_WIDTH + Rect.x;
-                    memcpy(Dst, Src, Texture->Width * sizeof(glm::vec4));
-                    //for (uint32_t X = 0; X < Texture->Width; X++) {
-                    //    uint32_t SrcColor = *Src++;
-                    //    uint32_t R = (SrcColor      ) & 0xFF;
-                    //    uint32_t G = (SrcColor >>  8) & 0xFF;
-                    //    uint32_t B = (SrcColor >> 16) & 0xFF;
-                    //    uint32_t A = (SrcColor >> 24) & 0xFF;
-
-                    //    glm::vec4& DstColor = *Dst++;
-                    //    DstColor.r = SRGBGammaToLinear(R / 255.0f);
-                    //    DstColor.g = SRGBGammaToLinear(G / 255.0f);
-                    //    DstColor.b = SRGBGammaToLinear(B / 255.0f);
-                    //    DstColor.a = A / 255.0f;
-                    //}
+                    if (Texture->Type == TEXTURE_TYPE_RAW) {
+                        memcpy(Dst, Src, Texture->Width * sizeof(glm::vec4));
+                    }
+                    else if (Texture->Type == TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA) {
+                        for (uint32_t X = 0; X < Texture->Width; X++) {
+                            glm::vec4 Value = *Src++;
+                            glm::vec3 Beta = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Value.xyz());
+                            *Dst++ = glm::vec4(Beta, Value.a);
+                        }
+                    }
+                    else if (Texture->Type == TEXTURE_TYPE_RADIANCE) {
+                        for (uint32_t X = 0; X < Texture->Width; X++) {
+                            glm::vec4 Color = *Src++;
+                            float Intensity = 2 * glm::max(glm::max(Color.r, Color.g), Color.b);
+                            if (Intensity > 1e-6f) {
+                                glm::vec3 Beta = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Color / Intensity);
+                                *Dst++ = glm::vec4(Beta, Intensity);
+                            }
+                            else {
+                                *Dst++ = glm::vec4(0, 0, 0, 0);
+                            }
+                        }
+                    }
                 }
 
                 if (Texture->EnableNearestFiltering)

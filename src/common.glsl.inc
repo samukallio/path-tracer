@@ -35,6 +35,10 @@ const uint SHAPE_TYPE_PLANE                 = 1;
 const uint SHAPE_TYPE_SPHERE                = 2;
 const uint SHAPE_TYPE_CUBE                  = 3;
 
+const uint TEXTURE_TYPE_RAW                 = 0;
+const uint TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA = 1;
+const uint TEXTURE_TYPE_RADIANCE            = 2;
+
 const uint TEXTURE_FLAG_FILTER_NEAREST      = 1 << 0;
 
 struct packed_transform
@@ -48,8 +52,8 @@ struct packed_texture
     vec2            AtlasPlacementMinimum;
     vec2            AtlasPlacementMaximum;
     uint            AtlasImageIndex;
+    uint            Type;
     uint            Flags;
-    uint            Dummy1;
     uint            Dummy2;
 };
 

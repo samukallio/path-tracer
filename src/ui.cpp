@@ -64,6 +64,19 @@ static void TextureInspector(application* App, texture* Texture)
 
     ImGui::InputText("Name", &Texture->Name);
     ImGui::LabelText("Size", "%u x %u", Texture->Width, Texture->Height);
+
+    if (ImGui::BeginCombo("Type", TextureTypeName(Texture->Type))) {
+        for (int I = 0; I < TEXTURE_TYPE__COUNT; I++) {
+            auto Type = static_cast<texture_type>(I);
+            bool IsSelected = Texture->Type == Type;
+            if (ImGui::Selectable(TextureTypeName(Type), &IsSelected)) {
+                Texture->Type = Type;
+                C = true;
+            }
+        }
+        ImGui::EndCombo();
+    }
+
     C |= ImGui::Checkbox("Nearest Filtering", &Texture->EnableNearestFiltering);
 
     if (C) Scene->DirtyFlags |= SCENE_DIRTY_TEXTURES;

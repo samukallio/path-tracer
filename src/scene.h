@@ -6,6 +6,7 @@
 struct texture
 {
     std::string                     Name                    = "New Texture";
+    texture_type                    Type                    = TEXTURE_TYPE_RAW;
     uint32_t                        Width                   = 0;
     uint32_t                        Height                  = 0;
     glm::vec4 const*                Pixels                  = nullptr;
@@ -248,7 +249,7 @@ entity*     CreateEntity(scene* Scene, entity* Source, entity* Parent = nullptr)
 entity*     CreateEntity(scene* Scene, prefab* Prefab, entity* Parent = nullptr);
 material*   CreateMaterial(scene* Scene, char const* Name);
 texture*    CreateCheckerTexture(scene* Scene, char const* Name, glm::vec4 const& ColorA, glm::vec4 const& ColorB);
-texture*    LoadTexture(scene* Scene, char const* Path, char const* Name = nullptr);
+texture*    LoadTexture(scene* Scene, char const* Path, texture_type Type, char const* Name = nullptr);
 prefab*     LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Options = nullptr);
 bool        LoadSkybox(scene* Scene, char const* Path);
 

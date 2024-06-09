@@ -66,6 +66,14 @@ enum shape_type : int32_t
     SHAPE_TYPE_CUBE                     = 3,
 };
 
+enum texture_type
+{
+    TEXTURE_TYPE_RAW                    = 0,
+    TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA = 1,
+    TEXTURE_TYPE_RADIANCE               = 2,
+    TEXTURE_TYPE__COUNT                 = 3,
+};
+
 enum texture_flag : uint32_t
 {
     TEXTURE_FLAG_FILTER_NEAREST         = 1 << 0,
@@ -86,9 +94,9 @@ struct alignas(16) packed_texture
     glm::vec2                   AtlasPlacementMinimum;
     glm::vec2                   AtlasPlacementMaximum;
     uint32_t                    AtlasImageIndex;
+    uint32_t                    Type;
     uint32_t                    Flags;
-    uint32_t                    Dummy1;
-    uint32_t                    Dummy2;
+    uint32_t                    Unused0;
 };
 
 // This structure is shared between CPU and GPU,
@@ -277,6 +285,15 @@ inline char const* CameraModelName(camera_model Model)
     }
     assert(false);
     return nullptr;
+}
+
+inline char const* TextureTypeName(texture_type Type)
+{
+    switch (Type) {
+    case TEXTURE_TYPE_RAW:                  return "Raw";
+    case TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA: return "Reflectance (with alpha)";
+    case TEXTURE_TYPE_RADIANCE:             return "Radiance";
+    }
 }
 
 inline ray TransformRay(ray const& Ray, glm::mat4 const& Matrix)

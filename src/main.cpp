@@ -431,12 +431,12 @@ int main()
         Options.Name = "viking_room.obj";
         Options.DirectoryPath = "../scene";
         Options.DefaultMaterial = CreateMaterial(&Scene, "viking_room");
-        Options.DefaultMaterial->BaseColorTexture = LoadTexture(&Scene, "../scene/viking_room.png", "viking_room.png");
+        Options.DefaultMaterial->BaseColorTexture = LoadTexture(&Scene, "../scene/viking_room.png", TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA, "viking_room.png");
         prefab* Prefab = LoadModelAsPrefab(&Scene, "../scene/viking_room.obj", &Options);
         CreateEntity(&Scene, Prefab); 
     }
 
-    LoadTexture(&Scene, "../scene/earth.png", "Earth");
+    LoadTexture(&Scene, "../scene/earth.png", TEXTURE_TYPE_RAW, "Earth");
 
     //{
     //    float s = 0.01f;
