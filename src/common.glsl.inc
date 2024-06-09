@@ -229,6 +229,15 @@ ray InverseTransformRay(ray R, packed_transform Transform)
     return OutR;
 }
 
+vec3 SafeNormalize(vec3 V)
+{
+    float LenSq = dot(V, V);
+    if (LenSq < 1e-12)
+        return vec3(0, 0, 1);
+    else
+        return V / sqrt(LenSq);
+}
+
 // Compute an arbitrary tangent space basis for a given normal vector.
 void ComputeTangentVectors(vec3 Normal, out vec3 TangentX, out vec3 TangentY)
 {

@@ -430,9 +430,10 @@ hit Trace(ray Ray, float MaxTime)
         packed_mesh_face Face = MeshFaces[Hit.PrimitiveIndex];
         packed_mesh_face_extra Extra = MeshFaceExtras[Hit.PrimitiveIndex];
 
-        Normal = Extra.Normals[0] * Hit.PrimitiveCoordinates.x
-               + Extra.Normals[1] * Hit.PrimitiveCoordinates.y
-               + Extra.Normals[2] * Hit.PrimitiveCoordinates.z;
+        Normal = SafeNormalize(
+            Extra.Normals[0] * Hit.PrimitiveCoordinates.x +
+            Extra.Normals[1] * Hit.PrimitiveCoordinates.y +
+            Extra.Normals[2] * Hit.PrimitiveCoordinates.z);
 
         ComputeTangentVectors(Normal, TangentX, TangentY);
 
@@ -757,7 +758,7 @@ vec4 RenderPath(ray Ray)
             }
             else {
                 // Diffuse reflection.
-                Incoming = normalize(RandomDirection() + vec3(0, 0, 1));
+                Incoming = SafeNormalize(RandomDirection() + vec3(0, 0, 1));
 
                 float S = dot(Incoming, Outgoing) - Incoming.z * Outgoing.z;
                 float T = S > 0 ? max(Incoming.z, Outgoing.z) : 1.0;
