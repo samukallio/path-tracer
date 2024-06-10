@@ -156,6 +156,9 @@ struct hit
 struct surface_parameters
 {
     float           Opacity;
+
+    float           AmbientIOR;
+
     float           BaseWeight;
     float           BaseReflectance;
     float           BaseMetalness;
@@ -164,8 +167,7 @@ struct surface_parameters
     float           SpecularWeight;
     float           SpecularIOR;
     float           SpecularReflectance;
-    float           SpecularRoughness;
-    float           SpecularRoughnessAnisotropy;
+    vec2            SpecularRoughnessAlpha;
 
     float           TransmissionWeight;
 

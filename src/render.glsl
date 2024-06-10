@@ -525,22 +525,169 @@ void ResolveSurfaceParameters(hit Hit, float Lambda, out surface_parameters Surf
     // Specular.
     Surface.SpecularWeight = Material.SpecularWeight;
     Surface.SpecularReflectance = SampleParametricSpectrum(Material.SpecularSpectrum, Lambda);
-    Surface.SpecularRoughness = Material.SpecularRoughness;
-    Surface.SpecularRoughnessAnisotropy = Material.SpecularRoughnessAnisotropy;
 
     float AbbeNumber = Material.TransmissionDispersionAbbeNumber / Material.TransmissionDispersionScale;
     Surface.SpecularIOR = CauchyEmpiricalIOR(Material.SpecularIOR, AbbeNumber, Lambda);
 
+    float SpecularRoughness = Material.SpecularRoughness;
     if (Material.SpecularRoughnessTextureIndex != TEXTURE_INDEX_NONE) {
         vec4 Value = SampleTexture(Material.SpecularRoughnessTextureIndex, Hit.UV);
-        Surface.SpecularRoughness *= Value.r;
+        SpecularRoughness *= Value.r;
     }
+
+    Surface.SpecularRoughnessAlpha = ComputeRoughnessAlphaGGX(
+        Material.SpecularRoughness,
+        Material.SpecularRoughnessAnisotropy);
 
     // Transmission.
     Surface.TransmissionWeight = Material.TransmissionWeight;
 
     // Medium.
     Surface.MediumScatteringRate = Material.ScatteringRate;
+}
+
+/* --- BSDF ---------------------------------------------------------------- */
+
+// OpenPBR coat BSDF.
+void CoatBSDF(vec3 Out, out vec3 In, inout float Weight, surface_parameters Surface)
+{
+    In = -Out;
+}
+
+// OpenPBR base substrate BSDF.
+void BaseBSDF(vec3 Out, out vec3 In, inout float Weight, surface_parameters Surface)
+{
+    // Sample a microsurface normal for specular scattering.
+    float NormalU1 = Random0To1();
+    float NormalU2 = Random0To1();
+    vec3 Normal = SampleVisibleNormalGGX(Out * sign(Out.z), Surface.SpecularRoughnessAlpha, NormalU1, NormalU2);
+    float Cosine = dot(Normal, Out);
+
+    // Substrate is metal?
+    if (Random0To1() < Surface.BaseMetalness) {
+        // Compute reflected direction.
+        In = 2 * Cosine * Normal - Out;
+
+        // If the reflected direction is in the wrong hemisphere,
+        // then it is shadowed and we terminate here.
+        if (Out.z * In.z <= 0) {
+            Weight = 0.0;
+            return;
+        }
+
+        // Compute Fresnel term.
+        float F0 = Surface.BaseWeight * Surface.BaseReflectance;
+        float F = Surface.SpecularWeight * SchlickFresnelMetal(F0, Surface.SpecularReflectance, abs(Cosine));
+
+        // Compute shadowing term.
+        float G = SmithG1(In, Surface.SpecularRoughnessAlpha);
+
+        Weight *= F * G;
+        return;
+    }
+
+    // Substrate is a dielectric.
+    float RelativeIOR;
+    if (Out.z > 0)
+        RelativeIOR = Surface.AmbientIOR / Surface.SpecularIOR;
+    else
+        RelativeIOR = Surface.SpecularIOR / Surface.AmbientIOR;
+
+    float RefractedCosineSquared = 1 - RelativeIOR * RelativeIOR * (1 - Cosine * Cosine);
+    float Reflectance;
+
+    if (RefractedCosineSquared < 0) {
+        // Total internal reflection.
+        Reflectance = 1.0;
+    }
+    else {
+        float F0 = Surface.SpecularWeight * pow((1 - RelativeIOR) / (1 + RelativeIOR), 2);
+        Reflectance = SchlickFresnelDielectric(F0, abs(Cosine));
+    }
+
+    // Specular reflection?
+    if (Random0To1() < Reflectance) {
+        // Compute reflected direction.
+        In = 2 * Cosine * Normal - Out;
+
+        // If the reflected direction is in the wrong hemisphere,
+        // then it is shadowed and we terminate here.
+        if (In.z * Out.z <= 0) {
+            Weight = 0.0;
+            return;
+        }
+
+        // Per the OpenPBR specification: the specular color material
+        // parameter modulates the Fresnel factor of the dielectric,
+        // but only for reflections from above (and not below).
+        if (Out.z > 0) Weight *= Surface.SpecularReflectance;
+
+        Weight *= SmithG1(In, Surface.SpecularRoughnessAlpha);
+        return;
+    }
+
+    // Not a reflection; if the material is transmissive, then it's a refraction.
+    if (Random0To1() < Surface.TransmissionWeight) {
+        // Compute refracted direction.
+        float RefractedCosine = -sign(Out.z) * sqrt(RefractedCosineSquared);
+        In = (RelativeIOR * Cosine + RefractedCosine) * Normal - RelativeIOR * Out;
+
+        // If the refracted direction is in the wrong hemisphere,
+        // then it is shadowed and we terminate here.
+        if (In.z * Out.z > 0) {
+            Weight = 0.0;
+            return;
+        }
+
+        Weight *= SmithG1(In, Surface.SpecularRoughnessAlpha);
+        return;
+    }
+
+    // Not a reflection, and the material is not transmissive; then it is diffuse.
+    if (true) {
+        In = SafeNormalize(RandomDirection() + vec3(0, 0, 1));
+
+        float S = dot(In, Out) - In.z * Out.z;
+        float T = S > 0 ? max(In.z, Out.z) : 1.0;
+        float SigmaSq = Surface.BaseDiffuseRoughness * Surface.BaseDiffuseRoughness;
+        float A = 1 - 0.5 * SigmaSq / (SigmaSq + 0.33) + 0.17 * Surface.BaseReflectance * SigmaSq / (SigmaSq + 0.13);
+        float B = 0.45 * SigmaSq / (SigmaSq + 0.09);
+
+        Weight *= Surface.BaseReflectance * (A + B * S / T);
+    }
+}
+
+void BSDF(vec3 Out, out vec3 In, inout float Weight, surface_parameters Surface)
+{
+    const int LAYER_COAT = 0;
+    const int LAYER_BASE = 1;
+
+    int Layer;
+    
+    if (Out.z > 0)
+        Layer = LAYER_COAT;
+    else
+        Layer = LAYER_BASE;
+
+    for (int I = 0; I < 10; I++) {
+        if (Layer == LAYER_COAT) {
+            CoatBSDF(Out, In, Weight, Surface);
+
+            if (In.z > 0) return;
+
+            Out = -In;
+            Layer = LAYER_BASE;
+        }
+
+        if (Layer == LAYER_BASE) {
+            BaseBSDF(Out, In, Weight, Surface);
+
+            if (In.z < 0) return;
+
+            Out = -In;
+            Layer = LAYER_COAT;
+        }
+    }
 }
 
 /* --- Rendering ----------------------------------------------------------- */
@@ -554,7 +701,7 @@ vec4 RenderPath(ray Ray)
     float Radiance = 0.0;
 
     // Cumulative importance at the current path vertex.
-    float Importance = 1.0; //* (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN);
+    float Weight = 1.0; //* (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN);
 
     const int MAX_MEDIUM_COUNT = 8;
 
@@ -590,7 +737,7 @@ vec4 RenderPath(ray Ray)
             }
             // Otherwise, we hit the skybox.
             else {
-                Radiance += Importance * SampleSkyboxRadiance(Ray, Lambda);
+                Radiance += Weight * SampleSkyboxRadiance(Ray, Lambda);
                 break;
             }
         }
@@ -600,15 +747,13 @@ vec4 RenderPath(ray Ray)
         ResolveSurfaceParameters(Hit, Lambda, Surface);
 
         // Incoming ray direction in normal/tangent space.
-        vec3 Incoming;
+        vec3 In;
 
         // Outgoing ray direction in normal/tangent space.
-        vec3 Outgoing = -vec3(
+        vec3 Out = -vec3(
             dot(Ray.Vector, Hit.TangentX),
             dot(Ray.Vector, Hit.TangentY),
             dot(Ray.Vector, Hit.Normal));
-
-        bool IsFrontFace = Outgoing.z > 0;
 
         // Determines if the surface we hit is a virtual surface.  A surface
         // is virtual if it belongs to a shape with a lower priority than the
@@ -620,28 +765,24 @@ vec4 RenderPath(ray Ray)
 
         // Relative index of refraction between the current medium and the
         // medium at the other side of the surface.
-        float RelativeIOR = 1.0;
-
-        if (IsFrontFace) {
+        if (Out.z > 0) {
             // If we are hitting the exterior side of a shape, then the surface
             // interface should affect the ray if the surface belongs to
             // a higher priority shape than we are currently traversing through.
             IsVirtualSurface = CurrentMedium.ShapePriority >= Hit.ShapePriority;
 
             if (!IsVirtualSurface) {
-                RelativeIOR = CurrentMedium.IOR / Surface.SpecularIOR;
+                Surface.AmbientIOR = CurrentMedium.IOR;
             }
         }
         else {
-            Outgoing.z = -Outgoing.z;
-
             // If we are hitting the interior side of a shape, then the surface
             // interface should affect the ray only if the surface belongs to
             // the highest-priority shape that we are currently traversing
             // through.
             IsVirtualSurface = CurrentMedium.ShapeIndex != Hit.ShapeIndex;
 
-            // If the surface is real, then we need to determine the relative IOR.
+            // If the surface is real, then we need to determine the ambient IOR.
             if (!IsVirtualSurface) {
                 // The medium beyond the surface will be that of the highest
                 // priority shape other than the one we are currently in.
@@ -655,130 +796,24 @@ vec4 RenderPath(ray Ray)
                         continue;
                     ExteriorMedium = Mediums[I];
                 }
-                RelativeIOR = CurrentMedium.IOR / ExteriorMedium.IOR;
+                Surface.AmbientIOR = ExteriorMedium.IOR;
             }
         }
-
-        vec2 SpecularRoughnessAlpha = ComputeRoughnessAlphaGGX(
-            Surface.SpecularRoughness,
-            Surface.SpecularRoughnessAnisotropy);
-
-        // Sample a microsurface normal.
-        vec3 SpecularNormal = SampleVisibleNormalGGX(Outgoing, SpecularRoughnessAlpha, Random0To1(), Random0To1());
-        // Compute cosine between microsurface normal and outgoing direction.
-        float SpecularCosine = dot(SpecularNormal, Outgoing);
 
         // Pass through the surface if embedded in a higher-priority
         // medium, or probabilistically based on geometric opacity.
-        if (Random0To1() > Surface.Opacity || IsVirtualSurface) {
-            Incoming = -Outgoing;
-        }
-        // Metal base.
-        else if (Random0To1() < Surface.BaseMetalness) {
-            // Compute incoming direction.  If the incoming ray appears to be
-            // coming from within the macrosurface, then it is shadowed, and we
-            // terminate.
-            Incoming = 2 * SpecularCosine * SpecularNormal - Outgoing;
-            if (Incoming.z <= 0) break;
+        if (Random0To1() > Surface.Opacity || IsVirtualSurface)
+            In = -Out;
+        else
+            BSDF(Out, In, Weight, Surface);
 
-            // Compute Fresnel term.
-            float F0 = Surface.BaseWeight * Surface.BaseReflectance;
-            float F = Surface.SpecularWeight * SchlickFresnelMetal(F0, Surface.SpecularReflectance, SpecularCosine);
-
-            // Compute shadowing term.
-            float G = SmithG1(Incoming, SpecularRoughnessAlpha);
-
-            Importance *= F * G;
-        }
-        // Translucent dielectric base.
-        else if (Random0To1() < Surface.TransmissionWeight) {
-            float RefractedCosineSquared = 1 - RelativeIOR * RelativeIOR * (1 - SpecularCosine * SpecularCosine);
-
-            // Compute reflectance (Fresnel).
-            float F;
-            if (RefractedCosineSquared < 0) {
-                // Total internal reflection.
-                F = 1.0;
-            }
-            else {
-                float F0 = Surface.SpecularWeight * pow((1 - RelativeIOR) / (1 + RelativeIOR), 2);
-                F = SchlickFresnelDielectric(F0, SpecularCosine);
-            }
-
-            // Determine incoming direction.
-            float IncomingCosine;
-            if (Random0To1() < F) {
-                // Reflection.
-                IncomingCosine = SpecularCosine;
-                Incoming = 2 * SpecularCosine * SpecularNormal - Outgoing;
-
-                if (IsFrontFace) {
-                    // Per the OpenPBR specification: the specular color material
-                    // parameter modulates the Fresnel factor of the dielectric,
-                    // but only for reflections from above (and not below).
-                    Importance *= Surface.SpecularReflectance;
-                }
-            }
-            else {
-                // Refraction.
-                IncomingCosine = -sqrt(RefractedCosineSquared);
-                Incoming = (RelativeIOR * SpecularCosine + IncomingCosine) * SpecularNormal - RelativeIOR * Outgoing;
-            }
-
-            // If the incoming direction is in the wrong hemisphere (depending on
-            // whether we have a reflection or a refraction), then it is shadowed,
-            // and we terminate.
-            if (IncomingCosine * Incoming.z <= 0) break;
-
-            float G = SmithG1(Incoming, SpecularRoughnessAlpha);
-
-            Importance *= G;
-        }
-        // Glossy-diffuse dielectric base.
-        else {
-            float F0 = Surface.SpecularWeight * pow((1 - RelativeIOR) / (1 + RelativeIOR), 2);
-            float F = SchlickFresnelDielectric(F0, SpecularCosine);
-
-            if (Random0To1() < F) {
-                // Specular reflection.
-
-                // Compute incoming direction.  If the incoming ray appears to be
-                // coming from within the macrosurface, then it is shadowed, and we
-                // terminate.
-                Incoming = 2 * SpecularCosine * SpecularNormal - Outgoing;
-                if (Incoming.z <= 0) break;
-
-                if (IsFrontFace) {
-                    // Per the OpenPBR specification: the specular color material
-                    // parameter modulates the Fresnel factor of the dielectric,
-                    // but only for reflections from above (and not below).
-                    Importance *= Surface.SpecularReflectance;
-                }
-
-                float G = SmithG1(Incoming, SpecularRoughnessAlpha);
-
-                Importance *= G;
-            }
-            else {
-                // Diffuse reflection.
-                Incoming = SafeNormalize(RandomDirection() + vec3(0, 0, 1));
-
-                float S = dot(Incoming, Outgoing) - Incoming.z * Outgoing.z;
-                float T = S > 0 ? max(Incoming.z, Outgoing.z) : 1.0;
-
-                float SigmaSq = Surface.BaseDiffuseRoughness * Surface.BaseDiffuseRoughness;
-                float A = 1 - 0.5 * SigmaSq / (SigmaSq + 0.33) + 0.17 * Surface.BaseReflectance * SigmaSq / (SigmaSq + 0.13);
-                float B = 0.45 * SigmaSq / (SigmaSq + 0.09);
-
-                Importance *= Surface.BaseReflectance * (A + B * S / T);
-            }
-        }
+        if (Weight < EPSILON) break;
 
         // If the incoming and outgoing directions are within opposite hemispheres,
         // then the ray is crossing the material interface boundary.  We need to
         // perform bookkeeping to determine the current Medium.
-        if (Incoming.z < 0) {
-            if (IsFrontFace) {
+        if (In.z * Out.z < 0) {
+            if (Out.z > 0) {
                 // We are tracing into the object, so add a medium entry
                 // associated with the object.
                 for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
@@ -814,14 +849,10 @@ vec4 RenderPath(ray Ray)
             }
         }
 
-        if (!IsFrontFace) {
-            Incoming.z = -Incoming.z;
-        }
-
         // Prepare the extension ray.
-        Ray.Vector = Incoming.x * Hit.TangentX
-                   + Incoming.y * Hit.TangentY
-                   + Incoming.z * Hit.Normal;
+        Ray.Vector = In.x * Hit.TangentX
+                   + In.y * Hit.TangentY
+                   + In.z * Hit.Normal;
 
         Ray.Origin = Hit.Position + 1e-3 * Ray.Vector;
 
@@ -829,7 +860,7 @@ vec4 RenderPath(ray Ray)
         if (Random0To1() < RenderTerminationProbability)
             break;
 
-        Importance /= 1.0 - RenderTerminationProbability;
+        Weight /= 1.0 - RenderTerminationProbability;
     }
 
     vec3 Color = SampleStandardObserverSRGB(Lambda) * Radiance;
