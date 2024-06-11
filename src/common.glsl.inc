@@ -288,12 +288,6 @@ vec3 SampleVisibleNormalGGX(vec3 Direction, vec2 RoughnessAlpha, float U1, float
         max(0.0, Normal.z)));
 }
 
-// Computes the Fresnel term for a dielectric surface using the Schlick approximation.
-float SchlickFresnelDielectric(float F0, float CosTheta)
-{
-    return F0 + (1 - F0) * pow(1 - CosTheta, 5);
-}
-
 // Computes the Fresnel term for a metallic surface using the "F82-tint"
 // formulation presented in the paper "Novel aspects of the Adobe Standard
 // Material" by Kutz et al, adapted for spectral rendering.

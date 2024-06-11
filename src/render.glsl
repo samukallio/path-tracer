@@ -594,15 +594,16 @@ void BaseBSDF(vec3 Out, out vec3 In, inout float Weight, surface_parameters Surf
         RelativeIOR = Surface.SpecularIOR / Surface.AmbientIOR;
 
     float RefractedCosineSquared = 1 - RelativeIOR * RelativeIOR * (1 - Cosine * Cosine);
-    float Reflectance;
+    float RefractedCosine = -sign(Out.z) * sqrt(max(RefractedCosineSquared, 0.0));
 
-    if (RefractedCosineSquared < 0) {
-        // Total internal reflection.
-        Reflectance = 1.0;
-    }
-    else {
-        float F0 = Surface.SpecularWeight * pow((1 - RelativeIOR) / (1 + RelativeIOR), 2);
-        Reflectance = SchlickFresnelDielectric(F0, abs(Cosine));
+    float Reflectance;
+    {
+        float A = RefractedCosine;
+        float Bs = Cosine * RelativeIOR;
+        float Bp = Cosine / RelativeIOR;
+        float Rs = pow((A + Bs) / (A - Bs), 2.0);
+        float Rp = pow((A + Bp) / (A - Bp), 2.0);
+        Reflectance = 0.5 * (Rs + Rp);
     }
 
     // Specular reflection?
@@ -629,7 +630,6 @@ void BaseBSDF(vec3 Out, out vec3 In, inout float Weight, surface_parameters Surf
     // Not a reflection; if the material is transmissive, then it's a refraction.
     if (Random0To1() < Surface.TransmissionWeight) {
         // Compute refracted direction.
-        float RefractedCosine = -sign(Out.z) * sqrt(RefractedCosineSquared);
         In = (RelativeIOR * Cosine + RefractedCosine) * Normal - RelativeIOR * Out;
 
         // If the refracted direction is in the wrong hemisphere,
