@@ -171,6 +171,8 @@ struct surface_parameters
 
     float           TransmissionWeight;
 
+    float           Emission;
+
     float           MediumScatteringRate;
 };
 

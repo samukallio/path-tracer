@@ -542,6 +542,9 @@ void ResolveSurfaceParameters(hit Hit, float Lambda, out surface_parameters Surf
     // Transmission.
     Surface.TransmissionWeight = Material.TransmissionWeight;
 
+    //
+    Surface.Emission = SampleParametricSpectrum(Material.EmissionSpectrum, Lambda) * Material.EmissionLuminance;
+
     // Medium.
     Surface.MediumScatteringRate = Material.ScatteringRate;
 }
@@ -549,14 +552,16 @@ void ResolveSurfaceParameters(hit Hit, float Lambda, out surface_parameters Surf
 /* --- BSDF ---------------------------------------------------------------- */
 
 // OpenPBR coat BSDF.
-void CoatBSDF(vec3 Out, out vec3 In, inout float Weight, surface_parameters Surface)
+void CoatBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface_parameters Surface)
 {
     In = -Out;
 }
 
 // OpenPBR base substrate BSDF.
-void BaseBSDF(vec3 Out, out vec3 In, inout float Weight, surface_parameters Surface)
+void BaseBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface_parameters Surface)
 {
+    if (Out.z > 0) Radiance += Surface.Emission;
+
     // Sample a microsurface normal for specular scattering.
     float NormalU1 = Random0To1();
     float NormalU2 = Random0To1();
@@ -661,7 +666,7 @@ void BaseBSDF(vec3 Out, out vec3 In, inout float Weight, surface_parameters Surf
     }
 }
 
-void BSDF(vec3 Out, out vec3 In, inout float Weight, surface_parameters Surface)
+void BSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface_parameters Surface)
 {
     const int LAYER_COAT = 0;
     const int LAYER_BASE = 1;
@@ -675,7 +680,7 @@ void BSDF(vec3 Out, out vec3 In, inout float Weight, surface_parameters Surface)
 
     for (int I = 0; I < 10; I++) {
         if (Layer == LAYER_COAT) {
-            CoatBSDF(Out, In, Weight, Surface);
+            CoatBSDF(Out, In, Radiance, Weight, Surface);
 
             if (In.z > 0) return;
 
@@ -684,7 +689,7 @@ void BSDF(vec3 Out, out vec3 In, inout float Weight, surface_parameters Surface)
         }
 
         if (Layer == LAYER_BASE) {
-            BaseBSDF(Out, In, Weight, Surface);
+            BaseBSDF(Out, In, Radiance, Weight, Surface);
 
             if (In.z < 0) return;
 
@@ -809,7 +814,7 @@ vec4 RenderPath(ray Ray)
         if (Random0To1() > Surface.Opacity || IsVirtualSurface)
             In = -Out;
         else
-            BSDF(Out, In, Weight, Surface);
+            BSDF(Out, In, Radiance, Weight, Surface);
 
         if (Weight < EPSILON) break;
 
