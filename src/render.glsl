@@ -593,6 +593,12 @@ void BaseBSDF(vec3 Out, out vec3 In, inout float Weight, surface_parameters Surf
     else
         RelativeIOR = Surface.SpecularIOR / Surface.AmbientIOR;
 
+    // Modulation of the relative IOR by the specular weight parameter.
+    if (Surface.SpecularWeight < 1.0) {
+        float R = sqrt(Surface.SpecularWeight) * (1.0 - RelativeIOR) / (1.0 + RelativeIOR);
+        RelativeIOR = (1.0 - R) / (1.0 + R);
+    }
+
     // Compute the cosine of the angle between the refraction direction and
     // the microsurface normal.  The squared cosine is clamped to zero, the
     // boundary for total internal reflection (TIR).  When the cosine is zero,
