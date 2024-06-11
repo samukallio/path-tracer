@@ -593,18 +593,16 @@ void BaseBSDF(vec3 Out, out vec3 In, inout float Weight, surface_parameters Surf
     else
         RelativeIOR = Surface.SpecularIOR / Surface.AmbientIOR;
 
+    // Compute the cosine of the angle between the refraction direction and
+    // the microsurface normal.  The squared cosine is clamped to zero, the
+    // boundary for total internal reflection (TIR).  When the cosine is zero,
+    // the Fresnel formulas give a reflectivity of 1, producing a TIR without
+    // the need for branches.
     float RefractedCosineSquared = 1 - RelativeIOR * RelativeIOR * (1 - Cosine * Cosine);
     float RefractedCosine = -sign(Out.z) * sqrt(max(RefractedCosineSquared, 0.0));
 
-    float Reflectance;
-    {
-        float A = RefractedCosine;
-        float Bs = Cosine * RelativeIOR;
-        float Bp = Cosine / RelativeIOR;
-        float Rs = pow((A + Bs) / (A - Bs), 2.0);
-        float Rp = pow((A + Bp) / (A - Bp), 2.0);
-        Reflectance = 0.5 * (Rs + Rp);
-    }
+    // Compute dielectric reflectance.
+    float Reflectance = FresnelDielectric(RefractedCosine, Cosine, RelativeIOR);
 
     // Specular reflection?
     if (Random0To1() < Reflectance) {

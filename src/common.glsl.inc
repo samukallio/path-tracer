@@ -288,6 +288,18 @@ vec3 SampleVisibleNormalGGX(vec3 Direction, vec2 RoughnessAlpha, float U1, float
         max(0.0, Normal.z)));
 }
 
+// Compute surface reflectance using the Fresnel equations,
+// assuming equal proportions of s and p polarized light.
+float FresnelDielectric(float CosThetaIn, float CosThetaOut, float RelativeIOR)
+{
+    float A = CosThetaIn;
+    float Bs = CosThetaOut * RelativeIOR;
+    float Bp = CosThetaOut / RelativeIOR;
+    float Rs = (A + Bs) / (A - Bs);
+    float Rp = (A + Bp) / (A - Bp);
+    return 0.5 * (Rs * Rs + Rp * Rp);
+}
+
 // Computes the Fresnel term for a metallic surface using the "F82-tint"
 // formulation presented in the paper "Novel aspects of the Adobe Standard
 // Material" by Kutz et al, adapted for spectral rendering.
