@@ -162,7 +162,7 @@ struct hit
     uint            MaterialIndex;
 };
 
-struct surface_parameters
+struct surface
 {
     float           Opacity;
 
@@ -185,11 +185,6 @@ struct surface_parameters
     vec2            SpecularRoughnessAlpha;
 
     float           Emission;
-
-    float           MediumIOR;
-    float           MediumAbsorptionRate;
-    float           MediumScatteringRate;
-    float           MediumScatteringAnisotropy;
 };
 
 struct ray

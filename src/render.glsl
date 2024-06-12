@@ -505,7 +505,7 @@ hit Trace(ray Ray, float MaxTime)
 /* --- Material ------------------------------------------------------------ */
 
 // Evaluate the surface properties of a hit surface at a given wavelength.
-void ResolveSurfaceParameters(hit Hit, float Lambda, float AmbientIOR, out surface_parameters Surface)
+void ResolveSurfaceHit(hit Hit, float Lambda, float AmbientIOR, out surface Surface, out medium Medium)
 {
     packed_material Material = Materials[Hit.MaterialIndex];
 
@@ -559,30 +559,30 @@ void ResolveSurfaceParameters(hit Hit, float Lambda, float AmbientIOR, out surfa
     //
     Surface.Emission = SampleParametricSpectrum(Material.EmissionSpectrum, Lambda) * Material.EmissionLuminance;
 
+    //
+    Surface.LayerBounceLimit = Material.LayerBounceLimit;
+
     // Medium.
-    Surface.MediumIOR = Material.SpecularIOR;
+    Medium.IOR = Material.SpecularIOR;
 
     if (Material.TransmissionDepth > 0) {
         float ExtinctionRate = -log(SampleParametricSpectrum(Material.TransmissionSpectrum, Lambda)) / Material.TransmissionDepth;
         float ScatteringRate = SampleParametricSpectrum(Material.TransmissionScatterSpectrum, Lambda) / Material.TransmissionDepth;
-        Surface.MediumAbsorptionRate = max(ExtinctionRate - ScatteringRate, 0);
-        Surface.MediumScatteringRate = ScatteringRate;
-        Surface.MediumScatteringAnisotropy = Material.TransmissionScatterAnisotropy;
+        Medium.AbsorptionRate = max(ExtinctionRate - ScatteringRate, 0);
+        Medium.ScatteringRate = ScatteringRate;
+        Medium.ScatteringAnisotropy = Material.TransmissionScatterAnisotropy;
     }
     else {
-        Surface.MediumAbsorptionRate = 0.0;
-        Surface.MediumScatteringRate = 0.0;
-        Surface.MediumScatteringAnisotropy = 0.0;
+        Medium.AbsorptionRate = 0.0;
+        Medium.ScatteringRate = 0.0;
+        Medium.ScatteringAnisotropy = 0.0;
     }
-
-    //
-    Surface.LayerBounceLimit = Material.LayerBounceLimit;
 }
 
 /* --- BSDF ---------------------------------------------------------------- */
 
 // OpenPBR coat BSDF.
-void CoatBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface_parameters Surface)
+void CoatBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface Surface)
 {
     if (!Surface.CoatIsPresent) {
         In = -Out;
@@ -660,7 +660,7 @@ void CoatBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, s
 }
 
 // Specular part of the OpenPBR base substrate BSDF.
-void BaseSpecularBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface_parameters Surface)
+void BaseSpecularBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface Surface)
 {
     if (Out.z > 0) Radiance += Surface.Emission * Weight;
 
@@ -749,7 +749,7 @@ void BaseSpecularBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float W
 }
 
 // Diffuse part of the OpenPBR base substrate BSDF.
-void BaseDiffuseBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface_parameters Surface)
+void BaseDiffuseBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface Surface)
 {
     if (Surface.BaseIsTranslucent) {
         In = -Out;
@@ -767,7 +767,7 @@ void BaseDiffuseBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float We
     Weight *= Surface.BaseReflectance * (A + B * S / T);
 }
 
-void BSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface_parameters Surface)
+void BSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface Surface)
 {
     const int LAYER_EXTERNAL = -1;
     const int LAYER_COAT = 0;
@@ -924,9 +924,10 @@ vec4 RenderPath(ray Ray)
             }
         }
 
-        // Resolve the surface details.
-        surface_parameters Surface;
-        ResolveSurfaceParameters(Hit, Lambda, AmbientIOR, Surface);
+        // Resolve the surface and medium details.
+        surface Surface;
+        medium Interior;
+        ResolveSurfaceHit(Hit, Lambda, AmbientIOR, Surface, Interior);
 
         // Pass through the surface if embedded in a higher-priority
         // medium, or probabilistically based on geometric opacity.
@@ -946,12 +947,9 @@ vec4 RenderPath(ray Ray)
                 // associated with the object.
                 for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
                     if (Mediums[I].ShapeIndex == SHAPE_INDEX_NONE) {
+                        Mediums[I] = Interior;
                         Mediums[I].ShapeIndex     = Hit.ShapeIndex;
                         Mediums[I].ShapePriority  = Hit.ShapePriority;
-                        Mediums[I].IOR            = Surface.MediumIOR;
-                        Mediums[I].AbsorptionRate = Surface.MediumAbsorptionRate;
-                        Mediums[I].ScatteringRate = Surface.MediumScatteringRate;
-                        Mediums[I].ScatteringAnisotropy = Surface.MediumScatteringAnisotropy;
                         break;
                     }
                 }
