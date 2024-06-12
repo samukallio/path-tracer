@@ -983,7 +983,7 @@ vec4 RenderPath(ray Ray)
                    + In.y * Hit.TangentY
                    + In.z * Hit.Normal;
 
-        Ray.Origin = Hit.Position + 1e-3 * Ray.Vector;
+        Ray.Origin = Hit.Position + 1e-5 * Ray.Vector;
 
         // Handle probabilistic termination.
         if (Random0To1() < RenderTerminationProbability)
