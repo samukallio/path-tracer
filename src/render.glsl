@@ -561,7 +561,19 @@ void ResolveSurfaceParameters(hit Hit, float Lambda, float AmbientIOR, out surfa
 
     // Medium.
     Surface.MediumIOR = Material.SpecularIOR;
-    Surface.MediumScatteringRate = Material.ScatteringRate;
+
+    if (Material.TransmissionDepth > 0) {
+        float ExtinctionRate = -log(SampleParametricSpectrum(Material.TransmissionSpectrum, Lambda)) / Material.TransmissionDepth;
+        float ScatteringRate = SampleParametricSpectrum(Material.TransmissionScatterSpectrum, Lambda) / Material.TransmissionDepth;
+        Surface.MediumAbsorptionRate = max(ExtinctionRate - ScatteringRate, 0);
+        Surface.MediumScatteringRate = ScatteringRate;
+        Surface.MediumScatteringAnisotropy = Material.TransmissionScatterAnisotropy;
+    }
+    else {
+        Surface.MediumAbsorptionRate = 0.0;
+        Surface.MediumScatteringRate = 0.0;
+        Surface.MediumScatteringAnisotropy = 0.0;
+    }
 
     //
     Surface.LayerBounceLimit = Material.LayerBounceLimit;
@@ -813,19 +825,22 @@ vec4 RenderPath(ray Ray)
     AmbientMedium.ShapeIndex = SHAPE_INDEX_NONE;
     AmbientMedium.ShapePriority = 0;
     AmbientMedium.IOR = 1.0f;
+    AmbientMedium.AbsorptionRate = 0.0;
     AmbientMedium.ScatteringRate = SceneScatterRate;
+    AmbientMedium.ScatteringAnisotropy = 0.0;
 
     medium CurrentMedium = AmbientMedium;
 
     for (uint Bounce = 0; Bounce <= RenderBounceLimit; Bounce++) {
         float ScatteringTime = INFINITY;
 
-        if (CurrentMedium.ScatteringRate > 0) {
+        if (CurrentMedium.ScatteringRate > 0)
             ScatteringTime = -log(Random0To1()) / CurrentMedium.ScatteringRate;
-        }
 
         // Trace the ray against the scene geometry.
         hit Hit = Trace(Ray, ScatteringTime);
+
+        Weight *= exp(-CurrentMedium.AbsorptionRate * Hit.Time);
 
         // If we hit no geometry before the scattering time...
         if (Hit.Time == ScatteringTime) {
@@ -922,7 +937,9 @@ vec4 RenderPath(ray Ray)
                         Mediums[I].ShapeIndex     = Hit.ShapeIndex;
                         Mediums[I].ShapePriority  = Hit.ShapePriority;
                         Mediums[I].IOR            = Surface.MediumIOR;
+                        Mediums[I].AbsorptionRate = Surface.MediumAbsorptionRate;
                         Mediums[I].ScatteringRate = Surface.MediumScatteringRate;
+                        Mediums[I].ScatteringAnisotropy = Surface.MediumScatteringAnisotropy;
                         break;
                     }
                 }

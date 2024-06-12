@@ -992,8 +992,9 @@ uint32_t PackSceneData(scene* Scene)
             Packed.SpecularRoughness = Material->SpecularRoughness;
             Packed.SpecularRoughnessAnisotropy = Material->SpecularRoughnessAnisotropy;
 
-            Packed.TransmissionSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->TransmissionColor);
             Packed.TransmissionWeight = Material->TransmissionWeight;
+            Packed.TransmissionSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->TransmissionColor);
+            Packed.TransmissionDepth = Material->TransmissionDepth;
             Packed.TransmissionScatterSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->TransmissionScatter);
             Packed.TransmissionScatterAnisotropy = Material->TransmissionScatterAnisotropy;
             Packed.TransmissionDispersionScale = Material->TransmissionDispersionScale;
@@ -1008,8 +1009,6 @@ uint32_t PackSceneData(scene* Scene)
 
             Packed.EmissionSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->EmissionColor);
             Packed.EmissionLuminance = Material->EmissionLuminance;
-
-            Packed.ScatteringRate = Material->ScatteringRate;
 
             Packed.BaseSpectrumTextureIndex = GetPackedTextureIndex(Material->BaseColorTexture);
             Packed.SpecularRoughnessTextureIndex = GetPackedTextureIndex(Material->SpecularRoughnessTexture);

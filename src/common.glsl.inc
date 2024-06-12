@@ -85,7 +85,6 @@ struct packed_material
     float           TransmissionDepth;
     float           TransmissionDispersionScale;
     float           TransmissionDispersionAbbeNumber;
-    float           ScatteringRate;
 
     uint            BaseSpectrumTextureIndex;
     uint            SpecularRoughnessTextureIndex;
@@ -139,7 +138,9 @@ struct medium
     uint            ShapeIndex;
     uint            ShapePriority;
     float           IOR;
+    float           AbsorptionRate;
     float           ScatteringRate;
+    float           ScatteringAnisotropy;
 };
 
 struct hit
@@ -186,7 +187,9 @@ struct surface_parameters
     float           Emission;
 
     float           MediumIOR;
+    float           MediumAbsorptionRate;
     float           MediumScatteringRate;
+    float           MediumScatteringAnisotropy;
 };
 
 struct ray

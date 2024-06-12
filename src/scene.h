@@ -55,8 +55,6 @@ struct material
     glm::vec3                       EmissionColor           = glm::vec3(0, 0, 0);
     texture*                        EmissionColorTexture    = nullptr;
 
-    float                           ScatteringRate          = 0.0f;
-
     int                             LayerBounceLimit        = 16;
 
     uint32_t                        PackedMaterialIndex     = 0;
