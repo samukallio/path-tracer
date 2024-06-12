@@ -542,9 +542,9 @@ void ResolveSurfaceParameters(hit Hit, float Lambda, float AmbientIOR, out surfa
     float SpecularIOR = CauchyEmpiricalIOR(Material.SpecularIOR, AbbeNumber, Lambda);
 
     if (Surface.CoatIsPresent)
-        Surface.SpecularRelativeIOR = Material.CoatIOR / Material.SpecularIOR;
+        Surface.SpecularRelativeIOR = Material.CoatIOR / SpecularIOR;
     else
-        Surface.SpecularRelativeIOR = AmbientIOR / Material.SpecularIOR;
+        Surface.SpecularRelativeIOR = AmbientIOR / SpecularIOR;
 
     float SpecularRoughness = Material.SpecularRoughness;
     if (Material.SpecularRoughnessTextureIndex != TEXTURE_INDEX_NONE) {
@@ -742,7 +742,7 @@ void BSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surfa
     int Layer;
     
     if (Out.z > 0)
-        Layer = LAYER_COAT;
+        Layer = Surface.CoatIsPresent ? LAYER_COAT : LAYER_BASE;
     else
         Layer = LAYER_BASE;
 
