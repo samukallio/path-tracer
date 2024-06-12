@@ -435,7 +435,7 @@ hit Trace(ray Ray, float MaxTime)
             Extra.Normals[1] * Hit.PrimitiveCoordinates.y +
             Extra.Normals[2] * Hit.PrimitiveCoordinates.z);
 
-        ComputeTangentVectors(Normal, TangentX, TangentY);
+        ComputeCoordinateFrame(Normal, TangentX, TangentY);
 
         Hit.UV = Extra.UVs[0] * Hit.PrimitiveCoordinates.x
                + Extra.UVs[1] * Hit.PrimitiveCoordinates.y
@@ -847,7 +847,19 @@ vec4 RenderPath(ray Ray)
             // If the scattering time is finite, then it's a scattering event.
             if (ScatteringTime < INFINITY) {
                 Ray.Origin = Ray.Origin + Ray.Vector * ScatteringTime;
-                Ray.Vector = RandomDirection();
+
+                // Compute a local coordinate frame for the scattering event.
+                vec3 X, Y, Z = Ray.Vector;
+                ComputeCoordinateFrame(Z, X, Y);
+
+                // Sample a random scattering direction in the local frame.
+                float U1 = Random0To1();
+                float U2 = Random0To1();
+                vec3 Scattered = SampleDirectionHG(CurrentMedium.ScatteringAnisotropy, U1, U2);
+
+                // Transform the scattered ray into world space and set it as the extension ray.
+                Ray.Vector = normalize(X * Scattered.x + Y * Scattered.y + Z * Scattered.z);
+
                 continue;
             }
             // Otherwise, we hit the skybox.

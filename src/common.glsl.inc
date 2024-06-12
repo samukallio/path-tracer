@@ -258,12 +258,29 @@ vec3 SafeNormalize(vec3 V)
         return V / sqrt(LenSq);
 }
 
-// Compute an arbitrary tangent space basis for a given normal vector.
-void ComputeTangentVectors(vec3 Normal, out vec3 TangentX, out vec3 TangentY)
+// Compute an arbitrary 3D coordinate frame given one vector.
+void ComputeCoordinateFrame(vec3 Z, out vec3 X, out vec3 Y)
 {
-    vec3 NonParallel = abs(Normal.x) < 0.9 ? vec3(1, 0, 0) : vec3(0, 1, 0);
-    TangentX = normalize(cross(NonParallel, Normal));
-    TangentY = cross(TangentX, Normal);
+    vec3 V = abs(Z.x) < 0.9 ? vec3(1, 0, 0) : vec3(0, 1, 0);
+    X = normalize(cross(V, Z));
+    Y = cross(X, Z);
+}
+
+// Sample a direction from the Henyey-Greenstein phase function.
+vec3 SampleDirectionHG(float Anisotropy, float U1, float U2)
+{
+    float Z;
+    if (Anisotropy < 1e-3) {
+        Z = 1 - 2 * U1;
+    }
+    else {
+        float G = Anisotropy;
+        float S = (1 - G * G) / (1 - G + 2 * G * U1);
+        Z = (1 + G * G - S * S) / (2 * G);
+    }
+    float R = sqrt(1 - Z * Z);
+    float Phi = U2 * TAU;
+    return vec3(R * cos(Phi), R * sin(Phi), Z);
 }
 
 // Compute the 2D roughness alpha parameter for the GGX distribution of normals.
