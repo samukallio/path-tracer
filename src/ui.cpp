@@ -136,6 +136,7 @@ static void MaterialInspector(application* App, material* Material, bool Referen
 
     C |= ImGui::DragFloat("Emission Luminance", &Material->EmissionLuminance, 1.0f, 0.0f, 1000.0f);
     C |= ImGui::ColorEdit3("Emission Color", &Material->EmissionColor[0]);
+    C |= ResourceSelectorDropDown("Emission Color Texture", Scene->Textures, &Material->EmissionColorTexture);
 
     C |= ImGui::DragInt("Layer Bounce Limit", &Material->LayerBounceLimit, 1.0f, 1, 128);
 

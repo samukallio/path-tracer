@@ -558,6 +558,10 @@ void ResolveSurfaceHit(hit Hit, float Lambda, float ExteriorIOR, out surface Sur
 
     //
     Surface.Emission = SampleParametricSpectrum(Material.EmissionSpectrum, Lambda) * Material.EmissionLuminance;
+    if (Material.EmissionSpectrumTextureIndex != TEXTURE_INDEX_NONE) {
+        vec4 Value = SampleTexture(Material.EmissionSpectrumTextureIndex, Hit.UV);
+        Surface.Emission *= SampleParametricSpectrum(Value, Lambda);
+    }
 
     //
     Surface.LayerBounceLimit = Material.LayerBounceLimit;
