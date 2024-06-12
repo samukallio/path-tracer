@@ -631,7 +631,7 @@ void CoatBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, s
 // OpenPBR base substrate BSDF.
 void BaseBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface_parameters Surface)
 {
-    if (Out.z > 0) Radiance += Surface.Emission;
+    if (Out.z > 0) Radiance += Surface.Emission * Weight;
 
     // Sample a microsurface normal for specular scattering.
     float NormalU1 = Random0To1();
