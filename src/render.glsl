@@ -628,8 +628,8 @@ void CoatBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, s
     Weight *= sqrt(Surface.CoatTransmittance);
 }
 
-// OpenPBR base substrate BSDF.
-void BaseBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface_parameters Surface)
+// Specular part of the OpenPBR base substrate BSDF.
+void BaseSpecularBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface_parameters Surface)
 {
     if (Out.z > 0) Radiance += Surface.Emission * Weight;
 
@@ -639,7 +639,7 @@ void BaseBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, s
     vec3 Normal = SampleVisibleNormalGGX(Out * sign(Out.z), Surface.SpecularRoughnessAlpha, NormalU1, NormalU2);
     float Cosine = dot(Normal, Out);
 
-    // Metallic reflection.
+    // Metal base substrate.
     if (Surface.BaseIsMetal) {
         // Compute reflected direction.
         In = 2 * Cosine * Normal - Out;
@@ -659,111 +659,115 @@ void BaseBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, s
         float G = SmithG1(In, Surface.SpecularRoughnessAlpha);
 
         Weight *= F * G;
-        return;
     }
+    // Dielectric base substrate.
+    else {
+        float RelativeIOR = Surface.SpecularRelativeIOR;
+        if (Out.z < 0) RelativeIOR = 1.0 / RelativeIOR;
 
-    // Substrate is a dielectric.
-    float RelativeIOR = Surface.SpecularRelativeIOR;
-    if (Out.z < 0) RelativeIOR = 1.0 / RelativeIOR;
-
-    // Modulation of the relative IOR by the specular weight parameter.
-    if (Surface.SpecularWeight < 1.0) {
-        float R = sqrt(Surface.SpecularWeight) * (1.0 - RelativeIOR) / (1.0 + RelativeIOR);
-        RelativeIOR = (1.0 - R) / (1.0 + R);
-    }
-
-    // Compute the cosine of the angle between the refraction direction and
-    // the microsurface normal.  The squared cosine is clamped to zero, the
-    // boundary for total internal reflection (TIR).  When the cosine is zero,
-    // the Fresnel formulas give a reflectivity of 1, producing a TIR without
-    // the need for branches.
-    float RefractedCosineSquared = 1 - RelativeIOR * RelativeIOR * (1 - Cosine * Cosine);
-    float RefractedCosine = -sign(Out.z) * sqrt(max(RefractedCosineSquared, 0.0));
-
-    // Compute dielectric reflectance.
-    float Reflectance = FresnelDielectric(RefractedCosine, Cosine, RelativeIOR);
-
-    // Specular reflection?
-    if (Random0To1() < Reflectance) {
-        // Compute reflected direction.
-        In = 2 * Cosine * Normal - Out;
-
-        // If the reflected direction is in the wrong hemisphere,
-        // then it is shadowed and we terminate here.
-        if (In.z * Out.z <= 0) {
-            Weight = 0.0;
-            return;
+        // Modulation of the relative IOR by the specular weight parameter.
+        if (Surface.SpecularWeight < 1.0) {
+            float R = sqrt(Surface.SpecularWeight) * (1.0 - RelativeIOR) / (1.0 + RelativeIOR);
+            RelativeIOR = (1.0 - R) / (1.0 + R);
         }
 
-        // Per the OpenPBR specification: the specular color material
-        // parameter modulates the Fresnel factor of the dielectric,
-        // but only for reflections from above (and not below).
-        if (Out.z > 0) Weight *= Surface.SpecularReflectance;
+        // Compute the cosine of the angle between the refraction direction and
+        // the microsurface normal.  The squared cosine is clamped to zero, the
+        // boundary for total internal reflection (TIR).  When the cosine is zero,
+        // the Fresnel formulas give a reflectivity of 1, producing a TIR without
+        // the need for branches.
+        float RefractedCosineSquared = 1 - RelativeIOR * RelativeIOR * (1 - Cosine * Cosine);
+        float RefractedCosine = -sign(Out.z) * sqrt(max(RefractedCosineSquared, 0.0));
 
-        Weight *= SmithG1(In, Surface.SpecularRoughnessAlpha);
-        return;
+        // Compute dielectric reflectance.
+        float Reflectance = FresnelDielectric(RefractedCosine, Cosine, RelativeIOR);
+
+        // Specular reflection?
+        if (Random0To1() < Reflectance) {
+            // Compute reflected direction.
+            In = 2 * Cosine * Normal - Out;
+
+            // If the reflected direction is in the wrong hemisphere,
+            // then it is shadowed and we terminate here.
+            if (In.z * Out.z <= 0) {
+                Weight = 0.0;
+                return;
+            }
+
+            // Per the OpenPBR specification: the specular color material
+            // parameter modulates the Fresnel factor of the dielectric,
+            // but only for reflections from above (and not below).
+            if (Out.z > 0) Weight *= Surface.SpecularReflectance;
+
+            Weight *= SmithG1(In, Surface.SpecularRoughnessAlpha);
+        }
+        else {
+            // Compute refracted direction.
+            In = (RelativeIOR * Cosine + RefractedCosine) * Normal - RelativeIOR * Out;
+
+            // If the refracted direction is in the wrong hemisphere,
+            // then it is shadowed and we terminate here.
+            if (In.z * Out.z > 0) {
+                Weight = 0.0;
+                return;
+            }
+
+            Weight *= SmithG1(In, Surface.SpecularRoughnessAlpha);
+        }
     }
+}
 
-    // Translucent substrate.
+// Diffuse part of the OpenPBR base substrate BSDF.
+void BaseDiffuseBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface_parameters Surface)
+{
     if (Surface.BaseIsTranslucent) {
-        // Compute refracted direction.
-        In = (RelativeIOR * Cosine + RefractedCosine) * Normal - RelativeIOR * Out;
-
-        // If the refracted direction is in the wrong hemisphere,
-        // then it is shadowed and we terminate here.
-        if (In.z * Out.z > 0) {
-            Weight = 0.0;
-            return;
-        }
-
-        Weight *= SmithG1(In, Surface.SpecularRoughnessAlpha);
+        In = -Out;
         return;
     }
 
-    // Glossy-diffuse substrate.
-    if (true) {
-        In = SafeNormalize(RandomDirection() + vec3(0, 0, 1));
+    In = SafeNormalize(RandomDirection() + vec3(0, 0, 1));
 
-        float S = dot(In, Out) - In.z * Out.z;
-        float T = S > 0 ? max(In.z, Out.z) : 1.0;
-        float SigmaSq = Surface.BaseDiffuseRoughness * Surface.BaseDiffuseRoughness;
-        float A = 1 - 0.5 * SigmaSq / (SigmaSq + 0.33) + 0.17 * Surface.BaseReflectance * SigmaSq / (SigmaSq + 0.13);
-        float B = 0.45 * SigmaSq / (SigmaSq + 0.09);
+    float S = dot(In, Out) - In.z * Out.z;
+    float T = S > 0 ? max(In.z, Out.z) : 1.0;
+    float SigmaSq = Surface.BaseDiffuseRoughness * Surface.BaseDiffuseRoughness;
+    float A = 1 - 0.5 * SigmaSq / (SigmaSq + 0.33) + 0.17 * Surface.BaseReflectance * SigmaSq / (SigmaSq + 0.13);
+    float B = 0.45 * SigmaSq / (SigmaSq + 0.09);
 
-        Weight *= Surface.BaseReflectance * (A + B * S / T);
-    }
+    Weight *= Surface.BaseReflectance * (A + B * S / T);
 }
 
 void BSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface_parameters Surface)
 {
+    const int LAYER_EXTERNAL = -1;
     const int LAYER_COAT = 0;
-    const int LAYER_BASE = 1;
+    const int LAYER_BASE_SPECULAR = 1;
+    const int LAYER_BASE_DIFFUSE = 2;
 
     int Layer;
     
     if (Out.z > 0)
-        Layer = Surface.CoatIsPresent ? LAYER_COAT : LAYER_BASE;
+        Layer = Surface.CoatIsPresent ? LAYER_COAT : LAYER_BASE_SPECULAR;
     else
-        Layer = LAYER_BASE;
+        Layer = LAYER_BASE_SPECULAR;
 
     for (int I = 0; I < 10; I++) {
         if (Layer == LAYER_COAT) {
             CoatBSDF(Out, In, Radiance, Weight, Surface);
-
-            if (In.z > 0) return;
-
-            Out = -In;
-            Layer = LAYER_BASE;
+            Layer = In.z < 0 ? LAYER_BASE_SPECULAR : LAYER_EXTERNAL;
+        }
+        else if (Layer == LAYER_BASE_SPECULAR) {
+            BaseSpecularBSDF(Out, In, Radiance, Weight, Surface);
+            Layer = In.z < 0 ? LAYER_BASE_DIFFUSE : LAYER_COAT;
+        }
+        else if (Layer == LAYER_BASE_DIFFUSE) {
+            BaseDiffuseBSDF(Out, In, Radiance, Weight, Surface);
+            Layer = In.z < 0 ? LAYER_EXTERNAL : LAYER_BASE_SPECULAR;
+        }
+        else if (Layer == LAYER_EXTERNAL) {
+            break;
         }
 
-        if (Layer == LAYER_BASE) {
-            BaseBSDF(Out, In, Radiance, Weight, Surface);
-
-            if (In.z < 0) return;
-
-            Out = -In;
-            Layer = LAYER_COAT;
-        }
+        Out = -In;
     }
 }
 
