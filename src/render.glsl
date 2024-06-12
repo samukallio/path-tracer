@@ -553,7 +553,7 @@ void ResolveSurfaceHit(hit Hit, float Lambda, float ExteriorIOR, out surface Sur
     }
 
     Surface.SpecularRoughnessAlpha = ComputeRoughnessAlphaGGX(
-        Material.SpecularRoughness,
+        SpecularRoughness,
         Material.SpecularRoughnessAnisotropy);
 
     //
