@@ -999,6 +999,13 @@ uint32_t PackSceneData(scene* Scene)
             Packed.TransmissionDispersionScale = Material->TransmissionDispersionScale;
             Packed.TransmissionDispersionAbbeNumber = Material->TransmissionDispersionAbbeNumber;
 
+            Packed.CoatWeight = Material->CoatWeight;
+            Packed.CoatColorSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->CoatColor);
+            Packed.CoatRoughness = Material->CoatRoughness;
+            Packed.CoatRoughnessAnisotropy = Material->CoatRoughnessAnisotropy;
+            Packed.CoatIOR = Material->CoatIOR;
+            Packed.CoatDarkening = Material->CoatDarkening;
+
             Packed.EmissionSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->EmissionColor);
             Packed.EmissionLuminance = Material->EmissionLuminance;
 

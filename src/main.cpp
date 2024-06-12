@@ -415,7 +415,7 @@ int main()
     }
 
     Scene.Root.Name = "Root";
-    Scene.Root.SkyboxTexture = LoadTexture(&Scene, "../scene/CloudedSunGlow4k.hdr", TEXTURE_TYPE_RADIANCE);
+    Scene.Root.SkyboxTexture = LoadTexture(&Scene, "../scene/AmbienceExposure4K.hdr", TEXTURE_TYPE_RADIANCE);
 
     CreateBasicResources(&Scene);
 

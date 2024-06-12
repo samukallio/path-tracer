@@ -127,6 +127,13 @@ static void MaterialInspector(application* App, material* Material, bool Referen
     C |= ImGui::DragFloat("Transmission Dispersion Scale", &Material->TransmissionDispersionScale, 0.01f, 0.0f, 1.0f);
     C |= ImGui::DragFloat("Transmission Dispersion Abbe Number", &Material->TransmissionDispersionAbbeNumber, 0.01f, 0.0f, 10000.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
 
+    C |= ImGui::DragFloat("Coat Weight", &Material->CoatWeight, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::ColorEdit3("Coat Color", &Material->CoatColor[0]);
+    C |= ImGui::DragFloat("Coat Roughness", &Material->CoatRoughness, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Coat Roughness Anisotropy", &Material->CoatRoughnessAnisotropy, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Coat IOR", &Material->CoatIOR, 0.01f, 1.0f, 3.0f);
+    C |= ImGui::DragFloat("Coat Darkening", &Material->CoatDarkening, 0.01f, 0.0f, 1.0f);
+
     C |= ImGui::DragFloat("Emission Luminance", &Material->EmissionLuminance, 1.0f, 0.0f, 1000.0f);
     C |= ImGui::ColorEdit3("Emission Color", &Material->EmissionColor[0]);
 

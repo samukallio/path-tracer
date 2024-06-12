@@ -44,6 +44,13 @@ struct material
     float                           TransmissionDispersionScale = 0.0f;
     float                           TransmissionDispersionAbbeNumber = 20.0f;
 
+    float                           CoatWeight              = 0.0f;
+    glm::vec3                       CoatColor               = glm::vec3(1, 1, 1);
+    float                           CoatRoughness           = 0.0f;
+    float                           CoatRoughnessAnisotropy = 0.0f;
+    float                           CoatIOR                 = 1.6f;
+    float                           CoatDarkening           = 1.0f;
+
     float                           EmissionLuminance       = 0.0f;
     glm::vec3                       EmissionColor           = glm::vec3(0, 0, 0);
     texture*                        EmissionColorTexture    = nullptr;

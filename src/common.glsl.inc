@@ -69,10 +69,16 @@ struct packed_material
     float           TransmissionScatterAnisotropy;
     vec3            EmissionSpectrum;
     float           EmissionLuminance;
+    vec3            CoatColorSpectrum;
+    float           CoatWeight;
 
     float           Opacity;
     float           BaseMetalness;
     float           BaseDiffuseRoughness;
+    float           CoatIOR;
+    float           CoatRoughness;
+    float           CoatRoughnessAnisotropy;
+    float           CoatDarkening;
     float           SpecularIOR;
     float           SpecularRoughness;
     float           SpecularRoughnessAnisotropy;
@@ -157,22 +163,25 @@ struct surface_parameters
 {
     float           Opacity;
 
-    float           AmbientIOR;
+    bool            BaseIsMetal;
+    bool            BaseIsTranslucent;
 
-    float           BaseWeight;
     float           BaseReflectance;
-    float           BaseMetalness;
     float           BaseDiffuseRoughness;
 
+    bool            CoatIsPresent;
+    float           CoatRelativeIOR;
+    float           CoatTransmittance;
+    vec2            CoatRoughnessAlpha;
+
     float           SpecularWeight;
-    float           SpecularIOR;
+    float           SpecularRelativeIOR;
     float           SpecularReflectance;
     vec2            SpecularRoughnessAlpha;
 
-    float           TransmissionWeight;
-
     float           Emission;
 
+    float           MediumIOR;
     float           MediumScatteringRate;
 };
 
