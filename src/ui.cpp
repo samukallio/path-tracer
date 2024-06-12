@@ -5,7 +5,7 @@
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
 
-static bool DragEulerAngles(const char* Label, glm::vec3* Angles)
+static bool DragEulerAngles(const char* Label, vec3* Angles)
 {
     float Degrees[3];
     for (int I = 0; I < 3; I++)
@@ -286,7 +286,7 @@ static void CameraInspector(application* App, camera* Camera)
     }
 
     if (Camera->CameraModel == CAMERA_MODEL_THIN_LENS) {
-        glm::vec2 SensorSizeInMM = Camera->ThinLens.SensorSizeInMM;
+        vec2 SensorSizeInMM = Camera->ThinLens.SensorSizeInMM;
         if (ImGui::DragFloat2("Sensor Size (mm)", &SensorSizeInMM[0], 1.0f, 1.0f, 100.0f)) {
             float const ASPECT_RATIO = 1920.0f / 1080.0f;
             if (SensorSizeInMM.x != Camera->ThinLens.SensorSizeInMM.x)
@@ -326,13 +326,13 @@ static void EntityInspector(application* App, entity* Entity)
         C |= DragEulerAngles("Rotation", &Transform.Rotation);
 
         if (Entity->Type != ENTITY_TYPE_CAMERA) {
-            glm::vec3 Scale = Transform.Scale;
+            vec3 Scale = Transform.Scale;
             if (ImGui::DragFloat3("Scale", &Scale[0], 0.01f)) {
                 if (Transform.ScaleIsUniform) {
                     for (int I = 0; I < 3; I++) {
                         if (Scale[I] == Transform.Scale[I])
                             continue;
-                        Scale = glm::vec3(1) * Scale[I];
+                        Scale = vec3(1) * Scale[I];
                         break;
                     }
                 }
@@ -340,7 +340,7 @@ static void EntityInspector(application* App, entity* Entity)
             }
             if (ImGui::Checkbox("Uniform Scale", &Transform.ScaleIsUniform)) {
                 if (Transform.ScaleIsUniform)
-                    Scale = glm::vec3(1) * Scale.x;
+                    Scale = vec3(1) * Scale.x;
                 C = true;
             }
             Transform.Scale = Scale;
@@ -572,12 +572,12 @@ void InspectorWindow(application* App)
 void ParametricSpectrumViewerWindow(application* App)
 {
     static float Spectrum[512] = {};
-    static glm::vec3 Color = {};
+    static vec3 Color = {};
 
     ImGui::Begin("Parametric Spectrum Viewer");
 
     if (ImGui::ColorEdit3("Color", &Color[0], ImGuiColorEditFlags_Float)) {
-        glm::vec3 Beta = GetParametricSpectrumCoefficients(App->Scene->RGBSpectrumTable, Color);
+        vec3 Beta = GetParametricSpectrumCoefficients(App->Scene->RGBSpectrumTable, Color);
         for (int I = 0; I < IM_ARRAYSIZE(Spectrum); I++) {
             float Lambda = glm::mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, I / 512.f);
             Spectrum[I] = SampleParametricSpectrum(Beta, Lambda);

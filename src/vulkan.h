@@ -13,7 +13,7 @@ struct scene;
 
 struct imgui_uniform_buffer
 {
-    glm::mat4                   ProjectionMatrix            = {};
+    mat4                        ProjectionMatrix            = {};
 };
 
 struct vulkan_buffer

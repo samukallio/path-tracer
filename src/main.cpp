@@ -36,19 +36,19 @@ void Frame()
     // Handle camera movement.
     {
         bool IsEditing = !App.Camera;
-        glm::vec3& Position = IsEditing ? App.EditorCamera.Position : App.Camera->Transform.Position;
-        glm::vec3& Velocity = IsEditing ? App.EditorCamera.Velocity : App.Camera->Velocity;
-        glm::vec3& Rotation = IsEditing ? App.EditorCamera.Rotation : App.Camera->Transform.Rotation;
+        vec3& Position = IsEditing ? App.EditorCamera.Position : App.Camera->Transform.Position;
+        vec3& Velocity = IsEditing ? App.EditorCamera.Velocity : App.Camera->Velocity;
+        vec3& Rotation = IsEditing ? App.EditorCamera.Rotation : App.Camera->Transform.Rotation;
         bool WasMoved = false;
 
-        glm::vec3 Forward = glm::quat(Rotation) * glm::vec3(1, 0, 0);
+        vec3 Forward = glm::quat(Rotation) * vec3(1, 0, 0);
 
         if (!IO.WantCaptureMouse && IO.MouseDown[1]) {
-            glm::vec3 Delta {};
+            vec3 Delta {};
             if (glfwGetKey(App.Window, GLFW_KEY_A))
-                Delta -= glm::cross(Forward, glm::vec3(0, 0, 1));
+                Delta -= glm::cross(Forward, vec3(0, 0, 1));
             if (glfwGetKey(App.Window, GLFW_KEY_D))
-                Delta += glm::cross(Forward, glm::vec3(0, 0, 1));
+                Delta += glm::cross(Forward, vec3(0, 0, 1));
             if (glfwGetKey(App.Window, GLFW_KEY_W))
                 Delta += Forward;
             if (glfwGetKey(App.Window, GLFW_KEY_S))
@@ -70,7 +70,7 @@ void Frame()
             WasMoved = true;
 
         if (glm::length(Velocity) < 1e-2f)
-            Velocity = glm::vec3(0);
+            Velocity = vec3(0);
 
         if (WasMoved && App.Camera) {
             App.Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
@@ -91,29 +91,29 @@ void Frame()
     if (!App.Camera) {
         editor_camera& Camera = App.EditorCamera;
 
-        glm::vec3 Forward = glm::quat(Camera.Rotation) * glm::vec3(1, 0, 0);
-        glm::mat4 ViewMatrix = glm::lookAt(Camera.Position - Forward * 2.0f, Camera.Position, glm::vec3(0, 0, 1));
-        glm::mat4 WorldMatrix = glm::inverse(ViewMatrix);
+        vec3 Forward = glm::quat(Camera.Rotation) * vec3(1, 0, 0);
+        mat4 ViewMatrix = glm::lookAt(Camera.Position - Forward * 2.0f, Camera.Position, vec3(0, 0, 1));
+        mat4 WorldMatrix = glm::inverse(ViewMatrix);
 
         if (!IO.WantCaptureMouse && IO.MouseDown[0]) {
-            glm::vec2 SensorSize = { 0.032f, 0.018f };
+            vec2 SensorSize = { 0.032f, 0.018f };
 
-            glm::vec2 SamplePositionNormalized = {
+            vec2 SamplePositionNormalized = {
                 IO.MousePos.x / WINDOW_WIDTH,
                 IO.MousePos.y / WINDOW_HEIGHT
             };
 
-            glm::vec3 SensorPositionNormalized = {
+            vec3 SensorPositionNormalized = {
                 -SensorSize.x * (SamplePositionNormalized.x - 0.5),
                 -SensorSize.y * (0.5 - SamplePositionNormalized.y),
                 0.020f
             };
 
-            glm::vec3 RayVector = -SensorPositionNormalized;
+            vec3 RayVector = -SensorPositionNormalized;
 
             ray Ray;
-            Ray.Origin = (WorldMatrix * glm::vec4(0, 0, 0, 1)).xyz;
-            Ray.Vector = glm::normalize(WorldMatrix * glm::vec4(RayVector, 0)).xyz;
+            Ray.Origin = (WorldMatrix * vec4(0, 0, 0, 1)).xyz;
+            Ray.Vector = glm::normalize(WorldMatrix * vec4(RayVector, 0)).xyz;
 
             hit Hit;
             if (Trace(App.Scene, Ray, Hit)) {
@@ -149,10 +149,10 @@ void Frame()
     else {
         camera* Camera = App.Camera;
 
-        glm::vec3 Origin = Camera->Transform.Position;
-        glm::vec3 Forward = glm::quat(Camera->Transform.Rotation) * glm::vec3(1, 0, 0);
-        glm::mat4 ViewMatrix = glm::lookAt(Origin - Forward * 2.0f, Origin, glm::vec3(0, 0, 1));
-        glm::mat4 WorldMatrix = glm::inverse(ViewMatrix);
+        vec3 Origin = Camera->Transform.Position;
+        vec3 Forward = glm::quat(Camera->Transform.Rotation) * vec3(1, 0, 0);
+        mat4 ViewMatrix = glm::lookAt(Origin - Forward * 2.0f, Origin, vec3(0, 0, 1));
+        mat4 WorldMatrix = glm::inverse(ViewMatrix);
 
         Uniforms.RenderMode = Camera->RenderMode;
         Uniforms.CameraModel = Camera->CameraModel;
@@ -192,10 +192,10 @@ void Frame()
             Uniforms.RenderFlags &= ~RENDER_FLAG_ACCUMULATE;
     }
 
-    uint32_t DirtyFlags = PackSceneData(App.Scene);
+    uint DirtyFlags = PackSceneData(App.Scene);
     UploadScene(App.Vulkan, App.Scene, DirtyFlags);
 
-    Uniforms.ShapeCount = static_cast<uint32_t>(App.Scene->ShapePack.size());
+    Uniforms.ShapeCount = static_cast<uint>(App.Scene->ShapePack.size());
 
     RenderFrame(App.Vulkan, &Uniforms, ImGui::GetDrawData());
 }
@@ -370,8 +370,8 @@ static void CreateBasicResources(scene* Scene)
 {
     struct metal_material_data {
         char const* Name;
-        glm::vec3 BaseColor;
-        glm::vec3 SpecularColor;
+        vec3 BaseColor;
+        vec3 SpecularColor;
     };
 
     metal_material_data const METALS[] = {
@@ -429,11 +429,9 @@ int main()
 
     {
         load_model_options Options;
-        Options.Name = "viking_room.obj";
+        Options.Name = "lucy.obj";
         Options.DirectoryPath = "../scene";
-        Options.DefaultMaterial = CreateMaterial(&Scene, "viking_room");
-        Options.DefaultMaterial->BaseColorTexture = LoadTexture(&Scene, "../scene/viking_room.png", TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA, "viking_room.png");
-        prefab* Prefab = LoadModelAsPrefab(&Scene, "../scene/viking_room.obj", &Options);
+        prefab* Prefab = LoadModelAsPrefab(&Scene, "../scene/lucy.obj", &Options);
         CreateEntity(&Scene, Prefab); 
     }
 
@@ -463,7 +461,7 @@ int main()
     auto Plane = static_cast<plane*>(CreateEntity(&Scene, ENTITY_TYPE_PLANE));
     Plane->Name = "Plane";
     Plane->Material = CreateMaterial(&Scene, "Plane Material");
-    Plane->Material->BaseColorTexture = CreateCheckerTexture(&Scene, "Plane Texture", glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
+    Plane->Material->BaseColorTexture = CreateCheckerTexture(&Scene, "Plane Texture", vec4(1,1,1,1), vec4(0.5,0.5,0.5,1));
     Plane->Material->BaseColorTexture->EnableNearestFiltering = true;
     Plane->Material->SpecularRoughness = 0.0f;
 

@@ -43,54 +43,51 @@ const uint TEXTURE_FLAG_FILTER_NEAREST      = 1 << 0;
 
 struct packed_transform
 {
-    mat4            To;
-    mat4            From;
+    mat4                To;
+    mat4                From;
 };
 
 struct packed_texture
 {
-    vec2            AtlasPlacementMinimum;
-    vec2            AtlasPlacementMaximum;
-    uint            AtlasImageIndex;
-    uint            Type;
-    uint            Flags;
-    uint            Dummy2;
+    vec2                AtlasPlacementMinimum;
+    vec2                AtlasPlacementMaximum;
+    uint                AtlasImageIndex;
+    uint                Type;
+    uint                Flags;
+    uint                Dummy2;
 };
 
 struct packed_material
 {
-    vec3            BaseSpectrum;
-    float           BaseWeight;
-    vec3            SpecularSpectrum;
-    float           SpecularWeight;
-    vec3            TransmissionSpectrum;
-    float           TransmissionWeight;
-    vec3            TransmissionScatterSpectrum;
-    float           TransmissionScatterAnisotropy;
-    vec3            EmissionSpectrum;
-    float           EmissionLuminance;
-    vec3            CoatColorSpectrum;
-    float           CoatWeight;
-
-    float           Opacity;
-    float           BaseMetalness;
-    float           BaseDiffuseRoughness;
-    float           CoatIOR;
-    float           CoatRoughness;
-    float           CoatRoughnessAnisotropy;
-    float           CoatDarkening;
-    float           SpecularIOR;
-    float           SpecularRoughness;
-    float           SpecularRoughnessAnisotropy;
-    float           TransmissionDepth;
-    float           TransmissionDispersionScale;
-    float           TransmissionDispersionAbbeNumber;
-
-    uint            BaseSpectrumTextureIndex;
-    uint            SpecularRoughnessTextureIndex;
-    uint            EmissionSpectrumTextureIndex;
-
-    uint            LayerBounceLimit;
+    vec3                BaseSpectrum;
+    float               BaseWeight;
+    vec3                SpecularSpectrum;
+    float               SpecularWeight;
+    vec3                TransmissionSpectrum;
+    float               TransmissionWeight;
+    vec3                TransmissionScatterSpectrum;
+    float               TransmissionScatterAnisotropy;
+    vec3                EmissionSpectrum;
+    float               EmissionLuminance;
+    vec3                CoatColorSpectrum;
+    float               CoatWeight;
+    float               Opacity;
+    float               BaseMetalness;
+    float               BaseDiffuseRoughness;
+    float               CoatIOR;
+    float               CoatRoughness;
+    float               CoatRoughnessAnisotropy;
+    float               CoatDarkening;
+    float               SpecularIOR;
+    float               SpecularRoughness;
+    float               SpecularRoughnessAnisotropy;
+    float               TransmissionDepth;
+    float               TransmissionDispersionScale;
+    float               TransmissionDispersionAbbeNumber;
+    uint                BaseSpectrumTextureIndex;
+    uint                SpecularRoughnessTextureIndex;
+    uint                EmissionSpectrumTextureIndex;
+    uint                LayerBounceLimit;
 };
 
 struct packed_shape
@@ -104,93 +101,86 @@ struct packed_shape
 
 struct packed_shape_node
 {
-    vec3            Minimum;
-    uint            ChildNodeIndices;
-    vec3            Maximum;
-    uint            ShapeIndex;
+    vec3                Minimum;
+    uint                ChildNodeIndices;
+    vec3                Maximum;
+    uint                ShapeIndex;
 };
 
 struct packed_mesh_face
 {
-    vec3            Position;
-    vec4            Plane;
-    vec3            Base1;
-    vec3            Base2;
+    vec3                Position;
+    vec4                Plane;
+    vec3                Base1;
+    vec3                Base2;
 };
 
 struct packed_mesh_face_extra
 {
-    vec3            Normals[3];
-    vec2            UVs[3];
-    uint            MaterialIndex;
+    vec3                Normals[3];
+    vec2                UVs[3];
+    uint                MaterialIndex;
 };
 
 struct packed_mesh_node
 {
-    vec3            Minimum;
-    uint            FaceBeginOrNodeIndex;
-    vec3            Maximum;
-    uint            FaceEndIndex;
+    vec3                Minimum;
+    uint                FaceBeginOrNodeIndex;
+    vec3                Maximum;
+    uint                FaceEndIndex;
 };
 
 struct medium
 {
-    uint            ShapeIndex;
-    uint            ShapePriority;
-    float           IOR;
-    float           AbsorptionRate;
-    float           ScatteringRate;
-    float           ScatteringAnisotropy;
+    uint                ShapeIndex;
+    uint                ShapePriority;
+    float               IOR;
+    float               AbsorptionRate;
+    float               ScatteringRate;
+    float               ScatteringAnisotropy;
 };
 
 struct hit
 {
-    float           Time;
-    uint            ShapeType;
-    uint            ShapeIndex;
-    uint            ShapePriority;
-    uint            PrimitiveIndex;
-    vec3            PrimitiveCoordinates;
-    uint            SceneComplexity;
-    uint            MeshComplexity;
-
-    vec3            Position;
-    vec3            Normal;
-    vec3            TangentX;
-    vec3            TangentY;
-    vec2            UV;
-    uint            MaterialIndex;
+    float               Time;
+    uint                ShapeType;
+    uint                ShapeIndex;
+    uint                ShapePriority;
+    uint                PrimitiveIndex;
+    vec3                PrimitiveCoordinates;
+    uint                SceneComplexity;
+    uint                MeshComplexity;
+    vec3                Position;
+    vec3                Normal;
+    vec3                TangentX;
+    vec3                TangentY;
+    vec2                UV;
+    uint                MaterialIndex;
 };
 
 struct surface
 {
-    float           Opacity;
-
-    uint            LayerBounceLimit;
-
-    bool            BaseIsMetal;
-    bool            BaseIsTranslucent;
-
-    float           BaseReflectance;
-    float           BaseDiffuseRoughness;
-
-    bool            CoatIsPresent;
-    float           CoatRelativeIOR;
-    float           CoatTransmittance;
-    vec2            CoatRoughnessAlpha;
-
-    float           SpecularWeight;
-    float           SpecularRelativeIOR;
-    float           SpecularReflectance;
-    vec2            SpecularRoughnessAlpha;
-
-    float           Emission;
+    float               Opacity;
+    uint                LayerBounceLimit;
+    bool                BaseIsMetal;
+    bool                BaseIsTranslucent;
+    float               BaseReflectance;
+    float               BaseDiffuseRoughness;
+    bool                CoatIsPresent;
+    float               CoatRelativeIOR;
+    float               CoatTransmittance;
+    vec2                CoatRoughnessAlpha;
+    float               SpecularWeight;
+    float               SpecularRelativeIOR;
+    float               SpecularReflectance;
+    vec2                SpecularRoughnessAlpha;
+    float               Emission;
 };
 
 struct ray
 {
-    vec3            Origin;
-    vec3            Vector;
+    vec3                Origin;
+    vec3                Vector;
 };
 
 vec3 TransformPosition(vec3 P, packed_transform Transform)

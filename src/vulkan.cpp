@@ -2321,7 +2321,7 @@ VkResult UploadScene(
                 &Vulkan->ImageArray,
                 Index, 1,
                 Image.Pixels,
-                Image.Width, Image.Height, sizeof(glm::vec4),
+                Image.Width, Image.Height, sizeof(vec4),
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         }
 

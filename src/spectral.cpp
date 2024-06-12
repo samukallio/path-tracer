@@ -1,5 +1,7 @@
 #include "spectral.h"
 
+using glm::dvec3;
+
 // Spectrum of the CIE standard illuminant D65, 1 nm wavelength steps.
 float const CIE_ILLUMINANT_D65[] =
 {
@@ -118,11 +120,11 @@ static double SampleD65(double NormalizedLambda)
 // Matching Functions" by Chris Wyman et al.  Takes a normalized wavelength
 // in the range [0,1] corresponding to physical wavelengths in the range
 // [CIE_LAMBDA_MIN, CIE_LAMBDA_MAX].
-static glm::dvec3 SampleObserver(double NormalizedLambda)
+static dvec3 SampleObserver(double NormalizedLambda)
 {
     float Lambda = glm::mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, NormalizedLambda);
 
-    glm::vec3 Result;
+    vec3 Result;
     {
         float T1 = (Lambda - 442.0f) * (Lambda < 442.0f ? 0.0624f : 0.0374f);
         float T2 = (Lambda - 599.8f) * (Lambda < 599.8f ? 0.0264f : 0.0323f);
@@ -151,7 +153,7 @@ static glm::dvec3 SampleObserver(double NormalizedLambda)
 // by W. Jakob and J. Hanika.  Takes normalized spectrum coefficients and
 // a wavelength in the range [0,1] corresponding to physical wavelengths in
 // the range [CIE_LAMBDA_MIN, CIE_LAMBDA_MAX].
-double SampleSpectrum(glm::dvec3 NormalizedBeta, double NormalizedLambda)
+double SampleSpectrum(dvec3 NormalizedBeta, double NormalizedLambda)
 {
     double X = (NormalizedBeta.x * NormalizedLambda + NormalizedBeta.y) * NormalizedLambda + NormalizedBeta.z;
     return 0.5 + X / (2.0 * glm::sqrt(1.0 + X * X));
@@ -160,12 +162,12 @@ double SampleSpectrum(glm::dvec3 NormalizedBeta, double NormalizedLambda)
 // Compute the CIE XYZ tristimulus response of a reflectance spectrum
 // parameterized by coefficients Beta when lit by the CIE standard
 // illuminant D65.  Takes normalized coefficients.
-static glm::dvec3 ObserveSpectrumUnderD65(glm::dvec3 NormalizedBeta)
+static dvec3 ObserveSpectrumUnderD65(dvec3 NormalizedBeta)
 {
     int const SampleCount = 471;
     double const DeltaLambda = (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN + 1) / SampleCount;
 
-    glm::dvec3 XYZ = {};
+    dvec3 XYZ = {};
 
     for (int I = 0; I < SampleCount; I++) {
         double NormalizedLambda = I / double(SampleCount - 1);
@@ -180,7 +182,7 @@ static glm::dvec3 ObserveSpectrumUnderD65(glm::dvec3 NormalizedBeta)
 // Convert from the CIEXYZ space to the CIELAB space.
 // Distance in the CIELAB space is a useful heuristic
 // for the perceptual difference between two colors.
-static glm::dvec3 XYZToLab(glm::dvec3 XYZ)
+static dvec3 XYZToLab(dvec3 XYZ)
 {
     auto F = [](double T) -> double {
         double const Delta = 6/29.0;
@@ -206,9 +208,9 @@ static glm::dvec3 XYZToLab(glm::dvec3 XYZ)
 // standard illuminant D65.  The residual is calculated in the CIELAB space
 // for a good perceptual match.  The optimization procedure uses Gauss-Newton
 // iteration with a numerically approximated residual Jacobian.
-static glm::vec3 OptimizeSpectrum(
-    glm::dvec3 NormalizedBeta,
-    glm::dvec3 const& TargetXYZ,
+static vec3 OptimizeSpectrum(
+    dvec3 NormalizedBeta,
+    dvec3 const& TargetXYZ,
     int IterationCount = 15)
 {
     double const Epsilon = 1e-5;
@@ -217,8 +219,8 @@ static glm::vec3 OptimizeSpectrum(
 
     for (int I = 0; I < IterationCount; I++) {
         // Compute the CIELAB difference between target XYZ and observed XYZ response of the spectrum.
-        glm::dvec3 ObservedXYZ = ObserveSpectrumUnderD65(NormalizedBeta);
-        glm::dvec3 Residual = XYZToLab(ObservedXYZ) - XYZToLab(TargetXYZ);
+        dvec3 ObservedXYZ = ObserveSpectrumUnderD65(NormalizedBeta);
+        dvec3 Residual = XYZToLab(ObservedXYZ) - XYZToLab(TargetXYZ);
 
         Error = glm::length(Residual);
         if (Error < 1e-3) break;
@@ -226,13 +228,13 @@ static glm::vec3 OptimizeSpectrum(
         // Compute the Jacobian of the residual with respect to change in the coefficient.
         glm::dmat3 Jacobian = {};
         for (int I = 0; I < 3; I++) {
-            glm::dvec3 Beta0 = NormalizedBeta; Beta0[I] -= Epsilon;
-            glm::dvec3 XYZ0 = ObserveSpectrumUnderD65(Beta0);
-            glm::dvec3 Lab0 = XYZToLab(XYZ0);
+            dvec3 Beta0 = NormalizedBeta; Beta0[I] -= Epsilon;
+            dvec3 XYZ0 = ObserveSpectrumUnderD65(Beta0);
+            dvec3 Lab0 = XYZToLab(XYZ0);
 
-            glm::dvec3 Beta1 = NormalizedBeta; Beta1[I] += Epsilon;
-            glm::dvec3 XYZ1 = ObserveSpectrumUnderD65(Beta1);
-            glm::dvec3 Lab1 = XYZToLab(XYZ1);
+            dvec3 Beta1 = NormalizedBeta; Beta1[I] += Epsilon;
+            dvec3 XYZ1 = ObserveSpectrumUnderD65(Beta1);
+            dvec3 Lab1 = XYZToLab(XYZ1);
 
             Jacobian[I] = (Lab1 - Lab0) / (2 * Epsilon);
         }
@@ -255,7 +257,7 @@ static glm::vec3 OptimizeSpectrum(
 
     // Report a poor fit.  A CIELAB distance of 2.3 is a "just noticeable difference".
     //if (Error > 2) {
-    //    glm::dvec3 FitXYZ = ObserveSpectrumUnderD65(NormalizedBeta);
+    //    dvec3 FitXYZ = ObserveSpectrumUnderD65(NormalizedBeta);
     //    printf("Poor fit: TargetXYZ=(%.5f,%.5f,%.5f), FitXYZ=(%.5f,%.5f,%.5f), Beta=(%.3f,%.3f,%.3f), Error=%e\n",
     //        TargetXYZ.x, TargetXYZ.y, TargetXYZ.z,
     //        FitXYZ.x, FitXYZ.y, FitXYZ.z,
@@ -286,17 +288,17 @@ static int ScaleToIndex(float Scale)
     return K0;
 }
 
-static glm::vec3 IndexToColor(int I, int J, int K, int L)
+static vec3 IndexToColor(int I, int J, int K, int L)
 {
     constexpr int N = parametric_spectrum_table::COLOR_BINS;
-    glm::vec3 Color;
+    vec3 Color;
     Color[L] = 1.0f;
     Color[(L + 1) % 3] = I / float(N - 1);
     Color[(L + 2) % 3] = J / float(N - 1);
     return Color * IndexToScale(K);
 }
 
-static std::pair<glm::ivec4, glm::vec3> ColorToIndex(glm::vec3 const& Color)
+static std::pair<glm::ivec4, vec3> ColorToIndex(vec3 const& Color)
 {
     constexpr int N = parametric_spectrum_table::COLOR_BINS;
     constexpr int M = parametric_spectrum_table::SCALE_BINS;
@@ -320,7 +322,7 @@ static std::pair<glm::ivec4, glm::vec3> ColorToIndex(glm::vec3 const& Color)
     float S0 = IndexToScale(K);
     float S1 = IndexToScale(K+1);
 
-    glm::vec3 Alpha = { X - I, Y - J, (Scale - S0) / (S1 - S0) };
+    vec3 Alpha = { X - I, Y - J, (Scale - S0) / (S1 - S0) };
 
     return { Index, Alpha };
 }
@@ -331,7 +333,7 @@ void BuildParametricSpectrumTableForSRGB(
     constexpr int N = parametric_spectrum_table::COLOR_BINS;
     constexpr int M = parametric_spectrum_table::SCALE_BINS;
 
-    auto DenormalizeBeta = [](glm::dvec3 const& NormalizedBeta) -> glm::vec3 {
+    auto DenormalizeBeta = [](dvec3 const& NormalizedBeta) -> vec3 {
         constexpr float C0 = CIE_LAMBDA_MIN;
         constexpr float C1 = 1.f / (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN);
         auto B = NormalizedBeta;
@@ -342,7 +344,7 @@ void BuildParametricSpectrumTableForSRGB(
         };
     };
 
-    glm::dvec3 NormalizedBeta = {};
+    dvec3 NormalizedBeta = {};
 
     for (int L = 0; L < 3; L++) {
         for (int J = 0; J < N; J++) {
@@ -395,44 +397,44 @@ bool LoadParametricSpectrumTable(
     return false;
 }
 
-glm::vec3 GetParametricSpectrumCoefficients(
+vec3 GetParametricSpectrumCoefficients(
     parametric_spectrum_table const* Table,
-    glm::vec3 const& InColor)
+    vec3 const& InColor)
 {
-    glm::vec3 Color = glm::clamp(InColor, glm::vec3(0), glm::vec3(1));
+    vec3 Color = glm::clamp(InColor, vec3(0), vec3(1));
 
     glm::ivec4 Index;
-    glm::vec3 Alpha;
+    vec3 Alpha;
     std::tie(Index, Alpha) = ColorToIndex(Color);
 
-    glm::vec3 Beta00 = glm::mix(
+    vec3 Beta00 = glm::mix(
         Table->Coefficients[Index.w][Index.z+0][Index.y+0][Index.x+0],
         Table->Coefficients[Index.w][Index.z+0][Index.y+0][Index.x+1],
         Alpha.x);
 
-    glm::vec3 Beta01 = glm::mix(
+    vec3 Beta01 = glm::mix(
         Table->Coefficients[Index.w][Index.z+0][Index.y+1][Index.x+0],
         Table->Coefficients[Index.w][Index.z+0][Index.y+1][Index.x+1],
         Alpha.x);
 
-    glm::vec3 Beta10 = glm::mix(
+    vec3 Beta10 = glm::mix(
         Table->Coefficients[Index.w][Index.z+1][Index.y+0][Index.x+0],
         Table->Coefficients[Index.w][Index.z+1][Index.y+0][Index.x+1],
         Alpha.x);
 
-    glm::vec3 Beta11 = glm::mix(
+    vec3 Beta11 = glm::mix(
         Table->Coefficients[Index.w][Index.z+1][Index.y+1][Index.x+0],
         Table->Coefficients[Index.w][Index.z+1][Index.y+1][Index.x+1],
         Alpha.x);
 
-    glm::vec3 Beta0 = glm::mix(Beta00, Beta01, Alpha.y);
-    glm::vec3 Beta1 = glm::mix(Beta10, Beta11, Alpha.y);
+    vec3 Beta0 = glm::mix(Beta00, Beta01, Alpha.y);
+    vec3 Beta1 = glm::mix(Beta10, Beta11, Alpha.y);
 
     return glm::mix(Beta0, Beta1, Alpha.z);
 }
 
 float SampleParametricSpectrum(
-    glm::vec3 const& Beta,
+    vec3 const& Beta,
     float Lambda)
 {
     float X = (Beta.x * Lambda + Beta.y) * Lambda + Beta.z;
