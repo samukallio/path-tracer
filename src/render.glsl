@@ -562,6 +562,9 @@ void ResolveSurfaceParameters(hit Hit, float Lambda, float AmbientIOR, out surfa
     // Medium.
     Surface.MediumIOR = Material.SpecularIOR;
     Surface.MediumScatteringRate = Material.ScatteringRate;
+
+    //
+    Surface.LayerBounceLimit = Material.LayerBounceLimit;
 }
 
 /* --- BSDF ---------------------------------------------------------------- */
@@ -766,7 +769,7 @@ void BSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surfa
     else
         Layer = LAYER_BASE_SPECULAR;
 
-    for (int I = 0; I < 10; I++) {
+    for (int I = 0; I < Surface.LayerBounceLimit; I++) {
         if (Layer == LAYER_COAT) {
             CoatBSDF(Out, In, Radiance, Weight, Surface);
             Layer = In.z < 0 ? LAYER_BASE_SPECULAR : LAYER_EXTERNAL;

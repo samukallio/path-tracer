@@ -131,10 +131,11 @@ struct alignas(16) packed_material
     float                       TransmissionDispersionAbbeNumber;
     float                       ScatteringRate;
 
-
     uint32_t                    BaseSpectrumTextureIndex;
     uint32_t                    SpecularRoughnessTextureIndex;
     uint32_t                    EmissionSpectrumTextureIndex;
+
+    uint32_t                    LayerBounceLimit;
 };
 
 // This structure is shared between CPU and GPU,

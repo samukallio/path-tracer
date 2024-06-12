@@ -57,6 +57,8 @@ struct material
 
     float                           ScatteringRate          = 0.0f;
 
+    int                             LayerBounceLimit        = 16;
+
     uint32_t                        PackedMaterialIndex     = 0;
 };
 

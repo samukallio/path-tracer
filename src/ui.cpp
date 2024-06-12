@@ -139,6 +139,8 @@ static void MaterialInspector(application* App, material* Material, bool Referen
 
     C |= ImGui::DragFloat("Scattering Rate", &Material->ScatteringRate, 1.0f, 0.0001f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
 
+    C |= ImGui::DragInt("Layer Bounce Limit", &Material->LayerBounceLimit, 1.0f, 1, 128);
+
     if (C) Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
 
     ImGui::PopID();

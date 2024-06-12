@@ -1014,6 +1014,8 @@ uint32_t PackSceneData(scene* Scene)
             Packed.BaseSpectrumTextureIndex = GetPackedTextureIndex(Material->BaseColorTexture);
             Packed.SpecularRoughnessTextureIndex = GetPackedTextureIndex(Material->SpecularRoughnessTexture);
 
+            Packed.LayerBounceLimit = static_cast<uint32_t>(Material->LayerBounceLimit);
+
             Scene->MaterialPack.push_back(Packed);
         }
 

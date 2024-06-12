@@ -90,6 +90,8 @@ struct packed_material
     uint            BaseSpectrumTextureIndex;
     uint            SpecularRoughnessTextureIndex;
     uint            EmissionSpectrumTextureIndex;
+
+    uint            LayerBounceLimit;
 };
 
 struct packed_shape
@@ -162,6 +164,8 @@ struct hit
 struct surface_parameters
 {
     float           Opacity;
+
+    uint            LayerBounceLimit;
 
     bool            BaseIsMetal;
     bool            BaseIsTranslucent;
