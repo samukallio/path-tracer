@@ -609,23 +609,39 @@ void CoatBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, s
 
         Weight *= SmithG1(In, Surface.CoatRoughnessAlpha);
 
-        if (Out.z < 0) Weight *= Surface.CoatTransmittance;
-
-        return;
+        // If the outgoing ray points down, then the ray is being reflected
+        // within the coat medium.  Apply the coat absorption factor for both
+        // the incoming and outgoing direction.  The path length of a ray
+        // within the coat depends on the angle of the ray with respect to
+        // the surface normal.  Here, the angle is measured with respect to
+        // the macrosurface normal, as the thickness of the coat layer is
+        // oriented along the macrosurface.
+        if (Out.z < 0)
+            Weight *= pow(Surface.CoatTransmittance, -(0.5 / Out.z + 0.5 / In.z));
     }
+    else {
+        // Compute refracted direction.
+        In = (RelativeIOR * Cosine + RefractedCosine) * Normal - RelativeIOR * Out;
 
-    // Compute refracted direction.
-    In = (RelativeIOR * Cosine + RefractedCosine) * Normal - RelativeIOR * Out;
+        // If the refracted direction is in the wrong hemisphere,
+        // then it is shadowed and we terminate here.
+        if (In.z * Out.z > 0) {
+            Weight = 0.0;
+            return;
+        }
 
-    // If the refracted direction is in the wrong hemisphere,
-    // then it is shadowed and we terminate here.
-    if (In.z * Out.z > 0) {
-        Weight = 0.0;
-        return;
+        Weight *= SmithG1(In, Surface.CoatRoughnessAlpha);
+
+        // The ray is traversing the coat medium.  Apply the coat absorption
+        // factor based on the distance traversed in the coat medium.  If the
+        // outgoing ray points down, then it is the outgoing ray that passes
+        // through the medium, and we determine the path length using that.
+        // Otherwise, it is the incoming ray that traverses the medium.
+        if (Out.z < 0)
+            Weight *= pow(Surface.CoatTransmittance, -0.5 / Out.z);
+        else
+            Weight *= pow(Surface.CoatTransmittance, -0.5 / In.z);
     }
-
-    Weight *= SmithG1(In, Surface.CoatRoughnessAlpha);
-    Weight *= sqrt(Surface.CoatTransmittance);
 }
 
 // Specular part of the OpenPBR base substrate BSDF.
