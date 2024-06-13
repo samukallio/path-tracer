@@ -357,13 +357,11 @@ float CauchyEmpiricalIOR(float BaseIOR, float AbbeNumber, float Lambda)
 // by Eric Heitz.
 float SmithG1(vec3 Direction, vec2 Roughness)
 {
+    vec3 DirectionSq = Direction * Direction;
+    if (DirectionSq.z < EPSILON) return 0.0;
     vec2 RoughnessSq = Roughness * Roughness;
-    float CosPhiSq = Direction.x * Direction.x;
-    float SinPhiSq = Direction.y * Direction.y;
-    float CosThetaSq = Direction.z * Direction.z;
-    float TanThetaSq = (1 - CosThetaSq) / CosThetaSq;
-    float AlphaSq = (CosPhiSq * RoughnessSq.x + SinPhiSq * RoughnessSq.y) / (CosPhiSq + SinPhiSq);
-    return 2.0 / (1.0 + sqrt(1.0 + AlphaSq * TanThetaSq));
+    float AlphaSqByTanThetaSq = dot(RoughnessSq, DirectionSq.xy) / DirectionSq.z;
+    return 2.0 / (1.0 + sqrt(1.0 + AlphaSqByTanThetaSq));
 }
 
 // Compute the CIE XYZ tristimulus values of a single-wavelength Dirac spectrum
