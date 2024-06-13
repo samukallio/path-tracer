@@ -283,26 +283,31 @@ vec2 ComputeRoughnessAlphaGGX(float Roughness, float Anisotropy)
 // GGX Distribution of Visible Normals" by Eric Heitz.
 vec3 SampleVisibleNormalGGX(vec3 Direction, vec2 RoughnessAlpha, float U1, float U2)
 {
-    vec3 vz = normalize(vec3(
+    // Transform direction to the hemisphere space.
+    vec3 Vz = SafeNormalize(vec3(
         RoughnessAlpha.x * Direction.x,
         RoughnessAlpha.y * Direction.y,
         Direction.z));
 
-    float lensq = dot(vz.xy, vz.xy);
-    vec3 vx = lensq > 0 ? vec3(-vz.y, vz.x, 0) / sqrt(lensq) : vec3(1, 0, 0);
-    vec3 vy = cross(vz, vx);
+    // Compute orthogonal frame in hemisphere space.
+    float LengthSq = dot(Vz.xy, Vz.xy);
+    vec3 Vx = LengthSq > 0 ? vec3(-Vz.y, Vz.x, 0) / sqrt(LengthSq) : vec3(1, 0, 0);
+    vec3 Vy = cross(Vz, Vx);
 
-    float r = sqrt(U1);
-    float phi = TAU * U2;
-    float s = 0.5 * (1.0 + vz.z);
+    // Uniformly sample the projected area of the hemisphere.
+    float R = sqrt(U1);
+    float Phi = TAU * U2;
+    float S = 0.5 * (1.0 + Vz.z);
 
-    float tx = r * cos(phi);
-    float ty = (1.0 - s) * sqrt(1.0 - tx * tx) + s * r * sin(phi);
-    float tz = sqrt(max(0.0, 1.0 - tx * tx - ty * ty));
+    float Tx = R * cos(Phi);
+    float Ty = (1.0 - S) * sqrt(1.0 - Tx * Tx) + S * R * sin(Phi);
+    float Tz = sqrt(max(0.0, 1.0 - Tx * Tx - Ty * Ty));
 
-    vec3 Normal = tx * vx + ty * vy + tz * vz;
+    // Determine normal corresponding to the sampled projected point.
+    vec3 Normal = Tx * Vx + Ty * Vy + Tz * Vz;
 
-    return normalize(vec3(
+    // Transform normal to the ellipsoid space.
+    return SafeNormalize(vec3(
         RoughnessAlpha.x * Normal.x,
         RoughnessAlpha.y * Normal.y,
         max(0.0, Normal.z)));
