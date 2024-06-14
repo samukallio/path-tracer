@@ -255,13 +255,14 @@ void ComputeCoordinateFrame(vec3 Z, out vec3 X, out vec3 Y)
 vec3 SampleDirectionHG(float Anisotropy, float U1, float U2)
 {
     float Z;
-    if (Anisotropy < 1e-3) {
+    if (abs(Anisotropy) < 1e-3) {
+        // The distribution becomes spherical as the anisotropy approaches zero.
         Z = 1 - 2 * U1;
     }
     else {
         float G = Anisotropy;
-        float S = (1 - G * G) / (1 - G + 2 * G * U1);
-        Z = (1 + G * G - S * S) / (2 * G);
+        float S = (1 - G * G) / (1 + G - 2 * G * U1);
+        Z = -(1 + G * G - S * S) / (2 * G);
     }
     float R = sqrt(1 - Z * Z);
     float Phi = U2 * TAU;
