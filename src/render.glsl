@@ -356,6 +356,8 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
 // Compute ray intersection against the whole scene.
 void Intersect(ray Ray, inout hit Hit)
 {
+    if (ShapeCount == 0) return;
+
     uint Stack[32];
     uint Depth = 0;
 

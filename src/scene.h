@@ -265,8 +265,10 @@ material*   CreateMaterial(scene* Scene, char const* Name);
 texture*    CreateCheckerTexture(scene* Scene, char const* Name, glm::vec4 const& ColorA, glm::vec4 const& ColorB);
 texture*    LoadTexture(scene* Scene, char const* Path, texture_type Type, char const* Name = nullptr);
 prefab*     LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Options = nullptr);
-
 uint32_t    PackSceneData(scene* Scene);
+scene*      CreateScene();
+void        DestroyScene(scene* Scene);
+
 entity*     FindEntityByPackedShapeIndex(scene* Scene, uint32_t PackedShapeIndex);
 
 bool        Trace(scene* Scene, ray const& Ray, hit& Hit);

@@ -27,6 +27,7 @@ void Frame()
         App.ShowUI = !App.ShowUI;
     }
     if (App.ShowUI) {
+        MainMenuBar(&App);
         ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_PassthruCentralNode);
         ImGui::ShowDemoWindow();
         InspectorWindow(&App);

@@ -1,9 +1,11 @@
 #include "common.h"
 #include "ui.h"
 #include "spectral.h"
+#include "serializer.h"
 
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
+#include <nfd.h>
 
 static bool DragEulerAngles(const char* Label, vec3* Angles)
 {
@@ -667,6 +669,48 @@ void ParametricSpectrumViewerWindow(application* App)
 
     ImGui::PlotLines("Spectrum", Spectrum, IM_ARRAYSIZE(Spectrum), 0, 0, 0.0f, 1.0f, Size);
     ImGui::End();
+}
+
+void MainMenuBar(application* App)
+{
+    ImGui::BeginMainMenuBar();
+    if (ImGui::BeginMenu("File")) {
+        if (ImGui::MenuItem("New Scene")) {
+            DestroyScene(App->Scene);
+            App->SelectionType = SELECTION_TYPE_NONE;
+            App->Camera = nullptr;
+            App->Scene = CreateScene();
+            App->Scene->DirtyFlags = SCENE_DIRTY_ALL;
+        }
+        if (ImGui::MenuItem("Open Scene...")) {
+            auto CurrentPath = std::filesystem::current_path().string();
+            nfdu8char_t* Path = nullptr;
+            nfdu8filteritem_t Filter = { .name = "Scene File", .spec = "json" };
+            nfdresult_t Result = NFD_OpenDialogU8(&Path, &Filter, 1, CurrentPath.c_str());
+            if (Result == NFD_OKAY) {
+                scene* Scene = LoadScene(Path);
+                if (Scene) {
+                    DestroyScene(App->Scene);
+                    App->SelectionType = SELECTION_TYPE_NONE;
+                    App->Camera = nullptr;
+                    App->Scene = Scene;
+                }
+            }
+            NFD_FreePathU8(Path);
+        }
+        if (ImGui::MenuItem("Save Scene As...")) {
+            auto CurrentPath = std::filesystem::current_path().string();
+            nfdu8char_t* Path = nullptr;
+            nfdu8filteritem_t Filter = { .name = "Scene File", .spec = "json" };
+            nfdresult_t Result = NFD_SaveDialogU8(&Path, &Filter, 1, CurrentPath.c_str(), "scene.json");
+            if (Result == NFD_OKAY) {
+                SaveScene(Path, App->Scene);
+            }
+            NFD_FreePathU8(Path);
+        }
+        ImGui::EndMenu();
+    }
+    ImGui::EndMainMenuBar();
 }
 
 void InitializeUI(application* App)

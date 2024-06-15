@@ -174,6 +174,8 @@ static void InternalWriteToDeviceLocalBuffer(
     void const* Data,
     size_t Size)
 {
+    if (Size == 0) return;
+
     // Create a staging buffer and copy the data into it.
     vulkan_buffer Staging;
     InternalCreateBuffer(Vulkan,
@@ -2334,7 +2336,7 @@ VkResult UploadScene(
             &Vulkan->TextureBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            TextureBufferSize);
+            std::max(1024ull, TextureBufferSize));
         InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->TextureBuffer, Scene->TexturePack.data(), TextureBufferSize);
     }
 
@@ -2348,7 +2350,7 @@ VkResult UploadScene(
             &Vulkan->MaterialBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            MaterialBufferSize);
+            std::max(1024ull, MaterialBufferSize));
         InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MaterialBuffer, Scene->MaterialPack.data(), MaterialBufferSize);
     }
 
@@ -2363,7 +2365,7 @@ VkResult UploadScene(
                 &Vulkan->ShapeBuffer,
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                ShapeBufferSize);
+                std::max(1024ull, ShapeBufferSize));
 
         }
         InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->ShapeBuffer, Scene->ShapePack.data(), ShapeBufferSize);
@@ -2378,7 +2380,7 @@ VkResult UploadScene(
                 &Vulkan->ShapeNodeBuffer,
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                ShapeNodeBufferSize);
+                std::max(1024ull, ShapeNodeBufferSize));
         }
         InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->ShapeNodeBuffer, Scene->ShapeNodePack.data(), ShapeNodeBufferSize);
     }
@@ -2397,7 +2399,7 @@ VkResult UploadScene(
             &Vulkan->MeshFaceBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            MeshFaceBufferSize);
+            std::max(1024ull, MeshFaceBufferSize));
         InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MeshFaceBuffer, Scene->MeshFacePack.data(), MeshFaceBufferSize);
 
         size_t MeshFaceExtraBufferSize = sizeof(packed_mesh_face_extra) * Scene->MeshFaceExtraPack.size();
@@ -2406,7 +2408,7 @@ VkResult UploadScene(
             &Vulkan->MeshFaceExtraBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            MeshFaceExtraBufferSize);
+            std::max(1024ull, MeshFaceExtraBufferSize));
         InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MeshFaceExtraBuffer, Scene->MeshFaceExtraPack.data(), MeshFaceExtraBufferSize);
 
         size_t MeshNodeBufferSize = sizeof(packed_mesh_node) * Scene->MeshNodePack.size();
@@ -2415,7 +2417,7 @@ VkResult UploadScene(
             &Vulkan->MeshNodeBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            MeshNodeBufferSize);
+            std::max(1024ull, MeshNodeBufferSize));
         InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MeshNodeBuffer, Scene->MeshNodePack.data(), MeshNodeBufferSize);
     }
 

@@ -668,6 +668,39 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
     return Prefab;
 }
 
+scene* CreateScene()
+{
+    auto Scene = new scene;
+
+    char const* SRGB_SPECTRUM_TABLE_FILE = "sRGBSpectrumTable.dat";
+
+    Scene->RGBSpectrumTable = new parametric_spectrum_table;
+    if (!LoadParametricSpectrumTable(Scene->RGBSpectrumTable, SRGB_SPECTRUM_TABLE_FILE)) {
+        printf("%s not found, generating it.\n", SRGB_SPECTRUM_TABLE_FILE);
+        printf("This will probably take a few minutes...\n");
+        BuildParametricSpectrumTableForSRGB(Scene->RGBSpectrumTable);
+        SaveParametricSpectrumTable(Scene->RGBSpectrumTable, SRGB_SPECTRUM_TABLE_FILE);
+    }
+
+    return Scene;
+}
+
+void DestroyScene(scene* Scene)
+{
+    while (!Scene->Root.Children.empty())
+        DestroyEntity(Scene, Scene->Root.Children[0]);
+    for (prefab* Prefab : Scene->Prefabs)
+        delete Prefab;
+    for (mesh* Mesh : Scene->Meshes)
+        delete Mesh;
+    for (material* Material : Scene->Materials)
+        delete Material;
+    for (texture* Texture : Scene->Textures)
+        delete Texture;
+    delete Scene->RGBSpectrumTable;
+    delete Scene;
+}
+
 //bool LoadSkybox(scene* Scene, char const* Path)
 //{
     //int Width, Height, Components;
@@ -1184,44 +1217,46 @@ uint32_t PackSceneData(scene* Scene)
             return BestIndexB;
         };
 
-        uint16_t IndexA = 0;
-        uint16_t IndexB = FindBestMatch(Scene, Map, IndexA);
+        if (!Scene->ShapePack.empty()) {
+            uint16_t IndexA = 0;
+            uint16_t IndexB = FindBestMatch(Scene, Map, IndexA);
 
-        while (Map.size() > 1) {
-            uint16_t IndexC = FindBestMatch(Scene, Map, IndexB);
-            if (IndexA == IndexC) {
-                uint16_t NodeIndexA = Map[IndexA];
-                packed_shape_node const& NodeA = Scene->ShapeNodePack[NodeIndexA];
-                uint16_t NodeIndexB = Map[IndexB];
-                packed_shape_node const& NodeB = Scene->ShapeNodePack[NodeIndexB];
+            while (Map.size() > 1) {
+                uint16_t IndexC = FindBestMatch(Scene, Map, IndexB);
+                if (IndexA == IndexC) {
+                    uint16_t NodeIndexA = Map[IndexA];
+                    packed_shape_node const& NodeA = Scene->ShapeNodePack[NodeIndexA];
+                    uint16_t NodeIndexB = Map[IndexB];
+                    packed_shape_node const& NodeB = Scene->ShapeNodePack[NodeIndexB];
 
-                packed_shape_node Node = {
-                    .Minimum = glm::min(NodeA.Minimum, NodeB.Minimum),
-                    .ChildNodeIndices = uint32_t(NodeIndexA) | uint32_t(NodeIndexB) << 16,
-                    .Maximum = glm::max(NodeA.Maximum, NodeB.Maximum),
-                    .ShapeIndex = SHAPE_INDEX_NONE,
-                };
+                    packed_shape_node Node = {
+                        .Minimum = glm::min(NodeA.Minimum, NodeB.Minimum),
+                        .ChildNodeIndices = uint32_t(NodeIndexA) | uint32_t(NodeIndexB) << 16,
+                        .Maximum = glm::max(NodeA.Maximum, NodeB.Maximum),
+                        .ShapeIndex = SHAPE_INDEX_NONE,
+                    };
 
-                Map[IndexA] = static_cast<uint16_t>(Scene->ShapeNodePack.size());
-                Map[IndexB] = Map.back();
-                Map.pop_back();
+                    Map[IndexA] = static_cast<uint16_t>(Scene->ShapeNodePack.size());
+                    Map[IndexB] = Map.back();
+                    Map.pop_back();
 
-                if (IndexA == Map.size())
+                    if (IndexA == Map.size())
+                        IndexA = IndexB;
+
+                    Scene->ShapeNodePack.push_back(Node);
+
+                    IndexB = FindBestMatch(Scene, Map, IndexA);
+                }
+                else {
                     IndexA = IndexB;
-
-                Scene->ShapeNodePack.push_back(Node);
-
-                IndexB = FindBestMatch(Scene, Map, IndexA);
+                    IndexB = IndexC;
+                }
             }
-            else {
-                IndexA = IndexB;
-                IndexB = IndexC;
-            }
+
+            Scene->ShapeNodePack[0] = Scene->ShapeNodePack[Map[IndexA]];
+            Scene->ShapeNodePack[Map[IndexA]] = Scene->ShapeNodePack.back();
+            Scene->ShapeNodePack.pop_back();
         }
-
-        Scene->ShapeNodePack[0] = Scene->ShapeNodePack[Map[IndexA]];
-        Scene->ShapeNodePack[Map[IndexA]] = Scene->ShapeNodePack.back();
-        Scene->ShapeNodePack.pop_back();
 
         //PrintShapeNode(scene, 0, 0);
     }
