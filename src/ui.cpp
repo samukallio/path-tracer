@@ -674,13 +674,11 @@ void ParametricSpectrumViewerWindow(application* App)
 void MainMenuBar(application* App)
 {
     auto OpenDialog = [](
-        char const* TypeName,
-        char const* Extension
+        std::span<nfdu8filteritem_t> Filters
     ) -> std::optional<std::filesystem::path> {
         auto CurrentPath = std::filesystem::current_path().string();
         nfdu8char_t* Path = nullptr;
-        nfdu8filteritem_t Filter = { .name = TypeName, .spec = Extension };
-        nfdresult_t Result = NFD_OpenDialogU8(&Path, &Filter, 1, CurrentPath.c_str());
+        nfdresult_t Result = NFD_OpenDialogU8(&Path, Filters.data(), static_cast<nfdfiltersize_t>(Filters.size()), CurrentPath.c_str());
         std::optional<std::filesystem::path> OutPath = {};
         if (Result == NFD_OKAY) OutPath = Path; 
         if (Path) NFD_FreePathU8(Path);
@@ -688,14 +686,13 @@ void MainMenuBar(application* App)
     };
 
     auto SaveDialog = [](
-        char const* TypeName,
-        char const* Extension,
+        std::span<nfdu8filteritem_t> Filters,
         char const* DefaultName
     ) -> std::optional<std::filesystem::path> {
         auto CurrentPath = std::filesystem::current_path().string();
         nfdu8char_t* Path = nullptr;
-        nfdu8filteritem_t Filter = { .name = TypeName, .spec = Extension };
-        nfdresult_t Result = NFD_SaveDialogU8(&Path, &Filter, 1, CurrentPath.c_str(), DefaultName);
+        //nfdu8filteritem_t Filter = { .name = TypeName, .spec = Extension };
+        nfdresult_t Result = NFD_SaveDialogU8(&Path, Filters.data(), static_cast<nfdfiltersize_t>(Filters.size()), CurrentPath.c_str(), DefaultName);
         std::optional<std::string> OutPath = {};
         if (Result == NFD_OKAY) OutPath = Path; 
         if (Path) NFD_FreePathU8(Path);
@@ -712,7 +709,8 @@ void MainMenuBar(application* App)
             App->Scene->DirtyFlags = SCENE_DIRTY_ALL;
         }
         if (ImGui::MenuItem("Open Scene...")) {
-            std::optional<std::filesystem::path> Path = OpenDialog("Scene File", "json");
+            nfdu8filteritem_t Filters[] = { { "Scene File", "json" } };
+            std::optional<std::filesystem::path> Path = OpenDialog(Filters);
             if (Path.has_value()) {
                 scene* Scene = LoadScene(Path.value().string().c_str());
                 if (Scene) {
@@ -724,14 +722,18 @@ void MainMenuBar(application* App)
             }
         }
         if (ImGui::MenuItem("Save Scene As...")) {
-            std::optional<std::filesystem::path> Path = SaveDialog("Scene File", "json", "scene.json");
+            nfdu8filteritem_t Filters[] = { { "Scene File", "json" } };
+            std::optional<std::filesystem::path> Path = SaveDialog(Filters, "scene.json");
             if (Path.has_value()) {
                 SaveScene(Path.value().string().c_str(), App->Scene);
             }
         }
         ImGui::Separator();
         if (ImGui::MenuItem("Import Model...")) {
-            std::optional<std::filesystem::path> Path = OpenDialog("Wavefront OBJ", "obj");
+            nfdu8filteritem_t Filters[] = {
+                { "Wavefront OBJ", "obj" }
+            };
+            std::optional<std::filesystem::path> Path = OpenDialog(Filters);
             if (Path.has_value()) {
                 load_model_options Options;
                 Options.DirectoryPath = Path.value().parent_path().string();
@@ -739,7 +741,11 @@ void MainMenuBar(application* App)
             }
         }
         if (ImGui::MenuItem("Import Texture...")) {
-            std::optional<std::filesystem::path> Path = OpenDialog("Portable Network Graphics", "png");
+            nfdu8filteritem_t Filters[] = {
+                { "Portable Network Graphics", "png" },
+                { "High-Dynamic Range Image", "hdr" },
+            };
+            std::optional<std::filesystem::path> Path = OpenDialog(Filters);
             if (Path.has_value()) {
                 load_model_options Options;
                 Options.DirectoryPath = Path.value().parent_path().string();
