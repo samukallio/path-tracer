@@ -415,31 +415,43 @@ static void EntityTreeNode(application* App, entity* Entity, bool PrefabMode=fal
         ImGui::PushStyleColor(ImGuiCol_Text, color);
     }
 
-    if (ImGui::TreeNodeEx(Entity->Name.c_str(), Flags)) {
-        if (!PrefabMode) {
-            if (ImGui::IsItemClicked()) {
-                App->SelectionType = SELECTION_TYPE_ENTITY;
-                App->SelectedEntity = Entity;
-            }
+    bool IsOpen = ImGui::TreeNodeEx(Entity->Name.c_str(), Flags);
 
-            if (ImGui::BeginPopupContextItem()) {
-                for (int I = 0; I < ENTITY_TYPE__COUNT; I++) {
-                    if (I == ENTITY_TYPE_ROOT) continue; 
-                    char Buffer[256];
-                    auto EntityType = static_cast<entity_type>(I);
-                    snprintf(Buffer, std::size(Buffer), "Create %s...", EntityTypeName(EntityType));
-                    if (ImGui::MenuItem(Buffer)) {
-                        auto Child = CreateEntity(App->Scene, EntityType, Entity);
-                        Child->Name = std::format("New {}", EntityTypeName(EntityType));
-                        App->Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
-                        App->SelectionType = SELECTION_TYPE_ENTITY;
-                        App->SelectedEntity = Child;
-                    }
+    if (!PrefabMode) {
+        if (ImGui::BeginPopupContextItem()) {
+            for (int I = 0; I < ENTITY_TYPE__COUNT; I++) {
+                if (I == ENTITY_TYPE_ROOT) continue;
+                char Buffer[256];
+                auto EntityType = static_cast<entity_type>(I);
+                snprintf(Buffer, std::size(Buffer), "Create %s...", EntityTypeName(EntityType));
+                if (ImGui::MenuItem(Buffer)) {
+                    auto Child = CreateEntity(App->Scene, EntityType, Entity);
+                    Child->Name = std::format("New {}", EntityTypeName(EntityType));
+                    App->Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
+                    App->SelectionType = SELECTION_TYPE_ENTITY;
+                    App->SelectedEntity = Child;
                 }
-                ImGui::EndPopup();
             }
+            ImGui::EndPopup();
         }
 
+        if (ImGui::IsItemClicked()) {
+            App->SelectionType = SELECTION_TYPE_ENTITY;
+            App->SelectedEntity = Entity;
+        }
+    }
+
+    // Draw the entity type on the right hand side.
+    {
+        char const* TypeText = EntityTypeName(Entity->Type);
+        ImVec2 TypeLabelSize = ImGui::CalcTextSize(TypeText);
+        ImGui::SameLine(ImGui::GetWindowWidth() - TypeLabelSize.x - 10);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::Text(TypeText);
+        ImGui::PopStyleColor();
+    }
+
+    if (IsOpen) {
         for (entity* Child : Entity->Children)
             EntityTreeNode(App, Child, PrefabMode);
 
