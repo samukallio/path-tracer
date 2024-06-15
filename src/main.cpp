@@ -24,14 +24,18 @@ void Frame()
 
     // ImGui.
     ImGui::NewFrame();
-    ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_PassthruCentralNode);
-    ImGui::ShowDemoWindow();
-    InspectorWindow(&App);
-    ResourceBrowserWindow(&App);
-    SceneHierarchyWindow(&App);
-    ParametricSpectrumViewerWindow(&App);
+    if (ImGui::IsKeyPressed(ImGuiKey_F11)) {
+        App.ShowUI = !App.ShowUI;
+    }
+    if (App.ShowUI) {
+        ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_PassthruCentralNode);
+        ImGui::ShowDemoWindow();
+        InspectorWindow(&App);
+        ResourceBrowserWindow(&App);
+        SceneHierarchyWindow(&App);
+        ParametricSpectrumViewerWindow(&App);
+    }
     ImGui::EndFrame();
-
     ImGui::Render();
 
     // Handle camera movement.

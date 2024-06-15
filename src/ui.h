@@ -40,6 +40,8 @@ struct application
 
     scene*          Scene               = nullptr;
     camera*         Camera              = nullptr;
+
+    bool            ShowUI              = true;
 };
 
 void InitializeUI(application* App);
