@@ -262,7 +262,7 @@ entity*     CreateEntity(scene* Scene, entity* Source, entity* Parent = nullptr)
 entity*     CreateEntity(scene* Scene, prefab* Prefab, entity* Parent = nullptr);
 void        DestroyEntity(scene* Scene, entity* Entity);
 material*   CreateMaterial(scene* Scene, char const* Name);
-texture*    CreateCheckerTexture(scene* Scene, char const* Name, glm::vec4 const& ColorA, glm::vec4 const& ColorB);
+texture*    CreateCheckerTexture(scene* Scene, char const* Name, texture_type Type, glm::vec4 const& ColorA, glm::vec4 const& ColorB);
 texture*    LoadTexture(scene* Scene, char const* Path, texture_type Type, char const* Name = nullptr);
 prefab*     LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Options = nullptr);
 uint32_t    PackSceneData(scene* Scene);

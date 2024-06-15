@@ -197,17 +197,18 @@ void DestroyEntity(scene* Scene, entity* Entity)
     delete Entity;
 }
 
-texture* CreateCheckerTexture(scene* Scene, char const* Name, glm::vec4 const& ColorA, glm::vec4 const& ColorB)
+texture* CreateCheckerTexture(scene* Scene, char const* Name, texture_type Type, glm::vec4 const& ColorA, glm::vec4 const& ColorB)
 {
     auto Pixels = new glm::vec4[4];
 
-    Pixels[0] = ColorToSpectrum(Scene, ColorA);
-    Pixels[1] = ColorToSpectrum(Scene, ColorB);
-    Pixels[2] = ColorToSpectrum(Scene, ColorB);
-    Pixels[3] = ColorToSpectrum(Scene, ColorA);
+    Pixels[0] = ColorA;
+    Pixels[1] = ColorB;
+    Pixels[2] = ColorB;
+    Pixels[3] = ColorA;
 
     auto Texture = new texture {
         .Name = Name,
+        .Type = Type,
         .Width = 2,
         .Height = 2,
         .Pixels = Pixels,
@@ -695,7 +696,7 @@ scene* CreateScene()
     plane* Plane = (plane*)CreateEntity(Scene, ENTITY_TYPE_PLANE);
     Plane->Name = "Plane";
     Plane->Material = CreateMaterial(Scene, "Plane Material");
-    Plane->Material->BaseColorTexture = CreateCheckerTexture(Scene, "Plane Texture", glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
+    Plane->Material->BaseColorTexture = CreateCheckerTexture(Scene, "Plane Texture", TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA, glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
     Plane->Material->BaseColorTexture->EnableNearestFiltering = true;
 
     camera* Camera = (camera*)CreateEntity(Scene, ENTITY_TYPE_CAMERA);
