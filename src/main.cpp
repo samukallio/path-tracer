@@ -14,7 +14,6 @@
 int const WINDOW_WIDTH = 1920;
 int const WINDOW_HEIGHT = 1080;
 char const* APPLICATION_NAME = "Path Tracer";
-char const* SRGB_SPECTRUM_TABLE_FILE = "sRGBSpectrumTable.dat";
 
 application App;
 
@@ -369,39 +368,6 @@ static void CharacterInputCallback(GLFWwindow* Window, unsigned int CodePoint)
 {
     ImGuiIO& IO = ImGui::GetIO();
     IO.AddInputCharacter(CodePoint);
-}
-
-static void CreateBasicResources(scene* Scene)
-{
-    struct metal_material_data {
-        char const* Name;
-        vec3 BaseColor;
-        vec3 SpecularColor;
-    };
-
-    metal_material_data const METALS[] = {
-        { "Silver"   , { 0.9868f, 0.9830f, 0.9667f }, { 0.9929f, 0.9961f, 1.0000f } },
-        { "Aluminum" , { 0.9157f, 0.9226f, 0.9236f }, { 0.9090f, 0.9365f, 0.9596f } },
-        { "Gold"     , { 1.0000f, 0.7099f, 0.3148f }, { 0.9408f, 0.9636f, 0.9099f } },
-        { "Chromium" , { 0.5496f, 0.5561f, 0.5531f }, { 0.7372f, 0.7511f, 0.8170f } },
-        { "Copper"   , { 1.0000f, 0.6504f, 0.5274f }, { 0.9755f, 0.9349f, 0.9301f } },
-        { "Iron"     , { 0.8951f, 0.8755f, 0.8154f }, { 0.8551f, 0.8800f, 0.8966f } },
-        { "Mercury"  , { 0.7815f, 0.7795f, 0.7783f }, { 0.8103f, 0.8532f, 0.9046f } },
-        { "Magnesium", { 0.8918f, 0.8821f, 0.8948f }, { 0.8949f, 0.9147f, 0.9504f } },
-        { "Nickel"   , { 0.7014f, 0.6382f, 0.5593f }, { 0.8134f, 0.8352f, 0.8725f } },
-        { "Palladium", { 0.7363f, 0.7023f, 0.6602f }, { 0.8095f, 0.8369f, 0.8739f } },
-        { "Platinum" , { 0.9602f, 0.9317f, 0.8260f }, { 0.9501f, 0.9461f, 0.9352f } },
-        { "Titanium" , { 0.4432f, 0.3993f, 0.3599f }, { 0.8627f, 0.9066f, 0.9481f } },
-        { "Zinc"     , { 0.8759f, 0.8685f, 0.8542f }, { 0.8769f, 0.9037f, 0.9341f } },
-    };
-
-    for (auto const& Metal : METALS) {
-        material* Material = CreateMaterial(Scene, Metal.Name);
-        Material->BaseMetalness = 1.0f;
-        Material->BaseColor = Metal.BaseColor;
-        Material->SpecularColor = Metal.SpecularColor;
-        Material->SpecularRoughness = 0.0f;
-    }
 }
 
 int main()
