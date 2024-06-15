@@ -673,6 +673,35 @@ void ParametricSpectrumViewerWindow(application* App)
 
 void MainMenuBar(application* App)
 {
+    auto OpenDialog = [](
+        char const* TypeName,
+        char const* Extension
+    ) -> std::optional<std::filesystem::path> {
+        auto CurrentPath = std::filesystem::current_path().string();
+        nfdu8char_t* Path = nullptr;
+        nfdu8filteritem_t Filter = { .name = TypeName, .spec = Extension };
+        nfdresult_t Result = NFD_OpenDialogU8(&Path, &Filter, 1, CurrentPath.c_str());
+        std::optional<std::filesystem::path> OutPath = {};
+        if (Result == NFD_OKAY) OutPath = Path; 
+        if (Path) NFD_FreePathU8(Path);
+        return OutPath;
+    };
+
+    auto SaveDialog = [](
+        char const* TypeName,
+        char const* Extension,
+        char const* DefaultName
+    ) -> std::optional<std::filesystem::path> {
+        auto CurrentPath = std::filesystem::current_path().string();
+        nfdu8char_t* Path = nullptr;
+        nfdu8filteritem_t Filter = { .name = TypeName, .spec = Extension };
+        nfdresult_t Result = NFD_SaveDialogU8(&Path, &Filter, 1, CurrentPath.c_str(), DefaultName);
+        std::optional<std::string> OutPath = {};
+        if (Result == NFD_OKAY) OutPath = Path; 
+        if (Path) NFD_FreePathU8(Path);
+        return OutPath;
+    };
+
     ImGui::BeginMainMenuBar();
     if (ImGui::BeginMenu("File")) {
         if (ImGui::MenuItem("New Scene")) {
@@ -683,12 +712,9 @@ void MainMenuBar(application* App)
             App->Scene->DirtyFlags = SCENE_DIRTY_ALL;
         }
         if (ImGui::MenuItem("Open Scene...")) {
-            auto CurrentPath = std::filesystem::current_path().string();
-            nfdu8char_t* Path = nullptr;
-            nfdu8filteritem_t Filter = { .name = "Scene File", .spec = "json" };
-            nfdresult_t Result = NFD_OpenDialogU8(&Path, &Filter, 1, CurrentPath.c_str());
-            if (Result == NFD_OKAY) {
-                scene* Scene = LoadScene(Path);
+            std::optional<std::filesystem::path> Path = OpenDialog("Scene File", "json");
+            if (Path.has_value()) {
+                scene* Scene = LoadScene(Path.value().string().c_str());
                 if (Scene) {
                     DestroyScene(App->Scene);
                     App->SelectionType = SELECTION_TYPE_NONE;
@@ -696,17 +722,29 @@ void MainMenuBar(application* App)
                     App->Scene = Scene;
                 }
             }
-            NFD_FreePathU8(Path);
         }
         if (ImGui::MenuItem("Save Scene As...")) {
-            auto CurrentPath = std::filesystem::current_path().string();
-            nfdu8char_t* Path = nullptr;
-            nfdu8filteritem_t Filter = { .name = "Scene File", .spec = "json" };
-            nfdresult_t Result = NFD_SaveDialogU8(&Path, &Filter, 1, CurrentPath.c_str(), "scene.json");
-            if (Result == NFD_OKAY) {
-                SaveScene(Path, App->Scene);
+            std::optional<std::filesystem::path> Path = SaveDialog("Scene File", "json", "scene.json");
+            if (Path.has_value()) {
+                SaveScene(Path.value().string().c_str(), App->Scene);
             }
-            NFD_FreePathU8(Path);
+        }
+        ImGui::Separator();
+        if (ImGui::MenuItem("Import Model...")) {
+            std::optional<std::filesystem::path> Path = OpenDialog("Wavefront OBJ", "obj");
+            if (Path.has_value()) {
+                load_model_options Options;
+                Options.DirectoryPath = Path.value().parent_path().string();
+                LoadModelAsPrefab(App->Scene, Path.value().string().c_str(), &Options);
+            }
+        }
+        if (ImGui::MenuItem("Import Texture...")) {
+            std::optional<std::filesystem::path> Path = OpenDialog("Portable Network Graphics", "png");
+            if (Path.has_value()) {
+                load_model_options Options;
+                Options.DirectoryPath = Path.value().parent_path().string();
+                LoadTexture(App->Scene, Path.value().string().c_str(), TEXTURE_TYPE_RAW);
+            }
         }
         ImGui::EndMenu();
     }

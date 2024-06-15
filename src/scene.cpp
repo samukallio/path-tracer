@@ -508,8 +508,16 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
         Materials.push_back(Material);
     }
 
+    std::string ModelName;
+    if (Options->Name) {
+        ModelName = Options->Name;
+    }
+    else {
+        std::filesystem::path P = Path;
+        ModelName = P.stem().string();
+    }
+
     // Import meshes.
-    std::string ModelName = Options->Name ? Options->Name : Path;
     std::vector<mesh*> Meshes;
     std::vector<glm::vec3> Origins;
     {
@@ -649,7 +657,7 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
     }
     else {
         auto Container = new container;
-        Container->Name = Options->Name ? Options->Name : Path;
+        Container->Name = ModelName;
         for (size_t I = 0; I < Meshes.size(); I++) {
             mesh* Mesh = Meshes[I];
             glm::vec3 const& Origin = Origins[I];
