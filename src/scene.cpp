@@ -680,6 +680,8 @@ scene* CreateScene()
 {
     auto Scene = new scene;
 
+    Scene->Root.Name = "Scene";
+
     char const* SRGB_SPECTRUM_TABLE_FILE = "sRGBSpectrumTable.dat";
 
     Scene->RGBSpectrumTable = new parametric_spectrum_table;
@@ -689,6 +691,16 @@ scene* CreateScene()
         BuildParametricSpectrumTableForSRGB(Scene->RGBSpectrumTable);
         SaveParametricSpectrumTable(Scene->RGBSpectrumTable, SRGB_SPECTRUM_TABLE_FILE);
     }
+
+    plane* Plane = (plane*)CreateEntity(Scene, ENTITY_TYPE_PLANE);
+    Plane->Name = "Plane";
+    Plane->Material = CreateMaterial(Scene, "Plane Material");
+    Plane->Material->BaseColorTexture = CreateCheckerTexture(Scene, "Plane Texture", glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
+    Plane->Material->BaseColorTexture->EnableNearestFiltering = true;
+
+    camera* Camera = (camera*)CreateEntity(Scene, ENTITY_TYPE_CAMERA);
+    Camera->Name = "Camera";
+    Camera->Transform.Position = { 0, 0, 1 };
 
     return Scene;
 }
