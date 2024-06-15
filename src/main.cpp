@@ -24,7 +24,7 @@ void Frame()
 
     // ImGui.
     ImGui::NewFrame();
-    if (ImGui::IsKeyPressed(ImGuiKey_F11)) {
+    if (ImGui::IsKeyPressed(ImGuiKey_F11, false)) {
         App.ShowUI = !App.ShowUI;
     }
     if (App.ShowUI) {
