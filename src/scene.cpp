@@ -10,6 +10,7 @@
 
 #include <unordered_map>
 #include <format>
+#include <filesystem>
 #include <stdio.h>
 
 static void Grow(glm::vec3& Minimum, glm::vec3& Maximum, glm::vec3 Point)
@@ -90,36 +91,41 @@ glm::vec4 ColorToSpectrum(scene* Scene, glm::vec4 const& Color)
     return glm::vec4(Beta, Color.a);
 }
 
-entity* CreateEntity(scene* Scene, entity_type Type, entity* Parent)
+entity* CreateEntityRaw(entity_type Type)
 {
-    entity* Entity = nullptr;
-
     switch (Type) {
         case ENTITY_TYPE_ROOT:
-            Entity = new root;
+            return new root;
             break;
         case ENTITY_TYPE_CONTAINER:
-            Entity = new container;
+            return new container;
             break;
         case ENTITY_TYPE_CAMERA:
-            Entity = new camera;
+            return new camera;
             break;
         case ENTITY_TYPE_MESH_INSTANCE:
-            Entity = new mesh_instance;
+            return new mesh_instance;
             break;
         case ENTITY_TYPE_PLANE:
-            Entity = new plane;
+            return new plane;
             break;
         case ENTITY_TYPE_SPHERE:
-            Entity = new sphere;
+            return new sphere;
             break;
         case ENTITY_TYPE_CUBE:
-            Entity = new cube;
+            return new cube;
             break;
         default:
             assert(false);
             break;
     }
+
+    return nullptr;
+}
+
+entity* CreateEntity(scene* Scene, entity_type Type, entity* Parent)
+{
+    entity* Entity = CreateEntityRaw(Type);
 
     if (!Parent) Parent = &Scene->Root;
 
@@ -205,7 +211,7 @@ texture* LoadTexture(scene* Scene, char const* Path, texture_type Type, char con
     if (!Pixels) return nullptr;
 
     auto Texture = new texture {
-        .Name = Name ? Name : Path,
+        .Name = Name ? Name : std::filesystem::path(Path).filename().string(),
         .Type = Type,
         .Width = static_cast<uint32_t>(Width),
         .Height = static_cast<uint32_t>(Height),
@@ -488,6 +494,7 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
     }
 
     // Import meshes.
+    std::string ModelName = Options->Name ? Options->Name : Path;
     std::vector<mesh*> Meshes;
     std::vector<glm::vec3> Origins;
     {
@@ -498,7 +505,7 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
 
         if (Options->MergeIntoSingleMesh) {
             Mesh = new mesh;
-            Mesh->Name = Options->Name ? Options->Name : Path;
+            Mesh->Name = ModelName;
             Mesh->Materials = Materials;
             Meshes.push_back(Mesh);
             Origins.push_back(glm::vec3());
@@ -511,7 +518,8 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
 
         glm::vec3 Origin {};
 
-        for (tinyobj::shape_t const& Shape : Shapes) {
+        for (size_t ShapeIndex = 0; ShapeIndex < Shapes.size(); ShapeIndex++) {
+            tinyobj::shape_t const& Shape = Shapes[ShapeIndex];
             size_t ShapeIndexCount = Shape.mesh.indices.size();
 
             if (ShapeIndexCount == 0)
@@ -519,7 +527,7 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
 
             if (!Options->MergeIntoSingleMesh) {
                 Mesh = new mesh;
-                Mesh->Name = !Shape.name.empty() ? Shape.name : "Shape";
+                Mesh->Name = !Shape.name.empty() ? Shape.name : std::format("{} {}", ModelName, ShapeIndex);
                 Mesh->Faces.reserve(ShapeIndexCount / 3);
                 Meshes.push_back(Mesh);
 
@@ -639,6 +647,8 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
         }
         Prefab->Entity = Container;
     }
+
+    Scene->Prefabs.push_back(Prefab);
 
     return Prefab;
 }

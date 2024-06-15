@@ -7,11 +7,11 @@ struct texture
 {
     std::string                     Name                    = "New Texture";
     texture_type                    Type                    = TEXTURE_TYPE_RAW;
+    bool                            EnableNearestFiltering  = false;
+
     uint32_t                        Width                   = 0;
     uint32_t                        Height                  = 0;
     glm::vec4 const*                Pixels                  = nullptr;
-
-    bool                            EnableNearestFiltering  = false;
 
     uint32_t                        PackedTextureIndex      = 0;
 };
@@ -253,6 +253,7 @@ inline uint32_t GetPackedTextureIndex(texture* Texture)
 
 char const* EntityTypeName(entity_type Type);
 
+entity*     CreateEntityRaw(entity_type Type);
 entity*     CreateEntity(scene* Scene, entity_type Type, entity* Parent = nullptr);
 entity*     CreateEntity(scene* Scene, entity* Source, entity* Parent = nullptr);
 entity*     CreateEntity(scene* Scene, prefab* Prefab, entity* Parent = nullptr);

@@ -22,9 +22,14 @@ add_executable (path-tracer
 	src/ui.h
 	src/ui.cpp
 	src/ui_font.h
+	src/serializer.h
+	src/serializer.cpp
 	src/tiny_obj_loader.h
 	src/stb_image.h
 	src/stb_rect_pack.h
+	src/json.hpp
+	src/miniz.h
+	src/miniz.c
 	#
 	lib/imgui-1.90.5-docking/imgui.cpp
 	lib/imgui-1.90.5-docking/imgui_draw.cpp

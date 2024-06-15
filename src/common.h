@@ -4,6 +4,7 @@
 #include <vector>
 #include <algorithm>
 #include <format>
+#include <filesystem>
 
 #define GLM_FORCE_SWIZZLE
 #define GLM_FORCE_ALIGNED_GENTYPES

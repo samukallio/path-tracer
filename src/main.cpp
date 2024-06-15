@@ -6,6 +6,7 @@
 #include "scene.h"
 #include "ui.h"
 #include "spectral.h"
+#include "serializer.h"
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
@@ -401,78 +402,12 @@ static void CreateBasicResources(scene* Scene)
 
 int main()
 {
-    scene Scene;
+    scene* Scene = LoadScene("../scene/scene.json");
 
-    App.Scene = &Scene;
+    App.Scene = Scene;
     App.Camera = nullptr;
 
-    Scene.RGBSpectrumTable = new parametric_spectrum_table;
-    if (!LoadParametricSpectrumTable(Scene.RGBSpectrumTable, SRGB_SPECTRUM_TABLE_FILE)) {
-        printf("%s not found, generating it.\n", SRGB_SPECTRUM_TABLE_FILE);
-        printf("This will probably take a few minutes...\n");
-        BuildParametricSpectrumTableForSRGB(Scene.RGBSpectrumTable);
-        SaveParametricSpectrumTable(Scene.RGBSpectrumTable, SRGB_SPECTRUM_TABLE_FILE);
-    }
-
-    Scene.Root.Name = "Root";
-    Scene.Root.SkyboxTexture = LoadTexture(&Scene, "../scene/AmbienceExposure4K.hdr", TEXTURE_TYPE_RADIANCE);
-
-    CreateBasicResources(&Scene);
-
-    {
-        load_model_options Options;
-        Options.Name = "xyzrgb_dragon.obj";
-        Options.DirectoryPath = "../scene";
-        prefab* Prefab = LoadModelAsPrefab(&Scene, "../scene/xyzrgb_dragon.obj", &Options);
-        CreateEntity(&Scene, Prefab); 
-    }
-
-    {
-        load_model_options Options;
-        Options.Name = "lucy.obj";
-        Options.DirectoryPath = "../scene";
-        prefab* Prefab = LoadModelAsPrefab(&Scene, "../scene/lucy.obj", &Options);
-        CreateEntity(&Scene, Prefab); 
-    }
-
-    LoadTexture(&Scene, "../scene/earth.png", TEXTURE_TYPE_RAW, "Earth");
-
-    //{
-    //    float s = 0.01f;
-    //    LoadModelOptions options;
-    //    options.name = "sponza.obj";
-    //    options.directoryPath = "../scene";
-    //    options.vertexTransform = { { 0, s, 0, 0 }, { 0, 0, s, 0 }, { s, 0, 0, 0 }, { 0, 0, 0, 1 } };
-    //    options.normalTransform = { { 0, 1, 0, 0 }, { 0, 0, 1, 0 }, { 1, 0, 0, 0 }, { 0, 0, 0, 1 } };
-    //    Prefab* prefab = LoadModelAsPrefab(&scene, "../scene/sponza.obj", &options);
-    //    CreateEntity(&scene, prefab);
-    //}
-
-    for (int I = 0; I < 1; I++) {
-        auto Sphere = new sphere;
-        Sphere->Name = std::format("Sphere {}", I+1);
-        Sphere->Material = CreateMaterial(&Scene, std::format("Sphere {} Material", I+1).c_str());
-        Sphere->Material->TransmissionWeight = 0.0f;
-        Sphere->Material->SpecularRoughness = 0.0f;
-        Sphere->Material->SpecularIOR = 1.5f;
-        Scene.Root.Children.push_back(Sphere);
-    }
-
-    auto Plane = static_cast<plane*>(CreateEntity(&Scene, ENTITY_TYPE_PLANE));
-    Plane->Name = "Plane";
-    Plane->Material = CreateMaterial(&Scene, "Plane Material");
-    Plane->Material->BaseColorTexture = CreateCheckerTexture(&Scene, "Plane Texture", vec4(1,1,1,1), vec4(0.5,0.5,0.5,1));
-    Plane->Material->BaseColorTexture->EnableNearestFiltering = true;
-    Plane->Material->SpecularRoughness = 0.0f;
-
-    //auto cube = new Cube;
-    //cube->name = "Cube";
-    //cube->material = metal;
-    //scene.root.children.push_back(cube);
-
     InitializeUI(&App);
-
-    PackSceneData(&Scene);
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
@@ -481,15 +416,9 @@ int main()
     App.Window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, APPLICATION_NAME, nullptr, nullptr);
     App.Vulkan = CreateVulkan(App.Window, APPLICATION_NAME);
 
-    UploadScene(App.Vulkan, &Scene, SCENE_DIRTY_ALL);
-
     App.EditorCamera.Position = { 0, 0, 0 };
     App.EditorCamera.Velocity = { 0, 0, 0 };
     App.EditorCamera.Rotation = { 0, 0, 0 };
-
-    auto Camera = new camera;
-    Camera->Name = "Camera";
-    Scene.Root.Children.push_back(Camera);
 
     ImGuiIO& IO = ImGui::GetIO();
     IO.DisplaySize.x = WINDOW_WIDTH;
