@@ -81,6 +81,10 @@ static void TextureInspector(application* App, texture* Texture)
 
     C |= ImGui::Checkbox("Nearest Filtering", &Texture->EnableNearestFiltering);
 
+    size_t TextureID = Texture->PackedTextureIndex + 1;
+    float Width = ImGui::GetWindowWidth() - 16;
+    ImGui::Image(reinterpret_cast<ImTextureID>(TextureID), ImVec2(Width, Width));
+
     if (C) Scene->DirtyFlags |= SCENE_DIRTY_TEXTURES;
 
     ImGui::PopID();

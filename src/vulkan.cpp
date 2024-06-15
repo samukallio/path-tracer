@@ -43,6 +43,11 @@ uint32_t const IMGUI_FRAGMENT_SHADER[] =
     #include "imgui.fragment.inc"
 };
 
+struct imgui_push_constant_buffer
+{
+    uint TextureID;
+};
+
 static void Errorf(vulkan_context* Vk, char const* Fmt, ...)
 {
     va_list Args;
@@ -1085,6 +1090,7 @@ struct vulkan_graphics_pipeline_configuration
     std::span<uint32_t const>   VertexShaderCode            = {};
     std::span<uint32_t const>   FragmentShaderCode          = {};
     descriptor_types            DescriptorTypes             = {};
+    uint32_t                    PushConstantBufferSize      = 0;
 };
 
 static VkResult InternalCreateGraphicsPipeline(
@@ -1264,12 +1270,18 @@ static VkResult InternalCreateGraphicsPipeline(
     };
 
     // Pipeline layout.
+    auto PushConstantRange = VkPushConstantRange {
+        .stageFlags = VK_SHADER_STAGE_VERTEX_BIT
+                    | VK_SHADER_STAGE_FRAGMENT_BIT,
+        .offset = 0,
+        .size = Config.PushConstantBufferSize,
+    };
     auto PipelineLayoutCreateInfo = VkPipelineLayoutCreateInfo {
         .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
         .setLayoutCount         = 1,
         .pSetLayouts            = &Pipeline->DescriptorSetLayout,
-        .pushConstantRangeCount = 0,
-        .pPushConstantRanges    = nullptr,
+        .pushConstantRangeCount = Config.PushConstantBufferSize > 0 ? 1u : 0u,
+        .pPushConstantRanges    = &PushConstantRange,
     };
 
     Result = vkCreatePipelineLayout(Vulkan->Device, &PipelineLayoutCreateInfo, nullptr, &Pipeline->PipelineLayout);
@@ -1931,7 +1943,10 @@ static VkResult InternalCreateVulkan(
             .DescriptorTypes = {
                 VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
                 VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,  // TextureArrayNearest
+                VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // TextureBuffer
             },
+            .PushConstantBufferSize = sizeof(imgui_push_constant_buffer),
         };
 
         Result = InternalCreateGraphicsPipeline(Vulkan, &Vulkan->ImguiPipeline, ImguiConfig);
@@ -2177,6 +2192,7 @@ static void InternalUpdateSceneDataDescriptors(
         vulkan_frame_state* Frame = &Vulkan->FrameStates[Index];
 
         VkWriteDescriptorSet Writes[] = {
+            // Rendering descriptors.
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
                 .dstSet          = Frame->RenderDescriptorSet,
@@ -2257,6 +2273,25 @@ static void InternalUpdateSceneDataDescriptors(
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .pBufferInfo     = &MeshNodeBufferInfo,
+            },
+            // Imgui descriptors.
+            {
+                .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet          = Frame->ImguiDescriptorSet,
+                .dstBinding      = 2,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+                .pImageInfo      = &TextureArrayNearestInfo,
+            },
+            {
+                .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstSet          = Frame->ImguiDescriptorSet,
+                .dstBinding      = 3,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .pBufferInfo     = &TextureBufferInfo,
             },
         };
 
@@ -2651,8 +2686,8 @@ VkResult RenderFrame(
             memcpy(VertexPointer, CmdList->VtxBuffer.Data, VertexDataSize);
             VertexPointer += CmdList->VtxBuffer.Size;
 
-            uint32_t indexDataSize = CmdList->IdxBuffer.Size * sizeof(uint16_t);
-            memcpy(IndexPointer, CmdList->IdxBuffer.Data, indexDataSize);
+            uint32_t IndexDataSize = CmdList->IdxBuffer.Size * sizeof(uint16_t);
+            memcpy(IndexPointer, CmdList->IdxBuffer.Data, IndexDataSize);
             IndexPointer += CmdList->IdxBuffer.Size;
         }
 
@@ -2793,6 +2828,7 @@ VkResult RenderFrame(
 
         uint32_t IndexBase = 0;
         uint32_t VertexBase = 0;
+        uint32_t PreviousTextureID = 0xFFFFFFFF;
 
         for (int I = 0; I < ImguiDrawData->CmdListsCount; I++) {
             ImDrawList* CmdList = ImguiDrawData->CmdLists[I];
@@ -2810,6 +2846,19 @@ VkResult RenderFrame(
                     .extent = { static_cast<uint32_t>(X1 - X0), static_cast<uint32_t>(Y1 - Y0) },
                 };
                 vkCmdSetScissor(Frame->GraphicsCommandBuffer, 0, 1, &scissor);
+
+                uint32_t TextureID = static_cast<uint32_t>(reinterpret_cast<size_t>(Cmd->TextureId));
+                if (TextureID != PreviousTextureID) {
+                    auto PushConstantBuffer = imgui_push_constant_buffer {
+                        .TextureID = TextureID,
+                    };
+                    vkCmdPushConstants(
+                        Frame->GraphicsCommandBuffer,
+                        Vulkan->ImguiPipeline.PipelineLayout,
+                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                        0, sizeof(imgui_push_constant_buffer), &PushConstantBuffer);
+                    PreviousTextureID = TextureID;
+                }
 
                 uint32_t IndexCount = Cmd->ElemCount;
                 uint32_t FirstIndex = IndexBase + Cmd->IdxOffset;

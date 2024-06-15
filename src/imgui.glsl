@@ -1,11 +1,56 @@
 #version 450
 
-layout(binding = 0) uniform imgui_uniform_buffer
+struct packed_texture
+{
+    vec2                AtlasPlacementMinimum;
+    vec2                AtlasPlacementMaximum;
+    uint                AtlasImageIndex;
+    uint                Type;
+    uint                Flags;
+    uint                Dummy2;
+};
+
+layout(binding = 0)
+uniform imgui_uniform_buffer
 {
     mat4 ProjectionMatrix;
 };
 
-layout(binding = 1) uniform sampler2D TextureSampler;
+layout(binding = 1)
+uniform sampler2D TextureSampler;
+
+layout(binding = 2)
+uniform sampler2DArray TextureArrayNearest;
+
+layout(binding = 3)
+readonly buffer TextureBuffer
+{
+    packed_texture Textures[];
+};
+
+layout(push_constant) uniform push_constants
+{
+    uint TextureID;
+};
+
+vec4 SampleTexture(uint Index, vec2 UV)
+{
+    packed_texture Texture = Textures[Index];
+
+    float U = mix(
+        Texture.AtlasPlacementMinimum.x,
+        Texture.AtlasPlacementMaximum.x,
+        fract(UV.x));
+
+    float V = mix(
+        Texture.AtlasPlacementMinimum.y,
+        Texture.AtlasPlacementMaximum.y,
+        fract(UV.y));
+
+    vec3 UVW = vec3(U, V, Texture.AtlasImageIndex);
+
+    return textureLod(TextureArrayNearest, UVW, 0);
+}
 
 #if VERTEX
 
@@ -32,7 +77,10 @@ layout(location = 0) out vec4 OutColor;
 
 void main()
 {
-    OutColor = InColor * texture(TextureSampler, InUV);
+    if (TextureID > 0)
+        OutColor = InColor * SampleTexture(TextureID - 1, InUV);
+    else
+        OutColor = InColor * texture(TextureSampler, InUV);
 }
 
 #endif
