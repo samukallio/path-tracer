@@ -394,7 +394,7 @@ static void EntityInspector(application* App, entity* Entity)
     ImGui::PopID();
 }
 
-static void EntityTreeNode(application* App, entity* Entity)
+static void EntityTreeNode(application* App, entity* Entity, bool PrefabMode=false)
 {
     ImGuiTreeNodeFlags Flags = ImGuiTreeNodeFlags_OpenOnDoubleClick;
 
@@ -416,30 +416,32 @@ static void EntityTreeNode(application* App, entity* Entity)
     }
 
     if (ImGui::TreeNodeEx(Entity->Name.c_str(), Flags)) {
-        if (ImGui::IsItemClicked()) {
-            App->SelectionType = SELECTION_TYPE_ENTITY;
-            App->SelectedEntity = Entity;
-        }
-
-        if (ImGui::BeginPopupContextItem()) {
-            for (int I = 0; I < ENTITY_TYPE__COUNT; I++) {
-                if (I == ENTITY_TYPE_ROOT) continue;
-                char Buffer[256];
-                auto EntityType = static_cast<entity_type>(I);
-                snprintf(Buffer, std::size(Buffer), "Create %s...", EntityTypeName(EntityType));
-                if (ImGui::MenuItem(Buffer)) {
-                    auto Child = CreateEntity(App->Scene, EntityType, Entity);
-                    Child->Name = std::format("New {}", EntityTypeName(EntityType));
-                    App->Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
-                    App->SelectionType = SELECTION_TYPE_ENTITY;
-                    App->SelectedEntity = Child;
-                }
+        if (!PrefabMode) {
+            if (ImGui::IsItemClicked()) {
+                App->SelectionType = SELECTION_TYPE_ENTITY;
+                App->SelectedEntity = Entity;
             }
-            ImGui::EndPopup();
+
+            if (ImGui::BeginPopupContextItem()) {
+                for (int I = 0; I < ENTITY_TYPE__COUNT; I++) {
+                    if (I == ENTITY_TYPE_ROOT) continue; 
+                    char Buffer[256];
+                    auto EntityType = static_cast<entity_type>(I);
+                    snprintf(Buffer, std::size(Buffer), "Create %s...", EntityTypeName(EntityType));
+                    if (ImGui::MenuItem(Buffer)) {
+                        auto Child = CreateEntity(App->Scene, EntityType, Entity);
+                        Child->Name = std::format("New {}", EntityTypeName(EntityType));
+                        App->Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
+                        App->SelectionType = SELECTION_TYPE_ENTITY;
+                        App->SelectedEntity = Child;
+                    }
+                }
+                ImGui::EndPopup();
+            }
         }
 
         for (entity* Child : Entity->Children)
-            EntityTreeNode(App, Child);
+            EntityTreeNode(App, Child, PrefabMode);
 
         ImGui::TreePop();
     }
@@ -447,6 +449,25 @@ static void EntityTreeNode(application* App, entity* Entity)
     if (!Entity->Active) {
         ImGui::PopStyleColor();
     }
+}
+
+static void PrefabInspector(application* App, prefab* Prefab, bool Referenced = false)
+{
+    ImGui::PushID(Prefab);
+
+    if (Referenced) {
+        char Title[256];
+        snprintf(Title, 256, "Prefab: %s", Prefab->Entity->Name.c_str());
+        ImGui::SeparatorText(Title);
+    }
+    else {
+        ImGui::SeparatorText("Prefab");
+        ImGui::InputText("Name", &Prefab->Entity->Name);
+    }
+
+    EntityTreeNode(App, Prefab->Entity, true);
+
+    ImGui::PopID();
 }
 
 void ResourceBrowserWindow(application* App)
@@ -529,6 +550,30 @@ void ResourceBrowserWindow(application* App)
         }
     }
 
+    // Prefabs
+    {
+        auto GetItemName = [](void* Context, int Index) {
+            auto Scene = static_cast<scene*>(Context);
+            if (Index < 0 || Index >= Scene->Prefabs.size())
+                return "";
+            return Scene->Prefabs[Index]->Entity->Name.c_str();
+        };
+
+        int Index = -1;
+        int Count = static_cast<int>(Scene->Prefabs.size());
+
+        if (App->SelectionType == SELECTION_TYPE_PREFAB) {
+            for (int I = 0; I < Count; I++)
+                if (Scene->Prefabs[I] == App->SelectedPrefab)
+                    Index = I;
+        }
+
+        if (ImGui::ListBox("Prefabs", &Index, GetItemName, Scene, Count, 6)) {
+            App->SelectionType = SELECTION_TYPE_PREFAB;
+            App->SelectedPrefab = Scene->Prefabs[Index];
+        }
+    }
+
     ImGui::End();
 }
 
@@ -559,6 +604,9 @@ void InspectorWindow(application* App)
             break;
         case SELECTION_TYPE_MESH:
             MeshInspector(App, App->SelectedMesh);
+            break;
+        case SELECTION_TYPE_PREFAB:
+            PrefabInspector(App, App->SelectedPrefab);
             break;
         case SELECTION_TYPE_ENTITY:
             EntityInspector(App, App->SelectedEntity);

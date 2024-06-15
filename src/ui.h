@@ -20,7 +20,8 @@ enum selection_type
     SELECTION_TYPE_TEXTURE      = 1,
     SELECTION_TYPE_MATERIAL     = 2,
     SELECTION_TYPE_MESH         = 3,
-    SELECTION_TYPE_ENTITY       = 4,
+    SELECTION_TYPE_PREFAB       = 4,
+    SELECTION_TYPE_ENTITY       = 5,
 };
 
 struct application
@@ -36,6 +37,7 @@ struct application
     texture*        SelectedTexture     = nullptr;
     material*       SelectedMaterial    = nullptr;
     mesh*           SelectedMesh        = nullptr;
+    prefab*         SelectedPrefab      = nullptr;
     entity*         SelectedEntity      = nullptr;
 
     scene*          Scene               = nullptr;
