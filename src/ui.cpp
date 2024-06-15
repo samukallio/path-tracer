@@ -416,6 +416,7 @@ static void EntityTreeNode(application* App, entity* Entity, bool PrefabMode=fal
     }
 
     bool IsOpen = ImGui::TreeNodeEx(Entity->Name.c_str(), Flags);
+    bool IsDestroyed = false;
 
     if (!PrefabMode) {
         if (ImGui::BeginPopupContextItem()) {
@@ -431,6 +432,10 @@ static void EntityTreeNode(application* App, entity* Entity, bool PrefabMode=fal
                     App->SelectionType = SELECTION_TYPE_ENTITY;
                     App->SelectedEntity = Child;
                 }
+            }
+            if (Entity->Type != ENTITY_TYPE_ROOT) {
+                if (ImGui::MenuItem("Delete"))
+                    IsDestroyed = true;
             }
             ImGui::EndPopup();
         }
@@ -460,6 +465,18 @@ static void EntityTreeNode(application* App, entity* Entity, bool PrefabMode=fal
 
     if (!Entity->Active) {
         ImGui::PopStyleColor();
+    }
+
+    if (IsDestroyed) {
+        if (App->SelectedEntity == Entity) {
+            App->SelectionType = SELECTION_TYPE_NONE;
+            App->SelectedEntity = nullptr;
+        }
+        if (App->Camera == Entity) {
+            App->Camera = nullptr;
+        }
+        DestroyEntity(App->Scene, Entity);
+        App->Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
     }
 }
 

@@ -106,8 +106,11 @@ struct entity
     entity_type                     Type                    = ENTITY_TYPE_ROOT;
     bool                            Active                  = true;
     transform                       Transform               = {};
+    entity*                         Parent                  = nullptr;
     std::vector<entity*>            Children                = {};
     uint32_t                        PackedShapeIndex        = SHAPE_INDEX_NONE;
+
+    virtual ~entity() {}
 };
 
 struct root : entity
@@ -257,6 +260,7 @@ entity*     CreateEntityRaw(entity_type Type);
 entity*     CreateEntity(scene* Scene, entity_type Type, entity* Parent = nullptr);
 entity*     CreateEntity(scene* Scene, entity* Source, entity* Parent = nullptr);
 entity*     CreateEntity(scene* Scene, prefab* Prefab, entity* Parent = nullptr);
+void        DestroyEntity(scene* Scene, entity* Entity);
 material*   CreateMaterial(scene* Scene, char const* Name);
 texture*    CreateCheckerTexture(scene* Scene, char const* Name, glm::vec4 const& ColorA, glm::vec4 const& ColorB);
 texture*    LoadTexture(scene* Scene, char const* Path, texture_type Type, char const* Name = nullptr);

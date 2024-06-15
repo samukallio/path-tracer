@@ -129,6 +129,7 @@ entity* CreateEntity(scene* Scene, entity_type Type, entity* Parent)
 
     if (!Parent) Parent = &Scene->Root;
 
+    Entity->Parent = Parent;
     Parent->Children.push_back(Entity);
 
     return Entity;
@@ -167,6 +168,7 @@ entity* CreateEntity(scene* Scene, entity* Source, entity* Parent)
 
     if (!Parent) Parent = &Scene->Root;
 
+    Entity->Parent = Parent;
     Parent->Children.push_back(Entity);
 
     std::vector<entity*> Children = std::move(Entity->Children);
@@ -180,6 +182,19 @@ entity* CreateEntity(scene* Scene, entity* Source, entity* Parent)
 entity* CreateEntity(scene* Scene, prefab* Prefab, entity* Parent)
 {
     return CreateEntity(Scene, Prefab->Entity, Parent);
+}
+
+void DestroyEntity(scene* Scene, entity* Entity)
+{
+    entity* Parent = Entity->Parent;
+    if (Parent) {
+        std::erase(Parent->Children, Entity);
+    }
+
+    for (entity* Child : Entity->Children)
+        DestroyEntity(Scene, Child);
+
+    delete Entity;
 }
 
 texture* CreateCheckerTexture(scene* Scene, char const* Name, glm::vec4 const& ColorA, glm::vec4 const& ColorB)

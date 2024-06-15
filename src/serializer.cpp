@@ -348,6 +348,11 @@ void Serialize(serializer& S, json& JSON, entity*& Entity)
     Serialize(S, JSON["Active"], Entity->Active);
     Serialize(S, JSON["Children"], Entity->Children);
 
+    if (!S.IsWriting) {
+        for (entity* Child : Entity->Children)
+            Child->Parent = Entity;
+    }
+
     switch (Entity->Type) {
         case ENTITY_TYPE_CAMERA: {
             camera& Object = *static_cast<camera*>(Entity);
@@ -399,6 +404,11 @@ void Serialize(serializer& S, json& JSON, root& Object)
     F(SkyboxBrightness);
     F(SkyboxTexture);
     F(Children);
+
+    if (!S.IsWriting) {
+        for (entity* Child : Object.Children)
+            Child->Parent = &Object;
+    }
 }
 
 void Serialize(serializer& S, scene& Scene)
