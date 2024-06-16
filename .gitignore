@@ -5,5 +5,5 @@ build
 lib
 
 # Test scene and assets
-/scene/
+/scenes/
 /assets/
