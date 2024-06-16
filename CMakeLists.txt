@@ -12,25 +12,27 @@ add_subdirectory (lib/nativefiledialog-extended)
 set (CMAKE_CXX_STANDARD 20)
 
 add_executable (path-tracer
-	src/common.h
-	src/main.cpp
-	src/vulkan.h
-	src/vulkan.cpp
-	src/scene.h
-	src/scene.cpp
-	src/spectral.cpp
-	src/spectral.h
-	src/ui.h
-	src/ui.cpp
-	src/ui_font.h
-	src/serializer.h
-	src/serializer.cpp
-	src/tiny_obj_loader.h
-	src/stb_image.h
-	src/stb_rect_pack.h
-	src/json.hpp
-	src/miniz.h
-	src/miniz.c
+	src/path-tracer.h
+	src/application/application.h
+	src/application/ui.cpp
+	src/application/ui_font.h
+	src/application/main.cpp
+	src/renderer/common.h
+	src/renderer/vulkan.h
+	src/renderer/vulkan.cpp
+	src/scene/scene.h
+	src/scene/scene.cpp
+	src/scene/spectrum.cpp
+	src/scene/serializer.cpp
+	src/scene/trace.cpp
+	src/utility/json.hpp
+	src/utility/miniz.h
+	src/utility/miniz.c
+	src/utility/stb_image.h
+	src/utility/stb_rect_pack.h
+	src/utility/stb.cpp
+	src/utility/tiny_obj_loader.h
+	src/utility/tiny_obj_loader.cpp
 	#
 	lib/imgui-1.90.5-docking/imgui.cpp
 	lib/imgui-1.90.5-docking/imgui_draw.cpp
@@ -41,6 +43,7 @@ add_executable (path-tracer
 )
 
 target_include_directories (path-tracer
+	PRIVATE src/
 	PRIVATE lib/imgui-1.90.5-docking
 )
 
@@ -88,19 +91,19 @@ function (compile_shader target source)
 	source_group ("Shader Files" FILES ${source})
 endfunction ()
 
-target_sources (path-tracer PRIVATE src/common.glsl.inc)
-source_group ("Shader Files" FILES src/common.glsl.inc)
+target_sources (path-tracer PRIVATE src/renderer/common.glsl.inc)
+source_group ("Shader Files" FILES src/renderer/common.glsl.inc)
 
-compile_shader (path-tracer src/resolve.glsl
+compile_shader (path-tracer src/renderer/resolve.glsl
 		VERTEX resolve.vertex.inc
 		FRAGMENT resolve.fragment.inc
-		DEPENDS src/common.glsl.inc)
+		DEPENDS src/renderer/common.glsl.inc)
 
-compile_shader (path-tracer src/render.glsl
+compile_shader (path-tracer src/renderer/render.glsl
 		COMPUTE render.compute.inc
-		DEPENDS src/common.glsl.inc)
+		DEPENDS src/renderer/common.glsl.inc)
 
-compile_shader (path-tracer src/imgui.glsl
+compile_shader (path-tracer src/renderer/imgui.glsl
 		VERTEX imgui.vertex.inc
 		FRAGMENT imgui.fragment.inc)
 

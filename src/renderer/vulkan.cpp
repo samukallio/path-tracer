@@ -1,6 +1,6 @@
-#include "vulkan.h"
-#include "scene.h"
-#include "ui_font.h"
+#include "renderer/vulkan.h"
+#include "scene/scene.h"
+#include "application/ui_font.h"
 
 #include <array>
 #include <cassert>

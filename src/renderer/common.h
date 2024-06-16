@@ -1,36 +1,6 @@
 #pragma once
 
-#include <string>
-#include <vector>
-#include <algorithm>
-#include <format>
-#include <filesystem>
-
-#define GLM_FORCE_SWIZZLE
-#define GLM_FORCE_ALIGNED_GENTYPES
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtc/type_aligned.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/quaternion.hpp>
-#include <glm/gtx/euler_angles.hpp>
-
-constexpr float EPSILON     = 1e-9f;
-constexpr float PI          = 3.141592653f;
-constexpr float TAU         = 6.283185306f;
-constexpr float INF         = std::numeric_limits<float>::infinity();
-
-using uint = uint32_t;
-using glm::vec2;
-using glm::vec3;
-using glm::vec4;
-using glm::mat3;
-using glm::mat4;
-using glm::aligned_vec2;
-using glm::aligned_vec3;
-using glm::aligned_vec4;
-using glm::aligned_mat3;
-using glm::aligned_mat4;
+#include "path-tracer.h"
 
 uint const SHAPE_INDEX_NONE     = 0xFFFFFFFF;
 uint const TEXTURE_INDEX_NONE   = 0xFFFFFFFF;

@@ -1,11 +1,10 @@
 #pragma once
 
-#include "common.h"
-#include "scene.h"
-#include "vulkan.h"
-#include "spectral.h"
+#include "path-tracer.h"
+#include "scene/scene.h"
 
 struct GLFWwindow;
+struct vulkan_context;
 
 struct editor_camera
 {

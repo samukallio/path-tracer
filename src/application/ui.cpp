@@ -1,7 +1,6 @@
-#include "common.h"
-#include "ui.h"
-#include "spectral.h"
-#include "serializer.h"
+#include "path-tracer.h"
+#include "application/application.h"
+#include "scene/scene.h"
 
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>

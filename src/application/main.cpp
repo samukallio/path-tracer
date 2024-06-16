@@ -2,11 +2,10 @@
 
 #include <format>
 
-#include "vulkan.h"
-#include "scene.h"
-#include "ui.h"
-#include "spectral.h"
-#include "serializer.h"
+#include "path-tracer.h"
+#include "application/application.h"
+#include "renderer/vulkan.h"
+#include "scene/scene.h"
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>
