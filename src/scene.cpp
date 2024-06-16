@@ -197,6 +197,14 @@ void DestroyEntity(scene* Scene, entity* Entity)
     delete Entity;
 }
 
+template<typename callback>
+static void ForEachEntity(entity* Entity, callback&& Callback)
+{
+    Callback(Entity);
+    for (entity* Child : Entity->Children)
+        ForEachEntity(Child, Callback);
+}
+
 texture* CreateCheckerTexture(scene* Scene, char const* Name, texture_type Type, glm::vec4 const& ColorA, glm::vec4 const& ColorB)
 {
     auto Pixels = new glm::vec4[4];
@@ -240,6 +248,61 @@ texture* LoadTexture(scene* Scene, char const* Path, texture_type Type, char con
     return Texture;
 }
 
+void DestroyTexture(scene* Scene, texture* Texture)
+{
+    bool MaterialsDirty = false;
+    for (material* Material : Scene->Materials) {
+        if (Material->BaseColorTexture == Texture) {
+            Material->BaseColorTexture = nullptr;
+            MaterialsDirty = true;
+        }
+        if (Material->SpecularRoughnessTexture == Texture) {
+            Material->SpecularRoughnessTexture = nullptr;
+            MaterialsDirty = true;
+        }
+        if (Material->EmissionColorTexture == Texture) {
+            Material->EmissionColorTexture = nullptr;
+            MaterialsDirty = true;
+        }
+    }
+
+    if (MaterialsDirty) Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
+
+    std::erase(Scene->Textures, Texture);
+    Scene->DirtyFlags |= SCENE_DIRTY_TEXTURES;
+
+    free((void*)Texture->Pixels);
+    delete Texture;
+}
+
+void DestroyMesh(scene* Scene, mesh* Mesh)
+{
+    ForEachEntity(&Scene->Root, [Scene, Mesh](entity* Entity) {
+        if (Entity->Type == ENTITY_TYPE_MESH_INSTANCE) {
+            auto MeshInstance = static_cast<mesh_instance*>(Entity);
+            if (MeshInstance->Mesh == Mesh) {
+                MeshInstance->Mesh = nullptr;
+                Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
+            }
+        }
+    });
+
+    for (prefab* Prefab : Scene->Prefabs) {
+        ForEachEntity(Prefab->Entity, [Scene, Mesh](entity* Entity) {
+            if (Entity->Type == ENTITY_TYPE_MESH_INSTANCE) {
+                auto MeshInstance = static_cast<mesh_instance*>(Entity);
+                if (MeshInstance->Mesh == Mesh)
+                    MeshInstance->Mesh = nullptr;
+            }
+        });
+    }
+
+    std::erase(Scene->Meshes, Mesh);
+    Scene->DirtyFlags |= SCENE_DIRTY_MESHES;
+
+    delete Mesh;
+}
+
 material* CreateMaterial(scene* Scene, char const* Name)
 {
     auto Material = new material;
@@ -249,6 +312,47 @@ material* CreateMaterial(scene* Scene, char const* Name)
     Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
 
     return Material;
+}
+
+void DestroyMaterial(scene* Scene, material* Material)
+{
+    ForEachEntity(&Scene->Root, [Scene, Material](entity* Entity) {
+        switch (Entity->Type) {
+            case ENTITY_TYPE_PLANE: {
+                auto Plane = static_cast<plane*>(Entity);
+                if (Plane->Material == Material) {
+                    Plane->Material = nullptr;
+                    Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
+                }
+            }
+            case ENTITY_TYPE_SPHERE: {
+                auto Sphere = static_cast<sphere*>(Entity);
+                if (Sphere->Material == Material) {
+                    Sphere->Material = nullptr;
+                    Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
+                }
+            }
+            case ENTITY_TYPE_CUBE: {
+                auto Cube = static_cast<cube*>(Entity);
+                if (Cube->Material == Material) {
+                    Cube->Material = nullptr;
+                    Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
+                }
+            }
+        }
+    });
+
+    for (mesh* Mesh : Scene->Meshes) {
+        for (material*& MeshMaterial : Mesh->Materials) {
+            if (MeshMaterial == Material) {
+                MeshMaterial = nullptr;
+                Scene->DirtyFlags |= SCENE_DIRTY_MESHES;
+            }
+        }
+    }
+
+    std::erase(Scene->Materials, Material);
+    Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
 }
 
 static void BuildMeshNode(mesh* Mesh, uint32_t NodeIndex, uint32_t Depth)
@@ -677,6 +781,13 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
     return Prefab;
 }
 
+void DestroyPrefab(scene* Scene, prefab* Prefab)
+{
+    DestroyEntity(Scene, Prefab->Entity);
+    std::erase(Scene->Prefabs, Prefab);
+    delete Prefab;
+}
+
 scene* CreateScene()
 {
     auto Scene = new scene;
@@ -816,22 +927,19 @@ static void PackShape(scene* Scene, glm::mat4 const& OuterTransform, entity* Ent
         }
         case ENTITY_TYPE_PLANE: {
             auto Plane = static_cast<plane*>(Entity);
-            if (Plane->Material)
-                Packed.MaterialIndex = Plane->Material->PackedMaterialIndex;
+            Packed.MaterialIndex = GetPackedMaterialIndex(Plane->Material);
             Packed.Type = SHAPE_TYPE_PLANE;
             break;
         }
         case ENTITY_TYPE_SPHERE: {
             auto Sphere = static_cast<sphere*>(Entity);
-            if (Sphere->Material)
-                Packed.MaterialIndex = Sphere->Material->PackedMaterialIndex;
+            Packed.MaterialIndex = GetPackedMaterialIndex(Sphere->Material);
             Packed.Type = SHAPE_TYPE_SPHERE;
             break;
         }
         case ENTITY_TYPE_CUBE: {
             auto Cube = static_cast<cube*>(Entity);
-            if (Cube->Material)
-                Packed.MaterialIndex = Cube->Material->PackedMaterialIndex;
+            Packed.MaterialIndex = GetPackedMaterialIndex(Cube->Material);
             Packed.Type = SHAPE_TYPE_CUBE;
             break;
         }
@@ -1036,18 +1144,23 @@ uint32_t PackSceneData(scene* Scene)
         // Fallback material.
         {
             packed_material Packed = {
-                .BaseSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, glm::vec3(1, 1, 1)),
-                .BaseWeight = 1.0f,
-                .SpecularWeight = 0.0f,
-                .TransmissionWeight = 0.0f,
-                .EmissionSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, glm::vec3(0, 0, 0)),
-                .EmissionLuminance = 0.0f,
-                .BaseMetalness = 0.0f,
-                .BaseDiffuseRoughness = 1.0f,
-                .SpecularIOR = 1.5f,
-                .SpecularRoughness = 0.0f,
-                .SpecularRoughnessAnisotropy = 0.0f,
-                .TransmissionDepth = 0.0f,
+                .BaseSpectrum                   = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, glm::vec3(1, 1, 1)),
+                .BaseWeight                     = 1.0f,
+                .SpecularWeight                 = 0.0f,
+                .TransmissionWeight             = 0.0f,
+                .EmissionSpectrum               = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, glm::vec3(0, 0, 0)),
+                .EmissionLuminance              = 0.0f,
+                .CoatWeight                     = 0.0f,
+                .BaseMetalness                  = 0.0f,
+                .BaseDiffuseRoughness           = 1.0f,
+                .SpecularIOR                    = 1.5f,
+                .SpecularRoughness              = 0.0f,
+                .SpecularRoughnessAnisotropy    = 0.0f,
+                .TransmissionDepth              = 0.0f,
+                .BaseSpectrumTextureIndex       = TEXTURE_INDEX_NONE,
+                .SpecularRoughnessTextureIndex  = TEXTURE_INDEX_NONE,
+                .EmissionSpectrumTextureIndex   = TEXTURE_INDEX_NONE,
+                .LayerBounceLimit               = 8,
             };
             Scene->MaterialPack.push_back(Packed);
         }
@@ -1130,7 +1243,7 @@ uint32_t PackSceneData(scene* Scene)
                 Packed.Position = Face.Vertices[0];
 
                 material* Material = Mesh->Materials[Face.MaterialIndex];
-                PackedX.MaterialIndex = Material ? Material->PackedMaterialIndex : 0;
+                PackedX.MaterialIndex = GetPackedMaterialIndex(Material);
 
                 glm::vec3 AB = Face.Vertices[1] - Face.Vertices[0];
                 glm::vec3 AC = Face.Vertices[2] - Face.Vertices[0];

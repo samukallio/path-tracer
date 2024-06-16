@@ -49,6 +49,9 @@ struct application
 void InitializeUI(application* App);
 void SceneHierarchyWindow(application* App);
 void InspectorWindow(application* App);
-void ResourceBrowserWindow(application* App);
+void TextureBrowserWindow(application* App);
+void MaterialBrowserWindow(application* App);
+void MeshBrowserWindow(application* App);
+void PrefabBrowserWindow(application* App);
 void ParametricSpectrumViewerWindow(application* App);
 void MainMenuBar(application* App);

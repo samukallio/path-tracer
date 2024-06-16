@@ -254,6 +254,12 @@ inline uint32_t GetPackedTextureIndex(texture* Texture)
     return Texture->PackedTextureIndex;
 }
 
+inline uint32_t GetPackedMaterialIndex(material* Material)
+{
+    if (!Material) return 0;
+    return Material->PackedMaterialIndex;
+}
+
 char const* EntityTypeName(entity_type Type);
 
 entity*     CreateEntityRaw(entity_type Type);
@@ -261,10 +267,19 @@ entity*     CreateEntity(scene* Scene, entity_type Type, entity* Parent = nullpt
 entity*     CreateEntity(scene* Scene, entity* Source, entity* Parent = nullptr);
 entity*     CreateEntity(scene* Scene, prefab* Prefab, entity* Parent = nullptr);
 void        DestroyEntity(scene* Scene, entity* Entity);
+
 material*   CreateMaterial(scene* Scene, char const* Name);
+void        DestroyMaterial(scene* Scene, material* Material);
+
 texture*    CreateCheckerTexture(scene* Scene, char const* Name, texture_type Type, glm::vec4 const& ColorA, glm::vec4 const& ColorB);
 texture*    LoadTexture(scene* Scene, char const* Path, texture_type Type, char const* Name = nullptr);
+void        DestroyTexture(scene* Scene, texture* Texture);
+
+void        DestroyMesh(scene* Scene, mesh* Mesh);
+
 prefab*     LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Options = nullptr);
+void        DestroyPrefab(scene* Scene, prefab* Prefab);
+
 uint32_t    PackSceneData(scene* Scene);
 scene*      CreateScene();
 void        DestroyScene(scene* Scene);

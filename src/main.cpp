@@ -31,7 +31,10 @@ void Frame()
         ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_PassthruCentralNode);
         ImGui::ShowDemoWindow();
         InspectorWindow(&App);
-        ResourceBrowserWindow(&App);
+        TextureBrowserWindow(&App);
+        MaterialBrowserWindow(&App);
+        MeshBrowserWindow(&App);
+        PrefabBrowserWindow(&App);
         SceneHierarchyWindow(&App);
         ParametricSpectrumViewerWindow(&App);
     }

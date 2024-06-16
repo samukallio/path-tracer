@@ -7,6 +7,28 @@
 #include <misc/cpp/imgui_stdlib.h>
 #include <nfd.h>
 
+static std::optional<std::filesystem::path> OpenDialog(std::span<nfdu8filteritem_t> Filters)
+{
+    auto CurrentPath = std::filesystem::current_path().string();
+    nfdu8char_t* Path = nullptr;
+    nfdresult_t Result = NFD_OpenDialogU8(&Path, Filters.data(), static_cast<nfdfiltersize_t>(Filters.size()), CurrentPath.c_str());
+    std::optional<std::filesystem::path> OutPath = {};
+    if (Result == NFD_OKAY) OutPath = Path; 
+    if (Path) NFD_FreePathU8(Path);
+    return OutPath;
+};
+
+static std::optional<std::filesystem::path> SaveDialog(std::span<nfdu8filteritem_t> Filters, char const* DefaultName)
+{
+    auto CurrentPath = std::filesystem::current_path().string();
+    nfdu8char_t* Path = nullptr;
+    nfdresult_t Result = NFD_SaveDialogU8(&Path, Filters.data(), static_cast<nfdfiltersize_t>(Filters.size()), CurrentPath.c_str(), DefaultName);
+    std::optional<std::string> OutPath = {};
+    if (Result == NFD_OKAY) OutPath = Path; 
+    if (Path) NFD_FreePathU8(Path);
+    return OutPath;
+};
+
 static bool DragEulerAngles(const char* Label, vec3* Angles)
 {
     float Degrees[3];
@@ -505,108 +527,193 @@ static void PrefabInspector(application* App, prefab* Prefab, bool Referenced = 
     ImGui::PopID();
 }
 
-void ResourceBrowserWindow(application* App)
+void TextureBrowserWindow(application* App)
 {
-    bool C = false;
+    ImGui::Begin("Textures");
 
     scene* Scene = App->Scene;
 
-    ImGui::Begin("Resources");
-
-    // Textures
-    {
-        auto GetItemName = [](void* Context, int Index) {
-            auto Scene = static_cast<scene*>(Context);
-            if (Index < 0 || Index >= Scene->Textures.size())
-                return "";
-            return Scene->Textures[Index]->Name.c_str();
+    if (ImGui::Button("Import...")) {
+        nfdu8filteritem_t Filters[] = {
+            { "Portable Network Graphics", "png" },
+            { "High-Dynamic Range Image", "hdr" },
         };
-
-        int Index = -1;
-        int Count = static_cast<int>(Scene->Textures.size());
-
-        if (App->SelectionType == SELECTION_TYPE_TEXTURE) {
-            for (int I = 0; I < Count; I++)
-                if (Scene->Textures[I] == App->SelectedTexture)
-                    Index = I;
-        }
-
-        if (ImGui::ListBox("Textures", &Index, GetItemName, Scene, Count, 6)) {
+        std::optional<std::filesystem::path> Path = OpenDialog(Filters);
+        if (Path.has_value()) {
+            load_model_options Options;
+            Options.DirectoryPath = Path.value().parent_path().string();
+            App->SelectedTexture = LoadTexture(App->Scene, Path.value().string().c_str(), TEXTURE_TYPE_RAW);
             App->SelectionType = SELECTION_TYPE_TEXTURE;
-            App->SelectedTexture = Scene->Textures[Index];
         }
     }
+    ImGui::SameLine();
+    ImGui::BeginDisabled(App->SelectionType != SELECTION_TYPE_TEXTURE);
+    if (ImGui::Button("Delete")) {
+        DestroyTexture(App->Scene, App->SelectedTexture);
+        App->SelectedTexture = nullptr;
+        App->SelectionType = SELECTION_TYPE_NONE;
+    }
+    ImGui::EndDisabled();
 
-    // Materials
-    {
-        auto GetItemName = [](void* Context, int Index) {
-            auto Scene = static_cast<scene*>(Context);
-            if (Index < 0 || Index >= Scene->Materials.size())
-                return "";
-            return Scene->Materials[Index]->Name.c_str();
-        };
+    auto GetItemName = [](void* Context, int Index) {
+        auto Scene = static_cast<scene*>(Context);
+        if (Index < 0 || Index >= Scene->Textures.size())
+            return "";
+        return Scene->Textures[Index]->Name.c_str();
+    };
 
-        int Index = -1;
-        int Count = static_cast<int>(Scene->Materials.size());
+    int Index = -1;
+    int Count = static_cast<int>(Scene->Textures.size());
 
-        if (App->SelectionType == SELECTION_TYPE_MATERIAL) {
-            for (int I = 0; I < Count; I++)
-                if (Scene->Materials[I] == App->SelectedMaterial)
-                    Index = I;
-        }
-
-        if (ImGui::ListBox("Materials", &Index, GetItemName, Scene, Count, 6)) {
-            App->SelectionType = SELECTION_TYPE_MATERIAL;
-            App->SelectedMaterial = Scene->Materials[Index];
-        }
+    if (App->SelectionType == SELECTION_TYPE_TEXTURE) {
+        for (int I = 0; I < Count; I++)
+            if (Scene->Textures[I] == App->SelectedTexture)
+                Index = I;
     }
 
-    // Meshes
-    {
-        auto GetItemName = [](void* Context, int Index) {
-            auto Scene = static_cast<scene*>(Context);
-            if (Index < 0 || Index >= Scene->Meshes.size())
-                return "";
-            return Scene->Meshes[Index]->Name.c_str();
-        };
-
-        int Index = -1;
-        int Count = static_cast<int>(Scene->Meshes.size());
-
-        if (App->SelectionType == SELECTION_TYPE_MESH) {
-            for (int I = 0; I < Count; I++)
-                if (Scene->Meshes[I] == App->SelectedMesh)
-                    Index = I;
-        }
-
-        if (ImGui::ListBox("Meshes", &Index, GetItemName, Scene, Count, 6)) {
-            App->SelectionType = SELECTION_TYPE_MESH;
-            App->SelectedMesh = Scene->Meshes[Index];
-        }
+    if (ImGui::ListBox("Textures", &Index, GetItemName, Scene, Count, 6)) {
+        App->SelectionType = SELECTION_TYPE_TEXTURE;
+        App->SelectedTexture = Scene->Textures[Index];
     }
 
-    // Prefabs
-    {
-        auto GetItemName = [](void* Context, int Index) {
-            auto Scene = static_cast<scene*>(Context);
-            if (Index < 0 || Index >= Scene->Prefabs.size())
-                return "";
-            return Scene->Prefabs[Index]->Entity->Name.c_str();
+    ImGui::End();
+}
+
+void MaterialBrowserWindow(application* App)
+{
+    ImGui::Begin("Materials");
+
+    scene* Scene = App->Scene;
+
+    if (ImGui::Button("New")) {
+        App->SelectedMaterial = CreateMaterial(App->Scene, "New Material");
+        App->SelectionType = SELECTION_TYPE_MATERIAL;
+    }
+    ImGui::SameLine();
+    ImGui::BeginDisabled(App->SelectionType != SELECTION_TYPE_MATERIAL);
+    if (ImGui::Button("Clone")) {
+        material* Clone = CreateMaterial(App->Scene, "");
+        *Clone = *App->SelectedMaterial;
+        Clone->Name = std::format("{} (Clone)", App->SelectedMaterial->Name);
+        App->SelectedMaterial = Clone;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Delete")) {
+        DestroyMaterial(App->Scene, App->SelectedMaterial);
+        App->SelectedMaterial = nullptr;
+        App->SelectionType = SELECTION_TYPE_NONE;
+    }
+    ImGui::EndDisabled();
+
+
+    auto GetItemName = [](void* Context, int Index) {
+        auto Scene = static_cast<scene*>(Context);
+        if (Index < 0 || Index >= Scene->Materials.size())
+            return "";
+        return Scene->Materials[Index]->Name.c_str();
+    };
+
+    int Index = -1;
+    int Count = static_cast<int>(Scene->Materials.size());
+
+    if (App->SelectionType == SELECTION_TYPE_MATERIAL) {
+        for (int I = 0; I < Count; I++)
+            if (Scene->Materials[I] == App->SelectedMaterial)
+                Index = I;
+    }
+
+    if (ImGui::ListBox("Materials", &Index, GetItemName, Scene, Count, 6)) {
+        App->SelectionType = SELECTION_TYPE_MATERIAL;
+        App->SelectedMaterial = Scene->Materials[Index];
+    }
+
+    ImGui::End();
+}
+
+void MeshBrowserWindow(application* App)
+{
+    ImGui::Begin("Meshes");
+
+    ImGui::BeginDisabled(App->SelectionType != SELECTION_TYPE_MESH);
+    if (ImGui::Button("Delete")) {
+        DestroyMesh(App->Scene, App->SelectedMesh);
+        App->SelectedMesh = nullptr;
+        App->SelectionType = SELECTION_TYPE_NONE;
+    }
+    ImGui::EndDisabled();
+
+    scene* Scene = App->Scene;
+
+    auto GetItemName = [](void* Context, int Index) {
+        auto Scene = static_cast<scene*>(Context);
+        if (Index < 0 || Index >= Scene->Meshes.size())
+            return "";
+        return Scene->Meshes[Index]->Name.c_str();
+    };
+
+    int Index = -1;
+    int Count = static_cast<int>(Scene->Meshes.size());
+
+    if (App->SelectionType == SELECTION_TYPE_MESH) {
+        for (int I = 0; I < Count; I++)
+            if (Scene->Meshes[I] == App->SelectedMesh)
+                Index = I;
+    }
+
+    if (ImGui::ListBox("Meshes", &Index, GetItemName, Scene, Count, 6)) {
+        App->SelectionType = SELECTION_TYPE_MESH;
+        App->SelectedMesh = Scene->Meshes[Index];
+    }
+
+    ImGui::End();
+}
+
+void PrefabBrowserWindow(application* App)
+{
+    ImGui::Begin("Prefabs");
+
+    if (ImGui::Button("Import Model...")) {
+        nfdu8filteritem_t Filters[] = {
+            { "Wavefront OBJ", "obj" }
         };
-
-        int Index = -1;
-        int Count = static_cast<int>(Scene->Prefabs.size());
-
-        if (App->SelectionType == SELECTION_TYPE_PREFAB) {
-            for (int I = 0; I < Count; I++)
-                if (Scene->Prefabs[I] == App->SelectedPrefab)
-                    Index = I;
-        }
-
-        if (ImGui::ListBox("Prefabs", &Index, GetItemName, Scene, Count, 6)) {
+        std::optional<std::filesystem::path> Path = OpenDialog(Filters);
+        if (Path.has_value()) {
+            load_model_options Options;
+            Options.DirectoryPath = Path.value().parent_path().string();
+            App->SelectedPrefab = LoadModelAsPrefab(App->Scene, Path.value().string().c_str(), &Options);
             App->SelectionType = SELECTION_TYPE_PREFAB;
-            App->SelectedPrefab = Scene->Prefabs[Index];
         }
+    }
+    ImGui::SameLine();
+    ImGui::BeginDisabled(App->SelectionType != SELECTION_TYPE_PREFAB);
+    if (ImGui::Button("Delete")) {
+        DestroyPrefab(App->Scene, App->SelectedPrefab);
+        App->SelectedPrefab = nullptr;
+        App->SelectionType = SELECTION_TYPE_NONE;
+    }
+    ImGui::EndDisabled();
+
+    scene* Scene = App->Scene;
+
+    auto GetItemName = [](void* Context, int Index) {
+        auto Scene = static_cast<scene*>(Context);
+        if (Index < 0 || Index >= Scene->Prefabs.size())
+            return "";
+        return Scene->Prefabs[Index]->Entity->Name.c_str();
+    };
+
+    int Index = -1;
+    int Count = static_cast<int>(Scene->Prefabs.size());
+
+    if (App->SelectionType == SELECTION_TYPE_PREFAB) {
+        for (int I = 0; I < Count; I++)
+            if (Scene->Prefabs[I] == App->SelectedPrefab)
+                Index = I;
+    }
+
+    if (ImGui::ListBox("Prefabs", &Index, GetItemName, Scene, Count, 6)) {
+        App->SelectionType = SELECTION_TYPE_PREFAB;
+        App->SelectedPrefab = Scene->Prefabs[Index];
     }
 
     ImGui::End();
@@ -677,32 +784,6 @@ void ParametricSpectrumViewerWindow(application* App)
 
 void MainMenuBar(application* App)
 {
-    auto OpenDialog = [](
-        std::span<nfdu8filteritem_t> Filters
-    ) -> std::optional<std::filesystem::path> {
-        auto CurrentPath = std::filesystem::current_path().string();
-        nfdu8char_t* Path = nullptr;
-        nfdresult_t Result = NFD_OpenDialogU8(&Path, Filters.data(), static_cast<nfdfiltersize_t>(Filters.size()), CurrentPath.c_str());
-        std::optional<std::filesystem::path> OutPath = {};
-        if (Result == NFD_OKAY) OutPath = Path; 
-        if (Path) NFD_FreePathU8(Path);
-        return OutPath;
-    };
-
-    auto SaveDialog = [](
-        std::span<nfdu8filteritem_t> Filters,
-        char const* DefaultName
-    ) -> std::optional<std::filesystem::path> {
-        auto CurrentPath = std::filesystem::current_path().string();
-        nfdu8char_t* Path = nullptr;
-        //nfdu8filteritem_t Filter = { .name = TypeName, .spec = Extension };
-        nfdresult_t Result = NFD_SaveDialogU8(&Path, Filters.data(), static_cast<nfdfiltersize_t>(Filters.size()), CurrentPath.c_str(), DefaultName);
-        std::optional<std::string> OutPath = {};
-        if (Result == NFD_OKAY) OutPath = Path; 
-        if (Path) NFD_FreePathU8(Path);
-        return OutPath;
-    };
-
     ImGui::BeginMainMenuBar();
     if (ImGui::BeginMenu("File")) {
         if (ImGui::MenuItem("New Scene")) {
@@ -730,30 +811,6 @@ void MainMenuBar(application* App)
             std::optional<std::filesystem::path> Path = SaveDialog(Filters, "scene.json");
             if (Path.has_value()) {
                 SaveScene(Path.value().string().c_str(), App->Scene);
-            }
-        }
-        ImGui::Separator();
-        if (ImGui::MenuItem("Import Model...")) {
-            nfdu8filteritem_t Filters[] = {
-                { "Wavefront OBJ", "obj" }
-            };
-            std::optional<std::filesystem::path> Path = OpenDialog(Filters);
-            if (Path.has_value()) {
-                load_model_options Options;
-                Options.DirectoryPath = Path.value().parent_path().string();
-                LoadModelAsPrefab(App->Scene, Path.value().string().c_str(), &Options);
-            }
-        }
-        if (ImGui::MenuItem("Import Texture...")) {
-            nfdu8filteritem_t Filters[] = {
-                { "Portable Network Graphics", "png" },
-                { "High-Dynamic Range Image", "hdr" },
-            };
-            std::optional<std::filesystem::path> Path = OpenDialog(Filters);
-            if (Path.has_value()) {
-                load_model_options Options;
-                Options.DirectoryPath = Path.value().parent_path().string();
-                LoadTexture(App->Scene, Path.value().string().c_str(), TEXTURE_TYPE_RAW);
             }
         }
         ImGui::EndMenu();
