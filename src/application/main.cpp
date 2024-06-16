@@ -375,7 +375,7 @@ static void CharacterInputCallback(GLFWwindow* Window, unsigned int CodePoint)
 
 int main()
 {
-    scene* Scene = LoadScene("../scene/scene.json");
+    scene* Scene = CreateScene();
 
     App.Scene = Scene;
     App.Camera = nullptr;
