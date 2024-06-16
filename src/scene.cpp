@@ -324,6 +324,7 @@ void DestroyMaterial(scene* Scene, material* Material)
                     Plane->Material = nullptr;
                     Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
                 }
+                break;
             }
             case ENTITY_TYPE_SPHERE: {
                 auto Sphere = static_cast<sphere*>(Entity);
@@ -331,6 +332,7 @@ void DestroyMaterial(scene* Scene, material* Material)
                     Sphere->Material = nullptr;
                     Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
                 }
+                break;
             }
             case ENTITY_TYPE_CUBE: {
                 auto Cube = static_cast<cube*>(Entity);
@@ -338,6 +340,7 @@ void DestroyMaterial(scene* Scene, material* Material)
                     Cube->Material = nullptr;
                     Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
                 }
+                break;
             }
         }
     });
