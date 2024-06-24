@@ -134,9 +134,9 @@ struct medium
 {
     uint                ShapeIndex;
     uint                ShapePriority;
-    float               IOR;
-    float               AbsorptionRate;
-    float               ScatteringRate;
+    vec4                IOR;
+    vec4                AbsorptionRate;
+    vec4                ScatteringRate;
     float               ScatteringAnisotropy;
 };
 
@@ -160,21 +160,28 @@ struct hit
 
 struct surface
 {
-    float               Opacity;
-    uint                LayerBounceLimit;
-    bool                BaseIsMetal;
-    bool                BaseIsTranslucent;
-    float               BaseReflectance;
-    float               BaseDiffuseRoughness;
-    bool                CoatIsPresent;
-    float               CoatRelativeIOR;
-    float               CoatTransmittance;
-    vec2                CoatRoughnessAlpha;
-    float               SpecularWeight;
-    float               SpecularRelativeIOR;
-    float               SpecularReflectance;
-    vec2                SpecularRoughnessAlpha;
-    float               Emission;
+    float               Opacity;                    // Opacity of the surface geometry.
+    uint                LayerBounceLimit;           // Maximum number of BSDF layer bounces.
+    bool                BaseIsMetal;                // Is the base substrate layer in the BSDF stack metal?
+    bool                BaseIsTranslucent;          // Is the base substrate layer in the BSDF stack a translucent dielectric?
+    vec4                BaseReflectance;            // Base reflectance value at each of the 4 sampling wavelengths.
+    float               BaseDiffuseRoughness;       // Oren-Nayar roughness for the glossy-diffuse base substrate layer.
+    bool                CoatIsPresent;              // Is there a dielectric coat layer over the base substrate?
+    vec4                CoatRelativeIOR;            // Relative IOR of the coat layer at each of the 4 sampling wavelengths.
+    vec4                CoatTransmittance;          // Transmittance of the coat layer at each of the 4 sampling wavelengths.
+    vec2                CoatRoughnessAlpha;         // Coat GGX roughness alpha (X and Y).
+    float               SpecularWeight;             // Artistic specular weight parameter.
+    vec4                SpecularRelativeIOR;        // Relative IOR of a dielectric base substrate at each of the 4 sampling wavelengths.
+    vec4                SpecularReflectance;        // 82-degree reflectance of the metal base substrate at each of the 4 sampling wavelengths.
+    vec2                SpecularRoughnessAlpha;     // Base substrate GGX roughness alpha (X and Y).
+    vec4                Emission;                   // Base substrate emission radiance at each of the 4 sampling wavelengths.
+};
+
+struct path
+{
+    vec4                Radiance;                   // Accumulated radiance at each of the 4 sampling wavelengths.
+    vec4                Throughput;                 // Path throughput at each of the 4 sampling wavelengths.
+    vec4                PDF;                        // Path probability density at each of the 4 sampling wavelengths.
 };
 
 struct ray
@@ -243,6 +250,11 @@ vec3 SafeNormalize(vec3 V)
         return V / sqrt(LenSq);
 }
 
+float max4(vec4 V)
+{
+    return max(max(V.x, V.y), max(V.z, V.w));
+}
+
 // Compute an arbitrary 3D coordinate frame given one vector.
 void ComputeCoordinateFrame(vec3 Z, out vec3 X, out vec3 Y)
 {
@@ -250,6 +262,44 @@ void ComputeCoordinateFrame(vec3 Z, out vec3 X, out vec3 Y)
     X = normalize(cross(V, Z));
     Y = cross(X, Z);
 }
+
+/* --- Multi-Wavelength Sampling ------------------------------------------- */
+
+void AddEmission(inout path Path, vec4 Emission)
+{
+    float ClusterPDF = Path.PDF.x + Path.PDF.y + Path.PDF.z + Path.PDF.w;
+    Path.Radiance += Emission * Path.Throughput / ClusterPDF;
+}
+
+/* --- Refraction Utilities ------------------------------------------------ */
+
+// Computes a wavelength-dependent refractive index according to
+// the Cauchy empirical formula.
+vec4 CauchyEmpiricalIOR(float BaseIOR, float AbbeNumber, vec4 Lambda)
+{
+    // Fraunhofer C, d, and F spectral lines.
+    const float LC = 656.3;
+    const float Ld = 587.6;
+    const float LF = 486.1;
+
+    float B = (BaseIOR - 1) / (AbbeNumber * (1.0 / (LF * LF) - 1.0 / (LC * LC)));
+    float A = BaseIOR - B / (Ld * Ld);
+
+    return A + B / (Lambda * Lambda);
+}
+
+// Compute the normal vector of a surface that would cause a light ray to be
+// refracted from the In direction to the Out direction, given a relative
+// index of refraction (eta-out over eta-in) of RelativeIOR at the interface.
+// If a refraction is not possible for the given directions and relative IOR,
+// this procedure will produce a normal such that both the In and Out directions
+// lie in the same hemisphere with respect to the normal.
+vec3 RefractionNormal(vec3 In, vec3 Out, float RelativeIOR)
+{
+    return sign(Out.z) * sign(dot(In, Out) + RelativeIOR) * normalize(In + Out * RelativeIOR);
+}
+
+/* --- Henyey-Greenstein Phase Function ------------------------------------ */
 
 // Sample a direction from the Henyey-Greenstein phase function.
 vec3 SampleDirectionHG(float Anisotropy, float U1, float U2)
@@ -269,8 +319,10 @@ vec3 SampleDirectionHG(float Anisotropy, float U1, float U2)
     return vec3(R * cos(Phi), R * sin(Phi), Z);
 }
 
+/* --- GGX Microfacet Model with Anisotropic Roughness --------------------- */
+
 // Compute the 2D roughness alpha parameter for the GGX distribution of normals.
-vec2 ComputeRoughnessAlphaGGX(float Roughness, float Anisotropy)
+vec2 GGXRoughnessAlpha(float Roughness, float Anisotropy)
 {
     float R = Roughness;
     float S = 1 - Anisotropy;
@@ -279,10 +331,23 @@ vec2 ComputeRoughnessAlphaGGX(float Roughness, float Anisotropy)
     return vec2(AlphaX, AlphaY);
 }
 
+// One half of the uncorrelated Smith shadowing-masking function for the
+// anisotropic GGX distribution of normals as presented in the paper
+// "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"
+// by Eric Heitz.
+float GGXSmithG1(vec3 Direction, vec2 RoughnessAlpha)
+{
+    vec3 DirectionSq = Direction * Direction;
+    if (DirectionSq.z < EPSILON) return 0.0;
+    vec2 RoughnessAlphaSq = RoughnessAlpha * RoughnessAlpha;
+    float AlphaSqByTanThetaSq = dot(RoughnessAlphaSq, DirectionSq.xy) / DirectionSq.z;
+    return 2.0 / (1.0 + sqrt(1.0 + AlphaSqByTanThetaSq));
+}
+
 // Sample a normal from the GGX distribution that is visible from the given
 // direction according to the procedure outlined in the paper "Sampling the
 // GGX Distribution of Visible Normals" by Eric Heitz.
-vec3 SampleVisibleNormalGGX(vec3 Direction, vec2 RoughnessAlpha, float U1, float U2)
+vec3 GGXVisibleNormal(vec3 Direction, vec2 RoughnessAlpha, float U1, float U2)
 {
     // Transform direction to the hemisphere space.
     vec3 Vz = SafeNormalize(vec3(
@@ -314,6 +379,26 @@ vec3 SampleVisibleNormalGGX(vec3 Direction, vec2 RoughnessAlpha, float U1, float
         max(0.0, Normal.z)));
 }
 
+// This is the anisotropic GGX distribution of normals D(m).
+float GGXDistribution(vec3 Normal, vec2 RoughnessAlpha)
+{
+    vec2 A = vec2(
+        1.0 / RoughnessAlpha.x,
+        1.0 / RoughnessAlpha.y);
+    float B = dot(Normal * Normal, vec3(A * A, 1.0));
+    return 1.0 / (PI * RoughnessAlpha.x * RoughnessAlpha.y * B * B);
+}
+
+float GGXVisibleNormalPDF(vec3 Normal, vec3 Direction, vec2 RoughnessAlpha)
+{
+    float G = GGXSmithG1(Direction, RoughnessAlpha);
+    float C = max(0, dot(Direction, Normal));
+    float D = GGXDistribution(Normal, RoughnessAlpha);
+    return G * C * D / Direction.z;
+}
+
+/* --- Fresnel ------------------------------------------------------------- */
+
 // Compute surface reflectance using the Fresnel equations,
 // assuming equal proportions of s and p polarized light.
 float FresnelDielectric(float CosThetaIn, float CosThetaOut, float RelativeIOR)
@@ -329,46 +414,20 @@ float FresnelDielectric(float CosThetaIn, float CosThetaOut, float RelativeIOR)
 // Computes the Fresnel term for a metallic surface using the "F82-tint"
 // formulation presented in the paper "Novel aspects of the Adobe Standard
 // Material" by Kutz et al, adapted for spectral rendering.
-float SchlickFresnelMetal(float Base, float Specular, float CosTheta)
+vec4 SchlickFresnelMetal(vec4 Base, vec4 Specular, float CosTheta)
 {
     const float CosThetaMax = 1 / 7.0f;
 
-    float FSchlick = Base + (1 - Base) * pow(1 - CosTheta, 5);
-    float FSchlickMax = Base + (1 - Base) * pow(1 - CosThetaMax, 5);
-    float FMax = Specular * FSchlickMax;
+    vec4 FSchlick = Base + (1 - Base) * pow(1 - CosTheta, 5);
+    vec4 FSchlickMax = Base + (1 - Base) * pow(1 - CosThetaMax, 5);
+    vec4 FMax = Specular * FSchlickMax;
 
     const float Denominator = CosThetaMax * pow(1 - CosThetaMax, 6);
     float Nominator = CosTheta * pow(1 - CosTheta, 6);
     return FSchlick - (Nominator / Denominator) * (FSchlickMax - FMax);
 }
 
-// Computes a wavelength-dependent refractive index according to
-// the Cauchy empirical formula.
-float CauchyEmpiricalIOR(float BaseIOR, float AbbeNumber, float Lambda)
-{
-    // Fraunhofer C, d, and F spectral lines.
-    const float LC = 656.3;
-    const float Ld = 587.6;
-    const float LF = 486.1;
-
-    float B = (BaseIOR - 1) / (AbbeNumber * (1.0 / (LF * LF) - 1.0 / (LC * LC)));
-    float A = BaseIOR - B / (Ld * Ld);
-
-    return A + B / (Lambda * Lambda);
-}
-
-// One half of the uncorrelated Smith shadowing-masking function for the
-// anisotropic GGX distribution of normals as presented in the paper
-// "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"
-// by Eric Heitz.
-float SmithG1(vec3 Direction, vec2 Roughness)
-{
-    vec3 DirectionSq = Direction * Direction;
-    if (DirectionSq.z < EPSILON) return 0.0;
-    vec2 RoughnessSq = Roughness * Roughness;
-    float AlphaSqByTanThetaSq = dot(RoughnessSq, DirectionSq.xy) / DirectionSq.z;
-    return 2.0 / (1.0 + sqrt(1.0 + AlphaSqByTanThetaSq));
-}
+/* --- Spectrum Utilities -------------------------------------------------- */
 
 // Compute the CIE XYZ tristimulus values of a single-wavelength Dirac spectrum
 // using the multi-lobe piecewise Gaussian fit of the CIE 1931 standard observer
@@ -400,6 +459,16 @@ vec3 SampleStandardObserverXYZ(float Lambda)
     return Result;
 }
 
+mat4x3 SampleStandardObserverXYZ(vec4 Lambda)
+{
+    return mat4x3(
+        SampleStandardObserverXYZ(Lambda.x),
+        SampleStandardObserverXYZ(Lambda.y),
+        SampleStandardObserverXYZ(Lambda.z),
+        SampleStandardObserverXYZ(Lambda.w)
+    );
+}
+
 // Conversion from CIE XYZ to (linear) sRGB tristimulus values.
 const mat3 CIE_XYZ_TO_SRGB = mat3(
     +3.2406, -0.9689, +0.0557,
@@ -413,6 +482,11 @@ vec3 SampleStandardObserverSRGB(float Lambda)
     return CIE_XYZ_TO_SRGB * SampleStandardObserverXYZ(Lambda);
 }
 
+mat4x3 SampleStandardObserverSRGB(vec4 Lambda)
+{
+    return CIE_XYZ_TO_SRGB * SampleStandardObserverXYZ(Lambda);
+}
+
 // Sample a parametric reflectance spectrum at a given wavelength.
 float SampleParametricSpectrum(vec3 Beta, float Lambda)
 {
@@ -420,10 +494,23 @@ float SampleParametricSpectrum(vec3 Beta, float Lambda)
     return 0.5 + X / (2.0 * sqrt(1.0 + X * X));
 }
 
+// Sample a parametric reflectance spectrum at a given cluster of wavelengths.
+vec4 SampleParametricSpectrum(vec3 Beta, vec4 Lambdas)
+{
+    vec4 X = (Beta.x * Lambdas + Beta.y) * Lambdas + Beta.z;
+    return 0.5 + X / (2.0 * sqrt(1.0 + X * X));
+}
+
 // Sample a parametric spectrum at a given wavelength.
 float SampleParametricSpectrum(vec4 BetaAndIntensity, float Lambda)
 {
     return BetaAndIntensity.w * SampleParametricSpectrum(BetaAndIntensity.xyz, Lambda);
+}
+
+// Sample a parametric spectrum at a given cluster of wavelengths.
+vec4 SampleParametricSpectrum(vec4 BetaAndIntensity, vec4 Lambdas)
+{
+    return BetaAndIntensity.w * SampleParametricSpectrum(BetaAndIntensity.xyz, Lambdas);
 }
 
 // Compute the SRGB tristimulus response of a parametric spectrum under

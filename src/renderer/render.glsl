@@ -157,7 +157,7 @@ vec4 SampleSkyboxSpectrum(ray Ray)
     return SampleTexture(SkyboxTextureIndex, vec2(U, V));
 }
 
-float SampleSkyboxRadiance(ray Ray, float Lambda)
+vec4 SampleSkyboxRadiance(ray Ray, vec4 Lambda)
 {
     vec4 Spectrum = SampleSkyboxSpectrum(Ray);
     return SampleParametricSpectrum(Spectrum, Lambda) * SkyboxBrightness;
@@ -506,8 +506,8 @@ hit Trace(ray Ray, float MaxTime)
 
 /* --- Material ------------------------------------------------------------ */
 
-// Evaluate the surface properties of a hit surface at a given wavelength.
-void ResolveSurfaceHit(hit Hit, float Lambda, float ExteriorIOR, out surface Surface, out medium Medium)
+// Evaluate the surface properties of a hit surface at given wavelengths.
+void ResolveSurfaceHit(hit Hit, vec4 Lambda, vec4 ExteriorIOR, out surface Surface, out medium Medium)
 {
     packed_material Material = Materials[Hit.MaterialIndex];
 
@@ -533,7 +533,7 @@ void ResolveSurfaceHit(hit Hit, float Lambda, float ExteriorIOR, out surface Sur
     if (Surface.CoatIsPresent) {
         Surface.CoatRelativeIOR = ExteriorIOR / Material.CoatIOR;
         Surface.CoatTransmittance = SampleParametricSpectrum(Material.CoatColorSpectrum, Lambda);
-        Surface.CoatRoughnessAlpha = ComputeRoughnessAlphaGGX(Material.CoatRoughness, Material.CoatRoughnessAnisotropy);
+        Surface.CoatRoughnessAlpha = GGXRoughnessAlpha(Material.CoatRoughness, Material.CoatRoughnessAnisotropy);
     }
 
     // Specular.
@@ -541,7 +541,7 @@ void ResolveSurfaceHit(hit Hit, float Lambda, float ExteriorIOR, out surface Sur
     Surface.SpecularReflectance = SampleParametricSpectrum(Material.SpecularSpectrum, Lambda);
 
     float AbbeNumber = Material.TransmissionDispersionAbbeNumber / Material.TransmissionDispersionScale;
-    float SpecularIOR = CauchyEmpiricalIOR(Material.SpecularIOR, AbbeNumber, Lambda);
+    vec4 SpecularIOR = CauchyEmpiricalIOR(Material.SpecularIOR, AbbeNumber, Lambda);
 
     if (Surface.CoatIsPresent)
         Surface.SpecularRelativeIOR = Material.CoatIOR / SpecularIOR;
@@ -554,7 +554,7 @@ void ResolveSurfaceHit(hit Hit, float Lambda, float ExteriorIOR, out surface Sur
         SpecularRoughness *= Value.r;
     }
 
-    Surface.SpecularRoughnessAlpha = ComputeRoughnessAlphaGGX(
+    Surface.SpecularRoughnessAlpha = GGXRoughnessAlpha(
         SpecularRoughness,
         Material.SpecularRoughnessAnisotropy);
 
@@ -572,18 +572,18 @@ void ResolveSurfaceHit(hit Hit, float Lambda, float ExteriorIOR, out surface Sur
     Medium.ShapeIndex = Hit.ShapeIndex;
     Medium.ShapePriority = Hit.ShapePriority;
 
-    Medium.IOR = Material.SpecularIOR;
+    Medium.IOR = SpecularIOR;
 
     if (Material.TransmissionDepth > 0) {
-        float ExtinctionRate = -log(SampleParametricSpectrum(Material.TransmissionSpectrum, Lambda)) / Material.TransmissionDepth;
-        float ScatteringRate = SampleParametricSpectrum(Material.TransmissionScatterSpectrum, Lambda) / Material.TransmissionDepth;
+        vec4 ExtinctionRate = -log(SampleParametricSpectrum(Material.TransmissionSpectrum, Lambda)) / Material.TransmissionDepth;
+        vec4 ScatteringRate = SampleParametricSpectrum(Material.TransmissionScatterSpectrum, Lambda) / Material.TransmissionDepth;
         Medium.AbsorptionRate = max(ExtinctionRate - ScatteringRate, 0);
         Medium.ScatteringRate = ScatteringRate;
         Medium.ScatteringAnisotropy = Material.TransmissionScatterAnisotropy;
     }
     else {
-        Medium.AbsorptionRate = 0.0;
-        Medium.ScatteringRate = 0.0;
+        Medium.AbsorptionRate = vec4(0.0);
+        Medium.ScatteringRate = vec4(0.0);
         Medium.ScatteringAnisotropy = 0.0;
     }
 }
@@ -591,7 +591,7 @@ void ResolveSurfaceHit(hit Hit, float Lambda, float ExteriorIOR, out surface Sur
 /* --- BSDF ---------------------------------------------------------------- */
 
 // OpenPBR coat BSDF.
-void CoatBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface Surface)
+void CoatBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout path Path)
 {
     if (!Surface.CoatIsPresent) {
         In = -Out;
@@ -601,11 +601,11 @@ void CoatBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, s
     // Sample a microsurface normal for coat scattering.
     float NormalU1 = Random0To1();
     float NormalU2 = Random0To1();
-    vec3 Normal = SampleVisibleNormalGGX(Out * sign(Out.z), Surface.CoatRoughnessAlpha, NormalU1, NormalU2);
+    vec3 Normal = GGXVisibleNormal(Out * sign(Out.z), Surface.CoatRoughnessAlpha, NormalU1, NormalU2);
     float Cosine = dot(Normal, Out);
 
     // Substrate is a dielectric.
-    float RelativeIOR = Surface.CoatRelativeIOR;
+    vec4 RelativeIOR = Surface.CoatRelativeIOR;
     if (Out.z < 0) RelativeIOR = 1.0 / RelativeIOR;
 
     // Compute the cosine of the angle between the refraction direction and
@@ -613,11 +613,11 @@ void CoatBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, s
     // boundary for total internal reflection (TIR).  When the cosine is zero,
     // the Fresnel formulas give a reflectivity of 1, producing a TIR without
     // the need for branches.
-    float RefractedCosineSquared = 1 - RelativeIOR * RelativeIOR * (1 - Cosine * Cosine);
+    float RefractedCosineSquared = 1 - RelativeIOR.x * RelativeIOR.x * (1 - Cosine * Cosine);
     float RefractedCosine = -sign(Out.z) * sqrt(max(RefractedCosineSquared, 0.0));
 
     // Compute dielectric reflectance.
-    float Reflectance = FresnelDielectric(RefractedCosine, Cosine, RelativeIOR);
+    float Reflectance = FresnelDielectric(RefractedCosine, Cosine, RelativeIOR.x);
 
     // Specular reflection?
     if (Random0To1() < Reflectance) {
@@ -627,11 +627,11 @@ void CoatBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, s
         // If the reflected direction is in the wrong hemisphere,
         // then it is shadowed and we terminate here.
         if (In.z * Out.z <= 0) {
-            Weight = 0.0;
+            Path.PDF = vec4(0.0);
             return;
         }
 
-        Weight *= SmithG1(In, Surface.CoatRoughnessAlpha);
+        Path.Throughput *= GGXSmithG1(In, Surface.CoatRoughnessAlpha);
 
         // If the outgoing ray points down, then the ray is being reflected
         // within the coat medium.  Apply the coat absorption factor for both
@@ -640,21 +640,23 @@ void CoatBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, s
         // the surface normal.  Here, the angle is measured with respect to
         // the macrosurface normal, as the thickness of the coat layer is
         // oriented along the macrosurface.
-        if (Out.z < 0)
-            Weight *= pow(Surface.CoatTransmittance, -(0.5 / Out.z + 0.5 / In.z));
+        if (Out.z < 0) {
+            float Exponent = -(0.5 / Out.z + 0.5 / In.z);
+            Path.Throughput *= pow(Surface.CoatTransmittance, vec4(Exponent));
+        }
     }
     else {
         // Compute refracted direction.
-        In = (RelativeIOR * Cosine + RefractedCosine) * Normal - RelativeIOR * Out;
+        In = (RelativeIOR.x * Cosine + RefractedCosine) * Normal - RelativeIOR.x * Out;
 
         // If the refracted direction is in the wrong hemisphere,
         // then it is shadowed and we terminate here.
         if (In.z * Out.z > 0) {
-            Weight = 0.0;
+            Path.PDF = vec4(0.0);
             return;
         }
 
-        Weight *= SmithG1(In, Surface.CoatRoughnessAlpha);
+        Path.Throughput *= GGXSmithG1(In, Surface.CoatRoughnessAlpha);
 
         // The ray is traversing the coat medium.  Apply the coat absorption
         // factor based on the distance traversed in the coat medium.  If the
@@ -662,21 +664,21 @@ void CoatBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, s
         // through the medium, and we determine the path length using that.
         // Otherwise, it is the incoming ray that traverses the medium.
         if (Out.z < 0)
-            Weight *= pow(Surface.CoatTransmittance, -0.5 / Out.z);
+            Path.Throughput *= pow(Surface.CoatTransmittance, vec4(-0.5 / Out.z));
         else
-            Weight *= pow(Surface.CoatTransmittance, -0.5 / In.z);
+            Path.Throughput *= pow(Surface.CoatTransmittance, vec4(-0.5 / In.z));
     }
 }
 
 // Specular part of the OpenPBR base substrate BSDF.
-void BaseSpecularBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface Surface)
+void BaseSpecularBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout path Path)
 {
-    if (Out.z > 0) Radiance += Surface.Emission * Weight;
+    if (Out.z > 0) AddEmission(Path, Surface.Emission);
 
     // Sample a microsurface normal for specular scattering.
     float NormalU1 = Random0To1();
     float NormalU2 = Random0To1();
-    vec3 Normal = SampleVisibleNormalGGX(Out * sign(Out.z), Surface.SpecularRoughnessAlpha, NormalU1, NormalU2);
+    vec3 Normal = GGXVisibleNormal(Out * sign(Out.z), Surface.SpecularRoughnessAlpha, NormalU1, NormalU2);
     float Cosine = dot(Normal, Out);
 
     // Metal base substrate.
@@ -687,27 +689,27 @@ void BaseSpecularBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float W
         // If the reflected direction is in the wrong hemisphere,
         // then it is shadowed and we terminate here.
         if (Out.z * In.z <= 0) {
-            Weight = 0.0;
+            Path.PDF = vec4(0.0);
             return;
         }
 
-        // Compute Fresnel term.
-        float F0 = Surface.BaseReflectance;
-        float F = Surface.SpecularWeight * SchlickFresnelMetal(F0, Surface.SpecularReflectance, abs(Cosine));
+        float Shadowing = GGXSmithG1(Out, Surface.SpecularRoughnessAlpha);
 
-        // Compute shadowing term.
-        float G = SmithG1(In, Surface.SpecularRoughnessAlpha);
+        vec4 Fresnel = Surface.SpecularWeight * SchlickFresnelMetal(
+            Surface.BaseReflectance,
+            Surface.SpecularReflectance,
+            abs(Cosine));
 
-        Weight *= F * G;
+        Path.Throughput *= Fresnel * Shadowing;
     }
     // Dielectric base substrate.
     else {
-        float RelativeIOR = Surface.SpecularRelativeIOR;
+        vec4 RelativeIOR = Surface.SpecularRelativeIOR;
         if (Out.z < 0) RelativeIOR = 1.0 / RelativeIOR;
 
         // Modulation of the relative IOR by the specular weight parameter.
         if (Surface.SpecularWeight < 1.0) {
-            float R = sqrt(Surface.SpecularWeight) * (1.0 - RelativeIOR) / (1.0 + RelativeIOR);
+            vec4 R = sqrt(Surface.SpecularWeight) * (1.0 - RelativeIOR) / (1.0 + RelativeIOR);
             RelativeIOR = (1.0 - R) / (1.0 + R);
         }
 
@@ -716,11 +718,11 @@ void BaseSpecularBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float W
         // boundary for total internal reflection (TIR).  When the cosine is zero,
         // the Fresnel formulas give a reflectivity of 1, producing a TIR without
         // the need for branches.
-        float RefractedCosineSquared = 1 - RelativeIOR * RelativeIOR * (1 - Cosine * Cosine);
+        float RefractedCosineSquared = 1 - RelativeIOR.x * RelativeIOR.x * (1 - Cosine * Cosine);
         float RefractedCosine = -sign(Out.z) * sqrt(max(RefractedCosineSquared, 0.0));
 
         // Compute dielectric reflectance.
-        float Reflectance = FresnelDielectric(RefractedCosine, Cosine, RelativeIOR);
+        float Reflectance = FresnelDielectric(RefractedCosine, Cosine, RelativeIOR.x);
 
         // Specular reflection?
         if (Random0To1() < Reflectance) {
@@ -730,35 +732,35 @@ void BaseSpecularBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float W
             // If the reflected direction is in the wrong hemisphere,
             // then it is shadowed and we terminate here.
             if (In.z * Out.z <= 0) {
-                Weight = 0.0;
+                Path.PDF = vec4(0.0);
                 return;
             }
 
             // Per the OpenPBR specification: the specular color material
             // parameter modulates the Fresnel factor of the dielectric,
             // but only for reflections from above (and not below).
-            if (Out.z > 0) Weight *= Surface.SpecularReflectance;
+            if (Out.z > 0) Path.Throughput *= Surface.SpecularReflectance;
 
-            Weight *= SmithG1(In, Surface.SpecularRoughnessAlpha);
+            Path.Throughput *= GGXSmithG1(In, Surface.SpecularRoughnessAlpha);
         }
         else {
             // Compute refracted direction.
-            In = (RelativeIOR * Cosine + RefractedCosine) * Normal - RelativeIOR * Out;
+            In = (RelativeIOR.x * Cosine + RefractedCosine) * Normal - RelativeIOR.x * Out;
 
             // If the refracted direction is in the wrong hemisphere,
             // then it is shadowed and we terminate here.
             if (In.z * Out.z > 0) {
-                Weight = 0.0;
+                Path.PDF = vec4(0.0);
                 return;
             }
 
-            Weight *= SmithG1(In, Surface.SpecularRoughnessAlpha);
+            Path.Throughput *= GGXSmithG1(In, Surface.SpecularRoughnessAlpha);
         }
     }
 }
 
 // Diffuse part of the OpenPBR base substrate BSDF.
-void BaseDiffuseBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface Surface)
+void BaseDiffuseBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout path Path)
 {
     if (Surface.BaseIsTranslucent) {
         In = -Out;
@@ -770,13 +772,13 @@ void BaseDiffuseBSDF(vec3 Out, out vec3 In, inout float Radiance, inout float We
     float S = dot(In, Out) - In.z * Out.z;
     float T = S > 0 ? max(In.z, Out.z) : 1.0;
     float SigmaSq = Surface.BaseDiffuseRoughness * Surface.BaseDiffuseRoughness;
-    float A = 1 - 0.5 * SigmaSq / (SigmaSq + 0.33) + 0.17 * Surface.BaseReflectance * SigmaSq / (SigmaSq + 0.13);
+    vec4 A = 1 - 0.5 * SigmaSq / (SigmaSq + 0.33) + 0.17 * Surface.BaseReflectance * SigmaSq / (SigmaSq + 0.13);
     float B = 0.45 * SigmaSq / (SigmaSq + 0.09);
 
-    Weight *= Surface.BaseReflectance * (A + B * S / T);
+    Path.Throughput *= Surface.BaseReflectance * (A + B * S / T);
 }
 
-void BSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surface Surface)
+void BSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout path Path)
 {
     const int LAYER_EXTERNAL = -1;
     const int LAYER_COAT = 0;
@@ -792,20 +794,22 @@ void BSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surfa
 
     for (int I = 0; I < Surface.LayerBounceLimit; I++) {
         if (Layer == LAYER_COAT) {
-            CoatBSDF(Out, In, Radiance, Weight, Surface);
+            CoatBSDF(Surface, Lambda, Out, In, Path);
             Layer = In.z < 0 ? LAYER_BASE_SPECULAR : LAYER_EXTERNAL;
         }
         else if (Layer == LAYER_BASE_SPECULAR) {
-            BaseSpecularBSDF(Out, In, Radiance, Weight, Surface);
+            BaseSpecularBSDF(Surface, Lambda, Out, In, Path);
             Layer = In.z < 0 ? LAYER_BASE_DIFFUSE : LAYER_COAT;
         }
         else if (Layer == LAYER_BASE_DIFFUSE) {
-            BaseDiffuseBSDF(Out, In, Radiance, Weight, Surface);
+            BaseDiffuseBSDF(Surface, Lambda, Out, In, Path);
             Layer = In.z < 0 ? LAYER_EXTERNAL : LAYER_BASE_SPECULAR;
         }
         else if (Layer == LAYER_EXTERNAL) {
             break;
         }
+
+        if (max4(Path.PDF) < EPSILON) break;
 
         Out = -In;
     }
@@ -815,14 +819,18 @@ void BSDF(vec3 Out, out vec3 In, inout float Radiance, inout float Weight, surfa
 
 vec4 RenderPath(ray Ray)
 {
-    // Wavelength of this sample.
-    float Lambda = mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, Random0To1());
+    float NormalizedLambda0 = Random0To1();
+    vec4 Lambda = vec4(
+        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX,       NormalizedLambda0        ),
+        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(NormalizedLambda0 + 0.25)),
+        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(NormalizedLambda0 + 0.50)),
+        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(NormalizedLambda0 + 0.75))
+    );
 
-    // Accumulated radiance along the path.
-    float Radiance = 0.0;
-
-    // Cumulative importance at the current path vertex.
-    float Weight = 1.0; //* (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN);
+    path Path;
+    Path.Radiance = vec4(0.0);
+    Path.Throughput = vec4(1.0);
+    Path.PDF = vec4(1.0);
 
     const int MAX_MEDIUM_COUNT = 8;
 
@@ -833,9 +841,9 @@ vec4 RenderPath(ray Ray)
     medium Ambience;
     Ambience.ShapeIndex = SHAPE_INDEX_NONE;
     Ambience.ShapePriority = 0;
-    Ambience.IOR = 1.0f;
-    Ambience.AbsorptionRate = 0.0;
-    Ambience.ScatteringRate = SceneScatterRate;
+    Ambience.IOR = vec4(1.0);
+    Ambience.AbsorptionRate = vec4(0.0);
+    Ambience.ScatteringRate = vec4(SceneScatterRate);
     Ambience.ScatteringAnisotropy = 0.0;
 
     medium Medium = Ambience;
@@ -843,13 +851,13 @@ vec4 RenderPath(ray Ray)
     for (uint Bounce = 0; Bounce <= RenderBounceLimit; Bounce++) {
         float ScatteringTime = INFINITY;
 
-        if (Medium.ScatteringRate > 0)
-            ScatteringTime = -log(Random0To1()) / Medium.ScatteringRate;
+        //if (Medium.ScatteringRate > 0)
+            //ScatteringTime = -log(Random0To1()) / Medium.ScatteringRate;
 
         // Trace the ray against the scene geometry.
         hit Hit = Trace(Ray, ScatteringTime);
 
-        Weight *= exp(-Medium.AbsorptionRate * Hit.Time);
+        Path.Throughput *= exp(-Medium.AbsorptionRate * Hit.Time);
 
         // If we hit no geometry before the scattering time...
         if (Hit.Time == ScatteringTime) {
@@ -873,7 +881,7 @@ vec4 RenderPath(ray Ray)
             }
             // Otherwise, we hit the skybox.
             else {
-                Radiance += Weight * SampleSkyboxRadiance(Ray, Lambda);
+                AddEmission(Path, SampleSkyboxRadiance(Ray, Lambda));
                 break;
             }
         }
@@ -895,8 +903,8 @@ vec4 RenderPath(ray Ray)
         // does not exist at that point at all.
         bool IsVirtualSurface;
 
-        // Index of refraction of the medium above the surface.
-        float ExteriorIOR;
+        // Indices of refraction of the medium above the surface, per wavelength.
+        vec4 ExteriorIOR;
 
         if (Out.z > 0) {
             // If we are hitting the exterior side of a shape, then the surface
@@ -943,9 +951,9 @@ vec4 RenderPath(ray Ray)
         if (Random0To1() > Surface.Opacity || IsVirtualSurface)
             In = -Out;
         else
-            BSDF(Out, In, Radiance, Weight, Surface);
+            BSDF(Surface, Lambda, Out, In, Path);
 
-        if (Weight < EPSILON) break;
+        if (max4(Path.PDF) < EPSILON) break;
 
         // If the incoming and outgoing directions are within opposite hemispheres,
         // then the ray is crossing the material interface boundary.  We need to
@@ -995,10 +1003,10 @@ vec4 RenderPath(ray Ray)
         if (Random0To1() < RenderTerminationProbability)
             break;
 
-        Weight /= 1.0 - RenderTerminationProbability;
+        Path.PDF *= 1.0 - RenderTerminationProbability;
     }
 
-    vec3 Color = SampleStandardObserverSRGB(Lambda) * Radiance;
+    vec3 Color = SampleStandardObserverSRGB(Lambda) * Path.Radiance;
 
     return vec4(Color, 1);
 }
