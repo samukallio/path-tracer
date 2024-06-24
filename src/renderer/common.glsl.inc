@@ -130,34 +130,26 @@ struct packed_mesh_node
     uint                FaceEndIndex;
 };
 
-struct medium
-{
-    uint                ShapeIndex;
-    uint                ShapePriority;
-    vec4                IOR;
-    vec4                AbsorptionRate;
-    vec4                ScatteringRate;
-    float               ScatteringAnisotropy;
-};
-
+// Result of tracing a ray against the geometry of a scene.
 struct hit
 {
-    float               Time;
-    uint                ShapeType;
-    uint                ShapeIndex;
-    uint                ShapePriority;
-    uint                PrimitiveIndex;
-    vec3                PrimitiveCoordinates;
-    uint                SceneComplexity;
-    uint                MeshComplexity;
-    vec3                Position;
-    vec3                Normal;
-    vec3                TangentX;
-    vec3                TangentY;
-    vec2                UV;
-    uint                MaterialIndex;
+    float               Time;                       // Time of hit along the ray vector.
+    uint                ShapeType;                  // Type of shape that was hit.
+    uint                ShapeIndex;                 // Index (into the shape array) of shape that was hit.
+    uint                ShapePriority;              // Priority of the shape that was hit, for resolving overlapping shapes.
+    uint                PrimitiveIndex;             // Index of primitive within the shape (e.g. mesh face) that was hit.
+    vec3                PrimitiveCoordinates;       // Shape type-dependent primitive coordinates (e.g. barycentric coordinates).
+    uint                SceneComplexity;            // Total number of shape nodes traversed while tracing.
+    uint                MeshComplexity;             // Total number of mesh nodes traversed while tracing.
+    vec3                Position;                   // World space position of the hit.
+    vec3                Normal;                     // World space normal of the hit surface.
+    vec3                TangentX;                   // World space tangent of the hit surface.
+    vec3                TangentY;                   // World space bitangent of the hit surface.
+    vec2                UV;                         // Surface texture map coordinates.
+    uint                MaterialIndex;              // Surface material index.
 };
 
+// Local surface material properties for the OpenPBR BSDF.
 struct surface
 {
     float               Opacity;                    // Opacity of the surface geometry.
@@ -175,6 +167,17 @@ struct surface
     vec4                SpecularReflectance;        // 82-degree reflectance of the metal base substrate at each of the 4 sampling wavelengths.
     vec2                SpecularRoughnessAlpha;     // Base substrate GGX roughness alpha (X and Y).
     vec4                Emission;                   // Base substrate emission radiance at each of the 4 sampling wavelengths.
+};
+
+// Volumetric material properties of a participating medium.
+struct medium
+{
+    uint                ShapeIndex;                 // Shape associated with this medium.
+    uint                ShapePriority;              // Priority of the shape associated with the medium.
+    vec4                IOR;                        // Absolute index of refraction at each of the 4 sampling wavelengths.
+    vec4                AbsorptionRate;             // Absorption rate at each of the 4 sampling wavelengths.
+    vec4                ScatteringRate;             // Scattering rate at each of the 4 sampling wavelengths.
+    float               ScatteringAnisotropy;       // Scattering phase function anisotropy.
 };
 
 struct path
@@ -524,7 +527,7 @@ vec3 ObserveParametricSpectrumSRGB(vec3 Beta)
     return ObserveParametricSpectrumSRGB(vec4(Beta, 1));
 }
 
-/* --- Random -------------------------------------------------------------- */
+/* --- Random Number Generator --------------------------------------------- */
 
 uint RandomState;
 
