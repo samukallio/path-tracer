@@ -754,7 +754,55 @@ void BaseSpecularBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout
                 return;
             }
 
-            Path.Throughput *= GGXSmithG1(In, Surface.SpecularRoughnessAlpha);
+            float Shadowing = GGXSmithG1(In, Surface.SpecularRoughnessAlpha);
+
+            // If the surface is rough, then a refraction with the same incoming
+            // and outgoing direction is possible for the secondary wavelengths,
+            // although with different probabilities.
+            if (length(Surface.SpecularRoughnessAlpha) > EPSILON) {
+                // Compute the Fresnel terms for all wavelengths.
+                vec4 Fresnel = FresnelDielectric(RefractedCosine, Cosine, RelativeIOR);
+
+                // Compute the microfacet surface normals that would be necessary
+                // to cause the same refraction to occur but for the secondary
+                // wavelengths.  Note that the orientation of the normals might
+                // be wrong, but it doesn't matter here, since GGXDistribution()
+                // has reflection symmetry.
+                vec3 Normal2 = SafeNormalize(In + Out * RelativeIOR.y);
+                vec3 Normal3 = SafeNormalize(In + Out * RelativeIOR.z);
+                vec3 Normal4 = SafeNormalize(In + Out * RelativeIOR.w);
+
+                // Now figure out the GGX densities of the normals.
+                vec4 Density = vec4(0.0);
+
+                // Density of the normal corresponding to the primary wavelength.
+                Density.x = GGXDistribution(Normal, Surface.SpecularRoughnessAlpha);
+
+                // Densities for the secondary wavelengths.  We also need to check
+                // that the generated normals are actually plausible (no total
+                // internal reflection).  Otherwise, the refraction is impossible
+                // and the corresponding density is zero.
+                if (dot(In, Normal2) * dot(Out, Normal2) < 0.0)
+                    Density.y = GGXDistribution(Normal2, Surface.SpecularRoughnessAlpha);
+                if (dot(In, Normal3) * dot(Out, Normal3) < 0.0)
+                    Density.z = GGXDistribution(Normal3, Surface.SpecularRoughnessAlpha);
+                if (dot(In, Normal4) * dot(Out, Normal4) < 0.0)
+                    Density.w = GGXDistribution(Normal4, Surface.SpecularRoughnessAlpha);
+
+                // Hack to prevent numerical problems with nearly-smooth surfaces.
+                Density = min(Density, 10000.0);
+
+                Path.Throughput *= Density * Fresnel * Shadowing;
+                Path.PDF *= Density * Fresnel;
+            }
+            else {
+                // The surface is perfectly smooth, so the probability of generating
+                // this refraction with any of the secondary wavelengths is zero.
+                // We continue with just the primary wavelength.
+                Path.Throughput.x *= Shadowing;
+                Path.Throughput.yzw = vec3(0.0);
+                Path.PDF.yzw = vec3(0.0);
+            }
         }
     }
 }

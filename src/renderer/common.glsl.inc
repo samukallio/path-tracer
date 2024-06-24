@@ -288,17 +288,6 @@ vec4 CauchyEmpiricalIOR(float BaseIOR, float AbbeNumber, vec4 Lambda)
     return A + B / (Lambda * Lambda);
 }
 
-// Compute the normal vector of a surface that would cause a light ray to be
-// refracted from the In direction to the Out direction, given a relative
-// index of refraction (eta-out over eta-in) of RelativeIOR at the interface.
-// If a refraction is not possible for the given directions and relative IOR,
-// this procedure will produce a normal such that both the In and Out directions
-// lie in the same hemisphere with respect to the normal.
-vec3 RefractionNormal(vec3 In, vec3 Out, float RelativeIOR)
-{
-    return sign(Out.z) * sign(dot(In, Out) + RelativeIOR) * normalize(In + Out * RelativeIOR);
-}
-
 /* --- Henyey-Greenstein Phase Function ------------------------------------ */
 
 // Sample a direction from the Henyey-Greenstein phase function.
@@ -382,19 +371,9 @@ vec3 GGXVisibleNormal(vec3 Direction, vec2 RoughnessAlpha, float U1, float U2)
 // This is the anisotropic GGX distribution of normals D(m).
 float GGXDistribution(vec3 Normal, vec2 RoughnessAlpha)
 {
-    vec2 A = vec2(
-        1.0 / RoughnessAlpha.x,
-        1.0 / RoughnessAlpha.y);
+    vec2 A = 1.0 / RoughnessAlpha;
     float B = dot(Normal * Normal, vec3(A * A, 1.0));
     return 1.0 / (PI * RoughnessAlpha.x * RoughnessAlpha.y * B * B);
-}
-
-float GGXVisibleNormalPDF(vec3 Normal, vec3 Direction, vec2 RoughnessAlpha)
-{
-    float G = GGXSmithG1(Direction, RoughnessAlpha);
-    float C = max(0, dot(Direction, Normal));
-    float D = GGXDistribution(Normal, RoughnessAlpha);
-    return G * C * D / Direction.z;
 }
 
 /* --- Fresnel ------------------------------------------------------------- */
@@ -408,6 +387,17 @@ float FresnelDielectric(float CosThetaIn, float CosThetaOut, float RelativeIOR)
     float Bp = CosThetaOut / RelativeIOR;
     float Rs = (A + Bs) / (A - Bs);
     float Rp = (A + Bp) / (A - Bp);
+    return 0.5 * (Rs * Rs + Rp * Rp);
+}
+
+// Like above, but computes the Fresnel coefficient for 4 IOR values at the same time.
+vec4 FresnelDielectric(float CosThetaIn, float CosThetaOut, vec4 RelativeIOR)
+{
+    float A = CosThetaIn;
+    vec4 Bs = CosThetaOut * RelativeIOR;
+    vec4 Bp = CosThetaOut / RelativeIOR;
+    vec4 Rs = (A + Bs) / (A - Bs);
+    vec4 Rp = (A + Bp) / (A - Bp);
     return 0.5 * (Rs * Rs + Rp * Rp);
 }
 
