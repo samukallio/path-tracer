@@ -221,12 +221,12 @@ static void CameraInspector(application* App, camera* Camera)
 
     if (App->Camera == Camera) {
         bool Active = true;
-        ImGui::Checkbox("Possess", &Active);
+        C |= ImGui::Checkbox("Possess", &Active);
         if (!Active) App->Camera = nullptr;
     }
     else {
         bool Active = false;
-        ImGui::Checkbox("Possess", &Active);
+        C |= ImGui::Checkbox("Possess", &Active);
         if (Active) App->Camera = Camera;
     }
 
