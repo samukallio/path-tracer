@@ -789,8 +789,8 @@ void BaseSpecularBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout
                 if (dot(In, Normal4) * dot(Out, Normal4) < 0.0)
                     Density.w = GGXDistribution(Normal4, Surface.SpecularRoughnessAlpha);
 
-                // Hack to prevent numerical problems with nearly-smooth surfaces.
-                Density = min(Density, 10000.0);
+                // Scale the densities towards unity to mitigate numerical problems.
+                Density /= max(EPSILON, max4(Density));
 
                 Path.Throughput *= Density * Fresnel * Shadowing;
                 Path.PDF *= Density * Fresnel;
