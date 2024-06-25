@@ -627,7 +627,7 @@ void CoatBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout path Pa
         // If the reflected direction is in the wrong hemisphere,
         // then it is shadowed and we terminate here.
         if (In.z * Out.z <= 0) {
-            Path.PDF = vec4(0.0);
+            Path.Weight = vec4(0.0);
             return;
         }
 
@@ -652,7 +652,7 @@ void CoatBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout path Pa
         // If the refracted direction is in the wrong hemisphere,
         // then it is shadowed and we terminate here.
         if (In.z * Out.z > 0) {
-            Path.PDF = vec4(0.0);
+            Path.Weight = vec4(0.0);
             return;
         }
 
@@ -689,7 +689,7 @@ void BaseSpecularBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout
         // If the reflected direction is in the wrong hemisphere,
         // then it is shadowed and we terminate here.
         if (Out.z * In.z <= 0) {
-            Path.PDF = vec4(0.0);
+            Path.Weight = vec4(0.0);
             return;
         }
 
@@ -732,7 +732,7 @@ void BaseSpecularBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout
             // If the reflected direction is in the wrong hemisphere,
             // then it is shadowed and we terminate here.
             if (In.z * Out.z <= 0) {
-                Path.PDF = vec4(0.0);
+                Path.Weight = vec4(0.0);
                 return;
             }
 
@@ -750,7 +750,7 @@ void BaseSpecularBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout
             // If the refracted direction is in the wrong hemisphere,
             // then it is shadowed and we terminate here.
             if (In.z * Out.z > 0) {
-                Path.PDF = vec4(0.0);
+                Path.Weight = vec4(0.0);
                 return;
             }
 
@@ -793,7 +793,7 @@ void BaseSpecularBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout
                 Density /= max(EPSILON, max4(Density));
 
                 Path.Throughput *= Density * Fresnel * Shadowing;
-                Path.PDF *= Density * Fresnel;
+                Path.Weight *= Density * Fresnel;
             }
             else {
                 // The surface is perfectly smooth, so the probability of generating
@@ -801,7 +801,7 @@ void BaseSpecularBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout
                 // We continue with just the primary wavelength.
                 Path.Throughput.x *= Shadowing;
                 Path.Throughput.yzw = vec3(0.0);
-                Path.PDF.yzw = vec3(0.0);
+                Path.Weight.yzw = vec3(0.0);
             }
         }
     }
@@ -857,7 +857,7 @@ void BSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout path Path)
             break;
         }
 
-        if (max4(Path.PDF) < EPSILON) break;
+        if (max4(Path.Weight) < EPSILON) break;
 
         Out = -In;
     }
@@ -878,7 +878,7 @@ vec4 RenderPath(ray Ray)
     path Path;
     Path.Radiance = vec4(0.0);
     Path.Throughput = vec4(1.0);
-    Path.PDF = vec4(1.0);
+    Path.Weight = vec4(1.0);
 
     const int MAX_MEDIUM_COUNT = 8;
 
@@ -1001,7 +1001,7 @@ vec4 RenderPath(ray Ray)
         else
             BSDF(Surface, Lambda, Out, In, Path);
 
-        if (max4(Path.PDF) < EPSILON) break;
+        if (max4(Path.Weight) < EPSILON) break;
 
         // If the incoming and outgoing directions are within opposite hemispheres,
         // then the ray is crossing the material interface boundary.  We need to
@@ -1051,7 +1051,7 @@ vec4 RenderPath(ray Ray)
         if (Random0To1() < RenderTerminationProbability)
             break;
 
-        Path.PDF *= 1.0 - RenderTerminationProbability;
+        Path.Weight *= 1.0 - RenderTerminationProbability;
     }
 
     vec3 Color = SampleStandardObserverSRGB(Lambda) * Path.Radiance;

@@ -184,7 +184,7 @@ struct path
 {
     vec4                Radiance;                   // Accumulated radiance at each of the 4 sampling wavelengths.
     vec4                Throughput;                 // Path throughput at each of the 4 sampling wavelengths.
-    vec4                PDF;                        // Path probability density at each of the 4 sampling wavelengths.
+    vec4                Weight;                     // Path weight at each of the 4 sampling wavelengths.
 };
 
 struct ray
@@ -270,7 +270,7 @@ void ComputeCoordinateFrame(vec3 Z, out vec3 X, out vec3 Y)
 
 void AddEmission(inout path Path, vec4 Emission)
 {
-    float ClusterPDF = Path.PDF.x + Path.PDF.y + Path.PDF.z + Path.PDF.w;
+    float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
     Path.Radiance += Emission * Path.Throughput / ClusterPDF;
 }
 
