@@ -20,6 +20,7 @@ const uint RENDER_MODE_SCENE_COMPLEXITY     = 7;
 
 const uint RENDER_FLAG_ACCUMULATE           = 1 << 0;
 const uint RENDER_FLAG_SAMPLE_JITTER        = 1 << 1;
+const uint RENDER_FLAG_RESET                = 1 << 2;
 
 const uint TONE_MAPPING_MODE_CLAMP          = 0;
 const uint TONE_MAPPING_MODE_REINHARD       = 1;
@@ -130,6 +131,13 @@ struct packed_mesh_node
     uint                FaceEndIndex;
 };
 
+struct ray
+{
+    vec3                Origin;
+    vec3                Vector;
+    float               Duration;
+};
+
 // Result of tracing a ray against the geometry of a scene.
 struct hit
 {
@@ -137,16 +145,16 @@ struct hit
     uint                ShapeType;                  // Type of shape that was hit.
     uint                ShapeIndex;                 // Index (into the shape array) of shape that was hit.
     uint                ShapePriority;              // Priority of the shape that was hit, for resolving overlapping shapes.
-    uint                PrimitiveIndex;             // Index of primitive within the shape (e.g. mesh face) that was hit.
     vec3                PrimitiveCoordinates;       // Shape type-dependent primitive coordinates (e.g. barycentric coordinates).
-    uint                SceneComplexity;            // Total number of shape nodes traversed while tracing.
-    uint                MeshComplexity;             // Total number of mesh nodes traversed while tracing.
+    uint                PrimitiveIndex;             // Index of primitive within the shape (e.g. mesh face) that was hit.
     vec3                Position;                   // World space position of the hit.
     vec3                Normal;                     // World space normal of the hit surface.
     vec3                TangentX;                   // World space tangent of the hit surface.
     vec3                TangentY;                   // World space bitangent of the hit surface.
-    vec2                UV;                         // Surface texture map coordinates.
     uint                MaterialIndex;              // Surface material index.
+    vec2                UV;                         // Surface texture map coordinates.
+    uint                SceneComplexity;            // Total number of shape nodes traversed while tracing.
+    uint                MeshComplexity;             // Total number of mesh nodes traversed while tracing.
 };
 
 // Local surface material properties for the OpenPBR BSDF.
@@ -180,17 +188,16 @@ struct medium
     float               ScatteringAnisotropy;       // Scattering phase function anisotropy.
 };
 
+const uint MAX_MEDIUM_COUNT = 2;
+
 struct path
 {
-    vec4                Radiance;                   // Accumulated radiance at each of the 4 sampling wavelengths.
+    vec4                Lambda;
     vec4                Throughput;                 // Path throughput at each of the 4 sampling wavelengths.
     vec4                Weight;                     // Path weight at each of the 4 sampling wavelengths.
-};
-
-struct ray
-{
-    vec3                Origin;
-    vec3                Vector;
+    vec3                Sample;
+    //medium            Mediums[MAX_MEDIUM_COUNT];
+    ivec2               ImagePosition;
 };
 
 vec3 TransformPosition(vec3 P, packed_transform Transform)
@@ -218,6 +225,7 @@ ray TransformRay(ray R, packed_transform Transform)
     ray OutR;
     OutR.Origin = TransformPosition(R.Origin, Transform);
     OutR.Vector = TransformVector(R.Vector, Transform);
+    OutR.Duration = R.Duration;
     return OutR;
 }
 
@@ -241,6 +249,7 @@ ray InverseTransformRay(ray R, packed_transform Transform)
     ray OutR;
     OutR.Origin = InverseTransformPosition(R.Origin, Transform);
     OutR.Vector = InverseTransformVector(R.Vector, Transform);
+    OutR.Duration = R.Duration;
     return OutR;
 }
 
@@ -264,14 +273,6 @@ void ComputeCoordinateFrame(vec3 Z, out vec3 X, out vec3 Y)
     vec3 V = abs(Z.x) < 0.9 ? vec3(1, 0, 0) : vec3(0, 1, 0);
     X = normalize(cross(V, Z));
     Y = cross(X, Z);
-}
-
-/* --- Multi-Wavelength Sampling ------------------------------------------- */
-
-void AddEmission(inout path Path, vec4 Emission)
-{
-    float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
-    Path.Radiance += Emission * Path.Throughput / ClusterPDF;
 }
 
 /* --- Refraction Utilities ------------------------------------------------ */
@@ -527,6 +528,14 @@ vec3 ObserveParametricSpectrumSRGB(vec3 Beta)
     return ObserveParametricSpectrumSRGB(vec4(Beta, 1));
 }
 
+/* --- Multi-Wavelength Sampling ------------------------------------------- */
+
+void AddEmission(inout path Path, vec4 Emission)
+{
+    float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
+    Path.Sample += SampleStandardObserverSRGB(Emission) * Path.Throughput / ClusterPDF;
+}
+
 /* --- Random Number Generator --------------------------------------------- */
 
 uint RandomState;
@@ -581,7 +590,69 @@ vec3 RandomVonMisesFisher(float Kappa)
     return vec3(X, Y, Z);
 }
 
-/* --- Shader Per-Frame Uniforms ------------------------------------------- */
+const int PATH_COUNT = 1920*1080;
+
+struct trace_buffer
+{
+    // Query data.
+    float               OriginX             [PATH_COUNT];
+    float               OriginY             [PATH_COUNT];
+    float               OriginZ             [PATH_COUNT];
+    float               VectorX             [PATH_COUNT];
+    float               VectorY             [PATH_COUNT];
+    float               VectorZ             [PATH_COUNT];
+    float               Duration            [PATH_COUNT];
+
+    // Result data.
+    float               Time                [PATH_COUNT];
+    uint                ShapeType           [PATH_COUNT];
+    uint                ShapeIndex          [PATH_COUNT];
+    uint                ShapePriority       [PATH_COUNT];
+    float               PrimitiveU          [PATH_COUNT];
+    float               PrimitiveV          [PATH_COUNT];
+    float               PrimitiveW          [PATH_COUNT];
+    uint                PrimitiveIndex      [PATH_COUNT];
+    uint                MaterialIndex       [PATH_COUNT];
+    float               PositionX           [PATH_COUNT];
+    float               PositionY           [PATH_COUNT];
+    float               PositionZ           [PATH_COUNT];
+    float               NormalX             [PATH_COUNT];
+    float               NormalY             [PATH_COUNT];
+    float               NormalZ             [PATH_COUNT];
+    float               TangentXX           [PATH_COUNT];
+    float               TangentXY           [PATH_COUNT];
+    float               TangentXZ           [PATH_COUNT];
+    float               TangentYX           [PATH_COUNT];
+    float               TangentYY           [PATH_COUNT];
+    float               TangentYZ           [PATH_COUNT];
+    float               TextureU            [PATH_COUNT];
+    float               TextureV            [PATH_COUNT];
+    uint                SceneComplexity     [PATH_COUNT];
+    uint                MeshComplexity      [PATH_COUNT];
+};
+
+struct path_buffer
+{
+    int                 ImagePositionX      [PATH_COUNT];
+    int                 ImagePositionY      [PATH_COUNT];
+    float               Lambda0             [PATH_COUNT];
+    float               Lambda1             [PATH_COUNT];
+    float               Lambda2             [PATH_COUNT];
+    float               Lambda3             [PATH_COUNT];
+    float               Throughput0         [PATH_COUNT];
+    float               Throughput1         [PATH_COUNT];
+    float               Throughput2         [PATH_COUNT];
+    float               Throughput3         [PATH_COUNT];
+    float               Weight0             [PATH_COUNT];
+    float               Weight1             [PATH_COUNT];
+    float               Weight2             [PATH_COUNT];
+    float               Weight3             [PATH_COUNT];
+    float               SampleR             [PATH_COUNT];
+    float               SampleG             [PATH_COUNT];
+    float               SampleB             [PATH_COUNT];
+};
+
+/* --- Bindings ------------------------------------------------------------ */
 
 layout(binding = 0)
 uniform frame_uniform_buffer
@@ -611,3 +682,158 @@ uniform frame_uniform_buffer
     float               SkyboxBrightness;
     uint                SkyboxTextureIndex;
 };
+
+#ifdef DECLARE_COMPUTE_BINDINGS
+
+layout(binding=1) uniform sampler2DArray TextureArrayNearest;
+layout(binding=2) uniform sampler2DArray TextureArrayLinear;
+
+layout(binding=3, rgba32f) uniform readonly image2D InputImage;
+layout(binding=4, rgba32f) uniform writeonly image2D OutputImage;
+
+layout(binding=5,  std430) buffer TraceSSBO { trace_buffer  TraceBuffer;  };
+layout(binding=6,  std430) buffer PathSSBO  { path_buffer   PathBuffer;   };
+
+layout(binding=7,  std430) readonly buffer TextureSSBO       { packed_texture         Textures[];       };
+layout(binding=8,  std430) readonly buffer MaterialSSBO      { packed_material        Materials[];      };
+layout(binding=9,  std430) readonly buffer ShapeSSBO         { packed_shape           Shapes[];         };
+layout(binding=10, std430) readonly buffer ShapeNodeSSBO     { packed_shape_node      ShapeNodes[];     };
+layout(binding=11, std430) readonly buffer MeshFaceSSBO      { packed_mesh_face       MeshFaces[];      };
+layout(binding=12, std430) readonly buffer MeshFaceExtraSSBO { packed_mesh_face_extra MeshFaceExtras[]; };
+layout(binding=13, std430) readonly buffer MeshNodeSSBO      { packed_mesh_node       MeshNodes[];      };
+
+ray LoadTraceRay(uint Index)
+{
+    ray Ray;
+    Ray.Origin.x = TraceBuffer.OriginX  [Index];
+    Ray.Origin.y = TraceBuffer.OriginY  [Index];
+    Ray.Origin.z = TraceBuffer.OriginZ  [Index];
+    Ray.Vector.x = TraceBuffer.VectorX  [Index];
+    Ray.Vector.y = TraceBuffer.VectorY  [Index];
+    Ray.Vector.z = TraceBuffer.VectorZ  [Index];
+    Ray.Duration = TraceBuffer.Duration [Index];
+    return Ray;
+}
+
+void StoreTraceRay(uint Index, ray Ray)
+{
+    TraceBuffer.OriginX  [Index] = Ray.Origin.x;
+    TraceBuffer.OriginY  [Index] = Ray.Origin.y;
+    TraceBuffer.OriginZ  [Index] = Ray.Origin.z;
+    TraceBuffer.VectorX  [Index] = Ray.Vector.x;
+    TraceBuffer.VectorY  [Index] = Ray.Vector.y;
+    TraceBuffer.VectorZ  [Index] = Ray.Vector.z;
+    TraceBuffer.Duration [Index] = Ray.Duration;
+}
+
+hit LoadTraceHit(uint Index)
+{
+    hit Hit;
+    Hit.Time                   = TraceBuffer.Time            [Index];
+    Hit.ShapeType              = TraceBuffer.ShapeType       [Index];
+    Hit.ShapeIndex             = TraceBuffer.ShapeIndex      [Index];
+    Hit.ShapePriority          = TraceBuffer.ShapePriority   [Index];
+    Hit.PrimitiveCoordinates.x = TraceBuffer.PrimitiveU      [Index];
+    Hit.PrimitiveCoordinates.y = TraceBuffer.PrimitiveV      [Index];
+    Hit.PrimitiveCoordinates.z = TraceBuffer.PrimitiveW      [Index];
+    Hit.PrimitiveIndex         = TraceBuffer.PrimitiveIndex  [Index];
+    Hit.MaterialIndex          = TraceBuffer.MaterialIndex   [Index];
+    Hit.Position.x             = TraceBuffer.PositionX       [Index];
+    Hit.Position.y             = TraceBuffer.PositionY       [Index];
+    Hit.Position.z             = TraceBuffer.PositionZ       [Index];
+    Hit.Normal.x               = TraceBuffer.NormalX         [Index];
+    Hit.Normal.y               = TraceBuffer.NormalY         [Index];
+    Hit.Normal.z               = TraceBuffer.NormalZ         [Index];
+    Hit.TangentX.x             = TraceBuffer.TangentXX       [Index];
+    Hit.TangentX.y             = TraceBuffer.TangentXY       [Index];
+    Hit.TangentX.z             = TraceBuffer.TangentXZ       [Index];
+    Hit.TangentY.x             = TraceBuffer.TangentYX       [Index];
+    Hit.TangentY.y             = TraceBuffer.TangentYY       [Index];
+    Hit.TangentY.z             = TraceBuffer.TangentYZ       [Index];
+    Hit.UV.x                   = TraceBuffer.TextureU        [Index];
+    Hit.UV.y                   = TraceBuffer.TextureV        [Index];
+    Hit.SceneComplexity        = TraceBuffer.SceneComplexity [Index];
+    Hit.MeshComplexity         = TraceBuffer.MeshComplexity  [Index];
+    return Hit;
+}
+
+void StoreTraceHit(uint Index, hit Hit)
+{
+    TraceBuffer.Time            [Index] = Hit.Time;
+    TraceBuffer.ShapeType       [Index] = Hit.ShapeType;
+    TraceBuffer.ShapeIndex      [Index] = Hit.ShapeIndex;
+    TraceBuffer.ShapePriority   [Index] = Hit.ShapePriority;
+    TraceBuffer.PrimitiveU      [Index] = Hit.PrimitiveCoordinates.x;
+    TraceBuffer.PrimitiveV      [Index] = Hit.PrimitiveCoordinates.y;
+    TraceBuffer.PrimitiveW      [Index] = Hit.PrimitiveCoordinates.z;
+    TraceBuffer.PrimitiveIndex  [Index] = Hit.PrimitiveIndex;
+    TraceBuffer.MaterialIndex   [Index] = Hit.MaterialIndex;
+    TraceBuffer.PositionX       [Index] = Hit.Position.x;
+    TraceBuffer.PositionY       [Index] = Hit.Position.y;
+    TraceBuffer.PositionZ       [Index] = Hit.Position.z;
+    TraceBuffer.NormalX         [Index] = Hit.Normal.x;
+    TraceBuffer.NormalY         [Index] = Hit.Normal.y;
+    TraceBuffer.NormalZ         [Index] = Hit.Normal.z;
+    TraceBuffer.TangentXX       [Index] = Hit.TangentX.x;
+    TraceBuffer.TangentXY       [Index] = Hit.TangentX.y;
+    TraceBuffer.TangentXZ       [Index] = Hit.TangentX.z;
+    TraceBuffer.TangentYX       [Index] = Hit.TangentY.x;
+    TraceBuffer.TangentYY       [Index] = Hit.TangentY.y;
+    TraceBuffer.TangentYZ       [Index] = Hit.TangentY.z;
+    TraceBuffer.TextureU        [Index] = Hit.UV.x;
+    TraceBuffer.TextureV        [Index] = Hit.UV.y;
+    TraceBuffer.SceneComplexity [Index] = Hit.SceneComplexity;
+    TraceBuffer.MeshComplexity  [Index] = Hit.MeshComplexity;
+}
+
+path LoadPath(uint Index)
+{
+    path Path;
+    Path.ImagePosition.x = PathBuffer.ImagePositionX [Index];
+    Path.ImagePosition.y = PathBuffer.ImagePositionY [Index];
+    Path.Lambda.x        = PathBuffer.Lambda0        [Index];
+    Path.Lambda.y        = PathBuffer.Lambda1        [Index];
+    Path.Lambda.z        = PathBuffer.Lambda2        [Index];
+    Path.Lambda.w        = PathBuffer.Lambda3        [Index];
+    Path.Throughput.x    = PathBuffer.Throughput0    [Index];
+    Path.Throughput.y    = PathBuffer.Throughput1    [Index];
+    Path.Throughput.z    = PathBuffer.Throughput2    [Index];
+    Path.Throughput.w    = PathBuffer.Throughput3    [Index];
+    Path.Weight.x        = PathBuffer.Weight0        [Index];
+    Path.Weight.y        = PathBuffer.Weight1        [Index];
+    Path.Weight.w        = PathBuffer.Weight2        [Index];
+    Path.Weight.z        = PathBuffer.Weight3        [Index];
+    Path.Sample.r        = PathBuffer.SampleR        [Index];
+    Path.Sample.g        = PathBuffer.SampleG        [Index];
+    Path.Sample.b        = PathBuffer.SampleB        [Index];
+    return Path;
+}
+
+void StorePathVertexData(uint Index, path Path)
+{
+    PathBuffer.Throughput0    [Index] = Path.Throughput.x;
+    PathBuffer.Throughput1    [Index] = Path.Throughput.y;
+    PathBuffer.Throughput2    [Index] = Path.Throughput.z;
+    PathBuffer.Throughput3    [Index] = Path.Throughput.w;
+    PathBuffer.Weight0        [Index] = Path.Weight.x;
+    PathBuffer.Weight1        [Index] = Path.Weight.y;
+    PathBuffer.Weight2        [Index] = Path.Weight.w;
+    PathBuffer.Weight3        [Index] = Path.Weight.z;
+    PathBuffer.SampleR        [Index] = Path.Sample.r;
+    PathBuffer.SampleG        [Index] = Path.Sample.g;
+    PathBuffer.SampleB        [Index] = Path.Sample.b;
+}
+
+void StorePath(uint Index, path Path)
+{
+    PathBuffer.ImagePositionX [Index] = Path.ImagePosition.x;
+    PathBuffer.ImagePositionY [Index] = Path.ImagePosition.y;
+    PathBuffer.Lambda0        [Index] = Path.Lambda.x;
+    PathBuffer.Lambda1        [Index] = Path.Lambda.y;
+    PathBuffer.Lambda2        [Index] = Path.Lambda.z;
+    PathBuffer.Lambda3        [Index] = Path.Lambda.w;
+
+    StorePathVertexData(Index, Path);
+}
+
+#endif

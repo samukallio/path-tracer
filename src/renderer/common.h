@@ -22,6 +22,7 @@ enum render_flag : uint
 {
     RENDER_FLAG_ACCUMULATE              = 1 << 0,
     RENDER_FLAG_SAMPLE_JITTER           = 1 << 1,
+    RENDER_FLAG_RESET                   = 1 << 2,
 };
 
 enum tone_mapping_mode : int32_t
@@ -166,6 +167,12 @@ struct alignas(16) packed_mesh_node
     uint                FaceBeginOrNodeIndex;
     vec3                Maximum;
     uint                FaceEndIndex;
+};
+
+struct alignas(16) packed_ray
+{
+    vec4                Origin;
+    vec4                Vector;
 };
 
 // This structure is shared between CPU and GPU,

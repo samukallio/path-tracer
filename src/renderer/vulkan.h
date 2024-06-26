@@ -63,17 +63,21 @@ struct vulkan_frame_state
     VkSemaphore                 ImageAvailableSemaphore     = VK_NULL_HANDLE;
     VkSemaphore                 ImageFinishedSemaphore      = VK_NULL_HANDLE;
 
-    VkSemaphore                 ComputeToComputeSemaphore   = VK_NULL_HANDLE;
-    VkSemaphore                 ComputeToGraphicsSemaphore  = VK_NULL_HANDLE;
+    VkSemaphore                 PathToResolveSemaphore      = VK_NULL_HANDLE;
+    VkSemaphore                 PathToTraceSemaphore        = VK_NULL_HANDLE;
+    VkSemaphore                 TraceToPathSemaphore        = VK_NULL_HANDLE;
+
     VkCommandBuffer             GraphicsCommandBuffer       = VK_NULL_HANDLE;
-    VkCommandBuffer             ComputeCommandBuffer        = VK_NULL_HANDLE;
+    VkCommandBuffer             PathCommandBuffer           = VK_NULL_HANDLE;
+    VkCommandBuffer             TraceCommandBuffer          = VK_NULL_HANDLE;
 
     vulkan_buffer               FrameUniformBuffer          = {};
 
     vulkan_image                RenderTarget                = {};
     vulkan_image                RenderTargetGraphicsCopy    = {};
-    VkDescriptorSet             RenderDescriptorSet         = VK_NULL_HANDLE;
 
+    VkDescriptorSet             PathDescriptorSet           = VK_NULL_HANDLE;
+    VkDescriptorSet             TraceDescriptorSet          = VK_NULL_HANDLE;
     VkDescriptorSet             ResolveDescriptorSet        = VK_NULL_HANDLE;
 
     vulkan_buffer               ImguiUniformBuffer          = {};
@@ -136,13 +140,16 @@ struct vulkan_context
     vulkan_buffer               MeshFaceExtraBuffer         = {};
     vulkan_buffer               MeshNodeBuffer              = {};
 
+    vulkan_buffer               TraceBuffer                 = {};
+    vulkan_buffer               PathBuffer                  = {};
+
+    vulkan_pipeline             PathPipeline                = {};
+    vulkan_pipeline             TracePipeline               = {};
     vulkan_pipeline             ResolvePipeline             = {};
-    vulkan_pipeline             RenderPipeline              = {};
 
     vulkan_image                ImguiTexture                = {};
     vulkan_pipeline             ImguiPipeline               = {};
 };
-
 
 vulkan_context* CreateVulkan(
     GLFWwindow* Window,
@@ -158,5 +165,5 @@ VkResult UploadScene(
 
 VkResult RenderFrame(
     vulkan_context* Vulkan,
-    frame_uniform_buffer const* Parameters,
+    frame_uniform_buffer* Parameters,
     ImDrawData* ImguiDrawData);
