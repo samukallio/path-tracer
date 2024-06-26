@@ -244,17 +244,17 @@ void Intersect(ray Ray, inout hit Hit)
 }
 
 // Trace a ray into the scene and return information about the hit.
-hit Trace(ray Ray, float MaxTime)
+hit Trace(ray Ray)
 {
     hit Hit;
-    Hit.Time = MaxTime;
+    Hit.Time = Ray.Duration;
     Hit.MeshComplexity = 0;
     Hit.SceneComplexity = 0;
 
     Intersect(Ray, Hit);
 
     // If we didn't hit any shape, exit.
-    if (Hit.Time == MaxTime)
+    if (Hit.Time == Ray.Duration)
         return Hit;
 
     packed_shape Shape = Shapes[Hit.ShapeIndex];
@@ -352,6 +352,6 @@ void main()
     if (Index >= 1920*1080) return;
 
     ray Ray = LoadTraceRay(Index);
-
-    StoreTraceHit(Index, Trace(Ray, Ray.Duration));
+    hit Hit = Trace(Ray);
+    StoreTraceHit(Index, Hit);
 }
