@@ -590,7 +590,7 @@ vec3 RandomVonMisesFisher(float Kappa)
     return vec3(X, Y, Z);
 }
 
-const int PATH_COUNT = 1920*1080;
+const int PATH_COUNT = 2048*1024;
 
 struct trace_buffer
 {
@@ -730,6 +730,9 @@ hit LoadTraceHit(uint Index)
 {
     hit Hit;
     Hit.Time                   = TraceBuffer.Time            [Index];
+
+    if (Hit.Time == INFINITY) return Hit;
+
     Hit.ShapeType              = TraceBuffer.ShapeType       [Index];
     Hit.ShapeIndex             = TraceBuffer.ShapeIndex      [Index];
     Hit.ShapePriority          = TraceBuffer.ShapePriority   [Index];
@@ -760,6 +763,9 @@ hit LoadTraceHit(uint Index)
 void StoreTraceHit(uint Index, hit Hit)
 {
     TraceBuffer.Time            [Index] = Hit.Time;
+
+    if (Hit.Time == INFINITY) return;
+
     TraceBuffer.ShapeType       [Index] = Hit.ShapeType;
     TraceBuffer.ShapeIndex      [Index] = Hit.ShapeIndex;
     TraceBuffer.ShapePriority   [Index] = Hit.ShapePriority;

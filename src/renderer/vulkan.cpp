@@ -15,8 +15,8 @@
 
 #include <vulkan/vulkan.h>
 
-uint32_t const RENDER_WIDTH = 1920;
-uint32_t const RENDER_HEIGHT = 1080;
+uint32_t const RENDER_WIDTH = 2048;
+uint32_t const RENDER_HEIGHT = 1024;
 
 uint32_t const RESOLVE_VERTEX_SHADER[] =
 {
@@ -2782,7 +2782,7 @@ VkResult RenderFrame(
         //uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
         //uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
         //vkCmdDispatch(Frame->TraceCommandBuffer, GroupCountX, GroupCountY, 1);
-        vkCmdDispatch(Frame->TraceCommandBuffer, 1920*1080 / 256, 1, 1);
+        vkCmdDispatch(Frame->TraceCommandBuffer, 2048*1024 / 256, 1, 1);
 
         // End shade command buffer.
         Result = vkEndCommandBuffer(Frame->TraceCommandBuffer);

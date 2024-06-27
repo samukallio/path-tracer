@@ -722,12 +722,14 @@ void RenderBaseColor(inout path Path, ray Ray, hit Hit, bool IsShaded)
 
 void main()
 {
-    if (gl_GlobalInvocationID.x >= 1920) return;
-    if (gl_GlobalInvocationID.y >= 1080) return;
+    if (gl_GlobalInvocationID.x >= 2048) return;
+    if (gl_GlobalInvocationID.y >= 1024) return;
 
     uint Index
-        = gl_GlobalInvocationID.y * 1920
-        + gl_GlobalInvocationID.x;
+        = gl_WorkGroupID.y * 16 * 16 * (2048 / 16)
+        + gl_WorkGroupID.x * 16 * 16
+        + gl_LocalInvocationID.y * 16
+        + gl_LocalInvocationID.x;
 
     if ((RenderFlags & RENDER_FLAG_RESET) != 0) {
         ivec2 ImagePosition = ivec2(gl_GlobalInvocationID.xy);

@@ -349,7 +349,7 @@ void main()
     uint Index = gl_GlobalInvocationID.x;
 
     //if (Index >= Rays.Count) return;
-    if (Index >= 1920*1080) return;
+    if (Index >= 2048*1024) return;
 
     ray Ray = LoadTraceRay(Index);
     hit Hit = Trace(Ray);

@@ -315,7 +315,7 @@ static void CameraInspector(application* App, camera* Camera)
     if (Camera->CameraModel == CAMERA_MODEL_THIN_LENS) {
         vec2 SensorSizeInMM = Camera->ThinLens.SensorSizeInMM;
         if (ImGui::DragFloat2("Sensor Size (mm)", &SensorSizeInMM[0], 1.0f, 1.0f, 100.0f)) {
-            float const ASPECT_RATIO = 1920.0f / 1080.0f;
+            float const ASPECT_RATIO = 2048.0f / 1024.0f;
             if (SensorSizeInMM.x != Camera->ThinLens.SensorSizeInMM.x)
                 SensorSizeInMM.y = SensorSizeInMM.x / ASPECT_RATIO;
             else
