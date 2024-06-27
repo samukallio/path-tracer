@@ -793,13 +793,7 @@ static VkResult InternalCreateFrameResources(
             .commandBufferCount = 1,
         };
 
-        Result = vkAllocateCommandBuffers(Vulkan->Device, &ComputeCommandBufferAllocateInfo, &Frame->PathCommandBuffer);
-        if (Result != VK_SUCCESS) {
-            Errorf(Vulkan, "failed to allocate compute command buffer");
-            return Result;
-        }
-
-        Result = vkAllocateCommandBuffers(Vulkan->Device, &ComputeCommandBufferAllocateInfo, &Frame->TraceCommandBuffer);
+        Result = vkAllocateCommandBuffers(Vulkan->Device, &ComputeCommandBufferAllocateInfo, &Frame->ComputeCommandBuffer);
         if (Result != VK_SUCCESS) {
             Errorf(Vulkan, "failed to allocate compute command buffer");
             return Result;
@@ -812,9 +806,8 @@ static VkResult InternalCreateFrameResources(
         VkSemaphore* SemaphorePtrs[] = {
             &Frame->ImageAvailableSemaphore,
             &Frame->ImageFinishedSemaphore,
-            &Frame->PathToResolveSemaphore,
-            &Frame->PathToTraceSemaphore,
-            &Frame->TraceToPathSemaphore,
+            &Frame->ComputeToComputeSemaphore,
+            &Frame->ComputeToGraphicsSemaphore,
         };
 
         for (VkSemaphore* SemaphorePtr : SemaphorePtrs) {
@@ -1131,9 +1124,8 @@ static VkResult InternalDestroyFrameResources(
         InternalDestroyImage(Vulkan, &Frame->RenderTarget);
         InternalDestroyBuffer(Vulkan, &Frame->FrameUniformBuffer);
 
-        vkDestroySemaphore(Vulkan->Device, Frame->TraceToPathSemaphore, nullptr);
-        vkDestroySemaphore(Vulkan->Device, Frame->PathToTraceSemaphore, nullptr);
-        vkDestroySemaphore(Vulkan->Device, Frame->PathToResolveSemaphore, nullptr);
+        vkDestroySemaphore(Vulkan->Device, Frame->ComputeToComputeSemaphore, nullptr);
+        vkDestroySemaphore(Vulkan->Device, Frame->ComputeToGraphicsSemaphore, nullptr);
         vkDestroySemaphore(Vulkan->Device, Frame->ImageAvailableSemaphore, nullptr);
         vkDestroySemaphore(Vulkan->Device, Frame->ImageFinishedSemaphore, nullptr);
         vkDestroyFence(Vulkan->Device, Frame->AvailableFence, nullptr);
@@ -2601,29 +2593,32 @@ VkResult RenderFrame(
 
     InternalWriteToHostVisibleBuffer(Vulkan, &Frame->FrameUniformBuffer, Uniforms, sizeof(frame_uniform_buffer));
 
-    // --- Path ---------------------------------------------------------------
+    // --- Compute ------------------------------------------------------------
 
+    // Start compute command buffer.
     {
-        // Start path phase command buffer.
-        vkResetCommandBuffer(Frame->PathCommandBuffer, 0);
+        vkResetCommandBuffer(Frame->ComputeCommandBuffer, 0);
         auto ComputeBeginInfo = VkCommandBufferBeginInfo {
             .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
             .flags            = 0,
             .pInheritanceInfo = nullptr,
         };
-        Result = vkBeginCommandBuffer(Frame->PathCommandBuffer, &ComputeBeginInfo);
+        Result = vkBeginCommandBuffer(Frame->ComputeCommandBuffer, &ComputeBeginInfo);
         if (Result != VK_SUCCESS) {
             Errorf(Vulkan, "failed to begin recording compute command buffer");
             return Result;
         }
+    }
 
+    // Dispatch path evaluation tasks.
+    {
         vkCmdBindPipeline(
-            Frame->PathCommandBuffer,
+            Frame->ComputeCommandBuffer,
             VK_PIPELINE_BIND_POINT_COMPUTE,
             Vulkan->PathPipeline.Pipeline);
 
         vkCmdBindDescriptorSets(
-            Frame->PathCommandBuffer,
+            Frame->ComputeCommandBuffer,
             VK_PIPELINE_BIND_POINT_COMPUTE,
             Vulkan->PathPipeline.PipelineLayout,
             0, 1, &Frame->PathDescriptorSet,
@@ -2632,147 +2627,40 @@ VkResult RenderFrame(
         uint32_t GroupPixelSize = 16 * Uniforms->RenderSampleBlockSize;
         uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
         uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
-        vkCmdDispatch(Frame->PathCommandBuffer, GroupCountX, GroupCountY, 1);
-
-        // Copy the render target image into the shader read copy.
-        {
-            auto SubresourceRange = VkImageSubresourceRange {
-                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel   = 0,
-                .levelCount     = 1,
-                .baseArrayLayer = 0,
-                .layerCount     = 1,
-            };
-
-            auto PreTransferBarrier = VkImageMemoryBarrier {
-                .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                .srcAccessMask       = VK_ACCESS_SHADER_WRITE_BIT,
-                .dstAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
-                .oldLayout           = VK_IMAGE_LAYOUT_GENERAL,
-                .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image               = Frame->RenderTarget.Image,
-                .subresourceRange    = SubresourceRange,
-            };
-
-            vkCmdPipelineBarrier(Frame->PathCommandBuffer,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                0,
-                0, nullptr,
-                0, nullptr,
-                1, &PreTransferBarrier);
-
-            auto Region = VkImageCopy {
-                .srcSubresource = {
-                    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .mipLevel       = 0,
-                    .baseArrayLayer = 0,
-                    .layerCount     = 1,
-                },
-                .srcOffset = {
-                    0, 0, 0
-                },
-                .dstSubresource = {
-                    .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .mipLevel       = 0,
-                    .baseArrayLayer = 0,
-                    .layerCount     = 1,
-                },
-                .dstOffset = {
-                    0, 0, 0
-                },
-                .extent = {
-                    RENDER_WIDTH, RENDER_HEIGHT, 1
-                }
-            };
-
-            vkCmdCopyImage(Frame->PathCommandBuffer,
-                Frame->RenderTarget.Image,
-                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                Frame->RenderTargetGraphicsCopy.Image,
-                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                1, &Region);
-
-            auto PostTransferBarrier = VkImageMemoryBarrier {
-                .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-                .srcAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
-                .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-                .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                .newLayout           = VK_IMAGE_LAYOUT_GENERAL,
-                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image               = Frame->RenderTarget.Image,
-                .subresourceRange    = SubresourceRange,
-            };
-
-            vkCmdPipelineBarrier(Frame->PathCommandBuffer,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-                0,
-                0, nullptr,
-                0, nullptr,
-                1, &PostTransferBarrier);
-        }
-
-        // End shading phase command buffer.
-        Result = vkEndCommandBuffer(Frame->PathCommandBuffer);
-        if (Result != VK_SUCCESS) {
-            Errorf(Vulkan, "failed to end recording path command buffer");
-            return Result;
-        }
-
-        VkPipelineStageFlags WaitStages[] = {
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        };
-
-        VkSemaphore SignalSemaphores[] = {
-            Frame->PathToResolveSemaphore,
-            Frame->PathToTraceSemaphore,
-        };
-
-        auto SubmitInfo = VkSubmitInfo {
-            .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .waitSemaphoreCount   = Frame0->Fresh ? 0u : 1u,
-            .pWaitSemaphores      = &Frame0->TraceToPathSemaphore,
-            .pWaitDstStageMask    = WaitStages,
-            .commandBufferCount   = 1,
-            .pCommandBuffers      = &Frame->PathCommandBuffer,
-            .signalSemaphoreCount = static_cast<uint32_t>(std::size(SignalSemaphores)),
-            .pSignalSemaphores    = SignalSemaphores,
-        };
-
-        Result = vkQueueSubmit(Vulkan->ComputeQueue, 1, &SubmitInfo, nullptr);
-        if (Result != VK_SUCCESS) {
-            Errorf(Vulkan, "failed to submit compute command buffer");
-            return Result;
-        }
+        vkCmdDispatch(Frame->ComputeCommandBuffer, GroupCountX, GroupCountY, 1);
     }
 
-    // --- Trace Rays -----------------------------------------------------
-
+    // Trace buffer barrier between path evaluation and tracing.
     {
-        // Start shade phase command buffer.
-        vkResetCommandBuffer(Frame->TraceCommandBuffer, 0);
-        auto ComputeBeginInfo = VkCommandBufferBeginInfo {
-            .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .flags            = 0,
-            .pInheritanceInfo = nullptr,
+        auto TraceBufferBarrier = VkBufferMemoryBarrier {
+            .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+            .srcAccessMask       = VK_ACCESS_SHADER_WRITE_BIT,
+            .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .buffer              = Vulkan->TraceBuffer.Buffer,
+            .offset              = 0,
+            .size                = Vulkan->TraceBuffer.Size,
         };
-        Result = vkBeginCommandBuffer(Frame->TraceCommandBuffer, &ComputeBeginInfo);
-        if (Result != VK_SUCCESS) {
-            Errorf(Vulkan, "failed to begin recording compute command buffer");
-            return Result;
-        }
 
+        vkCmdPipelineBarrier(Frame->ComputeCommandBuffer,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            0,
+            0, nullptr,
+            1, &TraceBufferBarrier,
+            0, nullptr);
+    }
+
+    // Dispatch ray tracing tasks.
+    {
         vkCmdBindPipeline(
-            Frame->TraceCommandBuffer,
+            Frame->ComputeCommandBuffer,
             VK_PIPELINE_BIND_POINT_COMPUTE,
             Vulkan->TracePipeline.Pipeline);
 
         vkCmdBindDescriptorSets(
-            Frame->TraceCommandBuffer,
+            Frame->ComputeCommandBuffer,
             VK_PIPELINE_BIND_POINT_COMPUTE,
             Vulkan->TracePipeline.PipelineLayout,
             0, 1, &Frame->TraceDescriptorSet,
@@ -2782,35 +2670,122 @@ VkResult RenderFrame(
         //uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
         //uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
         //vkCmdDispatch(Frame->TraceCommandBuffer, GroupCountX, GroupCountY, 1);
-        vkCmdDispatch(Frame->TraceCommandBuffer, 2048*1024 / 256, 1, 1);
+        vkCmdDispatch(Frame->ComputeCommandBuffer, 2048*1024 / 256, 1, 1);
+    }
 
-        // End shade command buffer.
-        Result = vkEndCommandBuffer(Frame->TraceCommandBuffer);
-        if (Result != VK_SUCCESS) {
-            Errorf(Vulkan, "failed to end recording trace command buffer");
-            return Result;
-        }
+    // Copy the render target image into the shader read copy.
+    {
+        auto SubresourceRange = VkImageSubresourceRange {
+            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+            .baseMipLevel   = 0,
+            .levelCount     = 1,
+            .baseArrayLayer = 0,
+            .layerCount     = 1,
+        };
 
-        VkPipelineStageFlags WaitStages[] = {
+        auto PreTransferBarrier = VkImageMemoryBarrier {
+            .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask       = VK_ACCESS_SHADER_WRITE_BIT,
+            .dstAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
+            .oldLayout           = VK_IMAGE_LAYOUT_GENERAL,
+            .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image               = Frame->RenderTarget.Image,
+            .subresourceRange    = SubresourceRange,
+        };
+
+        vkCmdPipelineBarrier(Frame->ComputeCommandBuffer,
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &PreTransferBarrier);
+
+        auto Region = VkImageCopy {
+            .srcSubresource = {
+                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                .mipLevel       = 0,
+                .baseArrayLayer = 0,
+                .layerCount     = 1,
+            },
+            .srcOffset = {
+                0, 0, 0
+            },
+            .dstSubresource = {
+                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                .mipLevel       = 0,
+                .baseArrayLayer = 0,
+                .layerCount     = 1,
+            },
+            .dstOffset = {
+                0, 0, 0
+            },
+            .extent = {
+                RENDER_WIDTH, RENDER_HEIGHT, 1
+            }
         };
 
-        auto SubmitInfo = VkSubmitInfo {
-            .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .waitSemaphoreCount   = 1,
-            .pWaitSemaphores      = &Frame->PathToTraceSemaphore,
-            .pWaitDstStageMask    = WaitStages,
-            .commandBufferCount   = 1,
-            .pCommandBuffers      = &Frame->TraceCommandBuffer,
-            .signalSemaphoreCount = 1,
-            .pSignalSemaphores    = &Frame->TraceToPathSemaphore,
+        vkCmdCopyImage(Frame->ComputeCommandBuffer,
+            Frame->RenderTarget.Image,
+            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            Frame->RenderTargetGraphicsCopy.Image,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1, &Region);
+
+        auto PostTransferBarrier = VkImageMemoryBarrier {
+            .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+            .srcAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
+            .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+            .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            .newLayout           = VK_IMAGE_LAYOUT_GENERAL,
+            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+            .image               = Frame->RenderTarget.Image,
+            .subresourceRange    = SubresourceRange,
         };
 
-        Result = vkQueueSubmit(Vulkan->ComputeQueue, 1, &SubmitInfo, nullptr);
-        if (Result != VK_SUCCESS) {
-            Errorf(Vulkan, "failed to submit intersection command buffer");
-            return Result;
-        }
+        vkCmdPipelineBarrier(Frame->ComputeCommandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            0,
+            0, nullptr,
+            0, nullptr,
+            1, &PostTransferBarrier);
+    }
+
+    // End compute command buffer.
+    Result = vkEndCommandBuffer(Frame->ComputeCommandBuffer);
+    if (Result != VK_SUCCESS) {
+        Errorf(Vulkan, "failed to end recording compute command buffer");
+        return Result;
+    }
+
+    VkSemaphore ComputeSignalSemaphores[] = {
+        Frame->ComputeToComputeSemaphore,
+        Frame->ComputeToGraphicsSemaphore,
+    };
+
+    VkPipelineStageFlags ComputeWaitStages[] = {
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+    };
+
+    auto ComputeSubmitInfo = VkSubmitInfo {
+        .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .waitSemaphoreCount   = Frame0->Fresh ? 0u : 1u,
+        .pWaitSemaphores      = &Frame0->ComputeToComputeSemaphore,
+        .pWaitDstStageMask    = ComputeWaitStages,
+        .commandBufferCount   = 1,
+        .pCommandBuffers      = &Frame->ComputeCommandBuffer,
+        .signalSemaphoreCount = static_cast<uint32_t>(std::size(ComputeSignalSemaphores)),
+        .pSignalSemaphores    = ComputeSignalSemaphores,
+    };
+
+    Result = vkQueueSubmit(Vulkan->ComputeQueue, 1, &ComputeSubmitInfo, nullptr);
+    if (Result != VK_SUCCESS) {
+        Errorf(Vulkan, "failed to submit compute command buffer");
+        return Result;
     }
 
     // --- Upload ImGui draw data ---------------------------------------------
@@ -2901,6 +2876,7 @@ VkResult RenderFrame(
             1, &Barrier);
     }
 
+    // Begin render pass.
     {
         VkClearValue ClearValues[] = {
             { .color = {{ 0.0f, 0.0f, 0.0f, 1.0f }} },
@@ -2919,7 +2895,7 @@ VkResult RenderFrame(
         vkCmdBeginRenderPass(Frame->GraphicsCommandBuffer, &RenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
     }
 
-    //
+    // Render the path traced result.
     {
         vkCmdBindPipeline(
             Frame->GraphicsCommandBuffer,
@@ -3033,6 +3009,7 @@ VkResult RenderFrame(
 
     vkCmdEndRenderPass(Frame->GraphicsCommandBuffer);
 
+    // Transition the render target graphics copy back to transfer destination.
     {
         auto SubresourceRange = VkImageSubresourceRange {
             .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -3075,7 +3052,7 @@ VkResult RenderFrame(
     };
 
     VkSemaphore GraphicsWaitSemaphores[] = {
-        Frame->PathToResolveSemaphore,
+        Frame->ComputeToGraphicsSemaphore,
         Frame->ImageAvailableSemaphore,
     };
 

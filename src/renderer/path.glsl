@@ -725,6 +725,7 @@ void main()
     if (gl_GlobalInvocationID.x >= 2048) return;
     if (gl_GlobalInvocationID.y >= 1024) return;
 
+
     uint Index
         = gl_WorkGroupID.y * 16 * 16 * (2048 / 16)
         + gl_WorkGroupID.x * 16 * 16

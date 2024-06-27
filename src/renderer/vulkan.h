@@ -63,13 +63,10 @@ struct vulkan_frame_state
     VkSemaphore                 ImageAvailableSemaphore     = VK_NULL_HANDLE;
     VkSemaphore                 ImageFinishedSemaphore      = VK_NULL_HANDLE;
 
-    VkSemaphore                 PathToResolveSemaphore      = VK_NULL_HANDLE;
-    VkSemaphore                 PathToTraceSemaphore        = VK_NULL_HANDLE;
-    VkSemaphore                 TraceToPathSemaphore        = VK_NULL_HANDLE;
-
+    VkSemaphore                 ComputeToComputeSemaphore   = VK_NULL_HANDLE;
+    VkSemaphore                 ComputeToGraphicsSemaphore  = VK_NULL_HANDLE;
     VkCommandBuffer             GraphicsCommandBuffer       = VK_NULL_HANDLE;
-    VkCommandBuffer             PathCommandBuffer           = VK_NULL_HANDLE;
-    VkCommandBuffer             TraceCommandBuffer          = VK_NULL_HANDLE;
+    VkCommandBuffer             ComputeCommandBuffer        = VK_NULL_HANDLE;
 
     vulkan_buffer               FrameUniformBuffer          = {};
 

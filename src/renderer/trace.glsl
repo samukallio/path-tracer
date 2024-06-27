@@ -344,6 +344,7 @@ hit Trace(ray Ray)
     return Hit;
 }
 
+
 void main()
 {
     uint Index = gl_GlobalInvocationID.x;
