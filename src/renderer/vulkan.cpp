@@ -841,30 +841,6 @@ static VkResult InternalCreateFrameResources(
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             sizeof(frame_uniform_buffer));
 
-        InternalCreateImage(Vulkan,
-            &Frame->RenderTarget,
-            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            VK_IMAGE_TYPE_2D,
-            VK_FORMAT_R32G32B32A32_SFLOAT,
-            { .width = RENDER_WIDTH, .height = RENDER_HEIGHT, .depth = 1 },
-            0,
-            VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_LAYOUT_GENERAL,
-            true);
-
-        InternalCreateImage(Vulkan,
-            &Frame->RenderTargetGraphicsCopy,
-            VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            VK_IMAGE_TYPE_2D,
-            VK_FORMAT_R32G32B32A32_SFLOAT,
-            { .width = RENDER_WIDTH, .height = RENDER_HEIGHT, .depth = 1 },
-            0,
-            VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            false);
-
         InternalCreateBuffer(Vulkan,
             &Frame->ImguiUniformBuffer,
             VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
@@ -907,15 +883,9 @@ static VkResult InternalCreateFrameResources(
             .range      = Vulkan->PathBuffer.Size,
         };
 
-        auto InputImageInfo = VkDescriptorImageInfo {
+        auto SampleAccumulatorImageInfo = VkDescriptorImageInfo {
             .sampler     = nullptr,
-            .imageView   = Frame0->RenderTarget.View,
-            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        };
-
-        auto OutputImageInfo = VkDescriptorImageInfo {
-            .sampler     = nullptr,
-            .imageView   = Frame->RenderTarget.View,
+            .imageView   = Vulkan->SampleAccumulatorImage.View,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
         };
 
@@ -934,15 +904,7 @@ static VkResult InternalCreateFrameResources(
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                .pImageInfo      = &InputImageInfo,
-            },
-            {
-                .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstBinding      = 4,
-                .dstArrayElement = 0,
-                .descriptorCount = 1,
-                .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                .pImageInfo      = &OutputImageInfo,
+                .pImageInfo      = &SampleAccumulatorImageInfo,
             },
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
@@ -1025,9 +987,9 @@ static VkResult InternalCreateFrameResources(
                 return Result;
             }
 
-            auto SrcImageInfo = VkDescriptorImageInfo {
+            auto SampleAccumulatorImageSampledInfo = VkDescriptorImageInfo {
                 .sampler     = Vulkan->ImageSamplerLinear,
-                .imageView   = Frame->RenderTargetGraphicsCopy.View,
+                .imageView   = Vulkan->SampleAccumulatorImage.View,
                 .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             };
 
@@ -1048,7 +1010,7 @@ static VkResult InternalCreateFrameResources(
                     .dstArrayElement = 0,
                     .descriptorCount = 1,
                     .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                    .pImageInfo      = &SrcImageInfo,
+                    .pImageInfo      = &SampleAccumulatorImageSampledInfo,
                 },
             };
 
@@ -1120,8 +1082,6 @@ static VkResult InternalDestroyFrameResources(
         InternalDestroyBuffer(Vulkan, &Frame->ImguiVertexBuffer);
         InternalDestroyBuffer(Vulkan, &Frame->ImguiUniformBuffer);
 
-        InternalDestroyImage(Vulkan, &Frame->RenderTargetGraphicsCopy);
-        InternalDestroyImage(Vulkan, &Frame->RenderTarget);
         InternalDestroyBuffer(Vulkan, &Frame->FrameUniformBuffer);
 
         vkDestroySemaphore(Vulkan->Device, Frame->ComputeToComputeSemaphore, nullptr);
@@ -1940,6 +1900,21 @@ static VkResult InternalCreateVulkan(
         }
     }
 
+    //
+    {
+        InternalCreateImage(Vulkan,
+            &Vulkan->SampleAccumulatorImage,
+            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            VK_IMAGE_TYPE_2D,
+            VK_FORMAT_R32G32B32A32_SFLOAT,
+            { .width = RENDER_WIDTH, .height = RENDER_HEIGHT, .depth = 1 },
+            0,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_LAYOUT_GENERAL,
+            true);
+    }
+
     // Create ImGui resources.
     {
         ImGuiIO& IO = ImGui::GetIO();
@@ -2117,6 +2092,8 @@ void DestroyVulkan(vulkan_context* Vulkan)
     InternalDestroyBuffer(Vulkan, &Vulkan->MeshFaceExtraBuffer);
     InternalDestroyBuffer(Vulkan, &Vulkan->MeshFaceBuffer);
     InternalDestroyImage(Vulkan, &Vulkan->ImageArray);
+
+    InternalDestroyImage(Vulkan, &Vulkan->SampleAccumulatorImage);
 
     InternalDestroyFrameResources(Vulkan);
 
@@ -2673,88 +2650,6 @@ VkResult RenderFrame(
         vkCmdDispatch(Frame->ComputeCommandBuffer, 2048*1024 / 256, 1, 1);
     }
 
-    // Copy the render target image into the shader read copy.
-    {
-        auto SubresourceRange = VkImageSubresourceRange {
-            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel   = 0,
-            .levelCount     = 1,
-            .baseArrayLayer = 0,
-            .layerCount     = 1,
-        };
-
-        auto PreTransferBarrier = VkImageMemoryBarrier {
-            .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask       = VK_ACCESS_SHADER_WRITE_BIT,
-            .dstAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
-            .oldLayout           = VK_IMAGE_LAYOUT_GENERAL,
-            .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image               = Frame->RenderTarget.Image,
-            .subresourceRange    = SubresourceRange,
-        };
-
-        vkCmdPipelineBarrier(Frame->ComputeCommandBuffer,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            0,
-            0, nullptr,
-            0, nullptr,
-            1, &PreTransferBarrier);
-
-        auto Region = VkImageCopy {
-            .srcSubresource = {
-                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                .mipLevel       = 0,
-                .baseArrayLayer = 0,
-                .layerCount     = 1,
-            },
-            .srcOffset = {
-                0, 0, 0
-            },
-            .dstSubresource = {
-                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-                .mipLevel       = 0,
-                .baseArrayLayer = 0,
-                .layerCount     = 1,
-            },
-            .dstOffset = {
-                0, 0, 0
-            },
-            .extent = {
-                RENDER_WIDTH, RENDER_HEIGHT, 1
-            }
-        };
-
-        vkCmdCopyImage(Frame->ComputeCommandBuffer,
-            Frame->RenderTarget.Image,
-            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            Frame->RenderTargetGraphicsCopy.Image,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1, &Region);
-
-        auto PostTransferBarrier = VkImageMemoryBarrier {
-            .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask       = VK_ACCESS_TRANSFER_READ_BIT,
-            .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-            .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            .newLayout           = VK_IMAGE_LAYOUT_GENERAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image               = Frame->RenderTarget.Image,
-            .subresourceRange    = SubresourceRange,
-        };
-
-        vkCmdPipelineBarrier(Frame->ComputeCommandBuffer,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            0,
-            0, nullptr,
-            0, nullptr,
-            1, &PostTransferBarrier);
-    }
-
     // End compute command buffer.
     Result = vkEndCommandBuffer(Frame->ComputeCommandBuffer);
     if (Result != VK_SUCCESS) {
@@ -2857,18 +2752,18 @@ VkResult RenderFrame(
 
         auto Barrier = VkImageMemoryBarrier {
             .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .srcAccessMask       = VK_ACCESS_SHADER_WRITE_BIT,
             .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-            .oldLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .oldLayout           = VK_IMAGE_LAYOUT_GENERAL,
             .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image               = Frame->RenderTargetGraphicsCopy.Image,
+            .image               = Vulkan->SampleAccumulatorImage.Image,
             .subresourceRange    = SubresourceRange,
         };
 
         vkCmdPipelineBarrier(Frame->GraphicsCommandBuffer,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             0,
             0, nullptr,
@@ -3022,18 +2917,18 @@ VkResult RenderFrame(
         auto Barrier = VkImageMemoryBarrier {
             .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
             .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-            .dstAccessMask       = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
             .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .newLayout           = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .newLayout           = VK_IMAGE_LAYOUT_GENERAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image               = Frame->RenderTargetGraphicsCopy.Image,
+            .image               = Vulkan->SampleAccumulatorImage.Image,
             .subresourceRange    = SubresourceRange,
         };
 
         vkCmdPipelineBarrier(Frame->GraphicsCommandBuffer,
             VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
             0,
             0, nullptr,
             0, nullptr,

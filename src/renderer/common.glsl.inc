@@ -688,8 +688,7 @@ uniform frame_uniform_buffer
 layout(binding=1) uniform sampler2DArray TextureArrayNearest;
 layout(binding=2) uniform sampler2DArray TextureArrayLinear;
 
-layout(binding=3, rgba32f) uniform readonly image2D InputImage;
-layout(binding=4, rgba32f) uniform writeonly image2D OutputImage;
+layout(binding=3, rgba32f) uniform image2D SampleAccumulatorImage;
 
 layout(binding=5,  std430) buffer TraceSSBO { trace_buffer  TraceBuffer;  };
 layout(binding=6,  std430) buffer PathSSBO  { path_buffer   PathBuffer;   };

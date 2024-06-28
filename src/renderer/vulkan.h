@@ -70,9 +70,6 @@ struct vulkan_frame_state
 
     vulkan_buffer               FrameUniformBuffer          = {};
 
-    vulkan_image                RenderTarget                = {};
-    vulkan_image                RenderTargetGraphicsCopy    = {};
-
     VkDescriptorSet             PathDescriptorSet           = VK_NULL_HANDLE;
     VkDescriptorSet             TraceDescriptorSet          = VK_NULL_HANDLE;
     VkDescriptorSet             ResolveDescriptorSet        = VK_NULL_HANDLE;
@@ -127,6 +124,8 @@ struct vulkan_context
     VkSampler                   ImageSamplerNearestNoMip    = VK_NULL_HANDLE;
     VkSampler                   ImageSamplerLinear          = VK_NULL_HANDLE;
     VkSampler                   ImageSamplerLinearNoMip     = VK_NULL_HANDLE;
+
+    vulkan_image                SampleAccumulatorImage      = {};
 
     vulkan_image                ImageArray                  = {};
     vulkan_buffer               TextureBuffer               = {};

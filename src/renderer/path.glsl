@@ -84,7 +84,7 @@ vec4 SampleSkyboxRadiance(ray Ray, vec4 Lambda)
 
 void GenerateNewPath(uint Index, ivec2 ImagePosition)
 {
-    ivec2 ImageSize = imageSize(OutputImage);
+    ivec2 ImageSize = imageSize(SampleAccumulatorImage);
 
     // Compute the position of the sample we are going to produce in image
     // coordinates from (0, 0) to (ImageSizeX, ImageSizeY).
@@ -735,7 +735,7 @@ void main()
     if ((RenderFlags & RENDER_FLAG_RESET) != 0) {
         ivec2 ImagePosition = ivec2(gl_GlobalInvocationID.xy);
         GenerateNewPath(Index, ImagePosition);
-        imageStore(OutputImage, ImagePosition, vec4(0.0));
+        imageStore(SampleAccumulatorImage, ImagePosition, vec4(0.0));
         return;
     }
 
@@ -778,12 +778,12 @@ void main()
     if (max4(Path.Weight) < EPSILON) {
         ivec2 ImagePosition = Path.ImagePosition;
 
-        vec4 ImageValue = vec4(0.0);
-        if ((RenderFlags & RENDER_FLAG_ACCUMULATE) != 0)
-            ImageValue = imageLoad(InputImage, ImagePosition);
+        vec4 ImageValue = vec4(Path.Sample, 1.0);
 
-        ImageValue += vec4(Path.Sample, 1.0);
-        imageStore(OutputImage, ImagePosition, ImageValue);
+        if ((RenderFlags & RENDER_FLAG_ACCUMULATE) != 0)
+            ImageValue += imageLoad(SampleAccumulatorImage, ImagePosition);
+
+        imageStore(SampleAccumulatorImage, ImagePosition, ImageValue);
 
         GenerateNewPath(Index, ImagePosition);
     }
