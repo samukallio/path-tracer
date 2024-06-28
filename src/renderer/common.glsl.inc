@@ -664,7 +664,9 @@ struct path_buffer
 
 /* --- Bindings ------------------------------------------------------------ */
 
-layout(binding = 0)
+#ifdef DECLARE_FRAME_UBO_BINDING
+
+layout(binding=0)
 uniform frame_uniform_buffer
 {
     uint                FrameRandomSeed;
@@ -687,25 +689,31 @@ uniform frame_uniform_buffer
     float               ToneMappingWhiteLevel;
 };
 
+#endif
+
+#ifdef DECLARE_SCENE_BINDINGS
+
+layout(set=1, binding=0) uniform SceneUBO { packed_scene_globals Scene; };
+
+layout(set=1, binding=1) uniform sampler2DArray TextureArrayNearest;
+layout(set=1, binding=2) uniform sampler2DArray TextureArrayLinear;
+
+layout(set=1, binding=3, std430) readonly buffer TextureSSBO       { packed_texture         Textures[];       };
+layout(set=1, binding=4, std430) readonly buffer MaterialSSBO      { packed_material        Materials[];      };
+layout(set=1, binding=5, std430) readonly buffer ShapeSSBO         { packed_shape           Shapes[];         };
+layout(set=1, binding=6, std430) readonly buffer ShapeNodeSSBO     { packed_shape_node      ShapeNodes[];     };
+layout(set=1, binding=7, std430) readonly buffer MeshFaceSSBO      { packed_mesh_face       MeshFaces[];      };
+layout(set=1, binding=8, std430) readonly buffer MeshFaceExtraSSBO { packed_mesh_face_extra MeshFaceExtras[]; };
+layout(set=1, binding=9, std430) readonly buffer MeshNodeSSBO      { packed_mesh_node       MeshNodes[];      };
+
+#endif
+
 #ifdef DECLARE_COMPUTE_BINDINGS
 
-layout(binding=1) uniform SceneUBO { packed_scene_globals Scene; };
+layout(set=0, binding=1, rgba32f) uniform image2D SampleAccumulatorImage;
 
-layout(binding=2) uniform sampler2DArray TextureArrayNearest;
-layout(binding=3) uniform sampler2DArray TextureArrayLinear;
-
-layout(binding=4, rgba32f) uniform image2D SampleAccumulatorImage;
-
-layout(binding=5,  std430) buffer TraceSSBO { trace_buffer  TraceBuffer;  };
-layout(binding=6,  std430) buffer PathSSBO  { path_buffer   PathBuffer;   };
-
-layout(binding=7,  std430) readonly buffer TextureSSBO       { packed_texture         Textures[];       };
-layout(binding=8,  std430) readonly buffer MaterialSSBO      { packed_material        Materials[];      };
-layout(binding=9,  std430) readonly buffer ShapeSSBO         { packed_shape           Shapes[];         };
-layout(binding=10, std430) readonly buffer ShapeNodeSSBO     { packed_shape_node      ShapeNodes[];     };
-layout(binding=11, std430) readonly buffer MeshFaceSSBO      { packed_mesh_face       MeshFaces[];      };
-layout(binding=12, std430) readonly buffer MeshFaceExtraSSBO { packed_mesh_face_extra MeshFaceExtras[]; };
-layout(binding=13, std430) readonly buffer MeshNodeSSBO      { packed_mesh_node       MeshNodes[];      };
+layout(set=0, binding=2,  std430) buffer TraceSSBO { trace_buffer  TraceBuffer;  };
+layout(set=0, binding=3,  std430) buffer PathSSBO  { path_buffer   PathBuffer;   };
 
 ray LoadTraceRay(uint Index)
 {

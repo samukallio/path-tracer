@@ -1,6 +1,8 @@
 #version 450
 
+#define DECLARE_FRAME_UBO_BINDING
 #define DECLARE_COMPUTE_BINDINGS
+#define DECLARE_SCENE_BINDINGS
 #include "common.glsl.inc"
 
 layout(local_size_x=256, local_size_y=1, local_size_z=1) in;

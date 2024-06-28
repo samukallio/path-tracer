@@ -1,32 +1,16 @@
 #version 450
 
-struct packed_texture
-{
-    vec2                AtlasPlacementMinimum;
-    vec2                AtlasPlacementMaximum;
-    uint                AtlasImageIndex;
-    uint                Type;
-    uint                Flags;
-    uint                Dummy2;
-};
+#define DECLARE_SCENE_BINDINGS
+#include "common.glsl.inc"
 
-layout(binding = 0)
+layout(set=0, binding=0)
 uniform imgui_uniform_buffer
 {
     mat4 ProjectionMatrix;
 };
 
-layout(binding = 1)
+layout(set=0, binding=1)
 uniform sampler2D TextureSampler;
-
-layout(binding = 2)
-uniform sampler2DArray TextureArrayNearest;
-
-layout(binding = 3)
-readonly buffer TextureBuffer
-{
-    packed_texture Textures[];
-};
 
 layout(push_constant) uniform push_constants
 {

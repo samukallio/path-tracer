@@ -2,6 +2,7 @@
 
 #version 450
 
+#define DECLARE_FRAME_UBO_BINDING
 #include "common.glsl.inc"
 
 layout(binding = 1) uniform sampler2D SampleAccumulatorImageSampler;

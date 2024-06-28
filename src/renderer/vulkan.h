@@ -35,17 +35,10 @@ struct vulkan_image
     uint32_t                    LayerCount                  = 0;
 };
 
-struct vulkan_descriptor
-{
-    VkDescriptorBufferInfo      Buffer                      = {};
-    VkDescriptorImageInfo       Image                       = {};
-};
-
 struct vulkan_pipeline
 {
     VkPipeline                  Pipeline                    = VK_NULL_HANDLE;
     VkPipelineLayout            PipelineLayout              = VK_NULL_HANDLE;
-    VkDescriptorSetLayout       DescriptorSetLayout         = VK_NULL_HANDLE;
 };
 
 struct vulkan_frame_state
@@ -70,8 +63,7 @@ struct vulkan_frame_state
 
     vulkan_buffer               FrameUniformBuffer          = {};
 
-    VkDescriptorSet             PathDescriptorSet           = VK_NULL_HANDLE;
-    VkDescriptorSet             TraceDescriptorSet          = VK_NULL_HANDLE;
+    VkDescriptorSet             ComputeDescriptorSet        = VK_NULL_HANDLE;
     VkDescriptorSet             ResolveDescriptorSet        = VK_NULL_HANDLE;
 
     vulkan_buffer               ImguiUniformBuffer          = {};
@@ -125,8 +117,6 @@ struct vulkan_context
     VkSampler                   ImageSamplerLinear          = VK_NULL_HANDLE;
     VkSampler                   ImageSamplerLinearNoMip     = VK_NULL_HANDLE;
 
-    vulkan_image                SampleAccumulatorImage      = {};
-
     vulkan_buffer               SceneUniformBuffer          = {};
     vulkan_image                ImageArray                  = {};
     vulkan_buffer               TextureBuffer               = {};
@@ -137,14 +127,22 @@ struct vulkan_context
     vulkan_buffer               MeshFaceExtraBuffer         = {};
     vulkan_buffer               MeshNodeBuffer              = {};
 
-    vulkan_buffer               TraceBuffer                 = {};
     vulkan_buffer               PathBuffer                  = {};
+    vulkan_buffer               TraceBuffer                 = {};
+
+    vulkan_image                SampleAccumulatorImage      = {};
+
+    vulkan_image                ImguiTexture                = {};
+
+    VkDescriptorSetLayout       SceneDescriptorSetLayout    = VK_NULL_HANDLE;
+    VkDescriptorSet             SceneDescriptorSet          = VK_NULL_HANDLE;
+    VkDescriptorSetLayout       ComputeDescriptorSetLayout  = VK_NULL_HANDLE;
+    VkDescriptorSetLayout       ResolveDescriptorSetLayout  = VK_NULL_HANDLE;
+    VkDescriptorSetLayout       ImguiDescriptorSetLayout    = VK_NULL_HANDLE;
 
     vulkan_pipeline             PathPipeline                = {};
     vulkan_pipeline             TracePipeline               = {};
     vulkan_pipeline             ResolvePipeline             = {};
-
-    vulkan_image                ImguiTexture                = {};
     vulkan_pipeline             ImguiPipeline               = {};
 };
 
