@@ -533,7 +533,7 @@ vec3 ObserveParametricSpectrumSRGB(vec3 Beta)
 void AddEmission(inout path Path, vec4 Emission)
 {
     float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
-    Path.Sample += SampleStandardObserverSRGB(Emission) * Path.Throughput / ClusterPDF;
+    Path.Sample += SampleStandardObserverSRGB(Path.Lambda) * (Emission * Path.Throughput) / ClusterPDF;
 }
 
 /* --- Random Number Generator --------------------------------------------- */

@@ -40,6 +40,15 @@ void Frame()
     ImGui::EndFrame();
     ImGui::Render();
 
+    frame_uniform_buffer Uniforms = {
+        .FrameRandomSeed = App.FrameIndex,
+        .SceneScatterRate = App.Scene->Root.ScatterRate,
+        .SkyboxDistributionFrame = App.Scene->SkyboxDistributionFrame,
+        .SkyboxDistributionConcentration = App.Scene->SkyboxDistributionConcentration,
+        .SkyboxBrightness = App.Scene->Root.SkyboxBrightness,
+        .SkyboxTextureIndex = GetPackedTextureIndex(App.Scene->Root.SkyboxTexture),
+    };
+
     // Handle camera movement.
     {
         bool IsEditing = !App.Camera;
@@ -84,16 +93,11 @@ void Frame()
             App.EditorCamera.Position = App.Camera->Transform.Position;
             App.EditorCamera.Rotation = App.Camera->Transform.Rotation;
         }
-    }
 
-    frame_uniform_buffer Uniforms = {
-        .FrameRandomSeed = App.FrameIndex,
-        .SceneScatterRate = App.Scene->Root.ScatterRate,
-        .SkyboxDistributionFrame = App.Scene->SkyboxDistributionFrame,
-        .SkyboxDistributionConcentration = App.Scene->SkyboxDistributionConcentration,
-        .SkyboxBrightness = App.Scene->Root.SkyboxBrightness,
-        .SkyboxTextureIndex = GetPackedTextureIndex(App.Scene->Root.SkyboxTexture),
-    };
+        if (WasMoved) {
+            Uniforms.RenderFlags |= RENDER_FLAG_RESET;
+        }
+    }
 
     if (!App.Camera) {
         editor_camera& Camera = App.EditorCamera;
@@ -141,7 +145,8 @@ void Frame()
             .To = WorldMatrix,
             .From = ViewMatrix,
         };
-        Uniforms.RenderFlags = 0;
+        Uniforms.RenderFlags |= RENDER_FLAG_ACCUMULATE;
+        Uniforms.RenderFlags |= RENDER_FLAG_SAMPLE_JITTER;
 
         Uniforms.RenderBounceLimit = 0;
         Uniforms.Brightness = 1.0f;
@@ -183,7 +188,7 @@ void Frame()
             .To = WorldMatrix,
             .From = ViewMatrix,
         };
-        Uniforms.SelectedShapeIndex         = SHAPE_INDEX_NONE;
+        Uniforms.SelectedShapeIndex           = SHAPE_INDEX_NONE;
         Uniforms.RenderFlags                  = RENDER_FLAG_SAMPLE_JITTER;
         Uniforms.RenderSampleBlockSize        = 1u << Camera->RenderSampleBlockSizeLog2;
         Uniforms.RenderBounceLimit            = Camera->RenderBounceLimit;
@@ -195,8 +200,10 @@ void Frame()
         Uniforms.ToneMappingWhiteLevel        = Camera->ToneMappingWhiteLevel;
         Uniforms.RenderFlags                  = Camera->RenderFlags;
 
-        if (App.Scene->DirtyFlags != 0)
+        if (App.Scene->DirtyFlags != 0) {
             Uniforms.RenderFlags &= ~RENDER_FLAG_ACCUMULATE;
+            Uniforms.RenderFlags |= RENDER_FLAG_RESET;
+        }
     }
 
     uint DirtyFlags = PackSceneData(App.Scene);
@@ -205,6 +212,8 @@ void Frame()
     Uniforms.ShapeCount = static_cast<uint>(App.Scene->ShapePack.size());
 
     RenderFrame(App.Vulkan, &Uniforms, ImGui::GetDrawData());
+
+    Uniforms.RenderFlags &= ~RENDER_FLAG_RESET;
 }
 
 static void MouseButtonInputCallback(GLFWwindow* Window, int Button, int Action, int Mods)

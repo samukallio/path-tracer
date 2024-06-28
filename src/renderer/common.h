@@ -169,12 +169,6 @@ struct alignas(16) packed_mesh_node
     uint                FaceEndIndex;
 };
 
-struct alignas(16) packed_ray
-{
-    vec4                Origin;
-    vec4                Vector;
-};
-
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
 struct frame_uniform_buffer

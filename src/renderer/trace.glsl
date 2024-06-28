@@ -347,6 +347,12 @@ hit Trace(ray Ray)
 
 void main()
 {
+    // Initialize random number generator.
+    RandomState
+        = gl_GlobalInvocationID.y * 65537
+        + gl_GlobalInvocationID.x
+        + FrameRandomSeed * 277803737u;
+
     uint Index = gl_GlobalInvocationID.x;
 
     //if (Index >= Rays.Count) return;

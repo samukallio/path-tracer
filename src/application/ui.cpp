@@ -230,6 +230,8 @@ static void CameraInspector(application* App, camera* Camera)
         if (Active) App->Camera = Camera;
     }
 
+    if (C) App->Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
+
     ImGui::Spacing();
     ImGui::SeparatorText("Rendering");
 
