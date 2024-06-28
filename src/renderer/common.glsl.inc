@@ -20,7 +20,6 @@ const uint RENDER_MODE_SCENE_COMPLEXITY     = 7;
 
 const uint RENDER_FLAG_ACCUMULATE           = 1 << 0;
 const uint RENDER_FLAG_SAMPLE_JITTER        = 1 << 1;
-const uint RENDER_FLAG_RESET                = 1 << 2;
 
 const uint TONE_MAPPING_MODE_CLAMP          = 0;
 const uint TONE_MAPPING_MODE_REINHARD       = 1;
@@ -717,6 +716,7 @@ layout(set=0, binding=3,  std430) buffer PathSSBO  { path_buffer   PathBuffer;  
 layout(push_constant) uniform ComputePushConstantBuffer
 {
     uint RandomSeed;
+    uint Restart;
 };
 
 ray LoadTraceRay(uint Index)

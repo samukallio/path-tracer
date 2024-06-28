@@ -22,7 +22,6 @@ enum render_flag : uint
 {
     RENDER_FLAG_ACCUMULATE              = 1 << 0,
     RENDER_FLAG_SAMPLE_JITTER           = 1 << 1,
-    RENDER_FLAG_RESET                   = 1 << 2,
 };
 
 enum tone_mapping_mode : int32_t

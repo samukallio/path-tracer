@@ -56,6 +56,7 @@ struct imgui_push_constant_buffer
 struct compute_push_constant_buffer
 {
     uint RandomSeed;
+    uint Restart;
 };
 
 static void Errorf(vulkan_context* Vk, char const* Fmt, ...)
@@ -2422,9 +2423,132 @@ VkResult UploadScene(
     return Result;
 }
 
+static void InternalDispatchTrace(
+    vulkan_context*     Vulkan,
+    vulkan_frame_state* Frame,
+    uint32_t            RandomSeed)
+{
+    vkCmdBindPipeline(
+        Frame->ComputeCommandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        Vulkan->TracePipeline.Pipeline);
+
+    VkDescriptorSet DescriptorSets[] = {
+        Frame->ComputeDescriptorSet,
+        Vulkan->SceneDescriptorSet,
+    };
+
+    vkCmdBindDescriptorSets(
+        Frame->ComputeCommandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        Vulkan->TracePipeline.PipelineLayout,
+        0, 2, DescriptorSets,
+        0, nullptr);
+
+    auto PushConstantBuffer = compute_push_constant_buffer {
+        .RandomSeed = RandomSeed,
+        .Restart    = 0u,
+    };
+
+    vkCmdPushConstants(
+        Frame->ComputeCommandBuffer,
+        Vulkan->TracePipeline.PipelineLayout,
+        VK_SHADER_STAGE_COMPUTE_BIT,
+        0, sizeof(compute_push_constant_buffer), &PushConstantBuffer);
+
+    //uint32_t GroupPixelSize = 16 * Uniforms->RenderSampleBlockSize;
+    //uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
+    //uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
+    //vkCmdDispatch(Frame->TraceCommandBuffer, GroupCountX, GroupCountY, 1);
+    vkCmdDispatch(Frame->ComputeCommandBuffer, 2048*1024 / 256, 1, 1);
+
+    // Trace buffer barrier between tracing and path evaluation.
+    auto TraceBufferBarrier = VkBufferMemoryBarrier {
+        .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask       = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .buffer              = Vulkan->TraceBuffer.Buffer,
+        .offset              = 0,
+        .size                = Vulkan->TraceBuffer.Size,
+    };
+
+    vkCmdPipelineBarrier(Frame->ComputeCommandBuffer,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        0,
+        0, nullptr,
+        1, &TraceBufferBarrier,
+        0, nullptr);
+}
+
+static void InternalDispatchPath(
+    vulkan_context*     Vulkan,
+    vulkan_frame_state* Frame,
+    uint32_t            RandomSeed,
+    bool                Restart)
+{
+    vkCmdBindPipeline(
+        Frame->ComputeCommandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        Vulkan->PathPipeline.Pipeline);
+
+    VkDescriptorSet DescriptorSets[] = {
+        Frame->ComputeDescriptorSet,
+        Vulkan->SceneDescriptorSet,
+    };
+
+    vkCmdBindDescriptorSets(
+        Frame->ComputeCommandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        Vulkan->PathPipeline.PipelineLayout,
+        0, 2, DescriptorSets,
+        0, nullptr);
+
+    auto PushConstantBuffer = compute_push_constant_buffer {
+        .RandomSeed = RandomSeed++,
+        .Restart    = Restart ? 1u : 0u,
+    };
+
+    vkCmdPushConstants(
+        Frame->ComputeCommandBuffer,
+        Vulkan->PathPipeline.PipelineLayout,
+        VK_SHADER_STAGE_COMPUTE_BIT,
+        0, sizeof(compute_push_constant_buffer), &PushConstantBuffer);
+
+    uint32_t GroupPixelSize = 16; //Uniforms->RenderSampleBlockSize;
+    uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
+    uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
+    vkCmdDispatch(Frame->ComputeCommandBuffer, GroupCountX, GroupCountY, 1);
+
+    // Trace buffer barrier between tracing and path evaluation.
+    auto TraceBufferBarrier = VkBufferMemoryBarrier {
+        .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask       = VK_ACCESS_SHADER_WRITE_BIT,
+        .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .buffer              = Vulkan->TraceBuffer.Buffer,
+        .offset              = 0,
+        .size                = Vulkan->TraceBuffer.Size,
+    };
+
+    vkCmdPipelineBarrier(Frame->ComputeCommandBuffer,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+        0,
+        0, nullptr,
+        1, &TraceBufferBarrier,
+        0, nullptr);
+
+    Restart = false;
+}
+
 VkResult RenderFrame(
     vulkan_context*       Vulkan,
     frame_uniform_buffer* Uniforms,
+    bool                  Restart,
     ImDrawData*           ImguiDrawData)
 {
     VkResult Result = VK_SUCCESS;
@@ -2433,6 +2557,9 @@ VkResult RenderFrame(
     vulkan_frame_state* Frame = &Vulkan->FrameStates[(Vulkan->FrameIndex + 1) % 2];
 
     Vulkan->FrameIndex++;
+
+    if (Frame0->Fresh)
+        Restart = true;
 
     uint32_t RandomSeed = Vulkan->FrameIndex * 65537;
 
@@ -2458,14 +2585,10 @@ VkResult RenderFrame(
     // Reset the fence to indicate that the frame state is no longer available.
     vkResetFences(Vulkan->Device, 1, &Frame->AvailableFence);
 
-    if (Frame0->Fresh)
-        Uniforms->RenderFlags |= RENDER_FLAG_RESET;
-
     InternalWriteToHostVisibleBuffer(Vulkan, &Frame->FrameUniformBuffer, Uniforms, sizeof(frame_uniform_buffer));
 
     // --- Compute ------------------------------------------------------------
 
-    // Start compute command buffer.
     {
         vkResetCommandBuffer(Frame->ComputeCommandBuffer, 0);
         auto ComputeBeginInfo = VkCommandBufferBeginInfo {
@@ -2478,132 +2601,49 @@ VkResult RenderFrame(
             Errorf(Vulkan, "failed to begin recording compute command buffer");
             return Result;
         }
-    }
 
-    // Dispatch path evaluation tasks.
-    {
-        vkCmdBindPipeline(
-            Frame->ComputeCommandBuffer,
-            VK_PIPELINE_BIND_POINT_COMPUTE,
-            Vulkan->PathPipeline.Pipeline);
+        if (Restart) {
+            // Restarting the render, so prime the ray buffer by running one path pass.
+            InternalDispatchPath(Vulkan, Frame, RandomSeed++, true);
+        }
 
-        VkDescriptorSet DescriptorSets[] = {
-            Frame->ComputeDescriptorSet,
-            Vulkan->SceneDescriptorSet,
+        for (int Round = 0; Round < 2; Round++) {
+            InternalDispatchTrace(Vulkan, Frame, RandomSeed++);
+            InternalDispatchPath(Vulkan, Frame, RandomSeed++, false);
+        }
+
+        // End compute command buffer.
+        Result = vkEndCommandBuffer(Frame->ComputeCommandBuffer);
+        if (Result != VK_SUCCESS) {
+            Errorf(Vulkan, "failed to end recording compute command buffer");
+            return Result;
+        }
+
+        VkSemaphore ComputeSignalSemaphores[] = {
+            Frame->ComputeToComputeSemaphore,
+            Frame->ComputeToGraphicsSemaphore,
         };
 
-        vkCmdBindDescriptorSets(
-            Frame->ComputeCommandBuffer,
-            VK_PIPELINE_BIND_POINT_COMPUTE,
-            Vulkan->PathPipeline.PipelineLayout,
-            0, 2, DescriptorSets,
-            0, nullptr);
-
-        auto PushConstantBuffer = compute_push_constant_buffer {
-            .RandomSeed = RandomSeed++,
-        };
-
-        vkCmdPushConstants(
-            Frame->ComputeCommandBuffer,
-            Vulkan->PathPipeline.PipelineLayout,
-            VK_SHADER_STAGE_COMPUTE_BIT,
-            0, sizeof(compute_push_constant_buffer), &PushConstantBuffer);
-
-        uint32_t GroupPixelSize = 16 * Uniforms->RenderSampleBlockSize;
-        uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
-        uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
-        vkCmdDispatch(Frame->ComputeCommandBuffer, GroupCountX, GroupCountY, 1);
-    }
-
-    // Trace buffer barrier between path evaluation and tracing.
-    {
-        auto TraceBufferBarrier = VkBufferMemoryBarrier {
-            .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-            .srcAccessMask       = VK_ACCESS_SHADER_WRITE_BIT,
-            .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .buffer              = Vulkan->TraceBuffer.Buffer,
-            .offset              = 0,
-            .size                = Vulkan->TraceBuffer.Size,
-        };
-
-        vkCmdPipelineBarrier(Frame->ComputeCommandBuffer,
+        VkPipelineStageFlags ComputeWaitStages[] = {
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            0,
-            0, nullptr,
-            1, &TraceBufferBarrier,
-            0, nullptr);
-    }
-
-    // Dispatch ray tracing tasks.
-    {
-        vkCmdBindPipeline(
-            Frame->ComputeCommandBuffer,
-            VK_PIPELINE_BIND_POINT_COMPUTE,
-            Vulkan->TracePipeline.Pipeline);
-
-        VkDescriptorSet DescriptorSets[] = {
-            Frame->ComputeDescriptorSet,
-            Vulkan->SceneDescriptorSet,
         };
 
-        vkCmdBindDescriptorSets(
-            Frame->ComputeCommandBuffer,
-            VK_PIPELINE_BIND_POINT_COMPUTE,
-            Vulkan->TracePipeline.PipelineLayout,
-            0, 2, DescriptorSets,
-            0, nullptr);
-
-        auto PushConstantBuffer = compute_push_constant_buffer {
-            .RandomSeed = RandomSeed++,
+        auto ComputeSubmitInfo = VkSubmitInfo {
+            .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .waitSemaphoreCount   = Frame0->Fresh ? 0u : 1u,
+            .pWaitSemaphores      = &Frame0->ComputeToComputeSemaphore,
+            .pWaitDstStageMask    = ComputeWaitStages,
+            .commandBufferCount   = 1,
+            .pCommandBuffers      = &Frame->ComputeCommandBuffer,
+            .signalSemaphoreCount = static_cast<uint32_t>(std::size(ComputeSignalSemaphores)),
+            .pSignalSemaphores    = ComputeSignalSemaphores,
         };
 
-        vkCmdPushConstants(
-            Frame->ComputeCommandBuffer,
-            Vulkan->TracePipeline.PipelineLayout,
-            VK_SHADER_STAGE_COMPUTE_BIT,
-            0, sizeof(compute_push_constant_buffer), &PushConstantBuffer);
-
-        //uint32_t GroupPixelSize = 16 * Uniforms->RenderSampleBlockSize;
-        //uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
-        //uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
-        //vkCmdDispatch(Frame->TraceCommandBuffer, GroupCountX, GroupCountY, 1);
-        vkCmdDispatch(Frame->ComputeCommandBuffer, 2048*1024 / 256, 1, 1);
-    }
-
-    // End compute command buffer.
-    Result = vkEndCommandBuffer(Frame->ComputeCommandBuffer);
-    if (Result != VK_SUCCESS) {
-        Errorf(Vulkan, "failed to end recording compute command buffer");
-        return Result;
-    }
-
-    VkSemaphore ComputeSignalSemaphores[] = {
-        Frame->ComputeToComputeSemaphore,
-        Frame->ComputeToGraphicsSemaphore,
-    };
-
-    VkPipelineStageFlags ComputeWaitStages[] = {
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-    };
-
-    auto ComputeSubmitInfo = VkSubmitInfo {
-        .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .waitSemaphoreCount   = Frame0->Fresh ? 0u : 1u,
-        .pWaitSemaphores      = &Frame0->ComputeToComputeSemaphore,
-        .pWaitDstStageMask    = ComputeWaitStages,
-        .commandBufferCount   = 1,
-        .pCommandBuffers      = &Frame->ComputeCommandBuffer,
-        .signalSemaphoreCount = static_cast<uint32_t>(std::size(ComputeSignalSemaphores)),
-        .pSignalSemaphores    = ComputeSignalSemaphores,
-    };
-
-    Result = vkQueueSubmit(Vulkan->ComputeQueue, 1, &ComputeSubmitInfo, nullptr);
-    if (Result != VK_SUCCESS) {
-        Errorf(Vulkan, "failed to submit compute command buffer");
-        return Result;
+        Result = vkQueueSubmit(Vulkan->ComputeQueue, 1, &ComputeSubmitInfo, nullptr);
+        if (Result != VK_SUCCESS) {
+            Errorf(Vulkan, "failed to submit compute command buffer");
+            return Result;
+        }
     }
 
     // --- Upload ImGui draw data ---------------------------------------------

@@ -42,6 +42,8 @@ void Frame()
 
     frame_uniform_buffer Uniforms = {};
 
+    bool Restart = false;
+
     // Handle camera movement.
     {
         bool IsEditing = !App.Camera;
@@ -88,7 +90,7 @@ void Frame()
         }
 
         if (WasMoved) {
-            Uniforms.RenderFlags |= RENDER_FLAG_RESET;
+            Restart = true;
         }
     }
 
@@ -193,18 +195,14 @@ void Frame()
         Uniforms.ToneMappingWhiteLevel        = Camera->ToneMappingWhiteLevel;
         Uniforms.RenderFlags                  = Camera->RenderFlags;
 
-        if (App.Scene->DirtyFlags != 0) {
-            Uniforms.RenderFlags &= ~RENDER_FLAG_ACCUMULATE;
-            Uniforms.RenderFlags |= RENDER_FLAG_RESET;
-        }
+        if (App.Scene->DirtyFlags != 0)
+            Restart = true;
     }
 
     uint DirtyFlags = PackSceneData(App.Scene);
     UploadScene(App.Vulkan, App.Scene, DirtyFlags);
 
-    RenderFrame(App.Vulkan, &Uniforms, ImGui::GetDrawData());
-
-    Uniforms.RenderFlags &= ~RENDER_FLAG_RESET;
+    RenderFrame(App.Vulkan, &Uniforms, Restart, ImGui::GetDrawData());
 }
 
 static void MouseButtonInputCallback(GLFWwindow* Window, int Button, int Action, int Mods)

@@ -738,7 +738,7 @@ void main()
         + gl_LocalInvocationID.y * 16
         + gl_LocalInvocationID.x;
 
-    if ((RenderFlags & RENDER_FLAG_RESET) != 0) {
+    if (Restart != 0) {
         ivec2 ImagePosition = ivec2(gl_GlobalInvocationID.xy);
         GenerateNewPath(Index, ImagePosition);
         imageStore(SampleAccumulatorImage, ImagePosition, vec4(0.0));

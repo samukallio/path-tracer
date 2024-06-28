@@ -161,4 +161,5 @@ VkResult UploadScene(
 VkResult RenderFrame(
     vulkan_context* Vulkan,
     frame_uniform_buffer* Parameters,
+    bool Restart,
     ImDrawData* ImguiDrawData);
