@@ -42,11 +42,6 @@ void Frame()
 
     frame_uniform_buffer Uniforms = {
         .FrameRandomSeed = App.FrameIndex,
-        .SceneScatterRate = App.Scene->Root.ScatterRate,
-        .SkyboxDistributionFrame = App.Scene->SkyboxDistributionFrame,
-        .SkyboxDistributionConcentration = App.Scene->SkyboxDistributionConcentration,
-        .SkyboxBrightness = App.Scene->Root.SkyboxBrightness,
-        .SkyboxTextureIndex = GetPackedTextureIndex(App.Scene->Root.SkyboxTexture),
     };
 
     // Handle camera movement.
@@ -208,8 +203,6 @@ void Frame()
 
     uint DirtyFlags = PackSceneData(App.Scene);
     UploadScene(App.Vulkan, App.Scene, DirtyFlags);
-
-    Uniforms.ShapeCount = static_cast<uint>(App.Scene->ShapePack.size());
 
     RenderFrame(App.Vulkan, &Uniforms, ImGui::GetDrawData());
 

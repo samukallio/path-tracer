@@ -127,6 +127,7 @@ struct vulkan_context
 
     vulkan_image                SampleAccumulatorImage      = {};
 
+    vulkan_buffer               SceneUniformBuffer          = {};
     vulkan_image                ImageArray                  = {};
     vulkan_buffer               TextureBuffer               = {};
     vulkan_buffer               MaterialBuffer              = {};

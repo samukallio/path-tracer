@@ -871,6 +871,12 @@ static VkResult InternalCreateFrameResources(
             .range  = Frame->FrameUniformBuffer.Size,
         };
 
+        auto SceneUniformBufferInfo = VkDescriptorBufferInfo {
+            .buffer = Vulkan->SceneUniformBuffer.Buffer,
+            .offset = 0,
+            .range  = Vulkan->SceneUniformBuffer.Size,
+        };
+
         auto TraceBufferInfo = VkDescriptorBufferInfo {
             .buffer     = Vulkan->TraceBuffer.Buffer,
             .offset     = 0,
@@ -900,7 +906,15 @@ static VkResult InternalCreateFrameResources(
             },
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstBinding      = 3,
+                .dstBinding      = 1,
+                .dstArrayElement = 0,
+                .descriptorCount = 1,
+                .descriptorType  = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .pBufferInfo     = &SceneUniformBufferInfo,
+            },
+            {
+                .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
+                .dstBinding      = 4,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -1915,6 +1929,14 @@ static VkResult InternalCreateVulkan(
             true);
     }
 
+    {
+        InternalCreateBuffer(Vulkan,
+            &Vulkan->SceneUniformBuffer,
+            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            sizeof(packed_scene_globals));
+    }
+
     // Create ImGui resources.
     {
         ImGuiIO& IO = ImGui::GetIO();
@@ -2000,10 +2022,10 @@ static VkResult InternalCreateVulkan(
 
     auto ComputeDescriptorTypes = vulkan_compute_pipeline_configuration::descriptor_types{
         VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,          // FrameUniformBuffer
+        VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,          // SceneUniformBuffer
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,  // TextureArrayNearest
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,  // TextureArrayLinear
-        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,           // InputImage
-        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,           // OutputImage
+        VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,           // SampleAccumulatorImage
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // TraceSSBO
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // PathSSBO
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // TextureSSBO
@@ -2253,7 +2275,7 @@ static void InternalUpdateSceneDataDescriptors(
         VkWriteDescriptorSet ComputeWrites[] = {
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstBinding      = 1,
+                .dstBinding      = 2,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -2261,7 +2283,7 @@ static void InternalUpdateSceneDataDescriptors(
             },
             {
                 .sType           = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET,
-                .dstBinding      = 2,
+                .dstBinding      = 3,
                 .dstArrayElement = 0,
                 .descriptorCount = 1,
                 .descriptorType  = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
@@ -2381,6 +2403,10 @@ VkResult UploadScene(
     vulkan_buffer MeshFaceBufferOld = {};
     vulkan_buffer MeshFaceExtraBufferOld = {};
     vulkan_buffer MeshNodeBufferOld = {};
+
+    if (DirtyFlags & SCENE_DIRTY_GLOBALS) {
+        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->SceneUniformBuffer, &Scene->Globals, sizeof(packed_scene_globals));
+    }
 
     if (DirtyFlags & SCENE_DIRTY_TEXTURES) {
         ImageArrayOld = Vulkan->ImageArray;

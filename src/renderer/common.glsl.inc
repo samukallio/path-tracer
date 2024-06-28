@@ -131,6 +131,16 @@ struct packed_mesh_node
     uint                FaceEndIndex;
 };
 
+struct packed_scene_globals
+{
+    mat3                SkyboxDistributionFrame;
+    float               SkyboxDistributionConcentration;
+    float               SkyboxBrightness;
+    uint                SkyboxTextureIndex;
+    uint                ShapeCount;
+    float               SceneScatterRate;
+};
+
 struct ray
 {
     vec3                Origin;
@@ -658,8 +668,6 @@ layout(binding = 0)
 uniform frame_uniform_buffer
 {
     uint                FrameRandomSeed;
-    uint                ShapeCount;
-    float               SceneScatterRate;
     uint                CameraModel;
     float               CameraFocalLength;
     float               CameraApertureRadius;
@@ -677,18 +685,16 @@ uniform frame_uniform_buffer
     float               Brightness;
     uint                ToneMappingMode;
     float               ToneMappingWhiteLevel;
-    mat3                SkyboxDistributionFrame;
-    float               SkyboxDistributionConcentration;
-    float               SkyboxBrightness;
-    uint                SkyboxTextureIndex;
 };
 
 #ifdef DECLARE_COMPUTE_BINDINGS
 
-layout(binding=1) uniform sampler2DArray TextureArrayNearest;
-layout(binding=2) uniform sampler2DArray TextureArrayLinear;
+layout(binding=1) uniform SceneUBO { packed_scene_globals Scene; };
 
-layout(binding=3, rgba32f) uniform image2D SampleAccumulatorImage;
+layout(binding=2) uniform sampler2DArray TextureArrayNearest;
+layout(binding=3) uniform sampler2DArray TextureArrayLinear;
+
+layout(binding=4, rgba32f) uniform image2D SampleAccumulatorImage;
 
 layout(binding=5,  std430) buffer TraceSSBO { trace_buffer  TraceBuffer;  };
 layout(binding=6,  std430) buffer PathSSBO  { path_buffer   PathBuffer;   };

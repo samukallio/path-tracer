@@ -1391,7 +1391,22 @@ uint32_t PackSceneData(scene* Scene)
             Scene->ShapeNodePack.pop_back();
         }
 
+        // To update the ShapeCount.
+        DirtyFlags |= SCENE_DIRTY_GLOBALS;
+
         //PrintShapeNode(scene, 0, 0);
+    }
+
+    // Pack scene global data.
+    if (DirtyFlags & SCENE_DIRTY_GLOBALS) {
+        packed_scene_globals* G = &Scene->Globals;
+
+        G->SkyboxDistributionFrame = Scene->SkyboxDistributionFrame;
+        G->SkyboxDistributionConcentration = Scene->SkyboxDistributionConcentration;
+        G->SkyboxBrightness = Scene->Root.SkyboxBrightness;
+        G->SkyboxTextureIndex = GetPackedTextureIndex(Scene->Root.SkyboxTexture);
+        G->SceneScatterRate = Scene->Root.ScatterRate;
+        G->ShapeCount = static_cast<uint>(Scene->ShapePack.size());
     }
 
     Scene->DirtyFlags = 0;

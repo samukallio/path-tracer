@@ -15,7 +15,7 @@ layout(local_size_x=16, local_size_y=16, local_size_z=1) in;
 // density difficult.
 vec3 RandomHemisphereSkyboxDirection(vec3 Normal)
 {
-    vec3 Direction = SkyboxDistributionFrame * RandomVonMisesFisher(SkyboxDistributionConcentration);
+    vec3 Direction = Scene.SkyboxDistributionFrame * RandomVonMisesFisher(Scene.SkyboxDistributionConcentration);
     return dot(Direction, Normal) < 0 ? -Direction : Direction;
 }
 
@@ -23,8 +23,8 @@ vec3 RandomHemisphereSkyboxDirection(vec3 Normal)
 // RandomHemisphereSkyboxDirection function.
 float HemisphereSkyboxDirectionPDF(vec3 Direction)
 {
-    float Kappa = SkyboxDistributionConcentration;
-    vec3 Mu = SkyboxDistributionFrame[2];
+    float Kappa = Scene.SkyboxDistributionConcentration;
+    vec3 Mu = Scene.SkyboxDistributionFrame[2];
 
     // The probability density is the sum of the von Mises-Fisher densities
     // of the given direction and its opposite, since both map to the same
@@ -64,7 +64,7 @@ vec4 SampleSkyboxSpectrum(ray Ray)
 //    float z = (1 + dot(Ray.Vector, frame[2])) / 2.0;
 //    return vec3(x, y, z);
 
-    if (SkyboxTextureIndex == TEXTURE_INDEX_NONE)
+    if (Scene.SkyboxTextureIndex == TEXTURE_INDEX_NONE)
         return vec4(0, 0, 100, 1);
 
     float Phi = atan(Ray.Vector.y, Ray.Vector.x);
@@ -73,13 +73,13 @@ vec4 SampleSkyboxSpectrum(ray Ray)
     float U = 0.5 + Phi / TAU;
     float V = 0.5 + Theta / PI;
 
-    return SampleTexture(SkyboxTextureIndex, vec2(U, V));
+    return SampleTexture(Scene.SkyboxTextureIndex, vec2(U, V));
 }
 
 vec4 SampleSkyboxRadiance(ray Ray, vec4 Lambda)
 {
     vec4 Spectrum = SampleSkyboxSpectrum(Ray);
-    return SampleParametricSpectrum(Spectrum, Lambda) * SkyboxBrightness;
+    return SampleParametricSpectrum(Spectrum, Lambda) * Scene.SkyboxBrightness;
 }
 
 void GenerateNewPath(uint Index, ivec2 ImagePosition)
@@ -633,6 +633,7 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
     surface Surface;
     medium Interior;
     ResolveSurfaceHit(Hit, Path.Lambda, ExteriorIOR, Surface, Interior);
+
 
     // Pass through the surface if embedded in a higher-priority
     // medium, or probabilistically based on geometric opacity.
