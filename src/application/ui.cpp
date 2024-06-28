@@ -463,6 +463,19 @@ static void EntityTreeNode(application* App, entity* Entity, bool PrefabMode=fal
                     App->SelectedEntity = Child;
                 }
             }
+            if (!App->Scene->Prefabs.empty()) {
+                if (ImGui::BeginMenu("Create Prefab Instance")) {
+                    for (prefab* Prefab : App->Scene->Prefabs) {
+                        if (ImGui::MenuItem(Prefab->Entity->Name.c_str())) {
+                            auto Child = CreateEntity(App->Scene, Prefab, Entity);
+                            App->Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
+                            App->SelectionType = SELECTION_TYPE_ENTITY;
+                            App->SelectedEntity = Child;
+                        }
+                    }
+                    ImGui::EndMenu();
+                }
+            }
             if (Entity->Type != ENTITY_TYPE_ROOT) {
                 if (ImGui::MenuItem("Delete"))
                     IsDestroyed = true;
