@@ -669,7 +669,6 @@ struct path_buffer
 layout(binding=0)
 uniform frame_uniform_buffer
 {
-    uint                FrameRandomSeed;
     uint                CameraModel;
     float               CameraFocalLength;
     float               CameraApertureRadius;
@@ -714,6 +713,11 @@ layout(set=0, binding=1, rgba32f) uniform image2D SampleAccumulatorImage;
 
 layout(set=0, binding=2,  std430) buffer TraceSSBO { trace_buffer  TraceBuffer;  };
 layout(set=0, binding=3,  std430) buffer PathSSBO  { path_buffer   PathBuffer;   };
+
+layout(push_constant) uniform ComputePushConstantBuffer
+{
+    uint RandomSeed;
+};
 
 ray LoadTraceRay(uint Index)
 {

@@ -183,7 +183,6 @@ struct alignas(16) packed_scene_globals
 // and must follow std430 layout rules.
 struct frame_uniform_buffer
 {
-    uint                FrameRandomSeed                 = 0;
     camera_model        CameraModel                     = CAMERA_MODEL_THIN_LENS;
     float               CameraFocalLength               = 0.020f;
     float               CameraApertureRadius            = 0.040f;

@@ -53,6 +53,11 @@ struct imgui_push_constant_buffer
     uint TextureID;
 };
 
+struct compute_push_constant_buffer
+{
+    uint RandomSeed;
+};
+
 static void Errorf(vulkan_context* Vk, char const* Fmt, ...)
 {
     va_list Args;
@@ -1295,6 +1300,7 @@ struct vulkan_compute_pipeline_configuration
 
     std::span<uint32_t const>   ComputeShaderCode           = {};
     descriptor_set_layouts      DescriptorSetLayouts        = {};
+    uint32_t                    PushConstantBufferSize      = 0;
 };
 
 static VkResult InternalCreateComputePipeline(
@@ -1327,10 +1333,17 @@ static VkResult InternalCreateComputePipeline(
     };
 
     // Create pipeline layout.
+    auto PushConstantRange = VkPushConstantRange {
+        .stageFlags = VK_SHADER_STAGE_COMPUTE_BIT,
+        .offset = 0,
+        .size = Config.PushConstantBufferSize,
+    };
     auto ComputePipelineLayoutInfo = VkPipelineLayoutCreateInfo {
-        .sType          = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = static_cast<uint32_t>(Config.DescriptorSetLayouts.size()),
-        .pSetLayouts    = Config.DescriptorSetLayouts.data(),
+        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+        .setLayoutCount         = static_cast<uint32_t>(Config.DescriptorSetLayouts.size()),
+        .pSetLayouts            = Config.DescriptorSetLayouts.data(),
+        .pushConstantRangeCount = Config.PushConstantBufferSize > 0 ? 1u : 0u,
+        .pPushConstantRanges    = &PushConstantRange,
     };
 
     Result = vkCreatePipelineLayout(Vulkan->Device, &ComputePipelineLayoutInfo, nullptr, &Pipeline->PipelineLayout);
@@ -1983,6 +1996,7 @@ static VkResult InternalCreateVulkan(
                 Vulkan->ComputeDescriptorSetLayout,
                 Vulkan->SceneDescriptorSetLayout,
             },
+            .PushConstantBufferSize = sizeof(compute_push_constant_buffer),
         };
 
         Result = InternalCreateComputePipeline(Vulkan, &Vulkan->PathPipeline, PathConfig);
@@ -1994,6 +2008,7 @@ static VkResult InternalCreateVulkan(
                 Vulkan->ComputeDescriptorSetLayout,
                 Vulkan->SceneDescriptorSetLayout,
             },
+            .PushConstantBufferSize = sizeof(compute_push_constant_buffer),
         };
 
         Result = InternalCreateComputePipeline(Vulkan, &Vulkan->TracePipeline, TraceConfig);
@@ -2419,6 +2434,8 @@ VkResult RenderFrame(
 
     Vulkan->FrameIndex++;
 
+    uint32_t RandomSeed = Vulkan->FrameIndex * 65537;
+
     // Wait for the previous commands using this frame state to finish executing.
     vkWaitForFences(Vulkan->Device, 1, &Frame->AvailableFence, VK_TRUE, UINT64_MAX);
 
@@ -2482,6 +2499,16 @@ VkResult RenderFrame(
             0, 2, DescriptorSets,
             0, nullptr);
 
+        auto PushConstantBuffer = compute_push_constant_buffer {
+            .RandomSeed = RandomSeed++,
+        };
+
+        vkCmdPushConstants(
+            Frame->ComputeCommandBuffer,
+            Vulkan->PathPipeline.PipelineLayout,
+            VK_SHADER_STAGE_COMPUTE_BIT,
+            0, sizeof(compute_push_constant_buffer), &PushConstantBuffer);
+
         uint32_t GroupPixelSize = 16 * Uniforms->RenderSampleBlockSize;
         uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
         uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
@@ -2528,6 +2555,16 @@ VkResult RenderFrame(
             Vulkan->TracePipeline.PipelineLayout,
             0, 2, DescriptorSets,
             0, nullptr);
+
+        auto PushConstantBuffer = compute_push_constant_buffer {
+            .RandomSeed = RandomSeed++,
+        };
+
+        vkCmdPushConstants(
+            Frame->ComputeCommandBuffer,
+            Vulkan->TracePipeline.PipelineLayout,
+            VK_SHADER_STAGE_COMPUTE_BIT,
+            0, sizeof(compute_push_constant_buffer), &PushConstantBuffer);
 
         //uint32_t GroupPixelSize = 16 * Uniforms->RenderSampleBlockSize;
         //uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;

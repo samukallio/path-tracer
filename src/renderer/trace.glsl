@@ -353,7 +353,7 @@ void main()
     RandomState
         = gl_GlobalInvocationID.y * 65537
         + gl_GlobalInvocationID.x
-        + FrameRandomSeed * 277803737u;
+        + RandomSeed * 277803737u;
 
     uint Index = gl_GlobalInvocationID.x;
 

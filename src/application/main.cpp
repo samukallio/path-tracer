@@ -40,9 +40,7 @@ void Frame()
     ImGui::EndFrame();
     ImGui::Render();
 
-    frame_uniform_buffer Uniforms = {
-        .FrameRandomSeed = App.FrameIndex,
-    };
+    frame_uniform_buffer Uniforms = {};
 
     // Handle camera movement.
     {

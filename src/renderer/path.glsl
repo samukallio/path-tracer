@@ -727,7 +727,7 @@ void main()
     RandomState
         = gl_GlobalInvocationID.y * 65537
         + gl_GlobalInvocationID.x
-        + FrameRandomSeed * 277803737u;
+        + RandomSeed * 277803737u;
 
     if (gl_GlobalInvocationID.x >= 2048) return;
     if (gl_GlobalInvocationID.y >= 1024) return;
