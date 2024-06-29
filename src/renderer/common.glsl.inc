@@ -826,8 +826,10 @@ void StoreTraceHit(uint Index, hit Hit)
 path LoadPath(uint Index)
 {
     path Path;
-    Path.ImagePosition.x    = PathBuffer.ImagePosition      [Index] % 1920;
-    Path.ImagePosition.y    = PathBuffer.ImagePosition      [Index] / 1920;
+
+    int ImageWidth = imageSize(SampleAccumulatorImage).x;
+    Path.ImagePosition.x    = PathBuffer.ImagePosition      [Index] % ImageWidth;
+    Path.ImagePosition.y    = PathBuffer.ImagePosition      [Index] / ImageWidth;
 
     Path.NormalizedLambda0  = PathBuffer.NormalizedLambda0  [Index];
 
@@ -865,7 +867,8 @@ void StorePathVertexData(uint Index, path Path)
 
 void StorePath(uint Index, path Path)
 {
-    PathBuffer.ImagePosition     [Index] = Path.ImagePosition.y * 1920 + Path.ImagePosition.x;
+    int ImageWidth = imageSize(SampleAccumulatorImage).x;
+    PathBuffer.ImagePosition     [Index] = Path.ImagePosition.y * ImageWidth + Path.ImagePosition.x;
     PathBuffer.NormalizedLambda0 [Index] = Path.NormalizedLambda0;
 
     StorePathVertexData(Index, Path);
