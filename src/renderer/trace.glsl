@@ -135,10 +135,8 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
 
     if (Shape.Type == SHAPE_TYPE_MESH_INSTANCE) {
         IntersectMeshNode(Ray, Shape.MeshRootNodeIndex, Hit);
-        if (Hit.ShapeIndex == SHAPE_INDEX_NONE) {
+        if (Hit.ShapeIndex == SHAPE_INDEX_NONE)
             Hit.ShapeIndex = ShapeIndex;
-            Hit.ShapePriority = Shape.Priority;
-        }
     }
     else if (Shape.Type == SHAPE_TYPE_PLANE) {
         float T = -Ray.Origin.z / Ray.Vector.z;
@@ -147,7 +145,6 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
         Hit.Time = T;
         Hit.ShapeType = SHAPE_TYPE_PLANE;
         Hit.ShapeIndex = ShapeIndex;
-        Hit.ShapePriority = Shape.Priority;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * T;
     }
@@ -169,7 +166,6 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
         Hit.Time = S / V;
         Hit.ShapeType = SHAPE_TYPE_SPHERE;
         Hit.ShapeIndex = ShapeIndex;
-        Hit.ShapePriority = Shape.Priority;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * Hit.Time;
     }
@@ -189,7 +185,6 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
         Hit.Time = T;
         Hit.ShapeType = SHAPE_TYPE_CUBE;
         Hit.ShapeIndex = ShapeIndex;
-        Hit.ShapePriority = Shape.Priority;
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * T;
     }

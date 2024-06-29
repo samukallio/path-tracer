@@ -247,7 +247,6 @@ void ResolveSurfaceHit(hit Hit, vec4 Lambda, vec4 ExteriorIOR, out surface Surfa
 
     // Medium.
     Medium.ShapeIndex = Hit.ShapeIndex;
-    Medium.ShapePriority = Hit.ShapePriority;
 
     Medium.IOR = SpecularIOR;
 

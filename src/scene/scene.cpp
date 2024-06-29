@@ -897,7 +897,7 @@ void DestroyScene(scene* Scene)
 //    return true;
 //}
 
-static void PackShape(scene* Scene, glm::mat4 const& OuterTransform, entity* Entity, uint32_t& Priority)
+static void PackShape(scene* Scene, glm::mat4 const& OuterTransform, entity* Entity)
 {
     if (!Entity->Active)
         return;
@@ -909,12 +909,11 @@ static void PackShape(scene* Scene, glm::mat4 const& OuterTransform, entity* Ent
         * glm::scale(glm::mat4(1), Entity->Transform.Scale);
 
     for (entity* Child : Entity->Children)
-        PackShape(Scene, InnerTransform, Child, Priority);
+        PackShape(Scene, InnerTransform, Child);
 
     packed_shape Packed;
 
     Packed.MaterialIndex = 0;
-    Packed.Priority = Priority++;
 
     switch (Entity->Type) {
         case ENTITY_TYPE_MESH_INSTANCE: {
@@ -1301,9 +1300,8 @@ uint32_t PackSceneData(scene* Scene)
 
         glm::mat4 const& OuterTransform = glm::mat4(1);
 
-        uint32_t Priority = 1;
         for (entity* Entity : Scene->Root.Children)
-            PackShape(Scene, OuterTransform, Entity, Priority);
+            PackShape(Scene, OuterTransform, Entity);
 
         std::vector<uint16_t> Map;
 

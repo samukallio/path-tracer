@@ -124,7 +124,6 @@ struct alignas(16) packed_shape
     shape_type          Type;
     uint                MaterialIndex;
     uint                MeshRootNodeIndex;
-    int                 Priority;
     packed_transform    Transform;
 };
 

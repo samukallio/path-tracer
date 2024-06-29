@@ -95,7 +95,6 @@ struct packed_shape
     uint                Type;
     uint                MaterialIndex;
     uint                MeshRootNodeIndex;
-    uint                Priority;
     packed_transform    Transform;
 };
 
@@ -152,7 +151,6 @@ struct hit
 {
     float               Time;                       // Time of hit along the ray vector.
     uint                ShapeIndex;                 // Index (into the shape array) of shape that was hit.
-    uint                ShapePriority;              // Priority of the shape that was hit, for resolving overlapping shapes.
     vec3                Position;                   // World space position of the hit.
     vec3                Normal;                     // World space normal of the hit surface.
     vec3                TangentX;                   // World space tangent of the hit surface.
@@ -191,7 +189,6 @@ struct surface
 struct medium
 {
     uint                ShapeIndex;                 // Shape associated with this medium.
-    uint                ShapePriority;              // Priority of the shape associated with the medium.
     vec4                IOR;                        // Absolute index of refraction at each of the 4 sampling wavelengths.
     vec4                AbsorptionRate;             // Absorption rate at each of the 4 sampling wavelengths.
     vec4                ScatteringRate;             // Scattering rate at each of the 4 sampling wavelengths.
@@ -640,7 +637,6 @@ struct trace_buffer
     // Result data.
     float               Time                [PATH_COUNT];
     uint                ShapeIndex          [PATH_COUNT];
-    uint                ShapePriority       [PATH_COUNT];
     uint                MaterialIndex       [PATH_COUNT];
     uint                PackedNormal        [PATH_COUNT];
     uint                PackedTangentX      [PATH_COUNT];
@@ -771,7 +767,6 @@ hit LoadTraceHit(uint Index)
         Hit.PrimitiveIndex     = TraceBuffer.PrimitiveIndex  [Index];
 
     Hit.ShapeIndex             = TraceBuffer.ShapeIndex      [Index];
-    Hit.ShapePriority          = TraceBuffer.ShapePriority   [Index];
     Hit.MaterialIndex          = TraceBuffer.MaterialIndex   [Index];
 
     Hit.Normal                 = UnpackUnitVector(TraceBuffer.PackedNormal   [Index]);
@@ -798,7 +793,6 @@ void StoreTraceHit(uint Index, hit Hit)
         TraceBuffer.PrimitiveIndex  [Index] = Hit.PrimitiveIndex;
 
     TraceBuffer.ShapeIndex      [Index] = Hit.ShapeIndex;
-    TraceBuffer.ShapePriority   [Index] = Hit.ShapePriority;
     TraceBuffer.MaterialIndex   [Index] = Hit.MaterialIndex;
     TraceBuffer.PackedNormal    [Index] = PackUnitVector(Hit.Normal);
     TraceBuffer.PackedTangentX  [Index] = PackUnitVector(Hit.TangentX);
