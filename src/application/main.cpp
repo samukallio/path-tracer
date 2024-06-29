@@ -127,6 +127,7 @@ void Frame()
                 if (Entity) {
                     App.SelectedEntity = Entity;
                     App.SelectionType = SELECTION_TYPE_ENTITY;
+                    Restart = true;
                 }
             }
         }
@@ -194,10 +195,10 @@ void Frame()
         Uniforms.ToneMappingMode              = Camera->ToneMappingMode;
         Uniforms.ToneMappingWhiteLevel        = Camera->ToneMappingWhiteLevel;
         Uniforms.RenderFlags                  = Camera->RenderFlags;
-
-        if (App.Scene->DirtyFlags != 0)
-            Restart = true;
     }
+
+    if (App.Scene->DirtyFlags != 0)
+        Restart = true;
 
     uint DirtyFlags = PackSceneData(App.Scene);
     UploadScene(App.Vulkan, App.Scene, DirtyFlags);
