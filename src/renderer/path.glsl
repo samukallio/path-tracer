@@ -5,6 +5,29 @@
 #define DECLARE_SCENE_BINDINGS
 #include "common.glsl.inc"
 
+const vec3 COLORS[20] = vec3[20](
+    vec3(0.902, 0.098, 0.294),
+    vec3(0.235, 0.706, 0.294),
+    vec3(1.000, 0.882, 0.098),
+    vec3(0.263, 0.388, 0.847),
+    vec3(0.961, 0.510, 0.192),
+    vec3(0.569, 0.118, 0.706),
+    vec3(0.275, 0.941, 0.941),
+    vec3(0.941, 0.196, 0.902),
+    vec3(0.737, 0.965, 0.047),
+    vec3(0.980, 0.745, 0.745),
+    vec3(0.000, 0.502, 0.502),
+    vec3(0.902, 0.745, 1.000),
+    vec3(0.604, 0.388, 0.141),
+    vec3(1.000, 0.980, 0.784),
+    vec3(0.502, 0.000, 0.000),
+    vec3(0.667, 1.000, 0.765),
+    vec3(0.502, 0.502, 0.000),
+    vec3(1.000, 0.847, 0.694),
+    vec3(0.000, 0.000, 0.459),
+    vec3(0.502, 0.502, 0.502)
+);
+
 layout(local_size_x=16, local_size_y=16, local_size_z=1) in;
 
 // Generate a random direction from the skybox directional distribution such
@@ -639,9 +662,9 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
 
     // Pass through the surface if embedded in a higher-priority
     // medium, or probabilistically based on geometric opacity.
-    if (Random0To1() > Surface.Opacity || IsVirtualSurface)
-        In = -Out;
-    else
+    //if (Random0To1() > Surface.Opacity || IsVirtualSurface)
+        //In = -Out;
+    //else
         BSDF(Surface, Path.Lambda, Out, In, Path);
 
     if (max4(Path.Weight) < EPSILON) return;
@@ -721,6 +744,46 @@ void RenderBaseColor(inout path Path, ray Ray, hit Hit, bool IsShaded)
     Path.Sample += BaseColor;
 }
 
+void RenderNormal(inout path Path, ray Ray, hit Hit)
+{
+    Path.Weight = vec4(0.0);
+    if (Hit.Time == INFINITY) {
+        Path.Sample += 0.5 * (1 - Ray.Vector);
+        return;
+    }
+    Path.Sample += 0.5 * (Hit.Normal + 1);
+}
+
+void RenderMaterialIndex(inout path Path, ray Ray, hit Hit)
+{
+    Path.Weight = vec4(0.0);
+    if (Hit.Time == INFINITY)
+        return;
+    Path.Sample += COLORS[Hit.MaterialIndex % 20];
+}
+
+void RenderPrimitiveIndex(inout path Path, ray Ray, hit Hit)
+{
+    Path.Weight = vec4(0.0);
+    if (Hit.Time == INFINITY)
+        return;
+    Path.Sample += COLORS[Hit.PrimitiveIndex % 20];
+}
+
+void RenderMeshComplexity(inout path Path, ray Ray, hit Hit)
+{
+    float Alpha = min(Hit.MeshComplexity / float(RenderMeshComplexityScale), 1.0);
+    Path.Weight = vec4(0.0);
+    Path.Sample += mix(vec3(0,0,0), vec3(0,1,0), Alpha);
+}
+
+void RenderSceneComplexity(inout path Path, ray Ray, hit Hit)
+{
+    float Alpha = min(Hit.SceneComplexity / float(RenderSceneComplexityScale), 1.0);
+    Path.Weight = vec4(0.0);
+    Path.Sample += mix(vec3(0,0,0), vec3(0,1,0), Alpha);
+}
+
 void main()
 {
     // Initialize random number generator.
@@ -745,23 +808,6 @@ void main()
         return;
     }
 
-//    if (RenderMode == RENDER_MODE_PATH_TRACE)
-//        RenderPathTrace();
-//    else if (RenderMode == RENDER_MODE_BASE_COLOR)
-//        RenderBaseColor(false);
-//    else if (RenderMode == RENDER_MODE_BASE_COLOR_SHADED)
-//        RenderBaseColor(true);
-//    else if (RenderMode == RENDER_MODE_NORMAL)
-//        SampleRadiance = RenderNormal(Ray);
-//    else if (RenderMode == RENDER_MODE_MATERIAL_INDEX)
-//        SampleRadiance = RenderMaterialIndex(Ray);
-//    else if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
-//        SampleRadiance = RenderPrimitiveIndex(Ray);
-//    else if (RenderMode == RENDER_MODE_MESH_COMPLEXITY)
-//        SampleRadiance = RenderMeshComplexity(Ray);
-//    else if (RenderMode == RENDER_MODE_SCENE_COMPLEXITY)
-//        SampleRadiance = RenderSceneComplexity(Ray);
-
     ray Ray = LoadTraceRay(Index);
     hit Hit = LoadTraceHit(Index);
     path Path = LoadPath(Index);
@@ -775,6 +821,21 @@ void main()
             break;
         case RENDER_MODE_BASE_COLOR_SHADED:
             RenderBaseColor(Path, Ray, Hit, true);
+            break;
+        case RENDER_MODE_NORMAL:
+            RenderNormal(Path, Ray, Hit);
+            break;
+        case RENDER_MODE_MATERIAL_INDEX:
+            RenderMaterialIndex(Path, Ray, Hit);
+            break;
+        case RENDER_MODE_PRIMITIVE_INDEX:
+            RenderPrimitiveIndex(Path, Ray, Hit);
+            break;
+        case RENDER_MODE_MESH_COMPLEXITY:
+            RenderMeshComplexity(Path, Ray, Hit);
+            break;
+        case RENDER_MODE_SCENE_COMPLEXITY:
+            RenderSceneComplexity(Path, Ray, Hit);
             break;
         default:
             Path.Weight = vec4(0.0);

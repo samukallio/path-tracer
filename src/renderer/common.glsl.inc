@@ -747,6 +747,8 @@ hit LoadTraceHit(uint Index)
 {
     hit Hit;
     Hit.Time                   = TraceBuffer.Time            [Index];
+    Hit.SceneComplexity        = TraceBuffer.SceneComplexity [Index];
+    Hit.MeshComplexity         = TraceBuffer.MeshComplexity  [Index];
 
     if (Hit.Time == INFINITY) return Hit;
 
@@ -772,14 +774,14 @@ hit LoadTraceHit(uint Index)
     Hit.TangentY.z             = TraceBuffer.TangentYZ       [Index];
     Hit.UV.x                   = TraceBuffer.TextureU        [Index];
     Hit.UV.y                   = TraceBuffer.TextureV        [Index];
-    Hit.SceneComplexity        = TraceBuffer.SceneComplexity [Index];
-    Hit.MeshComplexity         = TraceBuffer.MeshComplexity  [Index];
     return Hit;
 }
 
 void StoreTraceHit(uint Index, hit Hit)
 {
     TraceBuffer.Time            [Index] = Hit.Time;
+    TraceBuffer.SceneComplexity [Index] = Hit.SceneComplexity;
+    TraceBuffer.MeshComplexity  [Index] = Hit.MeshComplexity;
 
     if (Hit.Time == INFINITY) return;
 
@@ -805,8 +807,6 @@ void StoreTraceHit(uint Index, hit Hit)
     TraceBuffer.TangentYZ       [Index] = Hit.TangentY.z;
     TraceBuffer.TextureU        [Index] = Hit.UV.x;
     TraceBuffer.TextureV        [Index] = Hit.UV.y;
-    TraceBuffer.SceneComplexity [Index] = Hit.SceneComplexity;
-    TraceBuffer.MeshComplexity  [Index] = Hit.MeshComplexity;
 }
 
 path LoadPath(uint Index)

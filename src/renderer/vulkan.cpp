@@ -2607,7 +2607,9 @@ VkResult RenderFrame(
             InternalDispatchPath(Vulkan, Frame, RandomSeed++, true);
         }
 
-        for (int Round = 0; Round < 2; Round++) {
+        int Rounds = Restart ? 2 : 1;
+
+        for (int Round = 0; Round < Rounds; Round++) {
             InternalDispatchTrace(Vulkan, Frame, RandomSeed++);
             InternalDispatchPath(Vulkan, Frame, RandomSeed++, false);
         }
