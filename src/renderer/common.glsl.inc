@@ -156,9 +156,10 @@ struct hit
     vec3                Position;                   // World space position of the hit.
     vec3                Normal;                     // World space normal of the hit surface.
     vec3                TangentX;                   // World space tangent of the hit surface.
-    vec3                TangentY;                   // World space bitangent of the hit surface.
     uint                MaterialIndex;              // Surface material index.
     vec2                UV;                         // Surface texture map coordinates.
+
+    vec3                TangentY;                   // World space bitangent of the hit surface.
 
     uint                ShapeType;                  // Type of shape that was hit.
     vec3                PrimitiveCoordinates;       // Shape type-dependent primitive coordinates (e.g. barycentric coordinates).
@@ -274,6 +275,13 @@ vec3 SafeNormalize(vec3 V)
 float max4(vec4 V)
 {
     return max(max(V.x, V.y), max(V.z, V.w));
+}
+
+// Compute an arbitrary tangent vector for a given normal.
+vec3 ComputeTangentVector(vec3 Normal)
+{
+    vec3 V = abs(Normal.x) < 0.9 ? vec3(1, 0, 0) : vec3(0, 1, 0);
+    return normalize(cross(V, Normal));
 }
 
 // Compute an arbitrary 3D coordinate frame given one vector.
@@ -778,11 +786,10 @@ void StoreTraceHit(uint Index, hit Hit)
         TraceBuffer.SceneComplexity [Index] = Hit.SceneComplexity;
     if (RenderMode == RENDER_MODE_MESH_COMPLEXITY)
         TraceBuffer.MeshComplexity  [Index] = Hit.MeshComplexity;
-
-    if (Hit.Time == INFINITY) return;
-
     if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
         TraceBuffer.PrimitiveIndex  [Index] = Hit.PrimitiveIndex;
+
+    if (Hit.ShapeIndex == SHAPE_INDEX_NONE) return;
 
     TraceBuffer.ShapeAndMaterialIndex [Index] = (Hit.ShapeIndex << 16) | Hit.MaterialIndex;
     TraceBuffer.PackedNormal    [Index] = PackUnitVector(Hit.Normal);

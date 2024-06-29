@@ -41,8 +41,8 @@ float IntersectBoundingBox(ray Ray, float Reach, vec3 Min, vec3 Max)
     return EntryT;
 }
 
-// Compute ray intersection against a single mesh face (triangle).
-void IntersectMeshFace(ray Ray, uint MeshFaceIndex, inout hit Hit)
+
+void TraceMeshFace(ray Ray, uint MeshFaceIndex, inout hit Hit)
 {
     packed_mesh_face Face = MeshFaces[MeshFaceIndex];
 
@@ -60,13 +60,13 @@ void IntersectMeshFace(ray Ray, uint MeshFaceIndex, inout hit Hit)
 
     Hit.Time = T;
     Hit.ShapeType = SHAPE_TYPE_MESH_INSTANCE;
-    Hit.ShapeIndex = SHAPE_INDEX_NONE;
+    Hit.ShapeIndex = 0xFFFFFFFE;
     Hit.PrimitiveIndex = MeshFaceIndex;
     Hit.PrimitiveCoordinates = vec3(1 - Beta - Gamma, Beta, Gamma);
 }
 
 // Compute ray intersection against a mesh BVH node.
-void IntersectMeshNode(ray Ray, uint MeshNodeIndex, inout hit Hit)
+void TraceMeshNode(ray Ray, uint MeshNodeIndex, inout hit Hit)
 {
     uint Stack[32];
     uint Depth = 0;
@@ -80,7 +80,7 @@ void IntersectMeshNode(ray Ray, uint MeshNodeIndex, inout hit Hit)
         if (Node.FaceEndIndex > 0) {
             // Leaf node, trace all geometry within.
             for (uint FaceIndex = Node.FaceBeginOrNodeIndex; FaceIndex < Node.FaceEndIndex; FaceIndex++)
-                IntersectMeshFace(Ray, FaceIndex, Hit);
+                TraceMeshFace(Ray, FaceIndex, Hit);
         }
         else {
             // Internal node.
@@ -127,15 +127,15 @@ void IntersectMeshNode(ray Ray, uint MeshNodeIndex, inout hit Hit)
 }
 
 // Compute ray intersection against a shape.
-void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
+void TraceShape(ray Ray, uint ShapeIndex, inout hit Hit)
 {
     packed_shape Shape = Shapes[ShapeIndex];
 
     Ray = InverseTransformRay(Ray, Shape.Transform);
 
     if (Shape.Type == SHAPE_TYPE_MESH_INSTANCE) {
-        IntersectMeshNode(Ray, Shape.MeshRootNodeIndex, Hit);
-        if (Hit.ShapeIndex == SHAPE_INDEX_NONE)
+        TraceMeshNode(Ray, Shape.MeshRootNodeIndex, Hit);
+        if (Hit.ShapeIndex == 0xFFFFFFFE)
             Hit.ShapeIndex = ShapeIndex;
     }
     else if (Shape.Type == SHAPE_TYPE_PLANE) {
@@ -191,7 +191,7 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
 }
 
 // Compute ray intersection against the whole scene.
-void Intersect(ray Ray, inout hit Hit)
+void Trace(ray Ray, inout hit Hit)
 {
     if (Scene.ShapeCount == 0) return;
 
@@ -207,7 +207,7 @@ void Intersect(ray Ray, inout hit Hit)
         // Leaf node or internal?
         if (NodeA.ChildNodeIndices == 0) {
             // Leaf node, intersect object.
-            IntersectShape(Ray, NodeA.ShapeIndex, Hit);
+            TraceShape(Ray, NodeA.ShapeIndex, Hit);
         }
         else {
             // Internal node.
@@ -240,122 +240,94 @@ void Intersect(ray Ray, inout hit Hit)
     }
 }
 
-// Trace a ray into the scene and return information about the hit.
-hit Trace(ray Ray)
-{
-    hit Hit;
-    Hit.Time = Ray.Duration;
-    Hit.MeshComplexity = 0;
-    Hit.SceneComplexity = 0;
-
-    Intersect(Ray, Hit);
-
-    // If we didn't hit any shape, exit.
-    if (Hit.Time == Ray.Duration)
-        return Hit;
-
-    packed_shape Shape = Shapes[Hit.ShapeIndex];
-
-    // Ray in shape-local space.
-    ray ShapeRay = InverseTransformRay(Ray, Shape.Transform);
-
-    // Hit position and tangent space basis in shape-local space.
-    vec3 Position = ShapeRay.Origin + ShapeRay.Velocity * Hit.Time;
-    vec3 Normal = vec3(0, 0, 1);
-    vec3 TangentX = vec3(1, 0, 0);
-    vec3 TangentY = vec3(0, 1, 0);
-
-    if (Hit.ShapeType == SHAPE_TYPE_MESH_INSTANCE) {
-        packed_mesh_face Face = MeshFaces[Hit.PrimitiveIndex];
-        packed_mesh_face_extra Extra = MeshFaceExtras[Hit.PrimitiveIndex];
-
-        Normal = SafeNormalize(
-            Extra.Normals[0] * Hit.PrimitiveCoordinates.x +
-            Extra.Normals[1] * Hit.PrimitiveCoordinates.y +
-            Extra.Normals[2] * Hit.PrimitiveCoordinates.z);
-
-        ComputeCoordinateFrame(Normal, TangentX, TangentY);
-
-        Hit.UV = Extra.UVs[0] * Hit.PrimitiveCoordinates.x
-               + Extra.UVs[1] * Hit.PrimitiveCoordinates.y
-               + Extra.UVs[2] * Hit.PrimitiveCoordinates.z;
-
-        Hit.MaterialIndex = Extra.MaterialIndex;
-    }
-    else if (Hit.ShapeType == SHAPE_TYPE_PLANE) {
-        packed_shape Shape = Shapes[Hit.ShapeIndex];
-
-        Hit.MaterialIndex = Shape.MaterialIndex;
-        Hit.UV = fract(Hit.PrimitiveCoordinates.xy);
-    }
-    else if (Hit.ShapeType == SHAPE_TYPE_SPHERE) {
-        packed_shape Shape = Shapes[Hit.ShapeIndex];
-
-        Hit.MaterialIndex = Shape.MaterialIndex;
-
-        vec3 P = Hit.PrimitiveCoordinates;
-        float U = (atan(P.y, P.x) + PI) / TAU;
-        float V = (P.z + 1.0) / 2.0;
-        Hit.UV = vec2(U, V);
-
-        Normal = Position;
-        TangentX = normalize(cross(Normal, vec3(-Normal.y, Normal.x, 0)));
-        TangentY = cross(Normal, TangentX);
-    }
-    else if (Hit.ShapeType == SHAPE_TYPE_CUBE) {
-        packed_shape Shape = Shapes[Hit.ShapeIndex];
-
-        Hit.MaterialIndex = Shape.MaterialIndex;
-
-        vec3 P = Hit.PrimitiveCoordinates;
-        vec3 Q = abs(P);
-
-        if (Q.x >= Q.y && Q.x >= Q.z) {
-            float S = sign(P.x);
-            Normal = vec3(S, 0, 0);
-            TangentX = vec3(0, S, 0);
-            Hit.UV = 0.5 * (1.0 + P.yz);
-        }
-        else if (Q.y >= Q.x && Q.y >= Q.z) {
-            float S = sign(P.y);
-            Normal = vec3(0, S, 0);
-            TangentX = vec3(0, 0, S);
-            Hit.UV = 0.5 * (1.0 + P.xz);
-        }
-        else {
-            float S = sign(P.z);
-            Normal = vec3(0, 0, S);
-            TangentX = vec3(S, 0, 0);
-            Hit.UV = 0.5 * (1.0 + P.xy);
-        }
-
-        TangentY = cross(Normal, TangentX);
-    }
-
-    // Transform the hit position and tangent space basis to world space.
-    Hit.Position = TransformPosition(Position, Shape.Transform);
-    Hit.Normal = TransformNormal(Normal, Shape.Transform);
-    Hit.TangentX = TransformDirection(TangentX, Shape.Transform);
-    Hit.TangentY = TransformDirection(TangentY, Shape.Transform);
-
-    return Hit;
-}
-
-
 void main()
 {
+    uint Index = gl_GlobalInvocationID.x;
+
+    if (Index >= 2048*1024) return;
+
     // Initialize random number generator.
     RandomState
         = gl_GlobalInvocationID.y * 65537
         + gl_GlobalInvocationID.x
         + RandomSeed * 277803737u;
 
-    uint Index = gl_GlobalInvocationID.x;
-
-    //if (Index >= Rays.Count) return;
-    if (Index >= 2048*1024) return;
-
     ray Ray = LoadTraceRay(Index);
-    hit Hit = Trace(Ray);
+
+    hit Hit;
+    Hit.ShapeIndex = SHAPE_INDEX_NONE;
+    Hit.Time = Ray.Duration;
+    Hit.MeshComplexity = 0;
+    Hit.SceneComplexity = 0;
+
+    Trace(Ray, Hit);
+
+    if (Hit.ShapeIndex != SHAPE_INDEX_NONE) {
+        packed_shape Shape = Shapes[Hit.ShapeIndex];
+
+        Hit.MaterialIndex = Shape.MaterialIndex;
+
+        if (Hit.ShapeType == SHAPE_TYPE_MESH_INSTANCE) {
+            packed_mesh_face Face = MeshFaces[Hit.PrimitiveIndex];
+            packed_mesh_face_extra Extra = MeshFaceExtras[Hit.PrimitiveIndex];
+
+            Hit.MaterialIndex = Extra.MaterialIndex;
+
+            vec3 Normal = SafeNormalize(
+                Extra.Normals[0] * Hit.PrimitiveCoordinates.x +
+                Extra.Normals[1] * Hit.PrimitiveCoordinates.y +
+                Extra.Normals[2] * Hit.PrimitiveCoordinates.z);
+
+            Hit.Normal = TransformNormal(Normal, Shape.Transform);
+            Hit.TangentX = ComputeTangentVector(Hit.Normal);
+            Hit.UV = Extra.UVs[0] * Hit.PrimitiveCoordinates.x
+                   + Extra.UVs[1] * Hit.PrimitiveCoordinates.y
+                   + Extra.UVs[2] * Hit.PrimitiveCoordinates.z;
+        }
+        else if (Hit.ShapeType == SHAPE_TYPE_PLANE) {
+            Hit.Normal = TransformNormal(vec3(0, 0, 1), Shape.Transform);
+            Hit.TangentX = TransformDirection(vec3(1, 0, 0), Shape.Transform);
+            Hit.UV = fract(Hit.PrimitiveCoordinates.xy);
+        }
+        else if (Hit.ShapeType == SHAPE_TYPE_SPHERE) {
+            vec3 P = Hit.PrimitiveCoordinates;
+            float U = (atan(P.y, P.x) + PI) / TAU;
+            float V = (P.z + 1.0) / 2.0;
+        
+            Hit.Normal = TransformNormal(P, Shape.Transform);
+            Hit.TangentX = TransformDirection(cross(P, vec3(-P.y, P.x, 0)), Shape.Transform);
+            Hit.UV = vec2(U, V);
+        }
+        else if (Hit.ShapeType == SHAPE_TYPE_CUBE) {
+            vec3 P = Hit.PrimitiveCoordinates;
+            vec3 Q = abs(P);
+
+            vec3 Normal;
+            vec3 TangentX;
+
+            if (Q.x >= Q.y && Q.x >= Q.z) {
+                float S = sign(P.x);
+                Normal = vec3(S, 0, 0);
+                TangentX = vec3(0, S, 0);
+                Hit.UV = 0.5 * (1.0 + P.yz);
+            }
+            else if (Q.y >= Q.x && Q.y >= Q.z) {
+                float S = sign(P.y);
+                Normal = vec3(0, S, 0);
+                TangentX = vec3(0, 0, S);
+                Hit.UV = 0.5 * (1.0 + P.xz);
+            }
+            else {
+                float S = sign(P.z);
+                Normal = vec3(0, 0, S);
+                TangentX = vec3(S, 0, 0);
+                Hit.UV = 0.5 * (1.0 + P.xy);
+            }
+
+            Hit.Normal = TransformNormal(Normal, Shape.Transform);
+            Hit.TangentX = TransformDirection(TangentX, Shape.Transform);
+        }
+    }
+
     StoreTraceHit(Index, Hit);
 }
