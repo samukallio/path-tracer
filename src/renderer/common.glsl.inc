@@ -637,8 +637,7 @@ struct trace_buffer
 
     // Result data.
     float               Time                [PATH_COUNT];
-    uint                ShapeIndex          [PATH_COUNT];
-    uint                MaterialIndex       [PATH_COUNT];
+    uint                ShapeAndMaterialIndex[PATH_COUNT];
     uint                PackedNormal        [PATH_COUNT];
     uint                PackedTangentX      [PATH_COUNT];
     float               TextureU            [PATH_COUNT];
@@ -769,8 +768,9 @@ hit LoadTraceHit(uint Index)
     if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
         Hit.PrimitiveIndex     = TraceBuffer.PrimitiveIndex  [Index];
 
-    Hit.ShapeIndex             = TraceBuffer.ShapeIndex      [Index];
-    Hit.MaterialIndex          = TraceBuffer.MaterialIndex   [Index];
+    uint ShapeAndMaterialIndex = TraceBuffer.ShapeAndMaterialIndex[Index];
+    Hit.ShapeIndex             = ShapeAndMaterialIndex >> 16;
+    Hit.MaterialIndex          = ShapeAndMaterialIndex & 0xFFFF;
 
     Hit.Normal                 = UnpackUnitVector(TraceBuffer.PackedNormal   [Index]);
     Hit.TangentX               = UnpackUnitVector(TraceBuffer.PackedTangentX [Index]);
@@ -795,8 +795,7 @@ void StoreTraceHit(uint Index, hit Hit)
     if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
         TraceBuffer.PrimitiveIndex  [Index] = Hit.PrimitiveIndex;
 
-    TraceBuffer.ShapeIndex      [Index] = Hit.ShapeIndex;
-    TraceBuffer.MaterialIndex   [Index] = Hit.MaterialIndex;
+    TraceBuffer.ShapeAndMaterialIndex [Index] = (Hit.ShapeIndex << 16) | Hit.MaterialIndex;
     TraceBuffer.PackedNormal    [Index] = PackUnitVector(Hit.Normal);
     TraceBuffer.PackedTangentX  [Index] = PackUnitVector(Hit.TangentX);
     TraceBuffer.TextureU        [Index] = Hit.UV.x;
