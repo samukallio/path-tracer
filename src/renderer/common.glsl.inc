@@ -151,17 +151,18 @@ struct ray
 struct hit
 {
     float               Time;                       // Time of hit along the ray vector.
-    uint                ShapeType;                  // Type of shape that was hit.
     uint                ShapeIndex;                 // Index (into the shape array) of shape that was hit.
     uint                ShapePriority;              // Priority of the shape that was hit, for resolving overlapping shapes.
-    vec3                PrimitiveCoordinates;       // Shape type-dependent primitive coordinates (e.g. barycentric coordinates).
-    uint                PrimitiveIndex;             // Index of primitive within the shape (e.g. mesh face) that was hit.
     vec3                Position;                   // World space position of the hit.
     vec3                Normal;                     // World space normal of the hit surface.
     vec3                TangentX;                   // World space tangent of the hit surface.
     vec3                TangentY;                   // World space bitangent of the hit surface.
     uint                MaterialIndex;              // Surface material index.
     vec2                UV;                         // Surface texture map coordinates.
+
+    uint                ShapeType;                  // Type of shape that was hit.
+    vec3                PrimitiveCoordinates;       // Shape type-dependent primitive coordinates (e.g. barycentric coordinates).
+    uint                PrimitiveIndex;             // Index of primitive within the shape (e.g. mesh face) that was hit.
     uint                SceneComplexity;            // Total number of shape nodes traversed while tracing.
     uint                MeshComplexity;             // Total number of mesh nodes traversed while tracing.
 };
@@ -545,6 +546,30 @@ void AddEmission(inout path Path, vec4 Emission)
     Path.Sample += SampleStandardObserverSRGB(Path.Lambda) * (Emission * Path.Throughput) / ClusterPDF;
 }
 
+/* --- Utilities ----------------------------------------------------------- */
+
+// Packs a unit vector into a single 32-bit value.
+uint PackUnitVector(vec3 Vector)
+{
+    float Phi;
+    if (abs(Vector.x) < EPSILON)
+        Phi = Vector.y < 0.0 ? -PI/2 : +PI/2;
+    else if (abs(Vector.y) < EPSILON)
+        Phi = Vector.x < 0.0 ? PI : 0.0;
+    else
+        Phi = atan(Vector.y, Vector.x);
+    return packHalf2x16(vec2(Phi, Vector.z));
+}
+
+// Unpacks a unit vector from a single 32-bit value.
+vec3 UnpackUnitVector(uint PackedVector)
+{
+    vec2 PhiZ = unpackHalf2x16(PackedVector);
+    float R = sqrt(max(0.0, 1 - PhiZ.y * PhiZ.y));
+    vec2 XY = R * vec2(cos(PhiZ.x), sin(PhiZ.x));
+    return vec3(XY, PhiZ.y);
+}
+
 /* --- Random Number Generator --------------------------------------------- */
 
 uint RandomState;
@@ -614,36 +639,23 @@ struct trace_buffer
 
     // Result data.
     float               Time                [PATH_COUNT];
-    uint                ShapeType           [PATH_COUNT];
     uint                ShapeIndex          [PATH_COUNT];
     uint                ShapePriority       [PATH_COUNT];
-    float               PrimitiveU          [PATH_COUNT];
-    float               PrimitiveV          [PATH_COUNT];
-    float               PrimitiveW          [PATH_COUNT];
-    uint                PrimitiveIndex      [PATH_COUNT];
     uint                MaterialIndex       [PATH_COUNT];
-    float               PositionX           [PATH_COUNT];
-    float               PositionY           [PATH_COUNT];
-    float               PositionZ           [PATH_COUNT];
-    float               NormalX             [PATH_COUNT];
-    float               NormalY             [PATH_COUNT];
-    float               NormalZ             [PATH_COUNT];
-    float               TangentXX           [PATH_COUNT];
-    float               TangentXY           [PATH_COUNT];
-    float               TangentXZ           [PATH_COUNT];
-    float               TangentYX           [PATH_COUNT];
-    float               TangentYY           [PATH_COUNT];
-    float               TangentYZ           [PATH_COUNT];
+    uint                PackedNormal        [PATH_COUNT];
+    uint                PackedTangentX      [PATH_COUNT];
     float               TextureU            [PATH_COUNT];
     float               TextureV            [PATH_COUNT];
+
+    // Result data stored only for specific rendering modes.
+    uint                PrimitiveIndex      [PATH_COUNT];
     uint                SceneComplexity     [PATH_COUNT];
     uint                MeshComplexity      [PATH_COUNT];
 };
 
 struct path_buffer
 {
-    int                 ImagePositionX      [PATH_COUNT];
-    int                 ImagePositionY      [PATH_COUNT];
+    int                 ImagePosition       [PATH_COUNT];
     float               Lambda0             [PATH_COUNT];
     float               Lambda1             [PATH_COUNT];
     float               Lambda2             [PATH_COUNT];
@@ -747,31 +759,25 @@ hit LoadTraceHit(uint Index)
 {
     hit Hit;
     Hit.Time                   = TraceBuffer.Time            [Index];
-    Hit.SceneComplexity        = TraceBuffer.SceneComplexity [Index];
-    Hit.MeshComplexity         = TraceBuffer.MeshComplexity  [Index];
+
+    if (RenderMode == RENDER_MODE_SCENE_COMPLEXITY)
+        Hit.SceneComplexity    = TraceBuffer.SceneComplexity [Index];
+    if (RenderMode == RENDER_MODE_MESH_COMPLEXITY)
+        Hit.MeshComplexity     = TraceBuffer.MeshComplexity  [Index];
 
     if (Hit.Time == INFINITY) return Hit;
 
-    Hit.ShapeType              = TraceBuffer.ShapeType       [Index];
+    if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
+        Hit.PrimitiveIndex     = TraceBuffer.PrimitiveIndex  [Index];
+
     Hit.ShapeIndex             = TraceBuffer.ShapeIndex      [Index];
     Hit.ShapePriority          = TraceBuffer.ShapePriority   [Index];
-    Hit.PrimitiveCoordinates.x = TraceBuffer.PrimitiveU      [Index];
-    Hit.PrimitiveCoordinates.y = TraceBuffer.PrimitiveV      [Index];
-    Hit.PrimitiveCoordinates.z = TraceBuffer.PrimitiveW      [Index];
-    Hit.PrimitiveIndex         = TraceBuffer.PrimitiveIndex  [Index];
     Hit.MaterialIndex          = TraceBuffer.MaterialIndex   [Index];
-    Hit.Position.x             = TraceBuffer.PositionX       [Index];
-    Hit.Position.y             = TraceBuffer.PositionY       [Index];
-    Hit.Position.z             = TraceBuffer.PositionZ       [Index];
-    Hit.Normal.x               = TraceBuffer.NormalX         [Index];
-    Hit.Normal.y               = TraceBuffer.NormalY         [Index];
-    Hit.Normal.z               = TraceBuffer.NormalZ         [Index];
-    Hit.TangentX.x             = TraceBuffer.TangentXX       [Index];
-    Hit.TangentX.y             = TraceBuffer.TangentXY       [Index];
-    Hit.TangentX.z             = TraceBuffer.TangentXZ       [Index];
-    Hit.TangentY.x             = TraceBuffer.TangentYX       [Index];
-    Hit.TangentY.y             = TraceBuffer.TangentYY       [Index];
-    Hit.TangentY.z             = TraceBuffer.TangentYZ       [Index];
+
+    Hit.Normal                 = UnpackUnitVector(TraceBuffer.PackedNormal   [Index]);
+    Hit.TangentX               = UnpackUnitVector(TraceBuffer.PackedTangentX [Index]);
+    Hit.TangentY               = cross(Hit.Normal, Hit.TangentX);
+
     Hit.UV.x                   = TraceBuffer.TextureU        [Index];
     Hit.UV.y                   = TraceBuffer.TextureV        [Index];
     return Hit;
@@ -780,31 +786,22 @@ hit LoadTraceHit(uint Index)
 void StoreTraceHit(uint Index, hit Hit)
 {
     TraceBuffer.Time            [Index] = Hit.Time;
-    TraceBuffer.SceneComplexity [Index] = Hit.SceneComplexity;
-    TraceBuffer.MeshComplexity  [Index] = Hit.MeshComplexity;
+
+    if (RenderMode == RENDER_MODE_SCENE_COMPLEXITY)
+        TraceBuffer.SceneComplexity [Index] = Hit.SceneComplexity;
+    if (RenderMode == RENDER_MODE_MESH_COMPLEXITY)
+        TraceBuffer.MeshComplexity  [Index] = Hit.MeshComplexity;
 
     if (Hit.Time == INFINITY) return;
 
-    TraceBuffer.ShapeType       [Index] = Hit.ShapeType;
+    if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
+        TraceBuffer.PrimitiveIndex  [Index] = Hit.PrimitiveIndex;
+
     TraceBuffer.ShapeIndex      [Index] = Hit.ShapeIndex;
     TraceBuffer.ShapePriority   [Index] = Hit.ShapePriority;
-    TraceBuffer.PrimitiveU      [Index] = Hit.PrimitiveCoordinates.x;
-    TraceBuffer.PrimitiveV      [Index] = Hit.PrimitiveCoordinates.y;
-    TraceBuffer.PrimitiveW      [Index] = Hit.PrimitiveCoordinates.z;
-    TraceBuffer.PrimitiveIndex  [Index] = Hit.PrimitiveIndex;
     TraceBuffer.MaterialIndex   [Index] = Hit.MaterialIndex;
-    TraceBuffer.PositionX       [Index] = Hit.Position.x;
-    TraceBuffer.PositionY       [Index] = Hit.Position.y;
-    TraceBuffer.PositionZ       [Index] = Hit.Position.z;
-    TraceBuffer.NormalX         [Index] = Hit.Normal.x;
-    TraceBuffer.NormalY         [Index] = Hit.Normal.y;
-    TraceBuffer.NormalZ         [Index] = Hit.Normal.z;
-    TraceBuffer.TangentXX       [Index] = Hit.TangentX.x;
-    TraceBuffer.TangentXY       [Index] = Hit.TangentX.y;
-    TraceBuffer.TangentXZ       [Index] = Hit.TangentX.z;
-    TraceBuffer.TangentYX       [Index] = Hit.TangentY.x;
-    TraceBuffer.TangentYY       [Index] = Hit.TangentY.y;
-    TraceBuffer.TangentYZ       [Index] = Hit.TangentY.z;
+    TraceBuffer.PackedNormal    [Index] = PackUnitVector(Hit.Normal);
+    TraceBuffer.PackedTangentX  [Index] = PackUnitVector(Hit.TangentX);
     TraceBuffer.TextureU        [Index] = Hit.UV.x;
     TraceBuffer.TextureV        [Index] = Hit.UV.y;
 }
@@ -812,8 +809,8 @@ void StoreTraceHit(uint Index, hit Hit)
 path LoadPath(uint Index)
 {
     path Path;
-    Path.ImagePosition.x = PathBuffer.ImagePositionX [Index];
-    Path.ImagePosition.y = PathBuffer.ImagePositionY [Index];
+    Path.ImagePosition.x = PathBuffer.ImagePosition  [Index] % 1920;
+    Path.ImagePosition.y = PathBuffer.ImagePosition  [Index] / 1920;
     Path.Lambda.x        = PathBuffer.Lambda0        [Index];
     Path.Lambda.y        = PathBuffer.Lambda1        [Index];
     Path.Lambda.z        = PathBuffer.Lambda2        [Index];
@@ -849,8 +846,7 @@ void StorePathVertexData(uint Index, path Path)
 
 void StorePath(uint Index, path Path)
 {
-    PathBuffer.ImagePositionX [Index] = Path.ImagePosition.x;
-    PathBuffer.ImagePositionY [Index] = Path.ImagePosition.y;
+    PathBuffer.ImagePosition  [Index] = Path.ImagePosition.y * 1920 + Path.ImagePosition.x;
     PathBuffer.Lambda0        [Index] = Path.Lambda.x;
     PathBuffer.Lambda1        [Index] = Path.Lambda.y;
     PathBuffer.Lambda2        [Index] = Path.Lambda.z;

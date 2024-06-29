@@ -810,6 +810,9 @@ void main()
 
     ray Ray = LoadTraceRay(Index);
     hit Hit = LoadTraceHit(Index);
+
+    Hit.Position = Ray.Origin + Hit.Time * Ray.Vector;
+
     path Path = LoadPath(Index);
 
     switch (RenderMode) {
