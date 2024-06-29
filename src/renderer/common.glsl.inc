@@ -201,7 +201,7 @@ const uint MAX_MEDIUM_COUNT = 2;
 
 struct path
 {
-    vec4                Lambda;
+    float               NormalizedLambda0;
     vec4                Throughput;                 // Path throughput at each of the 4 sampling wavelengths.
     vec4                Weight;                     // Path weight at each of the 4 sampling wavelengths.
     vec3                Sample;
@@ -537,14 +537,6 @@ vec3 ObserveParametricSpectrumSRGB(vec3 Beta)
     return ObserveParametricSpectrumSRGB(vec4(Beta, 1));
 }
 
-/* --- Multi-Wavelength Sampling ------------------------------------------- */
-
-void AddEmission(inout path Path, vec4 Emission)
-{
-    float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
-    Path.Sample += SampleStandardObserverSRGB(Path.Lambda) * (Emission * Path.Throughput) / ClusterPDF;
-}
-
 /* --- Utilities ----------------------------------------------------------- */
 
 // Packs a unit vector into a single 32-bit value.
@@ -652,10 +644,7 @@ struct trace_buffer
 struct path_buffer
 {
     int                 ImagePosition       [PATH_COUNT];
-    float               Lambda0             [PATH_COUNT];
-    float               Lambda1             [PATH_COUNT];
-    float               Lambda2             [PATH_COUNT];
-    float               Lambda3             [PATH_COUNT];
+    float               NormalizedLambda0   [PATH_COUNT];
     float               Throughput0         [PATH_COUNT];
     float               Throughput1         [PATH_COUNT];
     float               Throughput2         [PATH_COUNT];
@@ -805,23 +794,25 @@ void StoreTraceHit(uint Index, hit Hit)
 path LoadPath(uint Index)
 {
     path Path;
-    Path.ImagePosition.x = PathBuffer.ImagePosition  [Index] % 1920;
-    Path.ImagePosition.y = PathBuffer.ImagePosition  [Index] / 1920;
-    Path.Lambda.x        = PathBuffer.Lambda0        [Index];
-    Path.Lambda.y        = PathBuffer.Lambda1        [Index];
-    Path.Lambda.z        = PathBuffer.Lambda2        [Index];
-    Path.Lambda.w        = PathBuffer.Lambda3        [Index];
-    Path.Throughput.x    = PathBuffer.Throughput0    [Index];
-    Path.Throughput.y    = PathBuffer.Throughput1    [Index];
-    Path.Throughput.z    = PathBuffer.Throughput2    [Index];
-    Path.Throughput.w    = PathBuffer.Throughput3    [Index];
-    Path.Weight.x        = PathBuffer.Weight0        [Index];
-    Path.Weight.y        = PathBuffer.Weight1        [Index];
-    Path.Weight.w        = PathBuffer.Weight2        [Index];
-    Path.Weight.z        = PathBuffer.Weight3        [Index];
-    Path.Sample.r        = PathBuffer.SampleR        [Index];
-    Path.Sample.g        = PathBuffer.SampleG        [Index];
-    Path.Sample.b        = PathBuffer.SampleB        [Index];
+    Path.ImagePosition.x    = PathBuffer.ImagePosition      [Index] % 1920;
+    Path.ImagePosition.y    = PathBuffer.ImagePosition      [Index] / 1920;
+
+    Path.NormalizedLambda0  = PathBuffer.NormalizedLambda0  [Index];
+
+    Path.Throughput.x       = PathBuffer.Throughput0        [Index];
+    Path.Throughput.y       = PathBuffer.Throughput1        [Index];
+    Path.Throughput.z       = PathBuffer.Throughput2        [Index];
+    Path.Throughput.w       = PathBuffer.Throughput3        [Index];
+
+    Path.Weight.x           = PathBuffer.Weight0            [Index];
+    Path.Weight.y           = PathBuffer.Weight1            [Index];
+    Path.Weight.w           = PathBuffer.Weight2            [Index];
+    Path.Weight.z           = PathBuffer.Weight3            [Index];
+
+    Path.Sample.r           = PathBuffer.SampleR            [Index];
+    Path.Sample.g           = PathBuffer.SampleG            [Index];
+    Path.Sample.b           = PathBuffer.SampleB            [Index];
+
     return Path;
 }
 
@@ -842,11 +833,8 @@ void StorePathVertexData(uint Index, path Path)
 
 void StorePath(uint Index, path Path)
 {
-    PathBuffer.ImagePosition  [Index] = Path.ImagePosition.y * 1920 + Path.ImagePosition.x;
-    PathBuffer.Lambda0        [Index] = Path.Lambda.x;
-    PathBuffer.Lambda1        [Index] = Path.Lambda.y;
-    PathBuffer.Lambda2        [Index] = Path.Lambda.z;
-    PathBuffer.Lambda3        [Index] = Path.Lambda.w;
+    PathBuffer.ImagePosition     [Index] = Path.ImagePosition.y * 1920 + Path.ImagePosition.x;
+    PathBuffer.NormalizedLambda0 [Index] = Path.NormalizedLambda0;
 
     StorePathVertexData(Index, Path);
 }

@@ -165,15 +165,7 @@ void GenerateNewPath(uint Index, ivec2 ImagePosition)
     // Write new path.
     path Path;
     Path.ImagePosition  = ImagePosition;
-
-    float NormalizedLambda0 = Random0To1();
-    Path.Lambda = vec4(
-        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX,       NormalizedLambda0        ),
-        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(NormalizedLambda0 + 0.25)),
-        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(NormalizedLambda0 + 0.50)),
-        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(NormalizedLambda0 + 0.75))
-    );
-
+    Path.NormalizedLambda0 = Random0To1();
     Path.Throughput     = vec4(1.0);
     Path.Weight         = vec4(1.0);
     Path.Sample         = vec3(0.0);
@@ -347,7 +339,10 @@ void CoatBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout path Pa
 // Specular part of the OpenPBR base substrate BSDF.
 void BaseSpecularBSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout path Path)
 {
-    if (Out.z > 0) AddEmission(Path, Surface.Emission);
+    if (Out.z > 0) {
+        float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
+        Path.Sample += SampleStandardObserverSRGB(Lambda) * (Surface.Emission * Path.Throughput) / ClusterPDF;
+    }
 
     // Sample a microsurface normal for specular scattering.
     float NormalU1 = Random0To1();
@@ -539,6 +534,13 @@ void BSDF(surface Surface, vec4 Lambda, vec3 Out, out vec3 In, inout path Path)
 
 void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
 {
+    vec4 Lambda = vec4(
+        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX,       Path.NormalizedLambda0        ),
+        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(Path.NormalizedLambda0 + 0.25)),
+        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(Path.NormalizedLambda0 + 0.50)),
+        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(Path.NormalizedLambda0 + 0.75))
+    );
+
 //    medium Ambience;
 //    Ambience.ShapeIndex = SHAPE_INDEX_NONE;
 //    Ambience.ShapePriority = 0;
@@ -593,7 +595,9 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
 //    }
 
     if (Hit.Time > HIT_TIME_LIMIT) {
-        AddEmission(Path, SampleSkyboxRadiance(Ray, Path.Lambda));
+        vec4 Emission = SampleSkyboxRadiance(Ray, Lambda);
+        float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
+        Path.Sample += SampleStandardObserverSRGB(Lambda) * (Emission * Path.Throughput) / ClusterPDF;
         Path.Weight = vec4(0.0);
         return;
     }
@@ -656,7 +660,7 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
     // Resolve the surface and medium details.
     surface Surface;
     medium Interior;
-    ResolveSurfaceHit(Hit, Path.Lambda, ExteriorIOR, Surface, Interior);
+    ResolveSurfaceHit(Hit, Lambda, ExteriorIOR, Surface, Interior);
 
 
     // Pass through the surface if embedded in a higher-priority
@@ -664,7 +668,7 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
     //if (Random0To1() > Surface.Opacity || IsVirtualSurface)
         //In = -Out;
     //else
-        BSDF(Surface, Path.Lambda, Out, In, Path);
+        BSDF(Surface, Lambda, Out, In, Path);
 
     if (max4(Path.Weight) < EPSILON) return;
 
