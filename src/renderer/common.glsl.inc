@@ -771,21 +771,25 @@ void StoreTraceRay(uint Index, ray Ray)
 hit LoadTraceHit(uint Index)
 {
     hit Hit;
-    Hit.Time                   = TraceBuffer.Time            [Index];
 
     if (RenderMode == RENDER_MODE_SCENE_COMPLEXITY)
         Hit.SceneComplexity    = TraceBuffer.SceneComplexity [Index];
     if (RenderMode == RENDER_MODE_MESH_COMPLEXITY)
         Hit.MeshComplexity     = TraceBuffer.MeshComplexity  [Index];
-
-    if (Hit.Time == INFINITY) return Hit;
-
     if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
         Hit.PrimitiveIndex     = TraceBuffer.PrimitiveIndex  [Index];
 
     uint ShapeAndMaterialIndex = TraceBuffer.ShapeAndMaterialIndex[Index];
+
+    if (ShapeAndMaterialIndex == 0xFFFFFFFF) {
+        Hit.ShapeIndex = SHAPE_INDEX_NONE;
+        return Hit;
+    }
+
     Hit.ShapeIndex             = ShapeAndMaterialIndex >> 16;
     Hit.MaterialIndex          = ShapeAndMaterialIndex & 0xFFFF;
+
+    Hit.Time                   = TraceBuffer.Time            [Index];
 
     Hit.Normal                 = UnpackUnitVector(TraceBuffer.PackedNormal   [Index]);
     Hit.TangentX               = UnpackUnitVector(TraceBuffer.PackedTangentX [Index]);
@@ -798,8 +802,6 @@ hit LoadTraceHit(uint Index)
 
 void StoreTraceHit(uint Index, hit Hit)
 {
-    TraceBuffer.Time            [Index] = Hit.Time;
-
     if (RenderMode == RENDER_MODE_SCENE_COMPLEXITY)
         TraceBuffer.SceneComplexity [Index] = Hit.SceneComplexity;
     if (RenderMode == RENDER_MODE_MESH_COMPLEXITY)
@@ -807,9 +809,14 @@ void StoreTraceHit(uint Index, hit Hit)
     if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
         TraceBuffer.PrimitiveIndex  [Index] = Hit.PrimitiveIndex;
 
-    if (Hit.ShapeIndex == SHAPE_INDEX_NONE) return;
+    if (Hit.ShapeIndex == SHAPE_INDEX_NONE) {
+        TraceBuffer.ShapeAndMaterialIndex[Index] = 0xFFFFFFFF;
+        return;
+    }
 
     TraceBuffer.ShapeAndMaterialIndex [Index] = (Hit.ShapeIndex << 16) | Hit.MaterialIndex;
+
+    TraceBuffer.Time            [Index] = Hit.Time;
     TraceBuffer.PackedNormal    [Index] = PackUnitVector(Hit.Normal);
     TraceBuffer.PackedTangentX  [Index] = PackUnitVector(Hit.TangentX);
     TraceBuffer.TextureU        [Index] = Hit.UV.x;

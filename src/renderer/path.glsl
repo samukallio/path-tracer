@@ -125,7 +125,7 @@ void GenerateNewPath(uint Index, ivec2 ImagePosition)
 
     ray Ray;
 
-    Ray.Duration = 2 * HIT_TIME_LIMIT;
+    Ray.Duration = HIT_TIME_LIMIT;
 
     if (CameraModel == CAMERA_MODEL_PINHOLE) {
         vec3 SensorPosition = vec3(
@@ -594,7 +594,7 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
 //        }
 //    }
 
-    if (Hit.Time > HIT_TIME_LIMIT) {
+    if (Hit.ShapeIndex == SHAPE_INDEX_NONE) {
         vec4 Emission = SampleSkyboxRadiance(Ray, Lambda);
         float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
         Path.Sample += SampleStandardObserverSRGB(Lambda) * (Emission * Path.Throughput) / ClusterPDF;
@@ -713,14 +713,14 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
 
     Ray.Origin = Hit.Position + 1e-3 * Ray.Velocity;
 
-    Ray.Duration = 2 * HIT_TIME_LIMIT;
+    Ray.Duration = HIT_TIME_LIMIT;
 }
 
 void RenderBaseColor(inout path Path, ray Ray, hit Hit, bool IsShaded)
 {
     Path.Weight = vec4(0.0);
 
-    if (Hit.Time > HIT_TIME_LIMIT) {
+    if (Hit.ShapeIndex == SHAPE_INDEX_NONE) {
         // We hit the skybox.  Generate a color sample from the skybox radiance
         // spectrum by integrating against the standard observer.
         vec4 Spectrum = SampleSkyboxSpectrum(Ray);
@@ -750,7 +750,7 @@ void RenderBaseColor(inout path Path, ray Ray, hit Hit, bool IsShaded)
 void RenderNormal(inout path Path, ray Ray, hit Hit)
 {
     Path.Weight = vec4(0.0);
-    if (Hit.Time > HIT_TIME_LIMIT) {
+    if (Hit.ShapeIndex == SHAPE_INDEX_NONE) {
         Path.Sample += 0.5 * (1 - Ray.Velocity);
         return;
     }
@@ -760,7 +760,7 @@ void RenderNormal(inout path Path, ray Ray, hit Hit)
 void RenderMaterialIndex(inout path Path, ray Ray, hit Hit)
 {
     Path.Weight = vec4(0.0);
-    if (Hit.Time > HIT_TIME_LIMIT)
+    if (Hit.ShapeIndex == SHAPE_INDEX_NONE)
         return;
     Path.Sample += COLORS[Hit.MaterialIndex % 20];
 }
@@ -768,7 +768,7 @@ void RenderMaterialIndex(inout path Path, ray Ray, hit Hit)
 void RenderPrimitiveIndex(inout path Path, ray Ray, hit Hit)
 {
     Path.Weight = vec4(0.0);
-    if (Hit.Time > HIT_TIME_LIMIT)
+    if (Hit.ShapeIndex == SHAPE_INDEX_NONE)
         return;
     Path.Sample += COLORS[Hit.PrimitiveIndex % 20];
 }
