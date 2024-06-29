@@ -1,10 +1,12 @@
-const float INFINITY    = 1e30f;
-const float EPSILON     = 1e-9f;
-const float PI          = 3.141592653f;
-const float TAU         = 6.283185306f;
+const float INFINITY        = 1e30f;
+const float EPSILON         = 1e-9f;
+const float PI              = 3.141592653f;
+const float TAU             = 6.283185306f;
 
-const float CIE_LAMBDA_MIN = 360.0;
-const float CIE_LAMBDA_MAX = 830.0;
+const float HIT_TIME_LIMIT  = 1048576.0;
+
+const float CIE_LAMBDA_MIN  = 360.0;
+const float CIE_LAMBDA_MAX  = 830.0;
 
 const uint SHAPE_INDEX_NONE                 = 0xFFFFFFFF;
 const uint TEXTURE_INDEX_NONE               = 0xFFFFFFFF;
@@ -142,7 +144,7 @@ struct packed_scene_globals
 struct ray
 {
     vec3                Origin;
-    vec3                Vector;
+    vec3                Velocity;
     float               Duration;
 };
 
@@ -231,7 +233,7 @@ ray TransformRay(ray R, packed_transform Transform)
 {
     ray OutR;
     OutR.Origin = TransformPosition(R.Origin, Transform);
-    OutR.Vector = TransformVector(R.Vector, Transform);
+    OutR.Velocity = TransformVector(R.Velocity, Transform);
     OutR.Duration = R.Duration;
     return OutR;
 }
@@ -255,7 +257,7 @@ ray InverseTransformRay(ray R, packed_transform Transform)
 {
     ray OutR;
     OutR.Origin = InverseTransformPosition(R.Origin, Transform);
-    OutR.Vector = InverseTransformVector(R.Vector, Transform);
+    OutR.Velocity = InverseTransformVector(R.Velocity, Transform);
     OutR.Duration = R.Duration;
     return OutR;
 }
@@ -632,7 +634,6 @@ struct trace_buffer
     float               VectorX             [PATH_COUNT];
     float               VectorY             [PATH_COUNT];
     float               VectorZ             [PATH_COUNT];
-    float               Duration            [PATH_COUNT];
 
     // Result data.
     float               Time                [PATH_COUNT];
@@ -733,10 +734,13 @@ ray LoadTraceRay(uint Index)
     Ray.Origin.x = TraceBuffer.OriginX  [Index];
     Ray.Origin.y = TraceBuffer.OriginY  [Index];
     Ray.Origin.z = TraceBuffer.OriginZ  [Index];
-    Ray.Vector.x = TraceBuffer.VectorX  [Index];
-    Ray.Vector.y = TraceBuffer.VectorY  [Index];
-    Ray.Vector.z = TraceBuffer.VectorZ  [Index];
-    Ray.Duration = TraceBuffer.Duration [Index];
+
+    Ray.Velocity.x = TraceBuffer.VectorX  [Index];
+    Ray.Velocity.y = TraceBuffer.VectorY  [Index];
+    Ray.Velocity.z = TraceBuffer.VectorZ  [Index];
+    Ray.Duration = length(Ray.Velocity);
+    Ray.Velocity /= Ray.Duration;
+
     return Ray;
 }
 
@@ -745,10 +749,9 @@ void StoreTraceRay(uint Index, ray Ray)
     TraceBuffer.OriginX  [Index] = Ray.Origin.x;
     TraceBuffer.OriginY  [Index] = Ray.Origin.y;
     TraceBuffer.OriginZ  [Index] = Ray.Origin.z;
-    TraceBuffer.VectorX  [Index] = Ray.Vector.x;
-    TraceBuffer.VectorY  [Index] = Ray.Vector.y;
-    TraceBuffer.VectorZ  [Index] = Ray.Vector.z;
-    TraceBuffer.Duration [Index] = Ray.Duration;
+    TraceBuffer.VectorX  [Index] = Ray.Velocity.x * Ray.Duration;
+    TraceBuffer.VectorY  [Index] = Ray.Velocity.y * Ray.Duration;
+    TraceBuffer.VectorZ  [Index] = Ray.Velocity.z * Ray.Duration;
 }
 
 hit LoadTraceHit(uint Index)

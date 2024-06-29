@@ -11,8 +11,8 @@ float IntersectBoundingBox(ray Ray, float Reach, vec3 Min, vec3 Max)
 {
     // Compute ray time to the axis-aligned planes at the node bounding
     // box minimum and maximum corners.
-    vec3 MinT = (Min - Ray.Origin) / Ray.Vector;
-    vec3 MaxT = (Max - Ray.Origin) / Ray.Vector;
+    vec3 MinT = (Min - Ray.Origin) / Ray.Velocity;
+    vec3 MaxT = (Max - Ray.Origin) / Ray.Velocity;
 
     // For each coordinate axis, sort out which of the two coordinate
     // planes (at bounding box min/max points) comes earlier in time and
@@ -46,13 +46,13 @@ void IntersectMeshFace(ray Ray, uint MeshFaceIndex, inout hit Hit)
 {
     packed_mesh_face Face = MeshFaces[MeshFaceIndex];
 
-    float R = dot(Face.Plane.xyz, Ray.Vector);
+    float R = dot(Face.Plane.xyz, Ray.Velocity);
     if (R > -EPSILON && R < +EPSILON) return;
 
     float T = -(dot(Face.Plane.xyz, Ray.Origin) + Face.Plane.w) / R;
     if (T < 0 || T > Hit.Time) return;
 
-    vec3 V = Ray.Origin + Ray.Vector * T - Face.Position;
+    vec3 V = Ray.Origin + Ray.Velocity * T - Face.Position;
     float Beta = dot(Face.Base1, V);
     if (Beta < 0 || Beta > 1) return;
     float Gamma = dot(Face.Base2, V);
@@ -139,18 +139,18 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
             Hit.ShapeIndex = ShapeIndex;
     }
     else if (Shape.Type == SHAPE_TYPE_PLANE) {
-        float T = -Ray.Origin.z / Ray.Vector.z;
+        float T = -Ray.Origin.z / Ray.Velocity.z;
         if (T < 0 || T > Hit.Time) return;
 
         Hit.Time = T;
         Hit.ShapeType = SHAPE_TYPE_PLANE;
         Hit.ShapeIndex = ShapeIndex;
         Hit.PrimitiveIndex = 0;
-        Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * T;
+        Hit.PrimitiveCoordinates = Ray.Origin + Ray.Velocity * T;
     }
     else if (Shape.Type == SHAPE_TYPE_SPHERE) {
-        float V = dot(Ray.Vector, Ray.Vector);
-        float P = dot(Ray.Origin, Ray.Vector);
+        float V = dot(Ray.Velocity, Ray.Velocity);
+        float P = dot(Ray.Origin, Ray.Velocity);
         float Q = dot(Ray.Origin, Ray.Origin) - 1.0;
         float D2 = P * P - Q * V;
         if (D2 < 0) return;
@@ -167,11 +167,11 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
         Hit.ShapeType = SHAPE_TYPE_SPHERE;
         Hit.ShapeIndex = ShapeIndex;
         Hit.PrimitiveIndex = 0;
-        Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * Hit.Time;
+        Hit.PrimitiveCoordinates = Ray.Origin + Ray.Velocity * Hit.Time;
     }
     else if (Shape.Type == SHAPE_TYPE_CUBE) {
-        vec3 Minimum = (vec3(-1,-1,-1) - Ray.Origin) / Ray.Vector;
-        vec3 Maximum = (vec3(+1,+1,+1) - Ray.Origin) / Ray.Vector;
+        vec3 Minimum = (vec3(-1,-1,-1) - Ray.Origin) / Ray.Velocity;
+        vec3 Maximum = (vec3(+1,+1,+1) - Ray.Origin) / Ray.Velocity;
         vec3 Earlier = min(Minimum, Maximum);
         vec3 Later = max(Minimum, Maximum);
         float T0 = max(max(Earlier.x, Earlier.y), Earlier.z);
@@ -186,7 +186,7 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
         Hit.ShapeType = SHAPE_TYPE_CUBE;
         Hit.ShapeIndex = ShapeIndex;
         Hit.PrimitiveIndex = 0;
-        Hit.PrimitiveCoordinates = Ray.Origin + Ray.Vector * T;
+        Hit.PrimitiveCoordinates = Ray.Origin + Ray.Velocity * T;
     }
 }
 
@@ -260,7 +260,7 @@ hit Trace(ray Ray)
     ray ShapeRay = InverseTransformRay(Ray, Shape.Transform);
 
     // Hit position and tangent space basis in shape-local space.
-    vec3 Position = ShapeRay.Origin + ShapeRay.Vector * Hit.Time;
+    vec3 Position = ShapeRay.Origin + ShapeRay.Velocity * Hit.Time;
     vec3 Normal = vec3(0, 0, 1);
     vec3 TangentX = vec3(1, 0, 0);
     vec3 TangentY = vec3(0, 1, 0);

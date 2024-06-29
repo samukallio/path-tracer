@@ -84,16 +84,16 @@ vec4 SampleTexture(uint Index, vec2 UV)
 vec4 SampleSkyboxSpectrum(ray Ray)
 {
 //    mat3 frame = skyboxDistributionFrame;
-//    float x = (1 + dot(Ray.Vector, frame[0])) / 2.0;
-//    float y = (1 + dot(Ray.Vector, frame[1])) / 2.0;
-//    float z = (1 + dot(Ray.Vector, frame[2])) / 2.0;
+//    float x = (1 + dot(Ray.Velocity, frame[0])) / 2.0;
+//    float y = (1 + dot(Ray.Velocity, frame[1])) / 2.0;
+//    float z = (1 + dot(Ray.Velocity, frame[2])) / 2.0;
 //    return vec3(x, y, z);
 
     if (Scene.SkyboxTextureIndex == TEXTURE_INDEX_NONE)
         return vec4(0, 0, 100, 1);
 
-    float Phi = atan(Ray.Vector.y, Ray.Vector.x);
-    float Theta = asin(Ray.Vector.z);
+    float Phi = atan(Ray.Velocity.y, Ray.Velocity.x);
+    float Theta = asin(Ray.Velocity.z);
 
     float U = 0.5 + Phi / TAU;
     float V = 0.5 + Theta / PI;
@@ -125,7 +125,7 @@ void GenerateNewPath(uint Index, ivec2 ImagePosition)
 
     ray Ray;
 
-    Ray.Duration = INFINITY;
+    Ray.Duration = 2 * HIT_TIME_LIMIT;
 
     if (CameraModel == CAMERA_MODEL_PINHOLE) {
         vec3 SensorPosition = vec3(
@@ -134,7 +134,7 @@ void GenerateNewPath(uint Index, ivec2 ImagePosition)
             CameraSensorDistance);
 
         Ray.Origin = vec3(CameraApertureRadius * RandomPointOnDisk(), 0);
-        Ray.Vector = normalize(Ray.Origin - SensorPosition);
+        Ray.Velocity = normalize(Ray.Origin - SensorPosition);
     }
 
     else if (CameraModel == CAMERA_MODEL_THIN_LENS) {
@@ -146,7 +146,7 @@ void GenerateNewPath(uint Index, ivec2 ImagePosition)
         vec3 ObjectPosition = -SensorPosition * CameraFocalLength / (SensorPosition.z - CameraFocalLength);
 
         Ray.Origin = vec3(CameraApertureRadius * RandomPointOnDisk(), 0);
-        Ray.Vector = normalize(ObjectPosition - Ray.Origin);
+        Ray.Velocity = normalize(ObjectPosition - Ray.Origin);
     }
 
     else if (CameraModel == CAMERA_MODEL_360) {
@@ -154,7 +154,7 @@ void GenerateNewPath(uint Index, ivec2 ImagePosition)
         float Theta = (0.5f - NormalizedSamplePosition.y) * PI;
 
         Ray.Origin = vec3(0, 0, 0);
-        Ray.Vector = vec3(cos(Theta) * sin(Phi), sin(Theta), -cos(Theta) * cos(Phi));
+        Ray.Velocity = vec3(cos(Theta) * sin(Phi), sin(Theta), -cos(Theta) * cos(Phi));
     }
 
     Ray = TransformRay(Ray, CameraTransform);
@@ -566,10 +566,10 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
 //    if (Hit.Time == ScatteringTime) {
 //        // If the scattering time is finite, then it's a scattering event.
 //        if (ScatteringTime < INFINITY) {
-//            Ray.Origin = Ray.Origin + Ray.Vector * ScatteringTime;
+//            Ray.Origin = Ray.Origin + Ray.Velocity * ScatteringTime;
 //
 //            // Compute a local coordinate frame for the scattering event.
-//            vec3 X, Y, Z = Ray.Vector;
+//            vec3 X, Y, Z = Ray.Velocity;
 //            ComputeCoordinateFrame(Z, X, Y);
 //
 //            // Sample a random scattering direction in the local frame.
@@ -578,7 +578,7 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
 //            vec3 Scattered = SampleDirectionHG(Medium.ScatteringAnisotropy, U1, U2);
 //
 //            // Transform the scattered ray into world space and set it as the extension ray.
-//            Ray.Vector = normalize(X * Scattered.x + Y * Scattered.y + Z * Scattered.z);
+//            Ray.Velocity = normalize(X * Scattered.x + Y * Scattered.y + Z * Scattered.z);
 //            Ray.Duration = INFINITY;
 //
 //            return;
@@ -592,7 +592,7 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
 //        }
 //    }
 
-    if (Hit.Time == INFINITY) {
+    if (Hit.Time > HIT_TIME_LIMIT) {
         AddEmission(Path, SampleSkyboxRadiance(Ray, Path.Lambda));
         Path.Weight = vec4(0.0);
         return;
@@ -603,9 +603,9 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
 
     // Outgoing ray direction in normal/tangent space.
     vec3 Out = -vec3(
-        dot(Ray.Vector, Hit.TangentX),
-        dot(Ray.Vector, Hit.TangentY),
-        dot(Ray.Vector, Hit.Normal));
+        dot(Ray.Velocity, Hit.TangentX),
+        dot(Ray.Velocity, Hit.TangentY),
+        dot(Ray.Velocity, Hit.Normal));
 
     // Determines if the surface we hit is a virtual surface.  A surface
     // is virtual if it belongs to a shape with a lower priority than the
@@ -703,20 +703,20 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
     Path.Weight *= 1.0 - RenderTerminationProbability;
 
     // Prepare the extension ray.
-    Ray.Vector = In.x * Hit.TangentX
+    Ray.Velocity = In.x * Hit.TangentX
                + In.y * Hit.TangentY
                + In.z * Hit.Normal;
 
-    Ray.Origin = Hit.Position + 1e-3 * Ray.Vector;
+    Ray.Origin = Hit.Position + 1e-3 * Ray.Velocity;
 
-    Ray.Duration = INFINITY;
+    Ray.Duration = 2 * HIT_TIME_LIMIT;
 }
 
 void RenderBaseColor(inout path Path, ray Ray, hit Hit, bool IsShaded)
 {
     Path.Weight = vec4(0.0);
 
-    if (Hit.Time == INFINITY) {
+    if (Hit.Time > HIT_TIME_LIMIT) {
         // We hit the skybox.  Generate a color sample from the skybox radiance
         // spectrum by integrating against the standard observer.
         vec4 Spectrum = SampleSkyboxSpectrum(Ray);
@@ -734,7 +734,7 @@ void RenderBaseColor(inout path Path, ray Ray, hit Hit, bool IsShaded)
     }
 
     if (IsShaded) {
-        float Shading = dot(Hit.Normal, -Ray.Vector); 
+        float Shading = dot(Hit.Normal, -Ray.Velocity); 
         if (Hit.ShapeIndex == SelectedShapeIndex)
             BaseColor.r += 1.0;
         BaseColor *= Shading;
@@ -746,8 +746,8 @@ void RenderBaseColor(inout path Path, ray Ray, hit Hit, bool IsShaded)
 void RenderNormal(inout path Path, ray Ray, hit Hit)
 {
     Path.Weight = vec4(0.0);
-    if (Hit.Time == INFINITY) {
-        Path.Sample += 0.5 * (1 - Ray.Vector);
+    if (Hit.Time > HIT_TIME_LIMIT) {
+        Path.Sample += 0.5 * (1 - Ray.Velocity);
         return;
     }
     Path.Sample += 0.5 * (Hit.Normal + 1);
@@ -756,7 +756,7 @@ void RenderNormal(inout path Path, ray Ray, hit Hit)
 void RenderMaterialIndex(inout path Path, ray Ray, hit Hit)
 {
     Path.Weight = vec4(0.0);
-    if (Hit.Time == INFINITY)
+    if (Hit.Time > HIT_TIME_LIMIT)
         return;
     Path.Sample += COLORS[Hit.MaterialIndex % 20];
 }
@@ -764,7 +764,7 @@ void RenderMaterialIndex(inout path Path, ray Ray, hit Hit)
 void RenderPrimitiveIndex(inout path Path, ray Ray, hit Hit)
 {
     Path.Weight = vec4(0.0);
-    if (Hit.Time == INFINITY)
+    if (Hit.Time > HIT_TIME_LIMIT)
         return;
     Path.Sample += COLORS[Hit.PrimitiveIndex % 20];
 }
@@ -810,7 +810,7 @@ void main()
     ray Ray = LoadTraceRay(Index);
     hit Hit = LoadTraceHit(Index);
 
-    Hit.Position = Ray.Origin + Hit.Time * Ray.Vector;
+    Hit.Position = Ray.Origin + Hit.Time * Ray.Velocity;
 
     path Path = LoadPath(Index);
 
