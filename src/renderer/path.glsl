@@ -568,14 +568,17 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
     medium Medium;
     ResolveShapeMedium(ActiveShapeIndex, Lambda, Medium);
 
-    // We hit geometry, no scattering.
+    // Apply attenuation due to absorption.
     Path.Throughput *= exp(-Medium.AbsorptionRate * Hit.Time);
 
+    // Compute scattering event time based on the scattering rate for the primary wavelength.
     float ScatteringTime = HIT_TIME_LIMIT;
+    if (Medium.ScatteringRate.x > 0.0)
+        ScatteringTime = -log(Random0To1()) / Medium.ScatteringRate.x;
 
     if (Hit.Time >= ScatteringTime) {
         if (ScatteringTime < HIT_TIME_LIMIT) {
-            Ray.Origin += Ray.Velocity * Ray.Duration;
+            Ray.Origin += Ray.Velocity * ScatteringTime;
 
             // Compute a local coordinate frame for the scattering event.
             vec3 X, Y, Z = Ray.Velocity;
@@ -585,6 +588,12 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
             float U1 = Random0To1();
             float U2 = Random0To1();
             vec3 Scattered = SampleDirectionHG(Medium.ScatteringAnisotropy, U1, U2);
+
+            // Compute and apply per-wavelength probability of scattering at this point.
+            vec4 Density = Medium.ScatteringRate * exp(-Medium.ScatteringRate * ScatteringTime);
+            Density /= max(EPSILON, max4(Density));
+            Path.Throughput *= Density;
+            Path.Weight *= Density;
 
             // Transform the scattered ray into world space and set it as the extension ray.
             Ray.Velocity = normalize(X * Scattered.x + Y * Scattered.y + Z * Scattered.z);
