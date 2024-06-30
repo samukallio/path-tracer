@@ -12,7 +12,7 @@ static void IntersectMeshFace(scene* Scene, ray Ray, uint32_t MeshFaceIndex, hit
     float Det = dot(Edge1, RayCrossEdge2);
     if (abs(Det) < EPSILON) return;
 
-    float InvDet = 1.0 / Det;
+    float InvDet = 1.0f / Det;
 
     vec3 S = Ray.Origin - Face.Position0;
     float U = InvDet * dot(S, RayCrossEdge2);
