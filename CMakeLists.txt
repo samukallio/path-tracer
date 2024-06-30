@@ -79,6 +79,7 @@ function (compile_shader target source)
 					-MD
 					-mfmt=num
 					-fshader-stage=${stage}
+					-g
 					-O
 					-o ${output_path}
 					${CMAKE_CURRENT_SOURCE_DIR}/${source}
@@ -99,8 +100,12 @@ compile_shader (path-tracer src/renderer/resolve.glsl
 		FRAGMENT resolve.fragment.inc
 		DEPENDS src/renderer/common.glsl.inc)
 
-compile_shader (path-tracer src/renderer/render.glsl
-		COMPUTE render.compute.inc
+compile_shader (path-tracer src/renderer/trace.glsl
+		COMPUTE trace.compute.inc
+		DEPENDS src/renderer/common.glsl.inc)
+
+compile_shader (path-tracer src/renderer/path.glsl
+		COMPUTE path.compute.inc
 		DEPENDS src/renderer/common.glsl.inc)
 
 compile_shader (path-tracer src/renderer/imgui.glsl

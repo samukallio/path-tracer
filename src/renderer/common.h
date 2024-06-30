@@ -124,7 +124,6 @@ struct alignas(16) packed_shape
     shape_type          Type;
     uint                MaterialIndex;
     uint                MeshRootNodeIndex;
-    int                 Priority;
     packed_transform    Transform;
 };
 
@@ -154,27 +153,32 @@ struct alignas(16) packed_mesh_face_extra
 {
     aligned_vec3        Normals[3];
     aligned_vec2        UVs[3];
-    uint                MaterialIndex;
 };
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
 struct alignas(16) packed_mesh_node
 {
-
     vec3                Minimum;
     uint                FaceBeginOrNodeIndex;
     vec3                Maximum;
     uint                FaceEndIndex;
 };
 
+struct alignas(16) packed_scene_globals
+{
+    aligned_mat3        SkyboxDistributionFrame         = {};
+    float               SkyboxDistributionConcentration = 1.0f;
+    float               SkyboxBrightness                = 1.0f;
+    uint                SkyboxTextureIndex              = TEXTURE_INDEX_NONE;
+    uint                ShapeCount                      = 0;
+    float               SceneScatterRate                = 0.0f;
+};
+
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
 struct frame_uniform_buffer
 {
-    uint                FrameRandomSeed                 = 0;
-    uint                ShapeCount                      = 0;
-    float               SceneScatterRate                = 0.0f;
     camera_model        CameraModel                     = CAMERA_MODEL_THIN_LENS;
     float               CameraFocalLength               = 0.020f;
     float               CameraApertureRadius            = 0.040f;
@@ -192,10 +196,6 @@ struct frame_uniform_buffer
     float               Brightness                      = 1.0f;
     tone_mapping_mode   ToneMappingMode                 = TONE_MAPPING_MODE_CLAMP;
     float               ToneMappingWhiteLevel           = 1.0f;
-    aligned_mat3        SkyboxDistributionFrame         = {};
-    float               SkyboxDistributionConcentration = 1.0f;
-    float               SkyboxBrightness                = 1.0f;
-    uint                SkyboxTextureIndex              = TEXTURE_INDEX_NONE;
 };
 
 struct image

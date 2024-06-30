@@ -2,9 +2,10 @@
 
 #version 450
 
+#define DECLARE_FRAME_UBO_BINDING
 #include "common.glsl.inc"
 
-layout(binding = 1) uniform sampler2D TextureSampler;
+layout(binding = 1) uniform sampler2D SampleAccumulatorImageSampler;
 
 #if VERTEX
 
@@ -94,7 +95,7 @@ void main()
 {
     vec3 Color = vec3(0, 0, 0);
 
-    vec4 Value = texture(TextureSampler, FragmentUV);
+    vec4 Value = texture(SampleAccumulatorImageSampler, FragmentUV);
     if (Value.a > 0)
         Color = Brightness * Value.rgb / Value.a;
 

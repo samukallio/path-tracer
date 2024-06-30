@@ -10,8 +10,8 @@
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 
-int const WINDOW_WIDTH = 1920;
-int const WINDOW_HEIGHT = 1080;
+int const WINDOW_WIDTH = 2048;
+int const WINDOW_HEIGHT = 1024;
 char const* APPLICATION_NAME = "Path Tracer";
 
 application App;
@@ -39,6 +39,10 @@ void Frame()
     }
     ImGui::EndFrame();
     ImGui::Render();
+
+    frame_uniform_buffer Uniforms = {};
+
+    bool Restart = false;
 
     // Handle camera movement.
     {
@@ -84,16 +88,11 @@ void Frame()
             App.EditorCamera.Position = App.Camera->Transform.Position;
             App.EditorCamera.Rotation = App.Camera->Transform.Rotation;
         }
-    }
 
-    frame_uniform_buffer Uniforms = {
-        .FrameRandomSeed = App.FrameIndex,
-        .SceneScatterRate = App.Scene->Root.ScatterRate,
-        .SkyboxDistributionFrame = App.Scene->SkyboxDistributionFrame,
-        .SkyboxDistributionConcentration = App.Scene->SkyboxDistributionConcentration,
-        .SkyboxBrightness = App.Scene->Root.SkyboxBrightness,
-        .SkyboxTextureIndex = GetPackedTextureIndex(App.Scene->Root.SkyboxTexture),
-    };
+        if (WasMoved) {
+            Restart = true;
+        }
+    }
 
     if (!App.Camera) {
         editor_camera& Camera = App.EditorCamera;
@@ -128,6 +127,7 @@ void Frame()
                 if (Entity) {
                     App.SelectedEntity = Entity;
                     App.SelectionType = SELECTION_TYPE_ENTITY;
+                    Restart = true;
                 }
             }
         }
@@ -141,7 +141,8 @@ void Frame()
             .To = WorldMatrix,
             .From = ViewMatrix,
         };
-        Uniforms.RenderFlags = 0;
+        Uniforms.RenderFlags |= RENDER_FLAG_ACCUMULATE;
+        Uniforms.RenderFlags |= RENDER_FLAG_SAMPLE_JITTER;
 
         Uniforms.RenderBounceLimit = 0;
         Uniforms.Brightness = 1.0f;
@@ -183,7 +184,7 @@ void Frame()
             .To = WorldMatrix,
             .From = ViewMatrix,
         };
-        Uniforms.SelectedShapeIndex         = SHAPE_INDEX_NONE;
+        Uniforms.SelectedShapeIndex           = SHAPE_INDEX_NONE;
         Uniforms.RenderFlags                  = RENDER_FLAG_SAMPLE_JITTER;
         Uniforms.RenderSampleBlockSize        = 1u << Camera->RenderSampleBlockSizeLog2;
         Uniforms.RenderBounceLimit            = Camera->RenderBounceLimit;
@@ -194,17 +195,15 @@ void Frame()
         Uniforms.ToneMappingMode              = Camera->ToneMappingMode;
         Uniforms.ToneMappingWhiteLevel        = Camera->ToneMappingWhiteLevel;
         Uniforms.RenderFlags                  = Camera->RenderFlags;
-
-        if (App.Scene->DirtyFlags != 0)
-            Uniforms.RenderFlags &= ~RENDER_FLAG_ACCUMULATE;
     }
+
+    if (App.Scene->DirtyFlags != 0)
+        Restart = true;
 
     uint DirtyFlags = PackSceneData(App.Scene);
     UploadScene(App.Vulkan, App.Scene, DirtyFlags);
 
-    Uniforms.ShapeCount = static_cast<uint>(App.Scene->ShapePack.size());
-
-    RenderFrame(App.Vulkan, &Uniforms, ImGui::GetDrawData());
+    RenderFrame(App.Vulkan, &Uniforms, Restart, ImGui::GetDrawData());
 }
 
 static void MouseButtonInputCallback(GLFWwindow* Window, int Button, int Action, int Mods)

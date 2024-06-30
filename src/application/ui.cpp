@@ -192,24 +192,6 @@ static void MeshInspector(application* App, mesh* Mesh, bool Referenced = false)
 
     bool C = false;
 
-    ImGui::PushID("materials");
-    for (size_t I = 0; I < Mesh->Materials.size(); I++) {
-        ImGui::PushID(static_cast<int>(I));
-
-        char Title[32];
-        sprintf_s(Title, "Material %llu", I);
-
-        C |= ResourceSelectorDropDown(Title, Scene->Materials, &Mesh->Materials[I]);
-
-        ImGui::PopID();
-    }
-    ImGui::PopID();
-
-    for (size_t I = 0; I < Mesh->Materials.size(); I++) {
-        ImGui::Spacing();
-        MaterialInspector(App, Mesh->Materials[I], true);
-    }
-
     if (C) Scene->DirtyFlags |= SCENE_DIRTY_MESHES;
 
     ImGui::PopID();
@@ -229,6 +211,8 @@ static void CameraInspector(application* App, camera* Camera)
         C |= ImGui::Checkbox("Render Using This Camera", &Active);
         if (Active) App->Camera = Camera;
     }
+
+    if (C) App->Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
 
     ImGui::Spacing();
     ImGui::SeparatorText("Rendering");
@@ -315,7 +299,7 @@ static void CameraInspector(application* App, camera* Camera)
     if (Camera->CameraModel == CAMERA_MODEL_THIN_LENS) {
         vec2 SensorSizeInMM = Camera->ThinLens.SensorSizeInMM;
         if (ImGui::DragFloat2("Sensor Size (mm)", &SensorSizeInMM[0], 1.0f, 1.0f, 100.0f)) {
-            float const ASPECT_RATIO = 1920.0f / 1080.0f;
+            float const ASPECT_RATIO = 2048.0f / 1024.0f;
             if (SensorSizeInMM.x != Camera->ThinLens.SensorSizeInMM.x)
                 SensorSizeInMM.y = SensorSizeInMM.x / ASPECT_RATIO;
             else
@@ -380,6 +364,7 @@ static void EntityInspector(application* App, entity* Entity)
             C |= ImGui::DragFloat("Scattering Rate", &Root->ScatterRate, 0.001f, 0.00001f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
             C |= ImGui::DragFloat("Skybox Brightness", &Root->SkyboxBrightness, 0.01f, 0.0f, 1.0f);
             C |= ResourceSelectorDropDown("Skybox Texture", Scene->Textures, &Root->SkyboxTexture);
+            if (C) Scene->DirtyFlags |= SCENE_DIRTY_GLOBALS;
             break;
         }
         case ENTITY_TYPE_CAMERA: {
@@ -389,8 +374,10 @@ static void EntityInspector(application* App, entity* Entity)
         case ENTITY_TYPE_MESH_INSTANCE: {
             auto Instance = static_cast<mesh_instance*>(Entity);
             C |= ResourceSelectorDropDown("Mesh", Scene->Meshes, &Instance->Mesh);
+            C |= ResourceSelectorDropDown("Material", Scene->Materials, &Instance->Material);
             ImGui::Spacing();
             MeshInspector(App, Instance->Mesh, true);
+            MaterialInspector(App, Instance->Material, true);
             break;
         }
         case ENTITY_TYPE_PLANE: {
@@ -458,6 +445,19 @@ static void EntityTreeNode(application* App, entity* Entity, bool PrefabMode=fal
                     App->Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
                     App->SelectionType = SELECTION_TYPE_ENTITY;
                     App->SelectedEntity = Child;
+                }
+            }
+            if (!App->Scene->Prefabs.empty()) {
+                if (ImGui::BeginMenu("Create Prefab Instance")) {
+                    for (prefab* Prefab : App->Scene->Prefabs) {
+                        if (ImGui::MenuItem(Prefab->Entity->Name.c_str())) {
+                            auto Child = CreateEntity(App->Scene, Prefab, Entity);
+                            App->Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
+                            App->SelectionType = SELECTION_TYPE_ENTITY;
+                            App->SelectedEntity = Child;
+                        }
+                    }
+                    ImGui::EndMenu();
                 }
             }
             if (Entity->Type != ENTITY_TYPE_ROOT) {

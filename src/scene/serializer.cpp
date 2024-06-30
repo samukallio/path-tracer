@@ -263,7 +263,6 @@ void Serialize(serializer& S, json& JSON, material*& Pointer)
 void Serialize(serializer& S, json& JSON, mesh& Object)
 {
     F(Name);
-    F(Materials);
 
     struct mesh_header
     {
@@ -377,6 +376,7 @@ void Serialize(serializer& S, json& JSON, entity*& Entity)
         case ENTITY_TYPE_MESH_INSTANCE: {
             mesh_instance& Object = *static_cast<mesh_instance*>(Entity);
             F(Mesh);
+            F(Material);
             break;
         }
         case ENTITY_TYPE_PLANE: {

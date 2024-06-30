@@ -85,7 +85,6 @@ layout(
     local_size_z = 1)
     in;
 
-
 // Generate a random direction from the skybox directional distribution such
 // that the generated direction lies in the hemisphere corresponding to the
 // given normal.  The strategy is to sample a random direction first, then
