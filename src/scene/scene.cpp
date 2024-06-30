@@ -732,7 +732,7 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
 
     auto Prefab = new prefab;
 
-    if (Options->MergeIntoSingleMesh) {
+    if (Meshes.size() == 1) {
         auto Instance = new mesh_instance;
         Instance->Name = Meshes[0]->Name;
         Instance->Mesh = Meshes[0];
