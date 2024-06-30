@@ -141,10 +141,9 @@ struct alignas(16) packed_shape_node
 // and must follow std430 layout rules.
 struct alignas(16) packed_mesh_face
 {
-    alignas(16) vec3    Position;
-    alignas(16) vec4    Plane;
-    alignas(16) vec3    Base1;
-    alignas(16) vec3    Base2;
+    alignas(16) vec3    Position0;
+    alignas(16) vec3    Position1;
+    alignas(16) vec3    Position2;
 };
 
 // This structure is shared between CPU and GPU,

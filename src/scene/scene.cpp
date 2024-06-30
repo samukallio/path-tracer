@@ -1221,20 +1221,9 @@ uint32_t PackSceneData(scene* Scene)
                 packed_mesh_face Packed;
                 packed_mesh_face_extra PackedX;
 
-                Packed.Position = Face.Vertices[0];
-
-                glm::vec3 AB = Face.Vertices[1] - Face.Vertices[0];
-                glm::vec3 AC = Face.Vertices[2] - Face.Vertices[0];
-                glm::vec3 Normal = glm::normalize(glm::cross(AB, AC));
-                float D = -glm::dot(Normal, glm::vec3(Packed.Position));
-                Packed.Plane = glm::vec4(Normal, D);
-
-                float BB = glm::dot(AB, AB);
-                float BC = glm::dot(AB, AC);
-                float CC = glm::dot(AC, AC);
-                float InvDet = 1.0f / (BB * CC - BC * BC);
-                Packed.Base1 = (AB * CC - AC * BC) * InvDet;
-                Packed.Base2 = (AC * BB - AB * BC) * InvDet;
+                Packed.Position0 = Face.Vertices[0];
+                Packed.Position1 = Face.Vertices[1];
+                Packed.Position2 = Face.Vertices[2];
 
                 PackedX.Normals[0] = Face.Normals[0];
                 PackedX.Normals[1] = Face.Normals[1];

@@ -110,10 +110,9 @@ struct packed_shape_node
 
 struct packed_mesh_face
 {
-    vec3                Position;
-    vec4                Plane;
-    vec3                Base1;
-    vec3                Base2;
+    vec3                Position0;
+    vec3                Position1;
+    vec3                Position2;
 };
 
 struct packed_mesh_face_extra

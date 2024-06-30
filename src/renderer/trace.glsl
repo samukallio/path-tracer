@@ -46,23 +46,32 @@ void TraceMeshFace(ray Ray, uint MeshFaceIndex, inout hit Hit)
 {
     packed_mesh_face Face = MeshFaces[MeshFaceIndex];
 
-    float R = dot(Face.Plane.xyz, Ray.Velocity);
-    if (R > -EPSILON && R < +EPSILON) return;
+    vec3 Edge1 = Face.Position1 - Face.Position0;
+    vec3 Edge2 = Face.Position2 - Face.Position0;
 
-    float T = -(dot(Face.Plane.xyz, Ray.Origin) + Face.Plane.w) / R;
+    vec3 RayCrossEdge2 = cross(Ray.Velocity, Edge2);
+    float Det = dot(Edge1, RayCrossEdge2);
+
+    if (abs(Det) < EPSILON) return;
+
+    float InvDet = 1.0 / Det;
+
+    vec3 S = Ray.Origin - Face.Position0;
+    float U = InvDet * dot(S, RayCrossEdge2);
+    if (U < 0 || U > 1) return;
+
+    vec3 SCrossEdge1 = cross(S, Edge1);
+    float V = InvDet * dot(Ray.Velocity, SCrossEdge1);
+    if (V < 0 || U + V > 1) return;
+
+    float T = InvDet * dot(Edge2, SCrossEdge1);
     if (T < 0 || T > Hit.Time) return;
-
-    vec3 V = Ray.Origin + Ray.Velocity * T - Face.Position;
-    float Beta = dot(Face.Base1, V);
-    if (Beta < 0 || Beta > 1) return;
-    float Gamma = dot(Face.Base2, V);
-    if (Gamma < 0 || Beta + Gamma > 1) return;
 
     Hit.Time = T;
     Hit.ShapeType = SHAPE_TYPE_MESH_INSTANCE;
     Hit.ShapeIndex = 0xFFFFFFFE;
     Hit.PrimitiveIndex = MeshFaceIndex;
-    Hit.PrimitiveCoordinates = vec3(1 - Beta - Gamma, Beta, Gamma);
+    Hit.PrimitiveCoordinates = vec3(1 - U - V, U, V);
 }
 
 // Compute ray intersection against a mesh BVH node.

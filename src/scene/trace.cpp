@@ -5,23 +5,31 @@ static void IntersectMeshFace(scene* Scene, ray Ray, uint32_t MeshFaceIndex, hit
 {
     packed_mesh_face Face = Scene->MeshFacePack[MeshFaceIndex];
 
-    float R = glm::dot(Face.Plane.xyz(), Ray.Vector);
-    if (R > -EPSILON && R < +EPSILON) return;
+    vec3 Edge1 = Face.Position1 - Face.Position0;
+    vec3 Edge2 = Face.Position2 - Face.Position0;
 
-    float T = -(glm::dot(Face.Plane.xyz(), Ray.Origin) + Face.Plane.w) / R;
+    vec3 RayCrossEdge2 = cross(Ray.Vector, Edge2);
+    float Det = dot(Edge1, RayCrossEdge2);
+    if (abs(Det) < EPSILON) return;
+
+    float InvDet = 1.0 / Det;
+
+    vec3 S = Ray.Origin - Face.Position0;
+    float U = InvDet * dot(S, RayCrossEdge2);
+    if (U < 0 || U > 1) return;
+
+    vec3 SCrossEdge1 = cross(S, Edge1);
+    float V = InvDet * dot(Ray.Vector, SCrossEdge1);
+    if (V < 0 || U + V > 1) return;
+
+    float T = InvDet * dot(Edge2, SCrossEdge1);
     if (T < 0 || T > Hit.Time) return;
-
-    glm::vec3 V = Ray.Origin + Ray.Vector * T - Face.Position;
-    float Beta = glm::dot(glm::vec3(Face.Base1), V);
-    if (Beta < 0 || Beta > 1) return;
-    float Gamma = glm::dot(glm::vec3(Face.Base2), V);
-    if (Gamma < 0 || Beta + Gamma > 1) return;
 
     Hit.Time = T;
     Hit.ShapeType = SHAPE_TYPE_MESH_INSTANCE;
     Hit.ShapeIndex = SHAPE_INDEX_NONE;
     Hit.PrimitiveIndex = MeshFaceIndex;
-    Hit.PrimitiveCoordinates = glm::vec3(1 - Beta - Gamma, Beta, Gamma);
+    Hit.PrimitiveCoordinates = glm::vec3(1 - U - V, U, V);
 }
 
 static float IntersectMeshNodeBounds(ray Ray, float Reach, packed_mesh_node const& Node)
