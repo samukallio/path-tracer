@@ -117,8 +117,8 @@ struct packed_mesh_face
 
 struct packed_mesh_face_extra
 {
-    vec3                Normals[3];
-    vec2                UVs[3];
+    uint                PackedNormals[3];
+    uint                PackedUVs[3];
 };
 
 struct packed_mesh_node

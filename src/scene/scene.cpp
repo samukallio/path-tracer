@@ -1225,13 +1225,13 @@ uint32_t PackSceneData(scene* Scene)
                 Packed.Position1 = Face.Vertices[1];
                 Packed.Position2 = Face.Vertices[2];
 
-                PackedX.Normals[0] = Face.Normals[0];
-                PackedX.Normals[1] = Face.Normals[1];
-                PackedX.Normals[2] = Face.Normals[2];
+                PackedX.PackedNormals[0] = PackUnitVector(Face.Normals[0]);
+                PackedX.PackedNormals[1] = PackUnitVector(Face.Normals[1]);
+                PackedX.PackedNormals[2] = PackUnitVector(Face.Normals[2]);
 
-                PackedX.UVs[0] = Face.UVs[0];
-                PackedX.UVs[1] = Face.UVs[1];
-                PackedX.UVs[2] = Face.UVs[2];
+                PackedX.PackedUVs[0] = glm::packHalf2x16(Face.UVs[0]);
+                PackedX.PackedUVs[1] = glm::packHalf2x16(Face.UVs[1]);
+                PackedX.PackedUVs[2] = glm::packHalf2x16(Face.UVs[2]);
 
                 Scene->MeshFacePack.push_back(Packed);
                 Scene->MeshFaceExtraPack.push_back(PackedX);

@@ -281,15 +281,15 @@ void main()
             packed_mesh_face_extra Extra = MeshFaceExtras[Hit.PrimitiveIndex];
 
             vec3 Normal = SafeNormalize(
-                Extra.Normals[0] * Hit.PrimitiveCoordinates.x +
-                Extra.Normals[1] * Hit.PrimitiveCoordinates.y +
-                Extra.Normals[2] * Hit.PrimitiveCoordinates.z);
+                UnpackUnitVector(Extra.PackedNormals[0]) * Hit.PrimitiveCoordinates.x +
+                UnpackUnitVector(Extra.PackedNormals[1]) * Hit.PrimitiveCoordinates.y +
+                UnpackUnitVector(Extra.PackedNormals[2]) * Hit.PrimitiveCoordinates.z);
 
             Hit.Normal = TransformNormal(Normal, Shape.Transform);
             Hit.TangentX = ComputeTangentVector(Hit.Normal);
-            Hit.UV = Extra.UVs[0] * Hit.PrimitiveCoordinates.x
-                   + Extra.UVs[1] * Hit.PrimitiveCoordinates.y
-                   + Extra.UVs[2] * Hit.PrimitiveCoordinates.z;
+            Hit.UV = unpackHalf2x16(Extra.PackedUVs[0]) * Hit.PrimitiveCoordinates.x
+                   + unpackHalf2x16(Extra.PackedUVs[1]) * Hit.PrimitiveCoordinates.y
+                   + unpackHalf2x16(Extra.PackedUVs[2]) * Hit.PrimitiveCoordinates.z;
         }
         else if (Hit.ShapeType == SHAPE_TYPE_PLANE) {
             Hit.Normal = TransformNormal(vec3(0, 0, 1), Shape.Transform);

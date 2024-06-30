@@ -148,10 +148,10 @@ struct alignas(16) packed_mesh_face
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) packed_mesh_face_extra
+struct alignas(4) packed_mesh_face_extra
 {
-    aligned_vec3        Normals[3];
-    aligned_vec2        UVs[3];
+    uint                PackedNormals[3];
+    uint                PackedUVs[3];
 };
 
 // This structure is shared between CPU and GPU,
@@ -295,4 +295,46 @@ inline float RepeatRange(float Value, float Min, float Max)
 {
     float Range = Max - Min;
     return Min + Range * glm::fract((Value + Min) / Range);
+}
+
+/* --- Utilities ----------------------------------------------------------- */
+
+// Packs a unit vector into a single 32-bit value.
+inline uint PackUnitVector(vec3 Vector)
+{
+    // Compute azimuthal angle and quantize to 16 bit.
+    uint PhiQ;
+    if (glm::abs(Vector.x) < EPSILON) {
+        PhiQ = Vector.y < 0.0f ? 16384 : 49152;
+    }
+    else if (glm::abs(Vector.y) < EPSILON) {
+        PhiQ = Vector.x < 0.0f ? 0 : 32768;
+    }
+    else {
+        float Phi = glm::atan(Vector.y, Vector.x);
+        PhiQ = uint(glm::round(65535.0f * (0.5f + Phi / TAU)));
+    }
+
+    // Compute polar angle and quantize to 16 bit.
+    float Theta = glm::acos(glm::clamp(Vector.z, -1.0f, 1.0f));
+    uint ThetaQ = uint(glm::round(65535.0f * Theta / PI));
+
+    return (PhiQ << 16) | ThetaQ;
+}
+
+// Unpacks a unit vector from a single 32-bit value.
+inline vec3 UnpackUnitVector(uint PackedVector)
+{
+    // Unpack azimuthal angle.
+    uint PhiQ = PackedVector >> 16;
+    float Phi = (PhiQ / 65535.0f - 0.5f) * TAU;
+
+    // Unpack polar angle.
+    uint ThetaQ = PackedVector & 0xFFFF;
+    float Theta = (ThetaQ / 65535.0f) * PI;
+
+    // Reconstruct unit vector.
+    float Z = glm::cos(Theta);
+    vec2 XY = glm::sqrt(1.0f - Z * Z) * vec2(glm::cos(Phi), glm::sin(Phi));
+    return vec3(XY, Z);
 }
