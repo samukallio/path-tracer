@@ -191,14 +191,14 @@ struct surface
 // Volumetric material properties of a participating medium.
 struct medium
 {
-    uint                ShapeIndex;                 // Shape associated with this medium.
+    uint                Priority;                   // Priority of the medium when multiple media overlap.
     vec4                IOR;                        // Absolute index of refraction at each of the 4 sampling wavelengths.
     vec4                AbsorptionRate;             // Absorption rate at each of the 4 sampling wavelengths.
     vec4                ScatteringRate;             // Scattering rate at each of the 4 sampling wavelengths.
     float               ScatteringAnisotropy;       // Scattering phase function anisotropy.
 };
 
-const uint MAX_MEDIUM_COUNT = 2;
+const int ACTIVE_SHAPE_LIMIT = 4;
 
 struct path
 {
@@ -206,8 +206,8 @@ struct path
     vec4                Throughput;                 // Path throughput at each of the 4 sampling wavelengths.
     vec4                Weight;                     // Path weight at each of the 4 sampling wavelengths.
     vec3                Sample;
-    //medium            Mediums[MAX_MEDIUM_COUNT];
     ivec2               ImagePosition;
+    uint                ActiveShapeIndex[4];
 };
 
 vec3 TransformPosition(vec3 P, packed_transform Transform)
@@ -649,9 +649,8 @@ struct trace_buffer
     float               OriginX             [PATH_COUNT];
     float               OriginY             [PATH_COUNT];
     float               OriginZ             [PATH_COUNT];
-    float               VectorX             [PATH_COUNT];
-    float               VectorY             [PATH_COUNT];
-    float               VectorZ             [PATH_COUNT];
+    uint                PackedVelocity      [PATH_COUNT];
+    float               Duration            [PATH_COUNT];
 
     // Result data.
     float               Time                [PATH_COUNT];
@@ -682,6 +681,9 @@ struct path_buffer
     float               SampleR             [PATH_COUNT];
     float               SampleG             [PATH_COUNT];
     float               SampleB             [PATH_COUNT];
+
+    uint                ActiveShapeIndex01  [PATH_COUNT];
+    uint                ActiveShapeIndex23  [PATH_COUNT];
 };
 
 /* --- Bindings ------------------------------------------------------------ */
@@ -748,24 +750,19 @@ ray LoadTraceRay(uint Index)
     Ray.Origin.x = TraceBuffer.OriginX  [Index];
     Ray.Origin.y = TraceBuffer.OriginY  [Index];
     Ray.Origin.z = TraceBuffer.OriginZ  [Index];
-
-    Ray.Velocity.x = TraceBuffer.VectorX  [Index];
-    Ray.Velocity.y = TraceBuffer.VectorY  [Index];
-    Ray.Velocity.z = TraceBuffer.VectorZ  [Index];
-    Ray.Duration = length(Ray.Velocity);
-    Ray.Velocity /= Ray.Duration;
+    Ray.Velocity = UnpackUnitVector(TraceBuffer.PackedVelocity[Index]);
+    Ray.Duration = TraceBuffer.Duration [Index];
 
     return Ray;
 }
 
 void StoreTraceRay(uint Index, ray Ray)
 {
-    TraceBuffer.OriginX  [Index] = Ray.Origin.x;
-    TraceBuffer.OriginY  [Index] = Ray.Origin.y;
-    TraceBuffer.OriginZ  [Index] = Ray.Origin.z;
-    TraceBuffer.VectorX  [Index] = Ray.Velocity.x * Ray.Duration;
-    TraceBuffer.VectorY  [Index] = Ray.Velocity.y * Ray.Duration;
-    TraceBuffer.VectorZ  [Index] = Ray.Velocity.z * Ray.Duration;
+    TraceBuffer.OriginX        [Index] = Ray.Origin.x;
+    TraceBuffer.OriginY        [Index] = Ray.Origin.y;
+    TraceBuffer.OriginZ        [Index] = Ray.Origin.z;
+    TraceBuffer.PackedVelocity [Index] = PackUnitVector(Ray.Velocity);
+    TraceBuffer.Duration       [Index] = Ray.Duration;
 }
 
 hit LoadTraceHit(uint Index)
@@ -783,6 +780,7 @@ hit LoadTraceHit(uint Index)
 
     if (ShapeAndMaterialIndex == 0xFFFFFFFF) {
         Hit.ShapeIndex = SHAPE_INDEX_NONE;
+        Hit.Time = HIT_TIME_LIMIT;
         return Hit;
     }
 
@@ -847,22 +845,38 @@ path LoadPath(uint Index)
     Path.Sample.g           = PathBuffer.SampleG            [Index];
     Path.Sample.b           = PathBuffer.SampleB            [Index];
 
+    uint ActiveShapeIndex01 = PathBuffer.ActiveShapeIndex01[Index];
+    Path.ActiveShapeIndex[0] = ActiveShapeIndex01 & 0xFFFF;
+    Path.ActiveShapeIndex[1] = ActiveShapeIndex01 >> 16;
+
+    uint ActiveShapeIndex23 = PathBuffer.ActiveShapeIndex23[Index];
+    Path.ActiveShapeIndex[2] = ActiveShapeIndex23 & 0xFFFF;
+    Path.ActiveShapeIndex[3] = ActiveShapeIndex23 >> 16;
+
+    for (int I = 0; I < 4; I++) {
+        if (Path.ActiveShapeIndex[I] == 0xFFFF)
+            Path.ActiveShapeIndex[I] = SHAPE_INDEX_NONE;
+    }
+
     return Path;
 }
 
 void StorePathVertexData(uint Index, path Path)
 {
-    PathBuffer.Throughput0    [Index] = Path.Throughput.x;
-    PathBuffer.Throughput1    [Index] = Path.Throughput.y;
-    PathBuffer.Throughput2    [Index] = Path.Throughput.z;
-    PathBuffer.Throughput3    [Index] = Path.Throughput.w;
-    PathBuffer.Weight0        [Index] = Path.Weight.x;
-    PathBuffer.Weight1        [Index] = Path.Weight.y;
-    PathBuffer.Weight2        [Index] = Path.Weight.w;
-    PathBuffer.Weight3        [Index] = Path.Weight.z;
-    PathBuffer.SampleR        [Index] = Path.Sample.r;
-    PathBuffer.SampleG        [Index] = Path.Sample.g;
-    PathBuffer.SampleB        [Index] = Path.Sample.b;
+    PathBuffer.Throughput0          [Index] = Path.Throughput.x;
+    PathBuffer.Throughput1          [Index] = Path.Throughput.y;
+    PathBuffer.Throughput2          [Index] = Path.Throughput.z;
+    PathBuffer.Throughput3          [Index] = Path.Throughput.w;
+    PathBuffer.Weight0              [Index] = Path.Weight.x;
+    PathBuffer.Weight1              [Index] = Path.Weight.y;
+    PathBuffer.Weight2              [Index] = Path.Weight.w;
+    PathBuffer.Weight3              [Index] = Path.Weight.z;
+    PathBuffer.SampleR              [Index] = Path.Sample.r;
+    PathBuffer.SampleG              [Index] = Path.Sample.g;
+    PathBuffer.SampleB              [Index] = Path.Sample.b;
+
+    PathBuffer.ActiveShapeIndex01   [Index] = (Path.ActiveShapeIndex[1] << 16) | Path.ActiveShapeIndex[0];
+    PathBuffer.ActiveShapeIndex23   [Index] = (Path.ActiveShapeIndex[3] << 16) | Path.ActiveShapeIndex[2];
 }
 
 void StorePath(uint Index, path Path)

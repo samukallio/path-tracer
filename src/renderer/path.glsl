@@ -170,13 +170,16 @@ void GenerateNewPath(uint Index, ivec2 ImagePosition)
     Path.Weight         = vec4(1.0);
     Path.Sample         = vec3(0.0);
 
+    for (int I = 0; I < 4; I++)
+        Path.ActiveShapeIndex[I] = SHAPE_INDEX_NONE;
+
     StorePath(Index, Path);
 }
 
 /* --- BSDF ---------------------------------------------------------------- */
 
 // Evaluate the surface properties of a hit surface at given wavelengths.
-void ResolveSurfaceHit(hit Hit, vec4 Lambda, vec4 ExteriorIOR, out surface Surface, out medium Medium)
+void ResolveSurfaceHit(hit Hit, vec4 Lambda, vec4 ExteriorIOR, out surface Surface)
 {
     packed_material Material = Materials[Hit.MaterialIndex];
 
@@ -236,23 +239,38 @@ void ResolveSurfaceHit(hit Hit, vec4 Lambda, vec4 ExteriorIOR, out surface Surfa
 
     //
     Surface.LayerBounceLimit = Material.LayerBounceLimit;
+}
 
-    // Medium.
-    Medium.ShapeIndex = Hit.ShapeIndex;
+void ResolveShapeMedium(uint ShapeIndex, vec4 Lambda, out medium Medium)
+{
+    Medium.Priority = ShapeIndex;
 
-    Medium.IOR = SpecularIOR;
-
-    if (Material.TransmissionDepth > 0) {
-        vec4 ExtinctionRate = -log(SampleParametricSpectrum(Material.TransmissionSpectrum, Lambda)) / Material.TransmissionDepth;
-        vec4 ScatteringRate = SampleParametricSpectrum(Material.TransmissionScatterSpectrum, Lambda) / Material.TransmissionDepth;
-        Medium.AbsorptionRate = max(ExtinctionRate - ScatteringRate, 0);
-        Medium.ScatteringRate = ScatteringRate;
-        Medium.ScatteringAnisotropy = Material.TransmissionScatterAnisotropy;
+    if (ShapeIndex == SHAPE_INDEX_NONE) {
+        Medium.Priority = 0xFFFFFFFF;
+        Medium.IOR = vec4(1.0);
+        Medium.AbsorptionRate = vec4(0.0);
+        Medium.ScatteringRate = vec4(Scene.SceneScatterRate);
+        Medium.ScatteringAnisotropy = 0.0;
     }
     else {
-        Medium.AbsorptionRate = vec4(0.0);
-        Medium.ScatteringRate = vec4(0.0);
-        Medium.ScatteringAnisotropy = 0.0;
+        packed_shape Shape = Shapes[ShapeIndex];
+        packed_material Material = Materials[Shape.MaterialIndex];
+
+        float AbbeNumber = Material.TransmissionDispersionAbbeNumber / Material.TransmissionDispersionScale;
+        Medium.IOR = CauchyEmpiricalIOR(Material.SpecularIOR, AbbeNumber, Lambda);
+
+        if (Material.TransmissionDepth > 0.0) {
+            vec4 ExtinctionRate = -log(SampleParametricSpectrum(Material.TransmissionSpectrum, Lambda)) / Material.TransmissionDepth;
+            vec4 ScatteringRate = SampleParametricSpectrum(Material.TransmissionScatterSpectrum, Lambda) / Material.TransmissionDepth;
+            Medium.AbsorptionRate = max(ExtinctionRate - ScatteringRate, 0.0);
+            Medium.ScatteringRate = ScatteringRate;
+            Medium.ScatteringAnisotropy = Material.TransmissionScatterAnisotropy;
+        }
+        else {
+            Medium.AbsorptionRate = vec4(0.0);
+            Medium.ScatteringRate = vec4(0.0);
+            Medium.ScatteringAnisotropy = 0.0;
+        }
     }
 }
 
@@ -541,64 +559,45 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
         mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(Path.NormalizedLambda0 + 0.75))
     );
 
-//    medium Ambience;
-//    Ambience.ShapeIndex = SHAPE_INDEX_NONE;
-//    Ambience.ShapePriority = 0;
-//    Ambience.IOR = vec4(1.0);
-//    Ambience.AbsorptionRate = vec4(0.0);
-//    Ambience.ScatteringRate = vec4(SceneScatterRate);
-//    Ambience.ScatteringAnisotropy = 0.0;
+    // Determine the highest priority shape that we are currently in.
+    uint ActiveShapeIndex = SHAPE_INDEX_NONE;
+    for (int I = 0; I < ACTIVE_SHAPE_LIMIT; I++)
+        ActiveShapeIndex = min(ActiveShapeIndex, Path.ActiveShapeIndex[I]);
 
-//    // Determine the highest-priority medium that we are currently
-//    // in, and set it as the active one.
-//    medium Medium = Ambience;
-//    for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
-//        if (Path.Mediums[I].ShapeIndex == SHAPE_INDEX_NONE)
-//            continue;
-//        if (Path.Mediums[I].ShapePriority < Medium.ShapePriority)
-//            continue;
-//        Medium = Path.Mediums[I];
-//    }
+    // Determine the properties of the incident participating medium.
+    medium Medium;
+    ResolveShapeMedium(ActiveShapeIndex, Lambda, Medium);
 
-//    float ScatteringTime = INFINITY;
-//
-//    Path.Throughput *= exp(-Medium.AbsorptionRate * Hit.Time);
-//
-//    // If we hit no geometry before the scattering time...
-//    if (Hit.Time == ScatteringTime) {
-//        // If the scattering time is finite, then it's a scattering event.
-//        if (ScatteringTime < INFINITY) {
-//            Ray.Origin = Ray.Origin + Ray.Velocity * ScatteringTime;
-//
-//            // Compute a local coordinate frame for the scattering event.
-//            vec3 X, Y, Z = Ray.Velocity;
-//            ComputeCoordinateFrame(Z, X, Y);
-//
-//            // Sample a random scattering direction in the local frame.
-//            float U1 = Random0To1();
-//            float U2 = Random0To1();
-//            vec3 Scattered = SampleDirectionHG(Medium.ScatteringAnisotropy, U1, U2);
-//
-//            // Transform the scattered ray into world space and set it as the extension ray.
-//            Ray.Velocity = normalize(X * Scattered.x + Y * Scattered.y + Z * Scattered.z);
-//            Ray.Duration = INFINITY;
-//
-//            return;
-//        }
-//        // Otherwise, we hit the skybox.
-//        else {
-//            AddEmission(Path, SampleSkyboxRadiance(Ray, Lambda));
-//            
-//            Path.Weight = vec4(0.0);
-//            return;
-//        }
-//    }
+    // We hit geometry, no scattering.
+    Path.Throughput *= exp(-Medium.AbsorptionRate * Hit.Time);
 
-    if (Hit.ShapeIndex == SHAPE_INDEX_NONE) {
-        vec4 Emission = SampleSkyboxRadiance(Ray, Lambda);
-        float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
-        Path.Sample += SampleStandardObserverSRGB(Lambda) * (Emission * Path.Throughput) / ClusterPDF;
-        Path.Weight = vec4(0.0);
+    float ScatteringTime = HIT_TIME_LIMIT;
+
+    if (Hit.Time >= ScatteringTime) {
+        if (ScatteringTime < HIT_TIME_LIMIT) {
+            Ray.Origin += Ray.Velocity * Ray.Duration;
+
+            // Compute a local coordinate frame for the scattering event.
+            vec3 X, Y, Z = Ray.Velocity;
+            ComputeCoordinateFrame(Z, X, Y);
+
+            // Sample a random scattering direction in the local frame.
+            float U1 = Random0To1();
+            float U2 = Random0To1();
+            vec3 Scattered = SampleDirectionHG(Medium.ScatteringAnisotropy, U1, U2);
+
+            // Transform the scattered ray into world space and set it as the extension ray.
+            Ray.Velocity = normalize(X * Scattered.x + Y * Scattered.y + Z * Scattered.z);
+            Ray.Duration = HIT_TIME_LIMIT;
+        }
+        // Otherwise, we hit the skybox.
+        else {
+            vec4 Emission = SampleSkyboxRadiance(Ray, Lambda);
+            float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
+            Path.Sample += SampleStandardObserverSRGB(Lambda) * (Emission * Path.Throughput) / ClusterPDF;
+            Path.Weight = vec4(0.0);
+        }
+
         return;
     }
 
@@ -611,92 +610,88 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
         dot(Ray.Velocity, Hit.TangentY),
         dot(Ray.Velocity, Hit.Normal));
 
-    // Determines if the surface we hit is a virtual surface.  A surface
-    // is virtual if it belongs to a shape with a lower priority than the
-    // highest priority shape that we are currently traversing through.
-    // In that case the medium associated with the higher priority shape
-    // supersedes the lower priority one, and it is as if an interface
-    // does not exist at that point at all.
-    bool IsVirtualSurface = false;
+    // This flag determines if the surface will scatter the ray.
+    // It is always true, except when two or more objects overlap
+    // and we hit a surface of a lower priority object while inside
+    // a higher priority one.  In that case the interior of the
+    // higher priority shape supersedes the lower priority one, and
+    // it is as if there is no surface at all.
+    bool IsRealSurface = true;
 
-    // Indices of refraction of the medium above the surface, per wavelength.
+    // Refractive indices (at each sampling wavelength) of the medium
+    // outside the surface (positive normal direction).
     vec4 ExteriorIOR = vec4(1.0);
 
-//    if (Out.z > 0) {
-//        // If we are hitting the exterior side of a shape, then the surface
-//        // interface should affect the ray if the surface belongs to
-//        // a higher priority shape than we are currently traversing through.
-//        IsVirtualSurface = Medium.ShapePriority >= Hit.ShapePriority;
-//
-//        if (!IsVirtualSurface) {
-//            ExteriorIOR = Medium.IOR;
-//        }
-//    }
-//    else {
-//        // If we are hitting the interior side of a shape, then the surface
-//        // interface should affect the ray only if the surface belongs to
-//        // the highest-priority shape that we are currently traversing
-//        // through.
-//        IsVirtualSurface = Medium.ShapeIndex != Hit.ShapeIndex;
-//
-//        // If the surface is real, then we need to determine the ambient IOR.
-//        if (!IsVirtualSurface) {
-//            // The medium beyond the surface will be that of the highest
-//            // priority shape other than the one we are currently in.
-//            medium Exterior = Ambience;
-//            for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
-//                if (Path.Mediums[I].ShapeIndex == SHAPE_INDEX_NONE)
-//                    continue;
-//                if (Path.Mediums[I].ShapeIndex == Medium.ShapeIndex)
-//                    continue;
-//                if (Path.Mediums[I].ShapePriority < Exterior.ShapePriority)
-//                    continue;
-//                Exterior = Path.Mediums[I];
-//            }
-//            ExteriorIOR = Exterior.IOR;
-//        }
-//    }
+    // Priority of the interior of the current shape.
+    uint ShapePriority = Hit.ShapeIndex;
+
+    if (Out.z > 0) {
+        // We hit the exterior surface of a shape.  The ray should be
+        // scattered if the priority of the shape is higher than the
+        // priority of the current medium.  Otherwise, the shape and
+        // its surface are superseded by the current medium, and the
+        // ray will pass through.
+        IsRealSurface = Medium.Priority > ShapePriority;
+
+        if (IsRealSurface) ExteriorIOR = Medium.IOR;
+    }
+    else {
+        // We hit the interior surface of a shape.  The ray should be
+        // scattered if this surface belongs to the shape whose interior
+        // we are currently traversing.  In that case the priority of
+        // the active medium and the surface are the same.
+        IsRealSurface = Medium.Priority == ShapePriority;
+
+        // If the surface is real, then we need to determine the IOR
+        // on the other (exterior) side of the shape.
+        if (IsRealSurface) {
+            // Determine the highest priority shape outside the current shape.
+            uint ExteriorShapeIndex = SHAPE_INDEX_NONE;
+            for (int I = 0; I < ACTIVE_SHAPE_LIMIT; I++) {
+                if (Path.ActiveShapeIndex[I] == ActiveShapeIndex)
+                    continue;
+                ExteriorShapeIndex = min(ExteriorShapeIndex, Path.ActiveShapeIndex[I]);
+            }
+
+            medium Exterior;
+            ResolveShapeMedium(ExteriorShapeIndex, Lambda, Exterior);
+
+            ExteriorIOR = Exterior.IOR;
+        }
+    }
 
     // Resolve the surface and medium details.
     surface Surface;
-    medium Interior;
-    ResolveSurfaceHit(Hit, Lambda, ExteriorIOR, Surface, Interior);
+    ResolveSurfaceHit(Hit, Lambda, ExteriorIOR, Surface);
 
-
-    // Pass through the surface if embedded in a higher-priority
-    // medium, or probabilistically based on geometric opacity.
-    //if (Random0To1() > Surface.Opacity || IsVirtualSurface)
-        //In = -Out;
-    //else
+    if (IsRealSurface && Random0To1() < Surface.Opacity)
         BSDF(Surface, Lambda, Out, In, Path);
+    else
+        In = -Out;
 
     if (max4(Path.Weight) < EPSILON) return;
 
-//    // If the incoming and outgoing directions are within opposite hemispheres,
-//    // then the ray is crossing the material interface boundary.  We need to
-//    // perform bookkeeping to determine the current Medium.
-//    if (In.z * Out.z < 0) {
-//        if (Out.z > 0) {
-//            // We are tracing into the object, so add a medium entry
-//            // associated with the object.
-//            for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
-//                if (Path.Mediums[I].ShapeIndex == SHAPE_INDEX_NONE) {
-//                    Path.Mediums[I] = Interior;
-//                    break;
-//                }
-//            }
-//        }
-//        else {
-//            // We are tracing out of the object, so remove the medium
-//            // entry associated with the object.
-//            for (int I = 0; I < MAX_MEDIUM_COUNT; I++) {
-//                if (Path.Mediums[I].ShapeIndex == Hit.ShapeIndex) {
-//                    Path.Mediums[I].ShapeIndex = SHAPE_INDEX_NONE;
-//                    break;
-//                }
-//            }
-//        }
-//    }
+    // If the incoming and outgoing directions are within opposite hemispheres,
+    // then the ray is crossing the material interface boundary.  We need to
+    // perform bookkeeping to determine the current medium.
+    if (In.z * Out.z < 0) {
+        if (Out.z > 0) {
+            for (int I = 0; I < ACTIVE_SHAPE_LIMIT; I++) {
+                if (Path.ActiveShapeIndex[I] == SHAPE_INDEX_NONE) {
+                    Path.ActiveShapeIndex[I] = Hit.ShapeIndex;
+                    break;
+                }
+            }
+        }
+        else {
+            for (int I = 0; I < ACTIVE_SHAPE_LIMIT; I++) {
+                if (Path.ActiveShapeIndex[I] == Hit.ShapeIndex) {
+                    Path.ActiveShapeIndex[I] = SHAPE_INDEX_NONE;
+                    break;
+                }
+            }
+        }
+    }
 
     // Handle probabilistic termination.
     if (Random0To1() < RenderTerminationProbability) {

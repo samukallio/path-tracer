@@ -919,6 +919,7 @@ static void PackShape(scene* Scene, glm::mat4 const& OuterTransform, entity* Ent
         case ENTITY_TYPE_MESH_INSTANCE: {
             auto Instance = static_cast<mesh_instance*>(Entity);
             if (!Instance->Mesh) return;
+            Packed.MaterialIndex = GetPackedMaterialIndex(Instance->Mesh->Materials[0]);
             Packed.MeshRootNodeIndex = Instance->Mesh->PackedRootNodeIndex;
             Packed.Type = SHAPE_TYPE_MESH_INSTANCE;
             break;

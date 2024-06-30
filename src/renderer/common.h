@@ -160,7 +160,6 @@ struct alignas(16) packed_mesh_face_extra
 // and must follow std430 layout rules.
 struct alignas(16) packed_mesh_node
 {
-
     vec3                Minimum;
     uint                FaceBeginOrNodeIndex;
     vec3                Maximum;
