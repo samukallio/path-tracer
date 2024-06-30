@@ -271,8 +271,6 @@ void main()
             packed_mesh_face Face = MeshFaces[Hit.PrimitiveIndex];
             packed_mesh_face_extra Extra = MeshFaceExtras[Hit.PrimitiveIndex];
 
-            Hit.MaterialIndex = Extra.MaterialIndex;
-
             vec3 Normal = SafeNormalize(
                 Extra.Normals[0] * Hit.PrimitiveCoordinates.x +
                 Extra.Normals[1] * Hit.PrimitiveCoordinates.y +

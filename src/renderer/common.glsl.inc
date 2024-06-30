@@ -120,7 +120,6 @@ struct packed_mesh_face_extra
 {
     vec3                Normals[3];
     vec2                UVs[3];
-    uint                MaterialIndex;
 };
 
 struct packed_mesh_node

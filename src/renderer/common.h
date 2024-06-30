@@ -153,7 +153,6 @@ struct alignas(16) packed_mesh_face_extra
 {
     aligned_vec3        Normals[3];
     aligned_vec2        UVs[3];
-    uint                MaterialIndex;
 };
 
 // This structure is shared between CPU and GPU,

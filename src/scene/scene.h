@@ -83,7 +83,6 @@ struct mesh
     std::vector<mesh_node>          Nodes;
     uint32_t                        Depth;
     uint32_t                        PackedRootNodeIndex;
-    std::vector<material*>          Materials;
 };
 
 enum entity_type
@@ -166,6 +165,7 @@ struct camera : entity
 struct mesh_instance : entity
 {
     mesh*                           Mesh = nullptr;
+    material*                       Material = nullptr;
 
     mesh_instance() { Type = ENTITY_TYPE_MESH_INSTANCE; }
 };

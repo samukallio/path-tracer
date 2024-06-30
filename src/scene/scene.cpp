@@ -314,6 +314,14 @@ void DestroyMaterial(scene* Scene, material* Material)
 {
     ForEachEntity(&Scene->Root, [Scene, Material](entity* Entity) {
         switch (Entity->Type) {
+            case ENTITY_TYPE_MESH_INSTANCE: {
+                auto MeshInstance = static_cast<mesh_instance*>(Entity);
+                if (MeshInstance->Material == Material) {
+                    MeshInstance->Material = nullptr;
+                    Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
+                }
+                break;
+            }
             case ENTITY_TYPE_PLANE: {
                 auto Plane = static_cast<plane*>(Entity);
                 if (Plane->Material == Material) {
@@ -340,15 +348,6 @@ void DestroyMaterial(scene* Scene, material* Material)
             }
         }
     });
-
-    for (mesh* Mesh : Scene->Meshes) {
-        for (material*& MeshMaterial : Mesh->Materials) {
-            if (MeshMaterial == Material) {
-                MeshMaterial = nullptr;
-                Scene->DirtyFlags |= SCENE_DIRTY_MESHES;
-            }
-        }
-    }
 
     std::erase(Scene->Materials, Material);
     Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
@@ -623,17 +622,15 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
 
     // Import meshes.
     std::vector<mesh*> Meshes;
+    std::unordered_map<mesh*, material*> MeshMaterials;
     std::vector<glm::vec3> Origins;
     {
         mesh* Mesh = nullptr;
-
-        std::unordered_map<int, uint32_t> MeshMaterialIndices;
-        std::vector<material*> MeshMaterials;
+        material* MeshMaterial = nullptr;
 
         if (Options->MergeIntoSingleMesh) {
             Mesh = new mesh;
             Mesh->Name = ModelName;
-            Mesh->Materials = Materials;
             Meshes.push_back(Mesh);
             Origins.push_back(glm::vec3());
 
@@ -657,9 +654,6 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
                 Mesh->Name = !Shape.name.empty() ? Shape.name : std::format("{} {}", ModelName, ShapeIndex);
                 Mesh->Faces.reserve(ShapeIndexCount / 3);
                 Meshes.push_back(Mesh);
-
-                MeshMaterialIndices.clear();
-                MeshMaterials.clear();
 
                 glm::vec3 Minimum = glm::vec3(+INFINITY, +INFINITY, +INFINITY);
                 glm::vec3 Maximum = glm::vec3(-INFINITY, -INFINITY, -INFINITY);
@@ -706,30 +700,15 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
 
                 int MaterialId = Shape.mesh.material_ids[I/3];
 
-                if (!MeshMaterialIndices.contains(MaterialId)) {
-                    uint32_t MaterialIndex = static_cast<uint32_t>(MeshMaterials.size());
-                    MeshMaterialIndices[MaterialId] = MaterialIndex;
-
-                    if (MaterialId >= 0)
-                        MeshMaterials.push_back(Materials[MaterialId]);
-                    else
-                        MeshMaterials.push_back(Options->DefaultMaterial);
-                }
-
-                Face.MaterialIndex = MeshMaterialIndices[MaterialId];
+                if (MaterialId >= 0)
+                    MeshMaterial = Materials[MaterialId];
 
                 Face.Centroid = (Face.Vertices[0] + Face.Vertices[1] + Face.Vertices[2]) / 3.0f;
 
                 Mesh->Faces.push_back(Face);
             }
 
-            if (!Options->MergeIntoSingleMesh) {
-                Mesh->Materials = std::move(MeshMaterials);
-            }
-        }
-
-        if (Options->MergeIntoSingleMesh) {
-            Mesh->Materials = std::move(MeshMaterials);
+            MeshMaterials[Mesh] = MeshMaterial;
         }
     }
 
@@ -757,6 +736,7 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
         auto Instance = new mesh_instance;
         Instance->Name = Meshes[0]->Name;
         Instance->Mesh = Meshes[0];
+        Instance->Material = MeshMaterials[Meshes[0]];
         Prefab->Entity = Instance;
     }
     else {
@@ -769,6 +749,7 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
             auto Instance = new mesh_instance;
             Instance->Name = Mesh->Name;
             Instance->Mesh = Mesh;
+            Instance->Material = MeshMaterials[Mesh];
             Instance->Transform.Position = Options->VertexTransform * glm::vec4(Origin, 1);
             Container->Children.push_back(Instance);
         }
@@ -812,6 +793,8 @@ scene* CreateScene()
     camera* Camera = (camera*)CreateEntity(Scene, ENTITY_TYPE_CAMERA);
     Camera->Name = "Camera";
     Camera->Transform.Position = { 0, 0, 1 };
+
+    Scene->DirtyFlags = SCENE_DIRTY_ALL;
 
     return Scene;
 }
@@ -919,7 +902,7 @@ static void PackShape(scene* Scene, glm::mat4 const& OuterTransform, entity* Ent
         case ENTITY_TYPE_MESH_INSTANCE: {
             auto Instance = static_cast<mesh_instance*>(Entity);
             if (!Instance->Mesh) return;
-            Packed.MaterialIndex = GetPackedMaterialIndex(Instance->Mesh->Materials[0]);
+            Packed.MaterialIndex = GetPackedMaterialIndex(Instance->Material);
             Packed.MeshRootNodeIndex = Instance->Mesh->PackedRootNodeIndex;
             Packed.Type = SHAPE_TYPE_MESH_INSTANCE;
             break;
@@ -1210,7 +1193,6 @@ uint32_t PackSceneData(scene* Scene)
             Scene->MaterialPack.push_back(Packed);
         }
 
-        DirtyFlags |= SCENE_DIRTY_MESHES;
         DirtyFlags |= SCENE_DIRTY_SHAPES;
     }
 
@@ -1240,9 +1222,6 @@ uint32_t PackSceneData(scene* Scene)
                 packed_mesh_face_extra PackedX;
 
                 Packed.Position = Face.Vertices[0];
-
-                material* Material = Mesh->Materials[Face.MaterialIndex];
-                PackedX.MaterialIndex = GetPackedMaterialIndex(Material);
 
                 glm::vec3 AB = Face.Vertices[1] - Face.Vertices[0];
                 glm::vec3 AC = Face.Vertices[2] - Face.Vertices[0];

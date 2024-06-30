@@ -192,24 +192,6 @@ static void MeshInspector(application* App, mesh* Mesh, bool Referenced = false)
 
     bool C = false;
 
-    ImGui::PushID("materials");
-    for (size_t I = 0; I < Mesh->Materials.size(); I++) {
-        ImGui::PushID(static_cast<int>(I));
-
-        char Title[32];
-        sprintf_s(Title, "Material %llu", I);
-
-        C |= ResourceSelectorDropDown(Title, Scene->Materials, &Mesh->Materials[I]);
-
-        ImGui::PopID();
-    }
-    ImGui::PopID();
-
-    for (size_t I = 0; I < Mesh->Materials.size(); I++) {
-        ImGui::Spacing();
-        MaterialInspector(App, Mesh->Materials[I], true);
-    }
-
     if (C) Scene->DirtyFlags |= SCENE_DIRTY_MESHES;
 
     ImGui::PopID();
@@ -392,8 +374,10 @@ static void EntityInspector(application* App, entity* Entity)
         case ENTITY_TYPE_MESH_INSTANCE: {
             auto Instance = static_cast<mesh_instance*>(Entity);
             C |= ResourceSelectorDropDown("Mesh", Scene->Meshes, &Instance->Mesh);
+            C |= ResourceSelectorDropDown("Material", Scene->Materials, &Instance->Material);
             ImGui::Spacing();
             MeshInspector(App, Instance->Mesh, true);
+            MaterialInspector(App, Instance->Material, true);
             break;
         }
         case ENTITY_TYPE_PLANE: {
