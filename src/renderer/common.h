@@ -299,42 +299,26 @@ inline float RepeatRange(float Value, float Min, float Max)
 
 /* --- Utilities ----------------------------------------------------------- */
 
-// Packs a unit vector into a single 32-bit value.
-inline uint PackUnitVector(vec3 Vector)
+inline vec2 SignNotZero(vec2 V)
 {
-    // Compute azimuthal angle and quantize to 16 bit.
-    uint PhiQ;
-    if (glm::abs(Vector.x) < EPSILON) {
-        PhiQ = Vector.y < 0.0f ? 16384 : 49152;
-    }
-    else if (glm::abs(Vector.y) < EPSILON) {
-        PhiQ = Vector.x < 0.0f ? 0 : 32768;
-    }
-    else {
-        float Phi = glm::atan(Vector.y, Vector.x);
-        PhiQ = uint(glm::round(65535.0f * (0.5f + Phi / TAU)));
-    }
+    return vec2(
+        V.x >= 0.0f ? +1.0f : -1.0f,
+        V.y >= 0.0f ? +1.0f : -1.0f);
+}
 
-    // Compute polar angle and quantize to 16 bit.
-    float Theta = glm::acos(glm::clamp(Vector.z, -1.0f, 1.0f));
-    uint ThetaQ = uint(glm::round(65535.0f * Theta / PI));
-
-    return (PhiQ << 16) | ThetaQ;
+// Packs a unit vector into a single 32-bit value.
+inline uint PackUnitVector(vec3 V)
+{
+    vec2 P = V.xy * (1.0f / (abs(V.x) + abs(V.y) + abs(V.z)));
+    if (V.z <= 0.0f) P = (1.0f - glm::abs(P.yx())) * SignNotZero(P);
+    return glm::packSnorm2x16(P);
 }
 
 // Unpacks a unit vector from a single 32-bit value.
-inline vec3 UnpackUnitVector(uint PackedVector)
+inline vec3 UnpackUnitVector(uint PackedV)
 {
-    // Unpack azimuthal angle.
-    uint PhiQ = PackedVector >> 16;
-    float Phi = (PhiQ / 65535.0f - 0.5f) * TAU;
-
-    // Unpack polar angle.
-    uint ThetaQ = PackedVector & 0xFFFF;
-    float Theta = (ThetaQ / 65535.0f) * PI;
-
-    // Reconstruct unit vector.
-    float Z = glm::cos(Theta);
-    vec2 XY = glm::sqrt(1.0f - Z * Z) * vec2(glm::cos(Phi), glm::sin(Phi));
-    return vec3(XY, Z);
+    vec2 P = glm::unpackSnorm2x16(PackedV);
+    float Z = 1.0f - glm::abs(P.x) - glm::abs(P.y);
+    if (Z < 0.0f) P = (1.0f - glm::abs(P.yx())) * SignNotZero(P);
+    return glm::normalize(glm::vec3(P, Z));
 }

@@ -545,44 +545,28 @@ vec3 ObserveParametricSpectrumSRGB(vec3 Beta)
 
 /* --- Utilities ----------------------------------------------------------- */
 
-// Packs a unit vector into a single 32-bit value.
-uint PackUnitVector(vec3 Vector)
+vec2 SignNotZero(vec2 V)
 {
-    // Compute azimuthal angle and quantize to 16 bit.
-    uint PhiQ;
-    if (abs(Vector.x) < EPSILON) {
-        PhiQ = Vector.y < 0.0 ? 16384 : 49152;
-    }
-    else if (abs(Vector.y) < EPSILON) {
-        PhiQ = Vector.x < 0.0 ? 0 : 32768;
-    }
-    else {
-        float Phi = atan(Vector.y, Vector.x);
-        PhiQ = uint(round(65535.0 * (0.5 + Phi / TAU)));
-    }
+    return vec2(
+        V.x >= 0.0 ? +1.0 : -1.0,
+        V.y >= 0.0 ? +1.0 : -1.0);
+}
 
-    // Compute polar angle and quantize to 16 bit.
-    float Theta = acos(clamp(Vector.z, -1.0, 1.0));
-    uint ThetaQ = uint(round(65535.0 * Theta / PI));
-
-    return (PhiQ << 16) | ThetaQ;
+// Packs a unit vector into a single 32-bit value.
+uint PackUnitVector(vec3 V)
+{
+    vec2 P = V.xy * (1.0 / (abs(V.x) + abs(V.y) + abs(V.z)));
+    if (V.z <= 0.0) P = (1.0 - abs(P.yx)) * SignNotZero(P);
+    return packSnorm2x16(P);
 }
 
 // Unpacks a unit vector from a single 32-bit value.
-vec3 UnpackUnitVector(uint PackedVector)
+vec3 UnpackUnitVector(uint PackedV)
 {
-    // Unpack azimuthal angle.
-    uint PhiQ = PackedVector >> 16;
-    float Phi = (PhiQ / 65535.0 - 0.5) * TAU;
-
-    // Unpack polar angle.
-    uint ThetaQ = PackedVector & 0xFFFF;
-    float Theta = (ThetaQ / 65535.0) * PI;
-
-    // Reconstruct unit vector.
-    float Z = cos(Theta);
-    vec2 XY = sqrt(1 - Z * Z) * vec2(cos(Phi), sin(Phi));
-    return vec3(XY, Z);
+    vec2 P = unpackSnorm2x16(PackedV);
+    float Z = 1.0 - abs(P.x) - abs(P.y);
+    if (Z < 0.0) P = (1.0 - abs(P.yx)) * SignNotZero(P);
+    return normalize(vec3(P, Z));
 }
 
 /* --- Random Number Generator --------------------------------------------- */
