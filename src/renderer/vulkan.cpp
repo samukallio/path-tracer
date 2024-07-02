@@ -1858,7 +1858,7 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // ShapeSSBO
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // ShapeNodeSSBO
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // MeshFaceSSBO
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // MeshFaceExtraSSBO
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // MeshVertexSSBO
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // MeshNodeSSBO
         };
 
@@ -2082,7 +2082,7 @@ void DestroyVulkan(vulkan_context* Vulkan)
     InternalDestroyBuffer(Vulkan, &Vulkan->ShapeNodeBuffer);
     InternalDestroyBuffer(Vulkan, &Vulkan->ShapeBuffer);
     InternalDestroyBuffer(Vulkan, &Vulkan->MeshNodeBuffer);
-    InternalDestroyBuffer(Vulkan, &Vulkan->MeshFaceExtraBuffer);
+    InternalDestroyBuffer(Vulkan, &Vulkan->MeshVertexBuffer);
     InternalDestroyBuffer(Vulkan, &Vulkan->MeshFaceBuffer);
     InternalDestroyImage(Vulkan, &Vulkan->ImageArray);
     InternalDestroyBuffer(Vulkan, &Vulkan->SceneUniformBuffer);
@@ -2220,7 +2220,7 @@ VkResult UploadScene(
     vulkan_buffer ShapeBufferOld = {};
     vulkan_buffer ShapeNodeBufferOld = {};
     vulkan_buffer MeshFaceBufferOld = {};
-    vulkan_buffer MeshFaceExtraBufferOld = {};
+    vulkan_buffer MeshVertexBufferOld = {};
     vulkan_buffer MeshNodeBufferOld = {};
 
     if (DirtyFlags & SCENE_DIRTY_GLOBALS) {
@@ -2327,12 +2327,21 @@ VkResult UploadScene(
     }
 
     if (DirtyFlags & SCENE_DIRTY_MESHES) {
+        MeshVertexBufferOld = Vulkan->MeshVertexBuffer;
+        Vulkan->MeshVertexBuffer = vulkan_buffer {};
         MeshFaceBufferOld = Vulkan->MeshFaceBuffer;
         Vulkan->MeshFaceBuffer = vulkan_buffer {};
-        MeshFaceExtraBufferOld = Vulkan->MeshFaceExtraBuffer;
-        Vulkan->MeshFaceExtraBuffer = vulkan_buffer {};
         MeshNodeBufferOld = Vulkan->MeshNodeBuffer;
         Vulkan->MeshNodeBuffer = vulkan_buffer {};
+
+        size_t MeshVertexBufferSize = sizeof(packed_mesh_vertex) * Scene->MeshVertexPack.size();
+        Result = InternalCreateBuffer(
+            Vulkan,
+            &Vulkan->MeshVertexBuffer,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            std::max(1024ull, MeshVertexBufferSize));
+        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MeshVertexBuffer, Scene->MeshVertexPack.data(), MeshVertexBufferSize);
 
         size_t MeshFaceBufferSize = sizeof(packed_mesh_face) * Scene->MeshFacePack.size();
         Result = InternalCreateBuffer(
@@ -2342,15 +2351,6 @@ VkResult UploadScene(
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             std::max(1024ull, MeshFaceBufferSize));
         InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MeshFaceBuffer, Scene->MeshFacePack.data(), MeshFaceBufferSize);
-
-        size_t MeshFaceExtraBufferSize = sizeof(packed_mesh_face_extra) * Scene->MeshFaceExtraPack.size();
-        Result = InternalCreateBuffer(
-            Vulkan,
-            &Vulkan->MeshFaceExtraBuffer,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            std::max(1024ull, MeshFaceExtraBufferSize));
-        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MeshFaceExtraBuffer, Scene->MeshFaceExtraPack.data(), MeshFaceExtraBufferSize);
 
         size_t MeshNodeBufferSize = sizeof(packed_mesh_node) * Scene->MeshNodePack.size();
         Result = InternalCreateBuffer(
@@ -2401,7 +2401,7 @@ VkResult UploadScene(
         },
         {
             .Type        = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .Buffer      = &Vulkan->MeshFaceExtraBuffer,
+            .Buffer      = &Vulkan->MeshVertexBuffer,
         },
         {
             .Type        = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
@@ -2411,7 +2411,7 @@ VkResult UploadScene(
 
     InternalWriteDescriptorSet(Vulkan, Vulkan->SceneDescriptorSet, Descriptors);
 
-    InternalDestroyBuffer(Vulkan, &MeshFaceExtraBufferOld);
+    InternalDestroyBuffer(Vulkan, &MeshVertexBufferOld);
     InternalDestroyBuffer(Vulkan, &MeshFaceBufferOld);
     InternalDestroyBuffer(Vulkan, &MeshNodeBufferOld);
     InternalDestroyBuffer(Vulkan, &ShapeBufferOld);

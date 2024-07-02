@@ -5,9 +5,32 @@
 #include "scene/scene.h"
 
 #include <unordered_map>
+#include <unordered_set>
 #include <format>
 #include <filesystem>
 #include <stdio.h>
+
+namespace std
+{
+    template<>
+    struct hash<mesh_vertex>
+    {
+        size_t operator()(mesh_vertex const& Vertex) const
+        {
+            size_t Hash;
+            Hash = hash<vec3>()(Vertex.Position);
+            Hash ^= hash<vec3>()(Vertex.Normal) << 1;
+            Hash >>= 1;
+            Hash ^= hash<vec2>()(Vertex.UV) << 1;
+            return Hash;
+        }
+    };
+}
+
+static bool operator==(mesh_vertex const& A, mesh_vertex const& B)
+{
+    return A.Position == B.Position && A.Normal == B.Normal && A.UV == B.UV;
+}
 
 static void Grow(glm::vec3& Minimum, glm::vec3& Maximum, glm::vec3 Point)
 {
@@ -353,6 +376,16 @@ void DestroyMaterial(scene* Scene, material* Material)
     Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
 }
 
+static float GetMeshFaceCentroid(mesh* Mesh, uint FaceIndex, int Axis)
+{
+    float Centroid = 0.0f;
+    for (uint I = 0; I < 3; I++) {
+        uint VertexIndex = Mesh->Faces[FaceIndex].VertexIndex[I];
+        Centroid += Mesh->Vertices[VertexIndex].Position[Axis];
+    }
+    return Centroid / 3.0f;
+}
+
 static void BuildMeshNode(mesh* Mesh, uint32_t NodeIndex, uint32_t Depth)
 {
     mesh_node& Node = Mesh->Nodes[NodeIndex];
@@ -362,8 +395,10 @@ static void BuildMeshNode(mesh* Mesh, uint32_t NodeIndex, uint32_t Depth)
     // Compute node bounds.
     Node.Bounds = {};
     for (uint32_t Index = Node.FaceBeginIndex; Index < Node.FaceEndIndex; Index++) {
-        for (int J = 0; J < 3; J++)
-            Grow(Node.Bounds, Mesh->Faces[Index].Vertices[J]);
+        for (int J = 0; J < 3; J++) {
+            uint VertexIndex = Mesh->Faces[Index].VertexIndex[J];
+            Grow(Node.Bounds, Mesh->Vertices[VertexIndex].Position);
+        }
     }
 
     int SplitAxis = 0;
@@ -373,8 +408,8 @@ static void BuildMeshNode(mesh* Mesh, uint32_t NodeIndex, uint32_t Depth)
     for (int Axis = 0; Axis < 3; Axis++) {
         // Compute centroid-based bounds for the current node.
         float Minimum = +INF, Maximum = -INF;
-        for (uint32_t I = Node.FaceBeginIndex; I < Node.FaceEndIndex; I++) {
-            float Centroid = Mesh->Faces[I].Centroid[Axis];
+        for (uint32_t FaceIndex = Node.FaceBeginIndex; FaceIndex < Node.FaceEndIndex; FaceIndex++) {
+            float Centroid = GetMeshFaceCentroid(Mesh, FaceIndex, Axis);
             Minimum = std::min(Minimum, Centroid);
             Maximum = std::max(Maximum, Centroid);
         }
@@ -394,15 +429,15 @@ static void BuildMeshNode(mesh* Mesh, uint32_t NodeIndex, uint32_t Depth)
 
         for (uint32_t I = Node.FaceBeginIndex; I < Node.FaceEndIndex; I++) {
             // Compute bin index of the face centroid.
-            float Centroid = Mesh->Faces[I].Centroid[Axis];
+            float Centroid = GetMeshFaceCentroid(Mesh, I, Axis);
             uint32_t BinIndexUnclamped = static_cast<uint32_t>(BinIndexPerUnit * (Centroid - Minimum));
             uint32_t BinIndex = std::min(BinIndexUnclamped, BINS - 1);
 
             // Grow the bin to accommodate the new face.
             bin& Bin = Bins[BinIndex];
-            Grow(Bin.Bounds, Mesh->Faces[I].Vertices[0]);
-            Grow(Bin.Bounds, Mesh->Faces[I].Vertices[1]);
-            Grow(Bin.Bounds, Mesh->Faces[I].Vertices[2]);
+            Grow(Bin.Bounds, Mesh->Vertices[Mesh->Faces[I].VertexIndex[0]].Position);
+            Grow(Bin.Bounds, Mesh->Vertices[Mesh->Faces[I].VertexIndex[1]].Position);
+            Grow(Bin.Bounds, Mesh->Vertices[Mesh->Faces[I].VertexIndex[2]].Position);
             Bin.FaceCount++;
         }
 
@@ -466,7 +501,8 @@ static void BuildMeshNode(mesh* Mesh, uint32_t NodeIndex, uint32_t Depth)
     uint32_t SplitIndex = BeginIndex;
     uint32_t SwapIndex = EndIndex - 1;
     while (SplitIndex < SwapIndex) {
-        if (Mesh->Faces[SplitIndex].Centroid[SplitAxis] < SplitPosition) {
+        float Centroid = GetMeshFaceCentroid(Mesh, SplitIndex, SplitAxis);
+        if (Centroid < SplitPosition) {
             SplitIndex++;
         }
         else {
@@ -622,94 +658,96 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
 
     // Import meshes.
     std::vector<mesh*> Meshes;
-    std::unordered_map<mesh*, material*> MeshMaterials;
-    std::vector<glm::vec3> Origins;
-    {
-        mesh* Mesh = nullptr;
-        material* MeshMaterial = nullptr;
+    std::vector<material*> MeshMaterials;
 
-        if (Options->MergeIntoSingleMesh) {
-            Mesh = new mesh;
-            Mesh->Name = ModelName;
-            Meshes.push_back(Mesh);
-            Origins.push_back(glm::vec3());
+    std::vector<std::pair<size_t, int>> ShapeMaterialPairs;
+    std::vector<vec3> Origins;
 
-            size_t FaceCount = 0;
-            for (auto const& Shape : Shapes)
-                FaceCount += Shape.mesh.indices.size() / 3;
-            Mesh->Faces.reserve(FaceCount);
+    for (size_t ShapeIndex = 0; ShapeIndex < Shapes.size(); ShapeIndex++) {
+        tinyobj::shape_t const& Shape = Shapes[ShapeIndex];
+        size_t FaceCount = Shape.mesh.indices.size() / 3;
+
+        if (FaceCount == 0)
+            continue;
+
+        vec3 Minimum = { +INFINITY, +INFINITY, +INFINITY };
+        vec3 Maximum = { -INFINITY, -INFINITY, -INFINITY };
+        for (size_t I = 0; I < 3*FaceCount; I++) {
+            tinyobj::index_t const& Index = Shape.mesh.indices[I];
+            vec3 Position = {
+                Attrib.vertices[3*Index.vertex_index+0],
+                Attrib.vertices[3*Index.vertex_index+1],
+                Attrib.vertices[3*Index.vertex_index+2]
+            };
+            Minimum = glm::min(Minimum, Position);
+            Maximum = glm::max(Maximum, Position);
         }
+        Origins.push_back(0.5f * (Minimum + Maximum));
 
-        glm::vec3 Origin {};
+        std::unordered_set<int> MaterialIndices;
+        for (size_t I = 0; I < FaceCount; I++)
+            MaterialIndices.insert(Shape.mesh.material_ids[I]);
 
-        for (size_t ShapeIndex = 0; ShapeIndex < Shapes.size(); ShapeIndex++) {
-            tinyobj::shape_t const& Shape = Shapes[ShapeIndex];
-            size_t ShapeIndexCount = Shape.mesh.indices.size();
+        for (int MaterialIndex : MaterialIndices)
+            ShapeMaterialPairs.push_back({ ShapeIndex, MaterialIndex });
+    }
 
-            if (ShapeIndexCount == 0)
-                continue;
+    for (auto [ShapeIndex, MaterialIndex] : ShapeMaterialPairs) {
+        tinyobj::shape_t const& Shape = Shapes[ShapeIndex];
+        size_t ShapeFaceCount = Shape.mesh.indices.size() / 3;
 
-            if (!Options->MergeIntoSingleMesh) {
-                Mesh = new mesh;
-                Mesh->Name = !Shape.name.empty() ? Shape.name : std::format("{} {}", ModelName, ShapeIndex);
-                Mesh->Faces.reserve(ShapeIndexCount / 3);
-                Meshes.push_back(Mesh);
+        MeshMaterials.push_back(MaterialIndex >= 0 ? Materials[MaterialIndex] : nullptr);
 
-                glm::vec3 Minimum = glm::vec3(+INFINITY, +INFINITY, +INFINITY);
-                glm::vec3 Maximum = glm::vec3(-INFINITY, -INFINITY, -INFINITY);
-                for (size_t I = 0; I < ShapeIndexCount; I++) {
-                    tinyobj::index_t const& Index = Shape.mesh.indices[I];
-                    glm::vec3 Position = glm::vec3(
-                        Attrib.vertices[3*Index.vertex_index+0],
-                        Attrib.vertices[3*Index.vertex_index+1],
-                        Attrib.vertices[3*Index.vertex_index+2]);
-                    Minimum = glm::min(Minimum, Position);
-                    Maximum = glm::max(Maximum, Position);
-                }
-                Origin = (Minimum + Maximum) / 2.0f;
-                Origins.push_back(Origin);
-            }
+        vec3 Origin = Origins[ShapeIndex];
 
-            for (size_t I = 0; I < ShapeIndexCount; I += 3) {
-                auto Face = mesh_face {};
+        auto Mesh = new mesh;
+        Mesh->Name = !Shape.name.empty() ? Shape.name : std::format("{} {}", ModelName, ShapeIndex);
 
-                for (int J = 0; J < 3; J++) {
-                    tinyobj::index_t const& Index = Shape.mesh.indices[I+J];
+        std::unordered_map<mesh_vertex, uint> VertexIndexMap;
 
-                    Face.Vertices[J] = Options->VertexTransform * glm::vec4(
-                        Attrib.vertices[3*Index.vertex_index+0] - Origin.x,
-                        Attrib.vertices[3*Index.vertex_index+1] - Origin.y,
-                        Attrib.vertices[3*Index.vertex_index+2] - Origin.z,
-                        1.0f);
+        for (size_t I = 0; I < ShapeFaceCount; I++) {
+            if (Shape.mesh.material_ids[I] != MaterialIndex) continue;
 
-                    if (Index.normal_index >= 0) {
-                        Face.Normals[J] = Options->NormalTransform * glm::vec4(
+            mesh_face Face;
+
+            for (size_t J = 0; J < 3; J++) {
+                tinyobj::index_t const& Index = Shape.mesh.indices[3*I+J];
+
+                mesh_vertex Vertex = {};
+
+                Vertex.Position = Options->VertexTransform * vec4(
+                    Attrib.vertices[3*Index.vertex_index+0] - Origin.x,
+                    Attrib.vertices[3*Index.vertex_index+1] - Origin.y,
+                    Attrib.vertices[3*Index.vertex_index+2] - Origin.z,
+                    1.0f);
+
+                if (Index.normal_index >= 0) {
+                    Vertex.Normal = Options->NormalTransform * vec4(
                             Attrib.normals[3*Index.normal_index+0],
                             Attrib.normals[3*Index.normal_index+1],
                             Attrib.normals[3*Index.normal_index+2],
-                            1.0f);
-                    }
-
-                    if (Index.texcoord_index >= 0) {
-                        Face.UVs[J] = Options->TextureCoordinateTransform * glm::vec3(
-                            Attrib.texcoords[2*Index.texcoord_index+0],
-                            Attrib.texcoords[2*Index.texcoord_index+1],
-                            1.0f);
-                    }
+                            0.0f);
                 }
 
-                int MaterialId = Shape.mesh.material_ids[I/3];
+                if (Index.texcoord_index >= 0) {
+                    Vertex.UV = Options->TextureCoordinateTransform * glm::vec3(
+                        Attrib.texcoords[2*Index.texcoord_index+0],
+                        Attrib.texcoords[2*Index.texcoord_index+1],
+                        1.0f);
+                }
 
-                if (MaterialId >= 0)
-                    MeshMaterial = Materials[MaterialId];
+                if (!VertexIndexMap.contains(Vertex)) {
+                    VertexIndexMap[Vertex] = static_cast<uint>(Mesh->Vertices.size());
+                    Mesh->Vertices.push_back(Vertex);
+                }
 
-                Face.Centroid = (Face.Vertices[0] + Face.Vertices[1] + Face.Vertices[2]) / 3.0f;
-
-                Mesh->Faces.push_back(Face);
+                Face.VertexIndex[J] = VertexIndexMap[Vertex];
             }
 
-            MeshMaterials[Mesh] = MeshMaterial;
+            Mesh->Faces.push_back(Face);
         }
+
+        Meshes.push_back(Mesh);
     }
 
     for (mesh* Mesh : Meshes) {
@@ -736,7 +774,7 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
         auto Instance = new mesh_instance;
         Instance->Name = Meshes[0]->Name;
         Instance->Mesh = Meshes[0];
-        Instance->Material = MeshMaterials[Meshes[0]];
+        Instance->Material = MeshMaterials[0];
         Prefab->Entity = Instance;
     }
     else {
@@ -749,7 +787,7 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
             auto Instance = new mesh_instance;
             Instance->Name = Mesh->Name;
             Instance->Mesh = Mesh;
-            Instance->Material = MeshMaterials[Mesh];
+            Instance->Material = MeshMaterials[I];
             Instance->Transform.Position = Options->VertexTransform * glm::vec4(Origin, 1);
             Container->Children.push_back(Instance);
         }
@@ -1198,43 +1236,49 @@ uint32_t PackSceneData(scene* Scene)
 
     // Pack mesh face and node data.
     if (DirtyFlags & SCENE_DIRTY_MESHES) {
+        uint32_t VertexCount = 0;
         uint32_t FaceCount = 0;
         uint32_t NodeCount = 0;
         for (mesh* Mesh : Scene->Meshes) {
+            VertexCount += static_cast<uint32_t>(Mesh->Vertices.size());
             FaceCount += static_cast<uint32_t>(Mesh->Faces.size());
             NodeCount += static_cast<uint32_t>(Mesh->Nodes.size());
         }
 
+        Scene->MeshVertexPack.clear();
+        Scene->MeshVertexPack.reserve(VertexCount);
         Scene->MeshFacePack.clear();
         Scene->MeshFacePack.reserve(FaceCount);
         Scene->MeshNodePack.clear();
         Scene->MeshNodePack.reserve(NodeCount);
-        Scene->MeshFaceExtraPack.clear();
-        Scene->MeshFaceExtraPack.reserve(NodeCount);
 
         for (mesh* Mesh : Scene->Meshes) {
+            uint32_t VertexIndexBase = static_cast<uint32_t>(Scene->MeshVertexPack.size());
             uint32_t FaceIndexBase = static_cast<uint32_t>(Scene->MeshFacePack.size());
             uint32_t NodeIndexBase = static_cast<uint32_t>(Scene->MeshNodePack.size());
+
+            // Build the packed mesh vertices.
+            for (mesh_vertex const& Vertex : Mesh->Vertices) {
+                packed_mesh_vertex Packed;
+
+                Packed.PackedNormal = PackUnitVector(Vertex.Normal);
+                Packed.PackedUV = glm::packHalf2x16(Vertex.UV);
+
+                Scene->MeshVertexPack.push_back(Packed);
+            }
 
             // Build the packed mesh faces.
             for (mesh_face const& Face : Mesh->Faces) {
                 packed_mesh_face Packed;
-                packed_mesh_face_extra PackedX;
 
-                Packed.Position0 = Face.Vertices[0];
-                Packed.Position1 = Face.Vertices[1];
-                Packed.Position2 = Face.Vertices[2];
-
-                PackedX.PackedNormals[0] = PackUnitVector(Face.Normals[0]);
-                PackedX.PackedNormals[1] = PackUnitVector(Face.Normals[1]);
-                PackedX.PackedNormals[2] = PackUnitVector(Face.Normals[2]);
-
-                PackedX.PackedUVs[0] = glm::packHalf2x16(Face.UVs[0]);
-                PackedX.PackedUVs[1] = glm::packHalf2x16(Face.UVs[1]);
-                PackedX.PackedUVs[2] = glm::packHalf2x16(Face.UVs[2]);
+                Packed.Position0 = Mesh->Vertices[Face.VertexIndex[0]].Position;
+                Packed.VertexIndex0 = VertexIndexBase + Face.VertexIndex[0];
+                Packed.Position1 = Mesh->Vertices[Face.VertexIndex[1]].Position;
+                Packed.VertexIndex1 = VertexIndexBase + Face.VertexIndex[1];
+                Packed.Position2 = Mesh->Vertices[Face.VertexIndex[2]].Position;
+                Packed.VertexIndex2 = VertexIndexBase + Face.VertexIndex[2];
 
                 Scene->MeshFacePack.push_back(Packed);
-                Scene->MeshFaceExtraPack.push_back(PackedX);
             }
 
             // Build the packed mesh nodes.

@@ -278,18 +278,21 @@ void main()
 
         if (Hit.ShapeType == SHAPE_TYPE_MESH_INSTANCE) {
             packed_mesh_face Face = MeshFaces[Hit.PrimitiveIndex];
-            packed_mesh_face_extra Extra = MeshFaceExtras[Hit.PrimitiveIndex];
+
+            packed_mesh_vertex Vertex0 = MeshVertices[Face.VertexIndex0];
+            packed_mesh_vertex Vertex1 = MeshVertices[Face.VertexIndex1];
+            packed_mesh_vertex Vertex2 = MeshVertices[Face.VertexIndex2];
 
             vec3 Normal = SafeNormalize(
-                UnpackUnitVector(Extra.PackedNormals[0]) * Hit.PrimitiveCoordinates.x +
-                UnpackUnitVector(Extra.PackedNormals[1]) * Hit.PrimitiveCoordinates.y +
-                UnpackUnitVector(Extra.PackedNormals[2]) * Hit.PrimitiveCoordinates.z);
+                UnpackUnitVector(Vertex0.PackedNormal) * Hit.PrimitiveCoordinates.x +
+                UnpackUnitVector(Vertex1.PackedNormal) * Hit.PrimitiveCoordinates.y +
+                UnpackUnitVector(Vertex2.PackedNormal) * Hit.PrimitiveCoordinates.z);
 
             Hit.Normal = TransformNormal(Normal, Shape.Transform);
             Hit.TangentX = ComputeTangentVector(Hit.Normal);
-            Hit.UV = unpackHalf2x16(Extra.PackedUVs[0]) * Hit.PrimitiveCoordinates.x
-                   + unpackHalf2x16(Extra.PackedUVs[1]) * Hit.PrimitiveCoordinates.y
-                   + unpackHalf2x16(Extra.PackedUVs[2]) * Hit.PrimitiveCoordinates.z;
+            Hit.UV = unpackHalf2x16(Vertex0.PackedUV) * Hit.PrimitiveCoordinates.x
+                   + unpackHalf2x16(Vertex1.PackedUV) * Hit.PrimitiveCoordinates.y
+                   + unpackHalf2x16(Vertex2.PackedUV) * Hit.PrimitiveCoordinates.z;
         }
         else if (Hit.ShapeType == SHAPE_TYPE_PLANE) {
             Hit.Normal = TransformNormal(vec3(0, 0, 1), Shape.Transform);

@@ -61,11 +61,14 @@ struct material
 
 struct mesh_face
 {
-    glm::vec3                       Vertices[3];
-    glm::vec3                       Centroid;
-    glm::vec3                       Normals[3];
-    glm::vec2                       UVs[3];
-    uint32_t                        MaterialIndex;
+    uint                            VertexIndex[3];
+};
+
+struct mesh_vertex
+{
+    vec3                            Position                = {};
+    vec3                            Normal                  = {};
+    vec2                            UV                      = {};
 };
 
 struct mesh_node
@@ -79,6 +82,7 @@ struct mesh_node
 struct mesh
 {
     std::string                     Name;
+    std::vector<mesh_vertex>        Vertices;
     std::vector<mesh_face>          Faces;
     std::vector<mesh_node>          Nodes;
     uint32_t                        Depth;
@@ -235,7 +239,7 @@ struct scene
     std::vector<packed_shape_node>      ShapeNodePack;
     std::vector<packed_material>        MaterialPack;
     std::vector<packed_mesh_face>       MeshFacePack;
-    std::vector<packed_mesh_face_extra> MeshFaceExtraPack;
+    std::vector<packed_mesh_vertex>     MeshVertexPack;
     std::vector<packed_mesh_node>       MeshNodePack;
     packed_scene_globals                Globals;
 
@@ -253,7 +257,6 @@ struct load_model_options
     glm::mat4       VertexTransform             = glm::mat4(1);
     glm::mat4       NormalTransform             = glm::mat4(1);
     glm::mat3       TextureCoordinateTransform  = glm::mat3(1);
-    bool            MergeIntoSingleMesh         = false;
 };
 
 inline uint32_t GetPackedTextureIndex(texture* Texture)

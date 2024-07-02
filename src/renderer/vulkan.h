@@ -124,7 +124,7 @@ struct vulkan_context
     vulkan_buffer               ShapeBuffer                 = {};
     vulkan_buffer               ShapeNodeBuffer             = {};
     vulkan_buffer               MeshFaceBuffer              = {};
-    vulkan_buffer               MeshFaceExtraBuffer         = {};
+    vulkan_buffer               MeshVertexBuffer            = {};
     vulkan_buffer               MeshNodeBuffer              = {};
 
     vulkan_buffer               PathBuffer                  = {};

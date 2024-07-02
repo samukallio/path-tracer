@@ -111,14 +111,17 @@ struct packed_shape_node
 struct packed_mesh_face
 {
     vec3                Position0;
+    uint                VertexIndex0;
     vec3                Position1;
+    uint                VertexIndex1;
     vec3                Position2;
+    uint                VertexIndex2;
 };
 
-struct packed_mesh_face_extra
+struct packed_mesh_vertex
 {
-    uint                PackedNormals[3];
-    uint                PackedUVs[3];
+    uint                PackedNormal;
+    uint                PackedUV;
 };
 
 struct packed_mesh_node
@@ -708,7 +711,7 @@ layout(set=1, binding=4, std430) readonly buffer MaterialSSBO      { packed_mate
 layout(set=1, binding=5, std430) readonly buffer ShapeSSBO         { packed_shape           Shapes[];         };
 layout(set=1, binding=6, std430) readonly buffer ShapeNodeSSBO     { packed_shape_node      ShapeNodes[];     };
 layout(set=1, binding=7, std430) readonly buffer MeshFaceSSBO      { packed_mesh_face       MeshFaces[];      };
-layout(set=1, binding=8, std430) readonly buffer MeshFaceExtraSSBO { packed_mesh_face_extra MeshFaceExtras[]; };
+layout(set=1, binding=8, std430) readonly buffer MeshVertexSSBO    { packed_mesh_vertex     MeshVertices[];   };
 layout(set=1, binding=9, std430) readonly buffer MeshNodeSSBO      { packed_mesh_node       MeshNodes[];      };
 
 #endif
