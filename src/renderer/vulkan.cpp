@@ -50,6 +50,7 @@ uint32_t const IMGUI_FRAGMENT_SHADER[] =
 
 struct imgui_push_constant_buffer
 {
+    mat4 ProjectionMatrix = {};
     uint TextureID;
 };
 
@@ -57,6 +58,13 @@ struct compute_push_constant_buffer
 {
     uint RandomSeed;
     uint Restart;
+};
+
+struct resolve_push_constant_buffer
+{
+    float               Brightness;
+    tone_mapping_mode   ToneMappingMode;
+    float               ToneMappingWhiteLevel;
 };
 
 static void Errorf(vulkan_context* Vk, char const* Fmt, ...)
@@ -962,19 +970,13 @@ static VkResult InternalCreateFrameResources(
             sizeof(frame_uniform_buffer));
 
         InternalCreateBuffer(Vulkan,
-            &Frame->ImguiUniformBuffer,
-            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            sizeof(imgui_uniform_buffer));
-
-        InternalCreateBuffer(Vulkan,
-            &Frame->ImguiVertexBuffer,
+            &Frame->ImGuiVertexBuffer,
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             65536 * sizeof(ImDrawVert));
 
         InternalCreateBuffer(Vulkan,
-            &Frame->ImguiIndexBuffer,
+            &Frame->ImGuiIndexBuffer,
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             65536 * sizeof(uint16_t));
@@ -997,10 +999,6 @@ static VkResult InternalCreateFrameResources(
             },
             {
                 .Type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .Buffer = &Vulkan->TraceBuffer,
-            },
-            {
-                .Type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .Buffer = &Vulkan->PathBuffer,
             },
         };
@@ -1013,10 +1011,6 @@ static VkResult InternalCreateFrameResources(
 
         // Resolve descriptor set.
         vulkan_descriptor ResolveDescriptors[] = {
-            {
-                .Type        = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .Buffer      = &Frame->FrameUniformBuffer,
-            },
             {
                 .Type        = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
                 .Image       = &Vulkan->SampleAccumulatorImage,
@@ -1034,20 +1028,16 @@ static VkResult InternalCreateFrameResources(
         // ImGui descriptor set.
         vulkan_descriptor ImguiDescriptors[] = {
             {
-                .Type        = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .Buffer      = &Frame->ImguiUniformBuffer,
-            },
-            {
                 .Type        = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .Image       = &Vulkan->ImguiTexture,
+                .Image       = &Vulkan->ImGuiTexture,
                 .ImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                 .Sampler     = Vulkan->ImageSamplerLinear
             }
         };
 
         Result = InternalCreateDescriptorSet(Vulkan,
-            Vulkan->ImguiDescriptorSetLayout,
-            &Frame->ImguiDescriptorSet,
+            Vulkan->ImGuiDescriptorSetLayout,
+            &Frame->ImGuiDescriptorSet,
             ImguiDescriptors);
         if (Result != VK_SUCCESS) return Result;
     }
@@ -1061,9 +1051,8 @@ static VkResult InternalDestroyFrameResources(
     for (int Index = 0; Index < 2; Index++) {
         vulkan_frame_state* Frame = &Vulkan->FrameStates[Index];
 
-        InternalDestroyBuffer(Vulkan, &Frame->ImguiIndexBuffer);
-        InternalDestroyBuffer(Vulkan, &Frame->ImguiVertexBuffer);
-        InternalDestroyBuffer(Vulkan, &Frame->ImguiUniformBuffer);
+        InternalDestroyBuffer(Vulkan, &Frame->ImGuiIndexBuffer);
+        InternalDestroyBuffer(Vulkan, &Frame->ImGuiVertexBuffer);
 
         InternalDestroyBuffer(Vulkan, &Frame->FrameUniformBuffer);
 
@@ -1878,6 +1867,47 @@ static VkResult InternalCreateVulkan(
         }
     }
 
+    // Create trace kernel resources.
+    {
+        VkDescriptorType TraceDescriptorTypes[] = {
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, // TraceSSBO
+        };
+
+        Result = InternalCreateDescriptorSetLayout(Vulkan, &Vulkan->TraceDescriptorSetLayout, TraceDescriptorTypes);
+        if (Result != VK_SUCCESS) return Result;
+
+        auto TraceConfig = vulkan_compute_pipeline_configuration {
+            .ComputeShaderCode = TRACE_COMPUTE_SHADER,
+            .DescriptorSetLayouts = {
+                Vulkan->SceneDescriptorSetLayout,
+                Vulkan->TraceDescriptorSetLayout,
+            },
+        };
+
+        Result = InternalCreateComputePipeline(Vulkan, &Vulkan->TracePipeline, TraceConfig);
+        if (Result != VK_SUCCESS) return Result;
+
+        Result = InternalCreateBuffer(Vulkan,
+            &Vulkan->TraceBuffer,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            256ull << 20);
+        if (Result != VK_SUCCESS) return Result;
+
+        vulkan_descriptor TraceDescriptors[] = {
+            {
+                .Type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .Buffer = &Vulkan->TraceBuffer,
+            },
+        };
+
+        Result = InternalCreateDescriptorSet(Vulkan,
+            Vulkan->TraceDescriptorSetLayout,
+            &Vulkan->TraceDescriptorSet,
+            TraceDescriptors);
+        if (Result != VK_SUCCESS) return Result;
+    }
+
     // Create ImGui resources.
     {
         ImGuiIO& IO = ImGui::GetIO();
@@ -1891,7 +1921,7 @@ static VkResult InternalCreateVulkan(
         size_t Size = Width * Height * sizeof(uint32_t);
 
         InternalCreateImage(Vulkan,
-            &Vulkan->ImguiTexture,
+            &Vulkan->ImGuiTexture,
             VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             VK_IMAGE_TYPE_2D,
@@ -1903,17 +1933,16 @@ static VkResult InternalCreateVulkan(
             false);
 
         InternalWriteToDeviceLocalImage(Vulkan,
-            &Vulkan->ImguiTexture,
+            &Vulkan->ImGuiTexture,
             0, 1,
             Data, (uint32_t)Width, (uint32_t)Height, sizeof(uint32_t),
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
         VkDescriptorType DescriptorTypes[] = {
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         };
 
-        Result = InternalCreateDescriptorSetLayout(Vulkan, &Vulkan->ImguiDescriptorSetLayout, DescriptorTypes);
+        Result = InternalCreateDescriptorSetLayout(Vulkan, &Vulkan->ImGuiDescriptorSetLayout, DescriptorTypes);
         if (Result != VK_SUCCESS) return Result;
 
         auto ImguiConfig = vulkan_graphics_pipeline_configuration {
@@ -1941,13 +1970,13 @@ static VkResult InternalCreateVulkan(
             .VertexShaderCode   = IMGUI_VERTEX_SHADER,
             .FragmentShaderCode = IMGUI_FRAGMENT_SHADER,
             .DescriptorSetLayouts = {
-                Vulkan->ImguiDescriptorSetLayout,
+                Vulkan->ImGuiDescriptorSetLayout,
                 Vulkan->SceneDescriptorSetLayout,
             },
             .PushConstantBufferSize = sizeof(imgui_push_constant_buffer),
         };
 
-        Result = InternalCreateGraphicsPipeline(Vulkan, &Vulkan->ImguiPipeline, ImguiConfig);
+        Result = InternalCreateGraphicsPipeline(Vulkan, &Vulkan->ImGuiPipeline, ImguiConfig);
         if (Result != VK_SUCCESS) {
             return Result;
         }
@@ -1968,13 +1997,6 @@ static VkResult InternalCreateVulkan(
             true);
 
         Result = InternalCreateBuffer(Vulkan,
-            &Vulkan->TraceBuffer,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            256ull << 20);
-        if (Result != VK_SUCCESS) return Result;
-
-        Result = InternalCreateBuffer(Vulkan,
             &Vulkan->PathBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
@@ -1984,7 +2006,6 @@ static VkResult InternalCreateVulkan(
         VkDescriptorType ComputeDescriptorTypes[] = {
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,          // FrameUniformBuffer
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,           // SampleAccumulatorImage
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // TraceSSBO
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // PathSSBO
         };
 
@@ -1996,31 +2017,19 @@ static VkResult InternalCreateVulkan(
             .DescriptorSetLayouts = {
                 Vulkan->ComputeDescriptorSetLayout,
                 Vulkan->SceneDescriptorSetLayout,
+                Vulkan->TraceDescriptorSetLayout,
             },
             .PushConstantBufferSize = sizeof(compute_push_constant_buffer),
         };
 
         Result = InternalCreateComputePipeline(Vulkan, &Vulkan->PathPipeline, PathConfig);
         if (Result != VK_SUCCESS) return Result;
-
-        auto TraceConfig = vulkan_compute_pipeline_configuration {
-            .ComputeShaderCode = TRACE_COMPUTE_SHADER,
-            .DescriptorSetLayouts = {
-                Vulkan->ComputeDescriptorSetLayout,
-                Vulkan->SceneDescriptorSetLayout,
-            },
-            .PushConstantBufferSize = sizeof(compute_push_constant_buffer),
-        };
-
-        Result = InternalCreateComputePipeline(Vulkan, &Vulkan->TracePipeline, TraceConfig);
-        if (Result != VK_SUCCESS) return Result;
     }
 
     // Create resolver resources.
     {
         VkDescriptorType ResolveDescriptorTypes[] = {
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,          // FrameUniformBuffer
-            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // SampleAccumulatorImage
         };
 
         Result = InternalCreateDescriptorSetLayout(Vulkan, &Vulkan->ResolveDescriptorSetLayout, ResolveDescriptorTypes);
@@ -2032,6 +2041,7 @@ static VkResult InternalCreateVulkan(
             .VertexShaderCode   = RESOLVE_VERTEX_SHADER,
             .FragmentShaderCode = RESOLVE_FRAGMENT_SHADER,
             .DescriptorSetLayouts = { Vulkan->ResolveDescriptorSetLayout },
+            .PushConstantBufferSize = sizeof(resolve_push_constant_buffer),
         };
 
         Result = InternalCreateGraphicsPipeline(Vulkan, &Vulkan->ResolvePipeline, ResolveConfig);
@@ -2072,7 +2082,7 @@ void DestroyVulkan(vulkan_context* Vulkan)
         vkDeviceWaitIdle(Vulkan->Device);
     }
 
-    InternalDestroyImage(Vulkan, &Vulkan->ImguiTexture);
+    InternalDestroyImage(Vulkan, &Vulkan->ImGuiTexture);
 
     InternalDestroyBuffer(Vulkan, &Vulkan->PathBuffer);
     InternalDestroyBuffer(Vulkan, &Vulkan->TraceBuffer);
@@ -2094,14 +2104,14 @@ void DestroyVulkan(vulkan_context* Vulkan)
     // Destroy swap chain and any other window-related resources.
     InternalDestroyPresentationResources(Vulkan);
 
-    InternalDestroyPipeline(Vulkan, &Vulkan->ImguiPipeline);
+    InternalDestroyPipeline(Vulkan, &Vulkan->ImGuiPipeline);
     InternalDestroyPipeline(Vulkan, &Vulkan->ResolvePipeline);
     InternalDestroyPipeline(Vulkan, &Vulkan->PathPipeline);
     InternalDestroyPipeline(Vulkan, &Vulkan->TracePipeline);
 
-    if (Vulkan->ImguiDescriptorSetLayout) {
-        vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->ImguiDescriptorSetLayout, nullptr);
-        Vulkan->ImguiDescriptorSetLayout = VK_NULL_HANDLE;
+    if (Vulkan->ImGuiDescriptorSetLayout) {
+        vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->ImGuiDescriptorSetLayout, nullptr);
+        Vulkan->ImGuiDescriptorSetLayout = VK_NULL_HANDLE;
     }
 
     if (Vulkan->ResolveDescriptorSetLayout) {
@@ -2112,6 +2122,11 @@ void DestroyVulkan(vulkan_context* Vulkan)
     if (Vulkan->ComputeDescriptorSetLayout) {
         vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->ComputeDescriptorSetLayout, nullptr);
         Vulkan->ComputeDescriptorSetLayout = VK_NULL_HANDLE;
+    }
+
+    if (Vulkan->TraceDescriptorSetLayout) {
+        vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->TraceDescriptorSetLayout, nullptr);
+        Vulkan->TraceDescriptorSetLayout = VK_NULL_HANDLE;
     }
 
     if (Vulkan->SceneDescriptorSetLayout) {
@@ -2434,8 +2449,8 @@ static void InternalDispatchTrace(
         Vulkan->TracePipeline.Pipeline);
 
     VkDescriptorSet DescriptorSets[] = {
-        Frame->ComputeDescriptorSet,
         Vulkan->SceneDescriptorSet,
+        Vulkan->TraceDescriptorSet,
     };
 
     vkCmdBindDescriptorSets(
@@ -2444,17 +2459,6 @@ static void InternalDispatchTrace(
         Vulkan->TracePipeline.PipelineLayout,
         0, 2, DescriptorSets,
         0, nullptr);
-
-    auto PushConstantBuffer = compute_push_constant_buffer {
-        .RandomSeed = RandomSeed,
-        .Restart    = 0u,
-    };
-
-    vkCmdPushConstants(
-        Frame->ComputeCommandBuffer,
-        Vulkan->TracePipeline.PipelineLayout,
-        VK_SHADER_STAGE_COMPUTE_BIT,
-        0, sizeof(compute_push_constant_buffer), &PushConstantBuffer);
 
     //uint32_t GroupPixelSize = 16 * Uniforms->RenderSampleBlockSize;
     //uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
@@ -2497,13 +2501,14 @@ static void InternalDispatchPath(
     VkDescriptorSet DescriptorSets[] = {
         Frame->ComputeDescriptorSet,
         Vulkan->SceneDescriptorSet,
+        Vulkan->TraceDescriptorSet,
     };
 
     vkCmdBindDescriptorSets(
         Frame->ComputeCommandBuffer,
         VK_PIPELINE_BIND_POINT_COMPUTE,
         Vulkan->PathPipeline.PipelineLayout,
-        0, 2, DescriptorSets,
+        0, 3, DescriptorSets,
         0, nullptr);
 
     auto PushConstantBuffer = compute_push_constant_buffer {
@@ -2651,25 +2656,14 @@ VkResult RenderFrame(
     // --- Upload ImGui draw data ---------------------------------------------
 
     {
-        imgui_uniform_buffer ImguiUniformBuffer;
-        float L = ImguiDrawData->DisplayPos.x;
-        float R = ImguiDrawData->DisplayPos.x + ImguiDrawData->DisplaySize.x;
-        float T = ImguiDrawData->DisplayPos.y;
-        float B = ImguiDrawData->DisplayPos.y + ImguiDrawData->DisplaySize.y;
-        ImguiUniformBuffer.ProjectionMatrix = {
-            { 2.0f / (R - L),    0.0f,              0.0f, 0.0f },
-            { 0.0f,              2.0f / (B - T),    0.0f, 0.0f },
-            { 0.0f,              0.0f,              0.5f, 0.0f },
-            { (R + L) / (L - R), (T + B) / (T - B), 0.5f, 1.0f },
-        };
-        InternalWriteToHostVisibleBuffer(Vulkan, &Frame->ImguiUniformBuffer, &ImguiUniformBuffer, sizeof(imgui_uniform_buffer));
+        imgui_push_constant_buffer PushConstants;
 
         void* VertexMemory;
         uint32_t VertexOffset = 0;
-        vkMapMemory(Vulkan->Device, Frame->ImguiVertexBuffer.Memory, 0, Frame->ImguiVertexBuffer.Size, 0, &VertexMemory);
+        vkMapMemory(Vulkan->Device, Frame->ImGuiVertexBuffer.Memory, 0, Frame->ImGuiVertexBuffer.Size, 0, &VertexMemory);
         void* IndexMemory;
         uint32_t IndexOffset = 0;
-        vkMapMemory(Vulkan->Device, Frame->ImguiIndexBuffer.Memory, 0, Frame->ImguiIndexBuffer.Size, 0, &IndexMemory);
+        vkMapMemory(Vulkan->Device, Frame->ImGuiIndexBuffer.Memory, 0, Frame->ImGuiIndexBuffer.Size, 0, &IndexMemory);
 
         ImDrawVert* VertexPointer = static_cast<ImDrawVert*>(VertexMemory);
         uint16_t* IndexPointer = static_cast<uint16_t*>(IndexMemory);
@@ -2686,8 +2680,8 @@ VkResult RenderFrame(
             IndexPointer += CmdList->IdxBuffer.Size;
         }
 
-        vkUnmapMemory(Vulkan->Device, Frame->ImguiIndexBuffer.Memory);
-        vkUnmapMemory(Vulkan->Device, Frame->ImguiVertexBuffer.Memory);
+        vkUnmapMemory(Vulkan->Device, Frame->ImGuiIndexBuffer.Memory);
+        vkUnmapMemory(Vulkan->Device, Frame->ImGuiVertexBuffer.Memory);
     }
 
     // --- Graphics -----------------------------------------------------------
@@ -2785,6 +2779,18 @@ VkResult RenderFrame(
         };
         vkCmdSetScissor(Frame->GraphicsCommandBuffer, 0, 1, &Scissor);
 
+        auto ResolvePushConstants = resolve_push_constant_buffer {
+            .Brightness            = Uniforms->Brightness,
+            .ToneMappingMode       = Uniforms->ToneMappingMode,
+            .ToneMappingWhiteLevel = Uniforms->ToneMappingWhiteLevel,
+        };
+
+        vkCmdPushConstants(
+            Frame->GraphicsCommandBuffer,
+            Vulkan->ResolvePipeline.PipelineLayout,
+            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            0, sizeof(resolve_push_constant_buffer), &ResolvePushConstants);
+
         vkCmdDraw(Frame->GraphicsCommandBuffer, 6, 1, 0, 0);
     }
 
@@ -2793,28 +2799,28 @@ VkResult RenderFrame(
         vkCmdBindPipeline(
             Frame->GraphicsCommandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
-            Vulkan->ImguiPipeline.Pipeline);
+            Vulkan->ImGuiPipeline.Pipeline);
 
         VkDescriptorSet DescriptorSets[] = {
-            Frame->ImguiDescriptorSet,
+            Frame->ImGuiDescriptorSet,
             Vulkan->SceneDescriptorSet,
         };
 
         vkCmdBindDescriptorSets(
             Frame->GraphicsCommandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
-            Vulkan->ImguiPipeline.PipelineLayout,
+            Vulkan->ImGuiPipeline.PipelineLayout,
             0, 2, DescriptorSets,
             0, nullptr);
 
         VkDeviceSize Offset = 0;
         vkCmdBindVertexBuffers(
             Frame->GraphicsCommandBuffer,
-            0, 1, &Frame->ImguiVertexBuffer.Buffer, &Offset);
+            0, 1, &Frame->ImGuiVertexBuffer.Buffer, &Offset);
 
         vkCmdBindIndexBuffer(
             Frame->GraphicsCommandBuffer,
-            Frame->ImguiIndexBuffer.Buffer,
+            Frame->ImGuiIndexBuffer.Buffer,
             0, VK_INDEX_TYPE_UINT16);
 
         auto Viewport = VkViewport {
@@ -2829,7 +2835,22 @@ VkResult RenderFrame(
 
         uint32_t IndexBase = 0;
         uint32_t VertexBase = 0;
-        uint32_t PreviousTextureID = 0xFFFFFFFF;
+
+        imgui_push_constant_buffer PushConstantBuffer = {};
+
+        float L = ImguiDrawData->DisplayPos.x;
+        float R = ImguiDrawData->DisplayPos.x + ImguiDrawData->DisplaySize.x;
+        float T = ImguiDrawData->DisplayPos.y;
+        float B = ImguiDrawData->DisplayPos.y + ImguiDrawData->DisplaySize.y;
+
+        PushConstantBuffer.ProjectionMatrix = {
+            { 2.0f / (R - L),    0.0f,              0.0f, 0.0f },
+            { 0.0f,              2.0f / (B - T),    0.0f, 0.0f },
+            { 0.0f,              0.0f,              0.5f, 0.0f },
+            { (R + L) / (L - R), (T + B) / (T - B), 0.5f, 1.0f },
+        };
+
+        PushConstantBuffer.TextureID = 0xFFFFFFFF;
 
         for (int I = 0; I < ImguiDrawData->CmdListsCount; I++) {
             ImDrawList* CmdList = ImguiDrawData->CmdLists[I];
@@ -2849,16 +2870,13 @@ VkResult RenderFrame(
                 vkCmdSetScissor(Frame->GraphicsCommandBuffer, 0, 1, &scissor);
 
                 uint32_t TextureID = static_cast<uint32_t>(reinterpret_cast<size_t>(Cmd->TextureId));
-                if (TextureID != PreviousTextureID) {
-                    auto PushConstantBuffer = imgui_push_constant_buffer {
-                        .TextureID = TextureID,
-                    };
+                if (TextureID != PushConstantBuffer.TextureID) {
+                    PushConstantBuffer.TextureID = TextureID;
                     vkCmdPushConstants(
                         Frame->GraphicsCommandBuffer,
-                        Vulkan->ImguiPipeline.PipelineLayout,
+                        Vulkan->ImGuiPipeline.PipelineLayout,
                         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
                         0, sizeof(imgui_push_constant_buffer), &PushConstantBuffer);
-                    PreviousTextureID = TextureID;
                 }
 
                 uint32_t IndexCount = Cmd->ElemCount;

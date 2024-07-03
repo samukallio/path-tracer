@@ -1,12 +1,5 @@
 #version 450
 
-#define DECLARE_FRAME_UBO_BINDING
-#define DECLARE_COMPUTE_BINDINGS
-#define DECLARE_SCENE_BINDINGS
-
-#include "common.glsl.inc"
-#include "openpbr.glsl.inc"
-
 const vec3 COLORS[20] = vec3[20](
     vec3(0.902, 0.098, 0.294),
     vec3(0.235, 0.706, 0.294),
@@ -29,6 +22,20 @@ const vec3 COLORS[20] = vec3[20](
     vec3(0.000, 0.000, 0.459),
     vec3(0.502, 0.502, 0.502)
 );
+
+#define BIND_PATH 0
+#define BIND_SCENE 1
+#define BIND_TRACE 2
+
+#include "common.glsl.inc"
+#include "openpbr.glsl.inc"
+
+layout(push_constant)
+uniform ComputePushConstantBuffer
+{
+    uint RandomSeed;
+    uint Restart;
+};
 
 layout(local_size_x=16, local_size_y=16, local_size_z=1) in;
 
@@ -77,41 +84,7 @@ void GenerateNewPath(uint Index, ivec2 ImagePosition)
     // Compute normalized sample position from (0, 0) to (1, 1).
     vec2 NormalizedSamplePosition = SamplePosition / ImageSize;
 
-    ray Ray;
-
-    Ray.Duration = HIT_TIME_LIMIT;
-
-    if (CameraModel == CAMERA_MODEL_PINHOLE) {
-        vec3 SensorPosition = vec3(
-            -CameraSensorSize.x * (NormalizedSamplePosition.x - 0.5),
-            -CameraSensorSize.y * (0.5 - NormalizedSamplePosition.y),
-            CameraSensorDistance);
-
-        Ray.Origin = vec3(CameraApertureRadius * RandomPointOnDisk(), 0);
-        Ray.Velocity = normalize(Ray.Origin - SensorPosition);
-    }
-
-    else if (CameraModel == CAMERA_MODEL_THIN_LENS) {
-        vec3 SensorPosition = vec3(
-            -CameraSensorSize.x * (NormalizedSamplePosition.x - 0.5),
-            -CameraSensorSize.y * (0.5 - NormalizedSamplePosition.y),
-            CameraSensorDistance);
-
-        vec3 ObjectPosition = -SensorPosition * CameraFocalLength / (SensorPosition.z - CameraFocalLength);
-
-        Ray.Origin = vec3(CameraApertureRadius * RandomPointOnDisk(), 0);
-        Ray.Velocity = normalize(ObjectPosition - Ray.Origin);
-    }
-
-    else if (CameraModel == CAMERA_MODEL_360) {
-        float Phi = (NormalizedSamplePosition.x - 0.5f) * TAU;
-        float Theta = (0.5f - NormalizedSamplePosition.y) * PI;
-
-        Ray.Origin = vec3(0, 0, 0);
-        Ray.Velocity = vec3(cos(Theta) * sin(Phi), sin(Theta), -cos(Theta) * cos(Phi));
-    }
-
-    Ray = TransformRay(Ray, CameraTransform);
+    ray Ray = GenerateCameraRay(Camera, NormalizedSamplePosition);
 
     // Write initial ray.
     StoreTraceRay(Index, Ray);

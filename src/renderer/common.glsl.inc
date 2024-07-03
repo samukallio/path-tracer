@@ -31,85 +31,10 @@ const uint TONE_MAPPING_MODE_REINHARD       = 1;
 const uint TONE_MAPPING_MODE_HABLE          = 2;
 const uint TONE_MAPPING_MODE_ACES           = 3;
 
-const uint CAMERA_MODEL_PINHOLE             = 0;
-const uint CAMERA_MODEL_THIN_LENS           = 1;
-const uint CAMERA_MODEL_360                 = 2;
-
-const uint SHAPE_TYPE_MESH_INSTANCE         = 0;
-const uint SHAPE_TYPE_PLANE                 = 1;
-const uint SHAPE_TYPE_SPHERE                = 2;
-const uint SHAPE_TYPE_CUBE                  = 3;
-
-const uint TEXTURE_TYPE_RAW                 = 0;
-const uint TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA = 1;
-const uint TEXTURE_TYPE_RADIANCE            = 2;
-
-const uint TEXTURE_FLAG_FILTER_NEAREST      = 1 << 0;
-
 struct packed_transform
 {
     mat4                To;
     mat4                From;
-};
-
-struct packed_texture
-{
-    vec2                AtlasPlacementMinimum;
-    vec2                AtlasPlacementMaximum;
-    uint                AtlasImageIndex;
-    uint                Type;
-    uint                Flags;
-    uint                Dummy2;
-};
-
-struct packed_shape
-{
-    uint                Type;
-    uint                MaterialIndex;
-    uint                MeshRootNodeIndex;
-    packed_transform    Transform;
-};
-
-struct packed_shape_node
-{
-    vec3                Minimum;
-    uint                ChildNodeIndices;
-    vec3                Maximum;
-    uint                ShapeIndex;
-};
-
-struct packed_mesh_face
-{
-    vec3                Position0;
-    uint                VertexIndex0;
-    vec3                Position1;
-    uint                VertexIndex1;
-    vec3                Position2;
-    uint                VertexIndex2;
-};
-
-struct packed_mesh_vertex
-{
-    uint                PackedNormal;
-    uint                PackedUV;
-};
-
-struct packed_mesh_node
-{
-    vec3                Minimum;
-    uint                FaceBeginOrNodeIndex;
-    vec3                Maximum;
-    uint                FaceEndIndex;
-};
-
-struct packed_scene_globals
-{
-    mat3                SkyboxDistributionFrame;
-    float               SkyboxDistributionConcentration;
-    float               SkyboxBrightness;
-    uint                SkyboxTextureIndex;
-    uint                ShapeCount;
-    float               SceneScatterRate;
 };
 
 struct ray
@@ -139,26 +64,6 @@ struct hit
     uint                MeshComplexity;             // Total number of mesh nodes traversed while tracing.
 };
 
-// Local surface material properties for the OpenPBR BSDF.
-struct surface
-{
-    float               Opacity;                    // Opacity of the surface geometry.
-    uint                LayerBounceLimit;           // Maximum number of BSDF layer bounces.
-    bool                BaseIsMetal;                // Is the base substrate layer in the BSDF stack metal?
-    bool                BaseIsTranslucent;          // Is the base substrate layer in the BSDF stack a translucent dielectric?
-    vec4                BaseReflectance;            // Base reflectance value at each of the 4 sampling wavelengths.
-    float               BaseDiffuseRoughness;       // Oren-Nayar roughness for the glossy-diffuse base substrate layer.
-    bool                CoatIsPresent;              // Is there a dielectric coat layer over the base substrate?
-    vec4                CoatRelativeIOR;            // Relative IOR of the coat layer at each of the 4 sampling wavelengths.
-    vec4                CoatTransmittance;          // Transmittance of the coat layer at each of the 4 sampling wavelengths.
-    vec2                CoatRoughnessAlpha;         // Coat GGX roughness alpha (X and Y).
-    float               SpecularWeight;             // Artistic specular weight parameter.
-    vec4                SpecularRelativeIOR;        // Relative IOR of a dielectric base substrate at each of the 4 sampling wavelengths.
-    vec4                SpecularReflectance;        // 82-degree reflectance of the metal base substrate at each of the 4 sampling wavelengths.
-    vec2                SpecularRoughnessAlpha;     // Base substrate GGX roughness alpha (X and Y).
-    vec4                Emission;                   // Base substrate emission radiance at each of the 4 sampling wavelengths.
-};
-
 // Volumetric material properties of a participating medium.
 struct medium
 {
@@ -167,18 +72,6 @@ struct medium
     vec4                AbsorptionRate;             // Absorption rate at each of the 4 sampling wavelengths.
     vec4                ScatteringRate;             // Scattering rate at each of the 4 sampling wavelengths.
     float               ScatteringAnisotropy;       // Scattering phase function anisotropy.
-};
-
-const int ACTIVE_SHAPE_LIMIT = 4;
-
-struct path
-{
-    float               NormalizedLambda0;
-    vec4                Throughput;                 // Path throughput at each of the 4 sampling wavelengths.
-    vec4                Weight;                     // Path weight at each of the 4 sampling wavelengths.
-    vec3                Sample;
-    ivec2               ImagePosition;
-    uint                ActiveShapeIndex[4];
 };
 
 vec3 TransformPosition(vec3 P, packed_transform Transform)
@@ -261,6 +154,139 @@ void ComputeCoordinateFrame(vec3 Z, out vec3 X, out vec3 Y)
     vec3 V = abs(Z.x) < 0.9 ? vec3(1, 0, 0) : vec3(0, 1, 0);
     X = normalize(cross(V, Z));
     Y = cross(X, Z);
+}
+
+vec2 SignNotZero(vec2 V)
+{
+    return vec2(
+        V.x >= 0.0 ? +1.0 : -1.0,
+        V.y >= 0.0 ? +1.0 : -1.0);
+}
+
+// Packs a unit vector into a single 32-bit value.
+uint PackUnitVector(vec3 V)
+{
+    vec2 P = V.xy * (1.0 / (abs(V.x) + abs(V.y) + abs(V.z)));
+    if (V.z <= 0.0) P = (1.0 - abs(P.yx)) * SignNotZero(P);
+    return packSnorm2x16(P);
+}
+
+// Unpacks a unit vector from a single 32-bit value.
+vec3 UnpackUnitVector(uint PackedV)
+{
+    vec2 P = unpackSnorm2x16(PackedV);
+    float Z = 1.0 - abs(P.x) - abs(P.y);
+    if (Z < 0.0) P = (1.0 - abs(P.yx)) * SignNotZero(P);
+    return normalize(vec3(P, Z));
+}
+
+/* --- Random Number Generator --------------------------------------------- */
+
+uint RandomState;
+
+uint Random()
+{
+    RandomState = RandomState * 747796405u + 2891336453u;
+    uint s = RandomState;
+    uint w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
+    return (w >> 22u) ^ w;
+}
+
+// Generate a random number in the range [0,1).
+float Random0To1()
+{
+    return Random() / 4294967296.0f;
+}
+
+vec2 RandomPointOnDisk()
+{
+    float R = sqrt(Random0To1());
+    float Theta = Random0To1() * TAU;
+    return R * vec2(cos(Theta), sin(Theta));
+}
+
+vec3 RandomDirection()
+{
+    float Z = 2 * Random0To1() - 1;
+    float R = sqrt(1 - Z * Z);
+    float Phi = TAU * Random0To1();
+    return vec3(R * cos(Phi), R * sin(Phi), Z);
+}
+
+vec3 RandomHemisphereDirection(vec3 Normal)
+{
+    vec3 Direction = RandomDirection();
+    return Direction * sign(dot(Normal, Direction));
+}
+
+// Generate a random direction from a von Mises-Fisher distribution on
+// a sphere, with concentration parameter Kappa and mean direction (0,0,1).
+vec3 RandomVonMisesFisher(float Kappa)
+{
+    float Xi = Random0To1();
+    float Z = 1 + (1 / Kappa) * log(Xi - exp(-2 * Kappa) * (Xi - 1));
+
+    float R = sqrt(1 - Z * Z);
+    float Phi = Random0To1() * TAU;
+    float X = R * cos(Phi);
+    float Y = R * sin(Phi);
+
+    return vec3(X, Y, Z);
+}
+
+/* --- Camera -------------------------------------------------------------- */
+
+const uint CAMERA_MODEL_PINHOLE             = 0;
+const uint CAMERA_MODEL_THIN_LENS           = 1;
+const uint CAMERA_MODEL_360                 = 2;
+
+struct camera
+{
+    uint                Model;
+    float               FocalLength;
+    float               ApertureRadius;
+    float               SensorDistance;
+    vec2                SensorSize;
+    packed_transform    Transform;
+};
+
+ray GenerateCameraRay(camera Camera, vec2 NormalizedSamplePosition)
+{
+    ray Ray;
+
+    Ray.Duration = HIT_TIME_LIMIT;
+
+    if (Camera.Model == CAMERA_MODEL_PINHOLE) {
+        vec3 SensorPosition = vec3(
+            -Camera.SensorSize.x * (NormalizedSamplePosition.x - 0.5),
+            -Camera.SensorSize.y * (0.5 - NormalizedSamplePosition.y),
+            Camera.SensorDistance);
+
+        Ray.Origin = vec3(Camera.ApertureRadius * RandomPointOnDisk(), 0);
+        Ray.Velocity = normalize(Ray.Origin - SensorPosition);
+    }
+
+    else if (Camera.Model == CAMERA_MODEL_THIN_LENS) {
+        vec3 SensorPosition = vec3(
+            -Camera.SensorSize.x * (NormalizedSamplePosition.x - 0.5),
+            -Camera.SensorSize.y * (0.5 - NormalizedSamplePosition.y),
+            Camera.SensorDistance);
+
+        vec3 ObjectPosition = -SensorPosition * Camera.FocalLength / (SensorPosition.z - Camera.FocalLength);
+
+        Ray.Origin = vec3(Camera.ApertureRadius * RandomPointOnDisk(), 0);
+        Ray.Velocity = normalize(ObjectPosition - Ray.Origin);
+    }
+
+    else if (Camera.Model == CAMERA_MODEL_360) {
+        float Phi = (NormalizedSamplePosition.x - 0.5f) * TAU;
+        float Theta = (0.5f - NormalizedSamplePosition.y) * PI;
+
+        Ray.Origin = vec3(0, 0, 0);
+        Ray.Velocity = vec3(cos(Theta) * sin(Phi), sin(Theta), -cos(Theta) * cos(Phi));
+    }
+
+    return TransformRay(Ray, Camera.Transform);
 }
 
 /* --- Refraction Utilities ------------------------------------------------ */
@@ -516,175 +542,134 @@ vec3 ObserveParametricSpectrumSRGB(vec3 Beta)
     return ObserveParametricSpectrumSRGB(vec4(Beta, 1));
 }
 
-/* --- Utilities ----------------------------------------------------------- */
-
-vec2 SignNotZero(vec2 V)
-{
-    return vec2(
-        V.x >= 0.0 ? +1.0 : -1.0,
-        V.y >= 0.0 ? +1.0 : -1.0);
-}
-
-// Packs a unit vector into a single 32-bit value.
-uint PackUnitVector(vec3 V)
-{
-    vec2 P = V.xy * (1.0 / (abs(V.x) + abs(V.y) + abs(V.z)));
-    if (V.z <= 0.0) P = (1.0 - abs(P.yx)) * SignNotZero(P);
-    return packSnorm2x16(P);
-}
-
-// Unpacks a unit vector from a single 32-bit value.
-vec3 UnpackUnitVector(uint PackedV)
-{
-    vec2 P = unpackSnorm2x16(PackedV);
-    float Z = 1.0 - abs(P.x) - abs(P.y);
-    if (Z < 0.0) P = (1.0 - abs(P.yx)) * SignNotZero(P);
-    return normalize(vec3(P, Z));
-}
-
-/* --- Random Number Generator --------------------------------------------- */
-
-uint RandomState;
-
-uint Random()
-{
-    RandomState = RandomState * 747796405u + 2891336453u;
-    uint s = RandomState;
-    uint w = ((s >> ((s >> 28u) + 4u)) ^ s) * 277803737u;
-    return (w >> 22u) ^ w;
-}
-
-// Generate a random number in the range [0,1).
-float Random0To1()
-{
-    return Random() / 4294967296.0f;
-}
-
-vec2 RandomPointOnDisk()
-{
-    float R = sqrt(Random0To1());
-    float Theta = Random0To1() * TAU;
-    return R * vec2(cos(Theta), sin(Theta));
-}
-
-vec3 RandomDirection()
-{
-    float Z = 2 * Random0To1() - 1;
-    float R = sqrt(1 - Z * Z);
-    float Phi = TAU * Random0To1();
-    return vec3(R * cos(Phi), R * sin(Phi), Z);
-}
-
-vec3 RandomHemisphereDirection(vec3 Normal)
-{
-    vec3 Direction = RandomDirection();
-    return Direction * sign(dot(Normal, Direction));
-}
-
-// Generate a random direction from a von Mises-Fisher distribution on
-// a sphere, with concentration parameter Kappa and mean direction (0,0,1).
-vec3 RandomVonMisesFisher(float Kappa)
-{
-    float Xi = Random0To1();
-    float Z = 1 + (1 / Kappa) * log(Xi - exp(-2 * Kappa) * (Xi - 1));
-
-    float R = sqrt(1 - Z * Z);
-    float Phi = Random0To1() * TAU;
-    float X = R * cos(Phi);
-    float Y = R * sin(Phi);
-
-    return vec3(X, Y, Z);
-}
-
-const int PATH_COUNT = 2048*1024;
-
-struct trace_buffer
-{
-    // Query data.
-    float               OriginX             [PATH_COUNT];
-    float               OriginY             [PATH_COUNT];
-    float               OriginZ             [PATH_COUNT];
-    uint                PackedVelocity      [PATH_COUNT];
-    float               Duration            [PATH_COUNT];
-
-    // Result data.
-    float               Time                [PATH_COUNT];
-    uint                ShapeAndMaterialIndex[PATH_COUNT];
-    uint                PackedNormal        [PATH_COUNT];
-    uint                PackedTangentX      [PATH_COUNT];
-    float               TextureU            [PATH_COUNT];
-    float               TextureV            [PATH_COUNT];
-
-    // Result data stored only for specific rendering modes.
-    uint                PrimitiveIndex      [PATH_COUNT];
-    uint                SceneComplexity     [PATH_COUNT];
-    uint                MeshComplexity      [PATH_COUNT];
-};
-
-struct path_buffer
-{
-    int                 ImagePosition       [PATH_COUNT];
-    float               NormalizedLambda0   [PATH_COUNT];
-    float               Throughput0         [PATH_COUNT];
-    float               Throughput1         [PATH_COUNT];
-    float               Throughput2         [PATH_COUNT];
-    float               Throughput3         [PATH_COUNT];
-    float               Weight0             [PATH_COUNT];
-    float               Weight1             [PATH_COUNT];
-    float               Weight2             [PATH_COUNT];
-    float               Weight3             [PATH_COUNT];
-    float               SampleR             [PATH_COUNT];
-    float               SampleG             [PATH_COUNT];
-    float               SampleB             [PATH_COUNT];
-
-    uint                ActiveShapeIndex01  [PATH_COUNT];
-    uint                ActiveShapeIndex23  [PATH_COUNT];
-};
-
-/* --- Per-Frame Bindings -------------------------------------------------- */
-
-#ifdef DECLARE_FRAME_UBO_BINDING
-
-layout(binding=0)
-uniform frame_uniform_buffer
-{
-    uint                CameraModel;
-    float               CameraFocalLength;
-    float               CameraApertureRadius;
-    float               CameraSensorDistance;
-    vec2                CameraSensorSize;
-    packed_transform    CameraTransform;
-    uint                RenderMode;
-    uint                RenderFlags;
-    uint                RenderSampleBlockSize;
-    uint                RenderBounceLimit;
-    float               RenderTerminationProbability;
-    uint                RenderMeshComplexityScale;
-    uint                RenderSceneComplexityScale;
-    uint                SelectedShapeIndex;
-    float               Brightness;
-    uint                ToneMappingMode;
-    float               ToneMappingWhiteLevel;
-};
-
-#endif
-
 /* --- Scene Bindings ------------------------------------------------------ */
 
-#ifdef DECLARE_SCENE_BINDINGS
+#ifdef BIND_SCENE
 
-layout(set=1, binding=0) uniform SceneUBO { packed_scene_globals Scene; };
+const uint SHAPE_TYPE_MESH_INSTANCE         = 0;
+const uint SHAPE_TYPE_PLANE                 = 1;
+const uint SHAPE_TYPE_SPHERE                = 2;
+const uint SHAPE_TYPE_CUBE                  = 3;
 
-layout(set=1, binding=1) uniform sampler2DArray TextureArrayNearest;
-layout(set=1, binding=2) uniform sampler2DArray TextureArrayLinear;
+const uint TEXTURE_TYPE_RAW                 = 0;
+const uint TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA = 1;
+const uint TEXTURE_TYPE_RADIANCE            = 2;
 
-layout(set=1, binding=3, std430) readonly buffer TextureSSBO       { packed_texture         Textures[];       };
-layout(set=1, binding=4, std430) readonly buffer MaterialSSBO      { uint                   MaterialData[];   };
-layout(set=1, binding=5, std430) readonly buffer ShapeSSBO         { packed_shape           Shapes[];         };
-layout(set=1, binding=6, std430) readonly buffer ShapeNodeSSBO     { packed_shape_node      ShapeNodes[];     };
-layout(set=1, binding=7, std430) readonly buffer MeshFaceSSBO      { packed_mesh_face       MeshFaces[];      };
-layout(set=1, binding=8, std430) readonly buffer MeshVertexSSBO    { packed_mesh_vertex     MeshVertices[];   };
-layout(set=1, binding=9, std430) readonly buffer MeshNodeSSBO      { packed_mesh_node       MeshNodes[];      };
+const uint TEXTURE_FLAG_FILTER_NEAREST      = 1 << 0;
+
+struct packed_texture
+{
+    vec2                AtlasPlacementMinimum;
+    vec2                AtlasPlacementMaximum;
+    uint                AtlasImageIndex;
+    uint                Type;
+    uint                Flags;
+    uint                Dummy2;
+};
+
+struct packed_shape
+{
+    uint                Type;
+    uint                MaterialIndex;
+    uint                MeshRootNodeIndex;
+    packed_transform    Transform;
+};
+
+struct packed_shape_node
+{
+    vec3                Minimum;
+    uint                ChildNodeIndices;
+    vec3                Maximum;
+    uint                ShapeIndex;
+};
+
+struct packed_mesh_face
+{
+    vec3                Position0;
+    uint                VertexIndex0;
+    vec3                Position1;
+    uint                VertexIndex1;
+    vec3                Position2;
+    uint                VertexIndex2;
+};
+
+struct packed_mesh_vertex
+{
+    uint                PackedNormal;
+    uint                PackedUV;
+};
+
+struct packed_mesh_node
+{
+    vec3                Minimum;
+    uint                FaceBeginOrNodeIndex;
+    vec3                Maximum;
+    uint                FaceEndIndex;
+};
+
+struct packed_scene_globals
+{
+    mat3                SkyboxDistributionFrame;
+    float               SkyboxDistributionConcentration;
+    float               SkyboxBrightness;
+    uint                SkyboxTextureIndex;
+    uint                ShapeCount;
+    float               SceneScatterRate;
+};
+
+layout(set=BIND_SCENE, binding=0)
+uniform SceneUBO
+{
+    packed_scene_globals Scene;
+};
+
+layout(set=BIND_SCENE, binding=1)
+uniform sampler2DArray TextureArrayNearest;
+
+layout(set=BIND_SCENE, binding=2)
+uniform sampler2DArray TextureArrayLinear;
+
+layout(set=BIND_SCENE, binding=3, std430)
+readonly buffer TextureSSBO
+{
+    packed_texture Textures[];
+};
+
+layout(set=BIND_SCENE, binding=4, std430)
+readonly buffer MaterialSSBO
+{
+    uint MaterialData[];
+};
+
+layout(set=BIND_SCENE, binding=5, std430)
+readonly buffer ShapeSSBO
+{
+    packed_shape Shapes[];
+};
+
+layout(set=BIND_SCENE, binding=6, std430)
+readonly buffer ShapeNodeSSBO
+{
+    packed_shape_node ShapeNodes[];
+};
+
+layout(set=BIND_SCENE, binding=7, std430)
+readonly buffer MeshFaceSSBO
+{
+    packed_mesh_face MeshFaces[];
+};
+
+layout(set=BIND_SCENE, binding=8, std430)
+readonly buffer MeshVertexSSBO
+{
+    packed_mesh_vertex MeshVertices[];
+};
+
+layout(set=BIND_SCENE, binding=9, std430)
+readonly buffer MeshNodeSSBO
+{
+    packed_mesh_node MeshNodes[];
+};
 
 uint MaterialUint(uint MaterialSlotIndex, uint AttributeIndex)
 {
@@ -752,19 +737,38 @@ vec4 SampleSkyboxRadiance(vec3 Direction, vec4 Lambda)
 
 #endif
 
-/* --- Path Tracer Compute Shader Bindings --------------------------------- */
+/* --- Ray Tracing --------------------------------------------------------- */
 
-#ifdef DECLARE_COMPUTE_BINDINGS
+#ifdef BIND_TRACE
 
-layout(set=0, binding=1, rgba32f) uniform image2D SampleAccumulatorImage;
+const int TRACE_COUNT = 2048*1024;
 
-layout(set=0, binding=2,  std430) buffer TraceSSBO { trace_buffer  TraceBuffer;  };
-layout(set=0, binding=3,  std430) buffer PathSSBO  { path_buffer   PathBuffer;   };
-
-layout(push_constant) uniform ComputePushConstantBuffer
+struct trace_buffer
 {
-    uint RandomSeed;
-    uint Restart;
+    // Query data.
+    float   OriginX                 [TRACE_COUNT];
+    float   OriginY                 [TRACE_COUNT];
+    float   OriginZ                 [TRACE_COUNT];
+    uint    PackedVelocity          [TRACE_COUNT];
+    float   Duration                [TRACE_COUNT];
+
+    // Result data.
+    float   Time                    [TRACE_COUNT];
+    uint    ShapeAndMaterialIndex   [TRACE_COUNT];
+    uint    PackedNormal            [TRACE_COUNT];
+    uint    PackedTangentX          [TRACE_COUNT];
+    float   TextureU                [TRACE_COUNT];
+    float   TextureV                [TRACE_COUNT];
+
+    // Result data stored only for specific rendering modes.
+    uint    PrimitiveIndex          [TRACE_COUNT];
+    uint    SceneComplexity         [TRACE_COUNT];
+    uint    MeshComplexity          [TRACE_COUNT];
+};
+
+layout(set=BIND_TRACE, binding=0, std430) buffer TraceSSBO
+{
+    trace_buffer TraceBuffer;
 };
 
 ray LoadTraceRay(uint Index)
@@ -792,11 +796,11 @@ hit LoadTraceHit(uint Index)
 {
     hit Hit;
 
-    if (RenderMode == RENDER_MODE_SCENE_COMPLEXITY)
+    //if (RenderMode == RENDER_MODE_SCENE_COMPLEXITY)
         Hit.SceneComplexity    = TraceBuffer.SceneComplexity [Index];
-    if (RenderMode == RENDER_MODE_MESH_COMPLEXITY)
+    //if (RenderMode == RENDER_MODE_MESH_COMPLEXITY)
         Hit.MeshComplexity     = TraceBuffer.MeshComplexity  [Index];
-    if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
+    //if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
         Hit.PrimitiveIndex     = TraceBuffer.PrimitiveIndex  [Index];
 
     uint ShapeAndMaterialIndex = TraceBuffer.ShapeAndMaterialIndex[Index];
@@ -823,11 +827,11 @@ hit LoadTraceHit(uint Index)
 
 void StoreTraceHit(uint Index, hit Hit)
 {
-    if (RenderMode == RENDER_MODE_SCENE_COMPLEXITY)
+    //if (RenderMode == RENDER_MODE_SCENE_COMPLEXITY)
         TraceBuffer.SceneComplexity [Index] = Hit.SceneComplexity;
-    if (RenderMode == RENDER_MODE_MESH_COMPLEXITY)
+    //if (RenderMode == RENDER_MODE_MESH_COMPLEXITY)
         TraceBuffer.MeshComplexity  [Index] = Hit.MeshComplexity;
-    if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
+    //if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
         TraceBuffer.PrimitiveIndex  [Index] = Hit.PrimitiveIndex;
 
     if (Hit.ShapeIndex == SHAPE_INDEX_NONE) {
@@ -843,6 +847,71 @@ void StoreTraceHit(uint Index, hit Hit)
     TraceBuffer.TextureU        [Index] = Hit.UV.x;
     TraceBuffer.TextureV        [Index] = Hit.UV.y;
 }
+
+#endif // TRACE_BUFFER_BINDING
+
+/* --- Path Tracer Compute Shader Bindings --------------------------------- */
+
+#ifdef BIND_PATH
+
+const int PATH_COUNT = 2048*1024;
+const int ACTIVE_SHAPE_LIMIT = 4;
+
+struct path_buffer
+{
+    int                 ImagePosition       [PATH_COUNT];
+    float               NormalizedLambda0   [PATH_COUNT];
+    float               Throughput0         [PATH_COUNT];
+    float               Throughput1         [PATH_COUNT];
+    float               Throughput2         [PATH_COUNT];
+    float               Throughput3         [PATH_COUNT];
+    float               Weight0             [PATH_COUNT];
+    float               Weight1             [PATH_COUNT];
+    float               Weight2             [PATH_COUNT];
+    float               Weight3             [PATH_COUNT];
+    float               SampleR             [PATH_COUNT];
+    float               SampleG             [PATH_COUNT];
+    float               SampleB             [PATH_COUNT];
+
+    uint                ActiveShapeIndex01  [PATH_COUNT];
+    uint                ActiveShapeIndex23  [PATH_COUNT];
+};
+
+struct path
+{
+    float               NormalizedLambda0;
+    vec4                Throughput;                 // Path throughput at each of the 4 sampling wavelengths.
+    vec4                Weight;                     // Path weight at each of the 4 sampling wavelengths.
+    vec3                Sample;
+    ivec2               ImagePosition;
+    uint                ActiveShapeIndex[4];
+};
+
+layout(set=BIND_PATH, binding=0)
+uniform PathUBO
+{
+    camera  Camera;
+    uint    RenderMode;
+    uint    RenderFlags;
+    uint    RenderSampleBlockSize;
+    uint    RenderBounceLimit;
+    float   RenderTerminationProbability;
+    uint    RenderMeshComplexityScale;
+    uint    RenderSceneComplexityScale;
+    uint    SelectedShapeIndex;
+    float   Brightness;
+    uint    ToneMappingMode;
+    float   ToneMappingWhiteLevel;
+};
+
+layout(set=BIND_PATH, binding=1, rgba32f)
+uniform image2D SampleAccumulatorImage;
+
+layout(set=BIND_PATH, binding=2, std430)
+buffer PathSSBO
+{
+    path_buffer PathBuffer;
+};
 
 path LoadPath(uint Index)
 {

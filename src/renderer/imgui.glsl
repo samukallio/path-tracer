@@ -1,19 +1,16 @@
 #version 450
 
-#define DECLARE_SCENE_BINDINGS
+#define BIND_SCENE 1    // Scene data in descriptor set 0.
+
 #include "common.glsl.inc"
 
 layout(set=0, binding=0)
-uniform imgui_uniform_buffer
-{
-    mat4 ProjectionMatrix;
-};
-
-layout(set=0, binding=1)
 uniform sampler2D TextureSampler;
 
-layout(push_constant) uniform push_constants
+layout(push_constant)
+uniform ImGuiPushConstants
 {
+    mat4 ProjectionMatrix;
     uint TextureID;
 };
 

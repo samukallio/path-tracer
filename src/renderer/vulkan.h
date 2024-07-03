@@ -11,11 +11,6 @@ struct scene;
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 
-struct imgui_uniform_buffer
-{
-    mat4                        ProjectionMatrix            = {};
-};
-
 struct vulkan_buffer
 {
     VkBuffer                    Buffer                      = VK_NULL_HANDLE;
@@ -62,14 +57,13 @@ struct vulkan_frame_state
     VkCommandBuffer             ComputeCommandBuffer        = VK_NULL_HANDLE;
 
     vulkan_buffer               FrameUniformBuffer          = {};
-
     VkDescriptorSet             ComputeDescriptorSet        = VK_NULL_HANDLE;
+
     VkDescriptorSet             ResolveDescriptorSet        = VK_NULL_HANDLE;
 
-    vulkan_buffer               ImguiUniformBuffer          = {};
-    vulkan_buffer               ImguiIndexBuffer            = {};
-    vulkan_buffer               ImguiVertexBuffer           = {};
-    VkDescriptorSet             ImguiDescriptorSet          = {};
+    vulkan_buffer               ImGuiIndexBuffer            = {};
+    vulkan_buffer               ImGuiVertexBuffer           = {};
+    VkDescriptorSet             ImGuiDescriptorSet          = {};
 };
 
 struct vulkan_context
@@ -117,6 +111,8 @@ struct vulkan_context
     VkSampler                   ImageSamplerLinear          = VK_NULL_HANDLE;
     VkSampler                   ImageSamplerLinearNoMip     = VK_NULL_HANDLE;
 
+    VkDescriptorSetLayout       SceneDescriptorSetLayout    = VK_NULL_HANDLE;
+    VkDescriptorSet             SceneDescriptorSet          = VK_NULL_HANDLE;
     vulkan_buffer               SceneUniformBuffer          = {};
     vulkan_image                ImageArray                  = {};
     vulkan_buffer               TextureBuffer               = {};
@@ -127,23 +123,22 @@ struct vulkan_context
     vulkan_buffer               MeshVertexBuffer            = {};
     vulkan_buffer               MeshNodeBuffer              = {};
 
-    vulkan_buffer               PathBuffer                  = {};
+    VkDescriptorSetLayout       TraceDescriptorSetLayout    = VK_NULL_HANDLE;
+    VkDescriptorSet             TraceDescriptorSet          = VK_NULL_HANDLE;
+    vulkan_pipeline             TracePipeline               = {};
     vulkan_buffer               TraceBuffer                 = {};
 
-    vulkan_image                SampleAccumulatorImage      = {};
-
-    vulkan_image                ImguiTexture                = {};
-
-    VkDescriptorSetLayout       SceneDescriptorSetLayout    = VK_NULL_HANDLE;
-    VkDescriptorSet             SceneDescriptorSet          = VK_NULL_HANDLE;
     VkDescriptorSetLayout       ComputeDescriptorSetLayout  = VK_NULL_HANDLE;
-    VkDescriptorSetLayout       ResolveDescriptorSetLayout  = VK_NULL_HANDLE;
-    VkDescriptorSetLayout       ImguiDescriptorSetLayout    = VK_NULL_HANDLE;
-
     vulkan_pipeline             PathPipeline                = {};
-    vulkan_pipeline             TracePipeline               = {};
+    vulkan_image                SampleAccumulatorImage      = {};
+    vulkan_buffer               PathBuffer                  = {};
+
+    VkDescriptorSetLayout       ResolveDescriptorSetLayout  = VK_NULL_HANDLE;
     vulkan_pipeline             ResolvePipeline             = {};
-    vulkan_pipeline             ImguiPipeline               = {};
+
+    VkDescriptorSetLayout       ImGuiDescriptorSetLayout    = VK_NULL_HANDLE;
+    vulkan_pipeline             ImGuiPipeline               = {};
+    vulkan_image                ImGuiTexture                = {};
 };
 
 vulkan_context* CreateVulkan(

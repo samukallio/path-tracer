@@ -2,10 +2,18 @@
 
 #version 450
 
-#define DECLARE_FRAME_UBO_BINDING
 #include "common.glsl.inc"
 
-layout(binding = 1) uniform sampler2D SampleAccumulatorImageSampler;
+layout(set=0, binding=0)
+uniform sampler2D SampleAccumulatorImageSampler;
+
+layout(push_constant)
+uniform ResolvePushConstants
+{
+    float   Brightness;
+    uint    ToneMappingMode;
+    float   ToneMappingWhiteLevel;
+};
 
 #if VERTEX
 

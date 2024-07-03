@@ -1,8 +1,8 @@
 #version 450
 
-#define DECLARE_FRAME_UBO_BINDING
-#define DECLARE_COMPUTE_BINDINGS
-#define DECLARE_SCENE_BINDINGS
+#define BIND_SCENE 0    // Scene data in descriptor set 0.
+#define BIND_TRACE 1    // Trace buffer in descriptor set 1.
+
 #include "common.glsl.inc"
 
 layout(local_size_x=256, local_size_y=1, local_size_z=1) in;
@@ -40,7 +40,6 @@ float IntersectBoundingBox(ray Ray, float Reach, vec3 Min, vec3 Max)
 
     return EntryT;
 }
-
 
 void TraceMeshFace(ray Ray, uint MeshFaceIndex, inout hit Hit)
 {
@@ -254,12 +253,6 @@ void main()
     uint Index = gl_GlobalInvocationID.x;
 
     if (Index >= 2048*1024) return;
-
-    // Initialize random number generator.
-    RandomState
-        = gl_GlobalInvocationID.y * 65537
-        + gl_GlobalInvocationID.x
-        + RandomSeed * 277803737u;
 
     ray Ray = LoadTraceRay(Index);
 
