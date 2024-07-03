@@ -641,7 +641,7 @@ struct path_buffer
     uint                ActiveShapeIndex23  [PATH_COUNT];
 };
 
-/* --- Bindings ------------------------------------------------------------ */
+/* --- Per-Frame Bindings -------------------------------------------------- */
 
 #ifdef DECLARE_FRAME_UBO_BINDING
 
@@ -668,6 +668,8 @@ uniform frame_uniform_buffer
 };
 
 #endif
+
+/* --- Scene Bindings ------------------------------------------------------ */
 
 #ifdef DECLARE_SCENE_BINDINGS
 
@@ -724,7 +726,33 @@ vec4 SampleTexture(uint Index, vec2 UV)
         return textureLod(TextureArrayLinear, UVW, 0);
 }
 
+// Sample the parametric coefficients of the emission spectrum
+// of the environment map in the given direction.
+vec4 SampleSkyboxSpectrum(vec3 Direction)
+{
+    if (Scene.SkyboxTextureIndex == TEXTURE_INDEX_NONE)
+        return vec4(0, 0, 100, 1);
+
+    float Phi = atan(Direction.y, Direction.x);
+    float Theta = asin(Direction.z);
+
+    float U = 0.5 + Phi / TAU;
+    float V = 0.5 + Theta / PI;
+
+    return SampleTexture(Scene.SkyboxTextureIndex, vec2(U, V));
+}
+
+// Sample radiances at given wavelengths of the emission spectrum
+// of the environment map in the given direction.
+vec4 SampleSkyboxRadiance(vec3 Direction, vec4 Lambda)
+{
+    vec4 Spectrum = SampleSkyboxSpectrum(Direction);
+    return SampleParametricSpectrum(Spectrum, Lambda) * Scene.SkyboxBrightness;
+}
+
 #endif
+
+/* --- Path Tracer Compute Shader Bindings --------------------------------- */
 
 #ifdef DECLARE_COMPUTE_BINDINGS
 

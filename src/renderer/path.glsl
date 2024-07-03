@@ -61,32 +61,6 @@ float HemisphereSkyboxDirectionPDF(vec3 Direction)
     return C * (exp(Z) + exp(-Z));
 }
 
-vec4 SampleSkyboxSpectrum(ray Ray)
-{
-//    mat3 frame = skyboxDistributionFrame;
-//    float x = (1 + dot(Ray.Velocity, frame[0])) / 2.0;
-//    float y = (1 + dot(Ray.Velocity, frame[1])) / 2.0;
-//    float z = (1 + dot(Ray.Velocity, frame[2])) / 2.0;
-//    return vec3(x, y, z);
-
-    if (Scene.SkyboxTextureIndex == TEXTURE_INDEX_NONE)
-        return vec4(0, 0, 100, 1);
-
-    float Phi = atan(Ray.Velocity.y, Ray.Velocity.x);
-    float Theta = asin(Ray.Velocity.z);
-
-    float U = 0.5 + Phi / TAU;
-    float V = 0.5 + Theta / PI;
-
-    return SampleTexture(Scene.SkyboxTextureIndex, vec2(U, V));
-}
-
-vec4 SampleSkyboxRadiance(ray Ray, vec4 Lambda)
-{
-    vec4 Spectrum = SampleSkyboxSpectrum(Ray);
-    return SampleParametricSpectrum(Spectrum, Lambda) * Scene.SkyboxBrightness;
-}
-
 void GenerateNewPath(uint Index, ivec2 ImagePosition)
 {
     ivec2 ImageSize = imageSize(SampleAccumulatorImage);
@@ -156,8 +130,6 @@ void GenerateNewPath(uint Index, ivec2 ImagePosition)
     StorePath(Index, Path);
 }
 
-/* --- BSDF ---------------------------------------------------------------- */
-
 void ResolveMedium(uint ShapeIndex, vec4 Lambda, out medium Medium)
 {
     Medium.Priority = ShapeIndex;
@@ -226,7 +198,7 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
         }
         // Otherwise, we hit the skybox.
         else {
-            vec4 Emission = SampleSkyboxRadiance(Ray, Lambda);
+            vec4 Emission = SampleSkyboxRadiance(Ray.Velocity, Lambda);
             float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
             Path.Sample += SampleStandardObserverSRGB(Lambda) * (Emission * Path.Throughput) / ClusterPDF;
             Path.Weight = vec4(0.0);
@@ -353,7 +325,7 @@ void RenderBaseColor(inout path Path, ray Ray, hit Hit, bool IsShaded)
     if (Hit.ShapeIndex == SHAPE_INDEX_NONE) {
         // We hit the skybox.  Generate a color sample from the skybox radiance
         // spectrum by integrating against the standard observer.
-        vec4 Spectrum = SampleSkyboxSpectrum(Ray);
+        vec4 Spectrum = SampleSkyboxSpectrum(Ray.Velocity);
         Path.Sample += ObserveParametricSpectrumSRGB(Spectrum);
         return;
     }

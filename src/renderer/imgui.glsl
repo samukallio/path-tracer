@@ -17,25 +17,6 @@ layout(push_constant) uniform push_constants
     uint TextureID;
 };
 
-vec4 SampleTexture(uint Index, vec2 UV)
-{
-    packed_texture Texture = Textures[Index];
-
-    float U = mix(
-        Texture.AtlasPlacementMinimum.x,
-        Texture.AtlasPlacementMaximum.x,
-        fract(UV.x));
-
-    float V = mix(
-        Texture.AtlasPlacementMinimum.y,
-        Texture.AtlasPlacementMaximum.y,
-        fract(UV.y));
-
-    vec3 UVW = vec3(U, V, Texture.AtlasImageIndex);
-
-    return textureLod(TextureArrayNearest, UVW, 0);
-}
-
 #if VERTEX
 
 layout(location = 0) in vec2 InPosition;
