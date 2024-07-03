@@ -18,6 +18,7 @@ add_executable (path-tracer
 	src/application/ui_font.h
 	src/application/main.cpp
 	src/renderer/common.h
+	src/renderer/openpbr.h
 	src/renderer/vulkan.h
 	src/renderer/vulkan.cpp
 	src/scene/scene.h
@@ -92,8 +93,15 @@ function (compile_shader target source)
 	source_group ("Shader Files" FILES ${source})
 endfunction ()
 
-target_sources (path-tracer PRIVATE src/renderer/common.glsl.inc)
-source_group ("Shader Files" FILES src/renderer/common.glsl.inc)
+target_sources (path-tracer PRIVATE
+	src/renderer/common.glsl.inc
+	src/renderer/openpbr.glsl.inc
+)
+
+source_group ("Shader Files" FILES
+	src/renderer/common.glsl.inc
+	src/renderer/openpbr.glsl.inc
+)
 
 compile_shader (path-tracer src/renderer/resolve.glsl
 		VERTEX resolve.vertex.inc

@@ -237,7 +237,7 @@ struct scene
     std::vector<packed_texture>         TexturePack;
     std::vector<packed_shape>           ShapePack;
     std::vector<packed_shape_node>      ShapeNodePack;
-    std::vector<packed_material>        MaterialPack;
+    std::vector<uint>                   MaterialAttributePack;
     std::vector<packed_mesh_face>       MeshFacePack;
     std::vector<packed_mesh_vertex>     MeshVertexPack;
     std::vector<packed_mesh_node>       MeshNodePack;

@@ -1,3 +1,6 @@
+#ifndef COMMON_GLSL_INC
+#define COMMON_GLSL_INC
+
 const float INFINITY        = 1e30f;
 const float EPSILON         = 1e-9f;
 const float PI              = 3.141592653f;
@@ -57,39 +60,6 @@ struct packed_texture
     uint                Type;
     uint                Flags;
     uint                Dummy2;
-};
-
-struct packed_material
-{
-    vec3                BaseSpectrum;
-    float               BaseWeight;
-    vec3                SpecularSpectrum;
-    float               SpecularWeight;
-    vec3                TransmissionSpectrum;
-    float               TransmissionWeight;
-    vec3                TransmissionScatterSpectrum;
-    float               TransmissionScatterAnisotropy;
-    vec3                EmissionSpectrum;
-    float               EmissionLuminance;
-    vec3                CoatColorSpectrum;
-    float               CoatWeight;
-    float               Opacity;
-    float               BaseMetalness;
-    float               BaseDiffuseRoughness;
-    float               CoatIOR;
-    float               CoatRoughness;
-    float               CoatRoughnessAnisotropy;
-    float               CoatDarkening;
-    float               SpecularIOR;
-    float               SpecularRoughness;
-    float               SpecularRoughnessAnisotropy;
-    float               TransmissionDepth;
-    float               TransmissionDispersionScale;
-    float               TransmissionDispersionAbbeNumber;
-    uint                BaseSpectrumTextureIndex;
-    uint                SpecularRoughnessTextureIndex;
-    uint                EmissionSpectrumTextureIndex;
-    uint                LayerBounceLimit;
 };
 
 struct packed_shape
@@ -707,12 +677,52 @@ layout(set=1, binding=1) uniform sampler2DArray TextureArrayNearest;
 layout(set=1, binding=2) uniform sampler2DArray TextureArrayLinear;
 
 layout(set=1, binding=3, std430) readonly buffer TextureSSBO       { packed_texture         Textures[];       };
-layout(set=1, binding=4, std430) readonly buffer MaterialSSBO      { packed_material        Materials[];      };
+layout(set=1, binding=4, std430) readonly buffer MaterialSSBO      { uint                   MaterialData[];   };
 layout(set=1, binding=5, std430) readonly buffer ShapeSSBO         { packed_shape           Shapes[];         };
 layout(set=1, binding=6, std430) readonly buffer ShapeNodeSSBO     { packed_shape_node      ShapeNodes[];     };
 layout(set=1, binding=7, std430) readonly buffer MeshFaceSSBO      { packed_mesh_face       MeshFaces[];      };
 layout(set=1, binding=8, std430) readonly buffer MeshVertexSSBO    { packed_mesh_vertex     MeshVertices[];   };
 layout(set=1, binding=9, std430) readonly buffer MeshNodeSSBO      { packed_mesh_node       MeshNodes[];      };
+
+uint MaterialUint(uint MaterialSlotIndex, uint AttributeIndex)
+{
+    return MaterialData[32*MaterialSlotIndex + AttributeIndex];
+}
+
+float MaterialFloat(uint MaterialSlotIndex, uint AttributeIndex)
+{
+    return uintBitsToFloat(MaterialUint(MaterialSlotIndex, AttributeIndex));
+}
+
+vec3 MaterialVec3(uint MaterialSlotIndex, uint AttributeIndex)
+{
+    return vec3(
+        MaterialFloat(MaterialSlotIndex, AttributeIndex+0),
+        MaterialFloat(MaterialSlotIndex, AttributeIndex+1),
+        MaterialFloat(MaterialSlotIndex, AttributeIndex+2));
+}
+
+vec4 SampleTexture(uint Index, vec2 UV)
+{
+    packed_texture Texture = Textures[Index];
+
+    float U = mix(
+        Texture.AtlasPlacementMinimum.x,
+        Texture.AtlasPlacementMaximum.x,
+        fract(UV.x));
+
+    float V = mix(
+        Texture.AtlasPlacementMinimum.y,
+        Texture.AtlasPlacementMaximum.y,
+        fract(UV.y));
+
+    vec3 UVW = vec3(U, V, Texture.AtlasImageIndex);
+
+    if ((Texture.Flags & TEXTURE_FLAG_FILTER_NEAREST) != 0)
+        return textureLod(TextureArrayNearest, UVW, 0);
+    else
+        return textureLod(TextureArrayLinear, UVW, 0);
+}
 
 #endif
 
@@ -874,3 +884,5 @@ void StorePath(uint Index, path Path)
 }
 
 #endif
+
+#endif // COMMON_GLSL_INC

@@ -2285,14 +2285,14 @@ VkResult UploadScene(
         MaterialBufferOld = Vulkan->MaterialBuffer;
         Vulkan->MaterialBuffer = vulkan_buffer {};
 
-        size_t MaterialBufferSize = sizeof(packed_material) * Scene->MaterialPack.size();
+        size_t MaterialBufferSize = sizeof(uint) * Scene->MaterialAttributePack.size();
         Result = InternalCreateBuffer(
             Vulkan,
             &Vulkan->MaterialBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             std::max(1024ull, MaterialBufferSize));
-        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MaterialBuffer, Scene->MaterialPack.data(), MaterialBufferSize);
+        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MaterialBuffer, Scene->MaterialAttributePack.data(), MaterialBufferSize);
     }
 
     if (DirtyFlags & SCENE_DIRTY_SHAPES) {

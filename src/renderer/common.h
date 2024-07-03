@@ -84,41 +84,6 @@ struct alignas(16) packed_texture
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) packed_material
-{
-    vec3                BaseSpectrum;
-    float               BaseWeight;
-    vec3                SpecularSpectrum;
-    float               SpecularWeight;
-    vec3                TransmissionSpectrum;
-    float               TransmissionWeight;
-    vec3                TransmissionScatterSpectrum;
-    float               TransmissionScatterAnisotropy;
-    vec3                EmissionSpectrum;
-    float               EmissionLuminance;
-    vec3                CoatColorSpectrum;
-    float               CoatWeight;
-    float               Opacity;
-    float               BaseMetalness;
-    float               BaseDiffuseRoughness;
-    float               CoatIOR;
-    float               CoatRoughness;
-    float               CoatRoughnessAnisotropy;
-    float               CoatDarkening;
-    float               SpecularIOR;
-    float               SpecularRoughness;
-    float               SpecularRoughnessAnisotropy;
-    float               TransmissionDepth;
-    float               TransmissionDispersionScale;
-    float               TransmissionDispersionAbbeNumber;
-    uint                BaseSpectrumTextureIndex;
-    uint                SpecularRoughnessTextureIndex;
-    uint                EmissionSpectrumTextureIndex;
-    uint                LayerBounceLimit;
-};
-
-// This structure is shared between CPU and GPU,
-// and must follow std430 layout rules.
 struct alignas(16) packed_shape
 {
     shape_type          Type;

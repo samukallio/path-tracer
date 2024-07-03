@@ -4,6 +4,8 @@
 
 #include "scene/scene.h"
 
+#include "renderer/openpbr.h"
+
 #include <unordered_map>
 #include <unordered_set>
 #include <format>
@@ -1159,76 +1161,21 @@ uint32_t PackSceneData(scene* Scene)
 
     // Pack materials.
     if (DirtyFlags & SCENE_DIRTY_MATERIALS) {
-        Scene->MaterialPack.clear();
+        Scene->MaterialAttributePack.clear();
 
         // Fallback material.
         {
-            packed_material Packed = {
-                .BaseSpectrum                   = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, glm::vec3(1, 1, 1)),
-                .BaseWeight                     = 1.0f,
-                .SpecularWeight                 = 0.0f,
-                .TransmissionWeight             = 0.0f,
-                .EmissionSpectrum               = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, glm::vec3(0, 0, 0)),
-                .EmissionLuminance              = 0.0f,
-                .CoatWeight                     = 0.0f,
-                .BaseMetalness                  = 0.0f,
-                .BaseDiffuseRoughness           = 1.0f,
-                .SpecularIOR                    = 1.5f,
-                .SpecularRoughness              = 0.0f,
-                .SpecularRoughnessAnisotropy    = 0.0f,
-                .TransmissionDepth              = 0.0f,
-                .BaseSpectrumTextureIndex       = TEXTURE_INDEX_NONE,
-                .SpecularRoughnessTextureIndex  = TEXTURE_INDEX_NONE,
-                .EmissionSpectrumTextureIndex   = TEXTURE_INDEX_NONE,
-                .LayerBounceLimit               = 8,
-            };
-            Scene->MaterialPack.push_back(Packed);
+            material Material = {};
+            size_t Offset = Scene->MaterialAttributePack.size();
+            Scene->MaterialAttributePack.resize(Offset + 64);
+            OpenPBRPackMaterial(Scene, &Material, &Scene->MaterialAttributePack[Offset]);
         }
 
         for (material* Material : Scene->Materials) {
-            packed_material Packed;
-
-            Material->PackedMaterialIndex = static_cast<uint32_t>(Scene->MaterialPack.size());
-
-            Packed.Opacity = Material->Opacity;
-
-            Packed.BaseSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->BaseColor);
-            Packed.BaseWeight = Material->BaseWeight;
-            Packed.BaseMetalness = Material->BaseMetalness;
-            Packed.BaseDiffuseRoughness = Material->BaseDiffuseRoughness;
-
-            Packed.SpecularSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->SpecularColor);
-            Packed.SpecularWeight = Material->SpecularWeight;
-
-            Packed.SpecularIOR = Material->SpecularIOR;
-            Packed.SpecularRoughness = Material->SpecularRoughness;
-            Packed.SpecularRoughnessAnisotropy = Material->SpecularRoughnessAnisotropy;
-
-            Packed.TransmissionWeight = Material->TransmissionWeight;
-            Packed.TransmissionSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->TransmissionColor);
-            Packed.TransmissionDepth = Material->TransmissionDepth;
-            Packed.TransmissionScatterSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->TransmissionScatter);
-            Packed.TransmissionScatterAnisotropy = Material->TransmissionScatterAnisotropy;
-            Packed.TransmissionDispersionScale = Material->TransmissionDispersionScale;
-            Packed.TransmissionDispersionAbbeNumber = Material->TransmissionDispersionAbbeNumber;
-
-            Packed.CoatWeight = Material->CoatWeight;
-            Packed.CoatColorSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->CoatColor);
-            Packed.CoatRoughness = Material->CoatRoughness;
-            Packed.CoatRoughnessAnisotropy = Material->CoatRoughnessAnisotropy;
-            Packed.CoatIOR = Material->CoatIOR;
-            Packed.CoatDarkening = Material->CoatDarkening;
-
-            Packed.EmissionSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->EmissionColor);
-            Packed.EmissionLuminance = Material->EmissionLuminance;
-
-            Packed.BaseSpectrumTextureIndex = GetPackedTextureIndex(Material->BaseColorTexture);
-            Packed.SpecularRoughnessTextureIndex = GetPackedTextureIndex(Material->SpecularRoughnessTexture);
-            Packed.EmissionSpectrumTextureIndex = GetPackedTextureIndex(Material->EmissionColorTexture);
-
-            Packed.LayerBounceLimit = static_cast<uint32_t>(Material->LayerBounceLimit);
-
-            Scene->MaterialPack.push_back(Packed);
+            size_t Offset = Scene->MaterialAttributePack.size();
+            Scene->MaterialAttributePack.resize(Offset + 64);
+            OpenPBRPackMaterial(Scene, Material, &Scene->MaterialAttributePack[Offset]);
+            Material->PackedMaterialIndex = static_cast<uint32_t>(Offset) / 32;
         }
 
         DirtyFlags |= SCENE_DIRTY_SHAPES;
