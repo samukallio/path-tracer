@@ -2653,37 +2653,6 @@ VkResult RenderFrame(
         }
     }
 
-    // --- Upload ImGui draw data ---------------------------------------------
-
-    {
-        imgui_push_constant_buffer PushConstants;
-
-        void* VertexMemory;
-        uint32_t VertexOffset = 0;
-        vkMapMemory(Vulkan->Device, Frame->ImGuiVertexBuffer.Memory, 0, Frame->ImGuiVertexBuffer.Size, 0, &VertexMemory);
-        void* IndexMemory;
-        uint32_t IndexOffset = 0;
-        vkMapMemory(Vulkan->Device, Frame->ImGuiIndexBuffer.Memory, 0, Frame->ImGuiIndexBuffer.Size, 0, &IndexMemory);
-
-        ImDrawVert* VertexPointer = static_cast<ImDrawVert*>(VertexMemory);
-        uint16_t* IndexPointer = static_cast<uint16_t*>(IndexMemory);
-
-        for (int I = 0; I < ImguiDrawData->CmdListsCount; I++) {
-            ImDrawList* CmdList = ImguiDrawData->CmdLists[I];
-
-            uint32_t VertexDataSize = CmdList->VtxBuffer.Size * sizeof(ImDrawVert);
-            memcpy(VertexPointer, CmdList->VtxBuffer.Data, VertexDataSize);
-            VertexPointer += CmdList->VtxBuffer.Size;
-
-            uint32_t IndexDataSize = CmdList->IdxBuffer.Size * sizeof(uint16_t);
-            memcpy(IndexPointer, CmdList->IdxBuffer.Data, IndexDataSize);
-            IndexPointer += CmdList->IdxBuffer.Size;
-        }
-
-        vkUnmapMemory(Vulkan->Device, Frame->ImGuiIndexBuffer.Memory);
-        vkUnmapMemory(Vulkan->Device, Frame->ImGuiVertexBuffer.Memory);
-    }
-
     // --- Graphics -----------------------------------------------------------
 
     // Start graphics command buffer.
@@ -2796,6 +2765,32 @@ VkResult RenderFrame(
 
     // Render ImGui.
     {
+        // Upload vertex and index data.
+        void* VertexMemory;
+        uint32_t VertexOffset = 0;
+        vkMapMemory(Vulkan->Device, Frame->ImGuiVertexBuffer.Memory, 0, Frame->ImGuiVertexBuffer.Size, 0, &VertexMemory);
+        void* IndexMemory;
+        uint32_t IndexOffset = 0;
+        vkMapMemory(Vulkan->Device, Frame->ImGuiIndexBuffer.Memory, 0, Frame->ImGuiIndexBuffer.Size, 0, &IndexMemory);
+
+        ImDrawVert* VertexPointer = static_cast<ImDrawVert*>(VertexMemory);
+        uint16_t* IndexPointer = static_cast<uint16_t*>(IndexMemory);
+
+        for (int I = 0; I < ImguiDrawData->CmdListsCount; I++) {
+            ImDrawList* CmdList = ImguiDrawData->CmdLists[I];
+
+            uint32_t VertexDataSize = CmdList->VtxBuffer.Size * sizeof(ImDrawVert);
+            memcpy(VertexPointer, CmdList->VtxBuffer.Data, VertexDataSize);
+            VertexPointer += CmdList->VtxBuffer.Size;
+
+            uint32_t IndexDataSize = CmdList->IdxBuffer.Size * sizeof(uint16_t);
+            memcpy(IndexPointer, CmdList->IdxBuffer.Data, IndexDataSize);
+            IndexPointer += CmdList->IdxBuffer.Size;
+        }
+
+        vkUnmapMemory(Vulkan->Device, Frame->ImGuiIndexBuffer.Memory);
+        vkUnmapMemory(Vulkan->Device, Frame->ImGuiVertexBuffer.Memory);
+
         vkCmdBindPipeline(
             Frame->GraphicsCommandBuffer,
             VK_PIPELINE_BIND_POINT_GRAPHICS,
