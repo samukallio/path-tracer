@@ -108,6 +108,10 @@ compile_shader (path-tracer src/renderer/resolve.glsl
 		FRAGMENT resolve.fragment.inc
 		DEPENDS src/renderer/common.glsl.inc)
 
+compile_shader (path-tracer src/renderer/preview.glsl
+		COMPUTE preview.compute.inc
+		DEPENDS src/renderer/common.glsl.inc)
+
 compile_shader (path-tracer src/renderer/trace.glsl
 		COMPUTE trace.compute.inc
 		DEPENDS src/renderer/common.glsl.inc)

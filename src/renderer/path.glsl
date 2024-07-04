@@ -1,27 +1,6 @@
 #version 450
 
-const vec3 COLORS[20] = vec3[20](
-    vec3(0.902, 0.098, 0.294),
-    vec3(0.235, 0.706, 0.294),
-    vec3(1.000, 0.882, 0.098),
-    vec3(0.263, 0.388, 0.847),
-    vec3(0.961, 0.510, 0.192),
-    vec3(0.569, 0.118, 0.706),
-    vec3(0.275, 0.941, 0.941),
-    vec3(0.941, 0.196, 0.902),
-    vec3(0.737, 0.965, 0.047),
-    vec3(0.980, 0.745, 0.745),
-    vec3(0.000, 0.502, 0.502),
-    vec3(0.902, 0.745, 1.000),
-    vec3(0.604, 0.388, 0.141),
-    vec3(1.000, 0.980, 0.784),
-    vec3(0.502, 0.000, 0.000),
-    vec3(0.667, 1.000, 0.765),
-    vec3(0.502, 0.502, 0.000),
-    vec3(1.000, 0.847, 0.694),
-    vec3(0.000, 0.000, 0.459),
-    vec3(0.502, 0.502, 0.502)
-);
+
 
 #define BIND_PATH 0
 #define BIND_SCENE 1
@@ -291,72 +270,6 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
     Ray.Duration = HIT_TIME_LIMIT;
 }
 
-void RenderBaseColor(inout path Path, ray Ray, hit Hit, bool IsShaded)
-{
-    Path.Weight = vec4(0.0);
-
-    if (Hit.ShapeIndex == SHAPE_INDEX_NONE) {
-        // We hit the skybox.  Generate a color sample from the skybox radiance
-        // spectrum by integrating against the standard observer.
-        vec4 Spectrum = SampleSkyboxSpectrum(Ray.Velocity);
-        Path.Sample += ObserveParametricSpectrumSRGB(Spectrum);
-        return;
-    }
-
-    // We hit a surface.  Resolve the base color sample from the reflectance
-    // spectrum by integrating against the standard observer.
-    vec3 BaseColor = OpenPBRBaseColor(Hit);
-
-    if (IsShaded) {
-        float Shading = dot(Hit.Normal, -Ray.Velocity); 
-        if (Hit.ShapeIndex == SelectedShapeIndex)
-            BaseColor.r += 1.0;
-        BaseColor *= Shading;
-    }
-
-    Path.Sample += BaseColor;
-}
-
-void RenderNormal(inout path Path, ray Ray, hit Hit)
-{
-    Path.Weight = vec4(0.0);
-    if (Hit.ShapeIndex == SHAPE_INDEX_NONE) {
-        Path.Sample += 0.5 * (1 - Ray.Velocity);
-        return;
-    }
-    Path.Sample += 0.5 * (Hit.Normal + 1);
-}
-
-void RenderMaterialIndex(inout path Path, ray Ray, hit Hit)
-{
-    Path.Weight = vec4(0.0);
-    if (Hit.ShapeIndex == SHAPE_INDEX_NONE)
-        return;
-    Path.Sample += COLORS[Hit.MaterialIndex % 20];
-}
-
-void RenderPrimitiveIndex(inout path Path, ray Ray, hit Hit)
-{
-    Path.Weight = vec4(0.0);
-    if (Hit.ShapeIndex == SHAPE_INDEX_NONE)
-        return;
-    Path.Sample += COLORS[Hit.PrimitiveIndex % 20];
-}
-
-void RenderMeshComplexity(inout path Path, ray Ray, hit Hit)
-{
-    float Alpha = min(Hit.MeshComplexity / float(RenderMeshComplexityScale), 1.0);
-    Path.Weight = vec4(0.0);
-    Path.Sample += mix(vec3(0,0,0), vec3(0,1,0), Alpha);
-}
-
-void RenderSceneComplexity(inout path Path, ray Ray, hit Hit)
-{
-    float Alpha = min(Hit.SceneComplexity / float(RenderSceneComplexityScale), 1.0);
-    Path.Weight = vec4(0.0);
-    Path.Sample += mix(vec3(0,0,0), vec3(0,1,0), Alpha);
-}
-
 void main()
 {
     // Initialize random number generator.
@@ -388,35 +301,7 @@ void main()
 
     path Path = LoadPath(Index);
 
-    switch (RenderMode) {
-        case RENDER_MODE_PATH_TRACE:
-            RenderPathTrace(Path, Ray, Hit);
-            break;
-        case RENDER_MODE_BASE_COLOR:
-            RenderBaseColor(Path, Ray, Hit, false);
-            break;
-        case RENDER_MODE_BASE_COLOR_SHADED:
-            RenderBaseColor(Path, Ray, Hit, true);
-            break;
-        case RENDER_MODE_NORMAL:
-            RenderNormal(Path, Ray, Hit);
-            break;
-        case RENDER_MODE_MATERIAL_INDEX:
-            RenderMaterialIndex(Path, Ray, Hit);
-            break;
-        case RENDER_MODE_PRIMITIVE_INDEX:
-            RenderPrimitiveIndex(Path, Ray, Hit);
-            break;
-        case RENDER_MODE_MESH_COMPLEXITY:
-            RenderMeshComplexity(Path, Ray, Hit);
-            break;
-        case RENDER_MODE_SCENE_COMPLEXITY:
-            RenderSceneComplexity(Path, Ray, Hit);
-            break;
-        default:
-            Path.Weight = vec4(0.0);
-            break;
-    }
+    RenderPathTrace(Path, Ray, Hit);
 
     if (max4(Path.Weight) < EPSILON) {
         ivec2 ImagePosition = Path.ImagePosition;

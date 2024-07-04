@@ -128,6 +128,10 @@ struct vulkan_context
     vulkan_pipeline             TracePipeline               = {};
     vulkan_buffer               TraceBuffer                 = {};
 
+    VkDescriptorSetLayout       PreviewDescriptorSetLayout  = VK_NULL_HANDLE;
+    VkDescriptorSet             PreviewDescriptorSet        = VK_NULL_HANDLE;
+    vulkan_pipeline             PreviewPipeline             = {};
+
     VkDescriptorSetLayout       ComputeDescriptorSetLayout  = VK_NULL_HANDLE;
     vulkan_pipeline             PathPipeline                = {};
     vulkan_image                SampleAccumulatorImage      = {};

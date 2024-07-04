@@ -38,6 +38,11 @@ uint32_t const TRACE_COMPUTE_SHADER[] =
     #include "trace.compute.inc"
 };
 
+uint32_t const PREVIEW_COMPUTE_SHADER[] =
+{
+    #include "preview.compute.inc"
+};
+
 uint32_t const IMGUI_VERTEX_SHADER[] =
 {
     #include "imgui.vertex.inc"
@@ -65,6 +70,19 @@ struct resolve_push_constant_buffer
     float               Brightness;
     tone_mapping_mode   ToneMappingMode;
     float               ToneMappingWhiteLevel;
+};
+
+struct preview_push_constant_buffer
+{
+    camera_model        CameraModel;
+    float               CameraFocalLength;
+    float               CameraApertureRadius;
+    float               CameraSensorDistance;
+    aligned_vec2        CameraSensorSize;
+    packed_transform    CameraTransform;
+    uint                RenderMode;
+    uint                RandomSeed;
+    uint                SelectedShapeIndex;
 };
 
 static void Errorf(vulkan_context* Vk, char const* Fmt, ...)
@@ -1830,6 +1848,21 @@ static VkResult InternalCreateVulkan(
         }
     }
 
+    //
+    {
+        InternalCreateImage(Vulkan,
+            &Vulkan->SampleAccumulatorImage,
+            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            VK_IMAGE_TYPE_2D,
+            VK_FORMAT_R32G32B32A32_SFLOAT,
+            { .width = RENDER_WIDTH, .height = RENDER_HEIGHT, .depth = 1 },
+            0,
+            VK_IMAGE_TILING_OPTIMAL,
+            VK_IMAGE_LAYOUT_GENERAL,
+            true);
+    }
+
     // Create scene resources.
     {
         InternalCreateBuffer(Vulkan,
@@ -1905,6 +1938,41 @@ static VkResult InternalCreateVulkan(
             Vulkan->TraceDescriptorSetLayout,
             &Vulkan->TraceDescriptorSet,
             TraceDescriptors);
+        if (Result != VK_SUCCESS) return Result;
+    }
+
+    // Create preview renderer resources.
+    {
+        VkDescriptorType DescriptorTypes[] = {
+            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, // SampleAccumulatorImage
+        };
+
+        Result = InternalCreateDescriptorSetLayout(Vulkan, &Vulkan->PreviewDescriptorSetLayout, DescriptorTypes);
+        if (Result != VK_SUCCESS) return Result;
+
+        auto PipelineConfig = vulkan_compute_pipeline_configuration {
+            .ComputeShaderCode = PREVIEW_COMPUTE_SHADER,
+            .DescriptorSetLayouts = {
+                Vulkan->PreviewDescriptorSetLayout,
+                Vulkan->SceneDescriptorSetLayout,
+            },
+            .PushConstantBufferSize = sizeof(preview_push_constant_buffer),
+        };
+
+        Result = InternalCreateComputePipeline(Vulkan, &Vulkan->PreviewPipeline, PipelineConfig);
+        if (Result != VK_SUCCESS) return Result;
+
+        vulkan_descriptor Descriptors[] = {
+            {
+                .Type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+                .Image = &Vulkan->SampleAccumulatorImage,
+            },
+        };
+
+        Result = InternalCreateDescriptorSet(Vulkan,
+            Vulkan->PreviewDescriptorSetLayout,
+            &Vulkan->PreviewDescriptorSet,
+            Descriptors);
         if (Result != VK_SUCCESS) return Result;
     }
 
@@ -1984,18 +2052,6 @@ static VkResult InternalCreateVulkan(
 
     // Create compute resources.
     {
-        InternalCreateImage(Vulkan,
-            &Vulkan->SampleAccumulatorImage,
-            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            VK_IMAGE_TYPE_2D,
-            VK_FORMAT_R32G32B32A32_SFLOAT,
-            { .width = RENDER_WIDTH, .height = RENDER_HEIGHT, .depth = 1 },
-            0,
-            VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_LAYOUT_GENERAL,
-            true);
-
         Result = InternalCreateBuffer(Vulkan,
             &Vulkan->PathBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
@@ -2108,6 +2164,7 @@ void DestroyVulkan(vulkan_context* Vulkan)
     InternalDestroyPipeline(Vulkan, &Vulkan->ResolvePipeline);
     InternalDestroyPipeline(Vulkan, &Vulkan->PathPipeline);
     InternalDestroyPipeline(Vulkan, &Vulkan->TracePipeline);
+    InternalDestroyPipeline(Vulkan, &Vulkan->PreviewPipeline);
 
     if (Vulkan->ImGuiDescriptorSetLayout) {
         vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->ImGuiDescriptorSetLayout, nullptr);
@@ -2122,6 +2179,11 @@ void DestroyVulkan(vulkan_context* Vulkan)
     if (Vulkan->ComputeDescriptorSetLayout) {
         vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->ComputeDescriptorSetLayout, nullptr);
         Vulkan->ComputeDescriptorSetLayout = VK_NULL_HANDLE;
+    }
+
+    if (Vulkan->PreviewDescriptorSetLayout) {
+        vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->PreviewDescriptorSetLayout, nullptr);
+        Vulkan->PreviewDescriptorSetLayout = VK_NULL_HANDLE;
     }
 
     if (Vulkan->TraceDescriptorSetLayout) {
@@ -2607,16 +2669,59 @@ VkResult RenderFrame(
             return Result;
         }
 
-        if (Restart) {
-            // Restarting the render, so prime the ray buffer by running one path pass.
-            InternalDispatchPath(Vulkan, Frame, RandomSeed++, true);
+        if (Uniforms->RenderMode == RENDER_MODE_PATH_TRACE) {
+            if (Restart) {
+                // Restarting the render, so prime the ray buffer by running one path pass.
+                InternalDispatchPath(Vulkan, Frame, RandomSeed++, true);
+            }
+
+            int Rounds = Restart ? 2 : 1;
+
+            for (int Round = 0; Round < Rounds; Round++) {
+                InternalDispatchTrace(Vulkan, Frame, RandomSeed++);
+                InternalDispatchPath(Vulkan, Frame, RandomSeed++, false);
+            }
         }
+        else {
+            vkCmdBindPipeline(
+                Frame->ComputeCommandBuffer,
+                VK_PIPELINE_BIND_POINT_COMPUTE,
+                Vulkan->PreviewPipeline.Pipeline);
 
-        int Rounds = Restart ? 2 : 1;
+            VkDescriptorSet DescriptorSets[] = {
+                Vulkan->PreviewDescriptorSet,
+                Vulkan->SceneDescriptorSet,
+            };
 
-        for (int Round = 0; Round < Rounds; Round++) {
-            InternalDispatchTrace(Vulkan, Frame, RandomSeed++);
-            InternalDispatchPath(Vulkan, Frame, RandomSeed++, false);
+            vkCmdBindDescriptorSets(
+                Frame->ComputeCommandBuffer,
+                VK_PIPELINE_BIND_POINT_COMPUTE,
+                Vulkan->PreviewPipeline.PipelineLayout,
+                0, 2, DescriptorSets,
+                0, nullptr);
+
+            auto PushConstantBuffer = preview_push_constant_buffer {
+                .CameraModel = Uniforms->CameraModel,
+                .CameraFocalLength = Uniforms->CameraFocalLength,
+                .CameraApertureRadius = Uniforms->CameraApertureRadius,
+                .CameraSensorDistance = Uniforms->CameraSensorDistance,
+                .CameraSensorSize = Uniforms->CameraSensorSize,
+                .CameraTransform = Uniforms->CameraTransform,
+                .RenderMode = (uint)Uniforms->RenderMode,
+                .RandomSeed = RandomSeed,
+                .SelectedShapeIndex = Uniforms->SelectedShapeIndex,
+            };
+
+            vkCmdPushConstants(
+                Frame->ComputeCommandBuffer,
+                Vulkan->PreviewPipeline.PipelineLayout,
+                VK_SHADER_STAGE_COMPUTE_BIT,
+                0, sizeof(PushConstantBuffer), &PushConstantBuffer);
+
+            uint32_t GroupPixelSize = 16; //Uniforms->RenderSampleBlockSize;
+            uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
+            uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
+            vkCmdDispatch(Frame->ComputeCommandBuffer, GroupCountX, GroupCountY, 1);
         }
 
         // End compute command buffer.
