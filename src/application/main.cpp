@@ -20,6 +20,8 @@ void Frame()
 {
     ImGuiIO& IO = ImGui::GetIO();
 
+    render_frame_parameters Parameters = {};
+
     // ImGui.
     ImGui::NewFrame();
     if (ImGui::IsKeyPressed(ImGuiKey_F11, false)) {
@@ -40,9 +42,7 @@ void Frame()
     ImGui::EndFrame();
     ImGui::Render();
 
-    frame_uniform_buffer Uniforms = {};
-
-    bool Restart = false;
+    Parameters.ImGuiDrawData = ImGui::GetDrawData();
 
     // Handle camera movement.
     {
@@ -90,7 +90,7 @@ void Frame()
         }
 
         if (WasMoved) {
-            Restart = true;
+            Parameters.RenderRestart = true;
         }
     }
 
@@ -127,83 +127,81 @@ void Frame()
                 if (Entity) {
                     App.SelectedEntity = Entity;
                     App.SelectionType = SELECTION_TYPE_ENTITY;
-                    Restart = true;
+                    Parameters.RenderRestart = true;
                 }
             }
         }
 
-        Uniforms.RenderMode = RENDER_MODE_BASE_COLOR_SHADED;
-        Uniforms.CameraModel = CAMERA_MODEL_PINHOLE;
-        Uniforms.CameraSensorDistance = 0.020f;
-        Uniforms.CameraSensorSize = { 0.032f, 0.018f };
-        Uniforms.CameraApertureRadius = 0.0f;
-        Uniforms.CameraTransform = {
+        Parameters.Camera.Model = CAMERA_MODEL_PINHOLE;
+        Parameters.Camera.SensorDistance = 0.020f;
+        Parameters.Camera.SensorSize = { 0.032f, 0.018f };
+        Parameters.Camera.ApertureRadius = 0.0f;
+        Parameters.Camera.Transform = {
             .To = WorldMatrix,
             .From = ViewMatrix,
         };
-        Uniforms.RenderFlags |= RENDER_FLAG_ACCUMULATE;
-        Uniforms.RenderFlags |= RENDER_FLAG_SAMPLE_JITTER;
 
-        Uniforms.RenderBounceLimit = 0;
-        Uniforms.Brightness = 1.0f;
-        Uniforms.ToneMappingMode = TONE_MAPPING_MODE_CLAMP;
-        Uniforms.ToneMappingWhiteLevel = 1.0f;
+        Parameters.RenderMode = RENDER_MODE_BASE_COLOR_SHADED;
+        Parameters.RenderFlags |= RENDER_FLAG_ACCUMULATE;
+        Parameters.RenderFlags |= RENDER_FLAG_SAMPLE_JITTER;
+        Parameters.RenderBounceLimit = 0;
+        Parameters.Brightness = 1.0f;
+        Parameters.ToneMappingMode = TONE_MAPPING_MODE_CLAMP;
+        Parameters.ToneMappingWhiteLevel = 1.0f;
 
-        if (App.SelectionType == SELECTION_TYPE_ENTITY)
-            Uniforms.SelectedShapeIndex = App.SelectedEntity->PackedShapeIndex;
-        else
-            Uniforms.SelectedShapeIndex = SHAPE_INDEX_NONE;
+        //if (App.SelectionType == SELECTION_TYPE_ENTITY)
+        //    Uniforms.SelectedShapeIndex = App.SelectedEntity->PackedShapeIndex;
+        //else
+        //    Uniforms.SelectedShapeIndex = SHAPE_INDEX_NONE;
     }
     else {
-        camera* Camera = App.Camera;
+        camera_entity* CameraEntity = App.Camera;
 
-        vec3 Origin = Camera->Transform.Position;
-        vec3 Forward = glm::quat(Camera->Transform.Rotation) * vec3(1, 0, 0);
+        Parameters.Camera.Model = CameraEntity->CameraModel;
+
+        if (CameraEntity->CameraModel == CAMERA_MODEL_PINHOLE) {
+            float const AspectRatio = WINDOW_WIDTH / float(WINDOW_HEIGHT);
+            Parameters.Camera.ApertureRadius = CameraEntity->Pinhole.ApertureDiameterInMM / 2000.0f;
+            Parameters.Camera.SensorSize.x   = 2 * glm::tan(glm::radians(CameraEntity->Pinhole.FieldOfViewInDegrees / 2));
+            Parameters.Camera.SensorSize.y   = Parameters.Camera.SensorSize.x / AspectRatio;
+            Parameters.Camera.SensorDistance = 1.0f;
+        }
+
+        if (CameraEntity->CameraModel == CAMERA_MODEL_THIN_LENS) {
+            Parameters.Camera.FocalLength    = CameraEntity->ThinLens.FocalLengthInMM / 1000.0f;
+            Parameters.Camera.ApertureRadius = CameraEntity->ThinLens.ApertureDiameterInMM / 2000.0f;
+            Parameters.Camera.SensorDistance = 1.0f / (1000.0f / CameraEntity->ThinLens.FocalLengthInMM - 1.0f / CameraEntity->ThinLens.FocusDistance);
+            Parameters.Camera.SensorSize     = CameraEntity->ThinLens.SensorSizeInMM / 1000.0f;
+        }
+
+        Parameters.RenderMode = RENDER_MODE_PATH_TRACE;
+
+        vec3 Origin = CameraEntity->Transform.Position;
+        vec3 Forward = glm::quat(CameraEntity->Transform.Rotation) * vec3(1, 0, 0);
         mat4 ViewMatrix = glm::lookAt(Origin - Forward * 2.0f, Origin, vec3(0, 0, 1));
         mat4 WorldMatrix = glm::inverse(ViewMatrix);
 
-        Uniforms.RenderMode = Camera->RenderMode;
-        Uniforms.CameraModel = Camera->CameraModel;
-
-        if (Camera->CameraModel == CAMERA_MODEL_PINHOLE) {
-            float const ASPECT_RATIO = WINDOW_WIDTH / float(WINDOW_HEIGHT);
-            Uniforms.CameraApertureRadius = Camera->Pinhole.ApertureDiameterInMM / 2000.0f;
-            Uniforms.CameraSensorSize.x   = 2 * glm::tan(glm::radians(Camera->Pinhole.FieldOfViewInDegrees / 2));
-            Uniforms.CameraSensorSize.y   = Uniforms.CameraSensorSize.x / ASPECT_RATIO;
-            Uniforms.CameraSensorDistance = 1.0f;
-        }
-
-        if (Camera->CameraModel == CAMERA_MODEL_THIN_LENS) {
-            Uniforms.CameraFocalLength    = Camera->ThinLens.FocalLengthInMM / 1000.0f;
-            Uniforms.CameraApertureRadius = Camera->ThinLens.ApertureDiameterInMM / 2000.0f;
-            Uniforms.CameraSensorDistance = 1.0f / (1000.0f / Camera->ThinLens.FocalLengthInMM - 1.0f / Camera->ThinLens.FocusDistance);
-            Uniforms.CameraSensorSize     = Camera->ThinLens.SensorSizeInMM / 1000.0f;
-        }
-
-        Uniforms.CameraTransform = {
+        Parameters.Camera.Transform = {
             .To = WorldMatrix,
             .From = ViewMatrix,
         };
-        Uniforms.SelectedShapeIndex           = SHAPE_INDEX_NONE;
-        Uniforms.RenderFlags                  = RENDER_FLAG_SAMPLE_JITTER;
-        Uniforms.RenderSampleBlockSize        = 1u << Camera->RenderSampleBlockSizeLog2;
-        Uniforms.RenderBounceLimit            = Camera->RenderBounceLimit;
-        Uniforms.RenderTerminationProbability = Camera->RenderTerminationProbability;
-        Uniforms.RenderMeshComplexityScale    = Camera->RenderMeshComplexityScale;
-        Uniforms.RenderSceneComplexityScale   = Camera->RenderSceneComplexityScale;
-        Uniforms.Brightness                   = Camera->Brightness;
-        Uniforms.ToneMappingMode              = Camera->ToneMappingMode;
-        Uniforms.ToneMappingWhiteLevel        = Camera->ToneMappingWhiteLevel;
-        Uniforms.RenderFlags                  = Camera->RenderFlags;
+
+        Parameters.RenderSampleBlockSize        = 1u << CameraEntity->RenderSampleBlockSizeLog2;
+        Parameters.RenderBounceLimit            = CameraEntity->RenderBounceLimit;
+        Parameters.RenderTerminationProbability = CameraEntity->RenderTerminationProbability;
+        Parameters.Brightness                   = CameraEntity->Brightness;
+        Parameters.ToneMappingMode              = CameraEntity->ToneMappingMode;
+        Parameters.ToneMappingWhiteLevel        = CameraEntity->ToneMappingWhiteLevel;
+        Parameters.RenderFlags                  = CameraEntity->RenderFlags;
     }
 
     if (App.Scene->DirtyFlags != 0)
-        Restart = true;
+        Parameters.RenderRestart = true;
 
     uint DirtyFlags = PackSceneData(App.Scene);
     UploadScene(App.Vulkan, App.Scene, DirtyFlags);
 
-    RenderFrame(App.Vulkan, &Uniforms, Restart, ImGui::GetDrawData());
+    RenderFrame(App.Vulkan, &Parameters);
 }
 
 static void MouseButtonInputCallback(GLFWwindow* Window, int Button, int Action, int Mods)

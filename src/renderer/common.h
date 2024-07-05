@@ -132,6 +132,8 @@ struct alignas(16) packed_mesh_node
     uint                FaceEndIndex;
 };
 
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
 struct alignas(16) packed_scene_globals
 {
     aligned_mat3        SkyboxDistributionFrame         = {};
@@ -144,25 +146,14 @@ struct alignas(16) packed_scene_globals
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct frame_uniform_buffer
+struct alignas(16) camera
 {
-    camera_model        CameraModel                     = CAMERA_MODEL_THIN_LENS;
-    float               CameraFocalLength               = 0.020f;
-    float               CameraApertureRadius            = 0.040f;
-    float               CameraSensorDistance            = 0.0202f;
-    aligned_vec2        CameraSensorSize                = { 0.032f, 0.018f };
-    packed_transform    CameraTransform                 = {};
-    render_mode         RenderMode                      = RENDER_MODE_PATH_TRACE;
-    uint                RenderFlags                     = 0;
-    uint                RenderSampleBlockSize           = 1;
-    uint                RenderBounceLimit               = 0;
-    float               RenderTerminationProbability    = 0.0f;
-    uint                RenderMeshComplexityScale       = 32;
-    uint                RenderSceneComplexityScale      = 32;
-    uint                SelectedShapeIndex              = SHAPE_INDEX_NONE;
-    float               Brightness                      = 1.0f;
-    tone_mapping_mode   ToneMappingMode                 = TONE_MAPPING_MODE_CLAMP;
-    float               ToneMappingWhiteLevel           = 1.0f;
+    uint                Model;
+    float               FocalLength;
+    float               ApertureRadius;
+    float               SensorDistance;
+    vec2                SensorSize;
+    packed_transform    Transform;
 };
 
 struct image

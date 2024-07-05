@@ -115,18 +115,18 @@ struct entity
     virtual ~entity() {}
 };
 
-struct root : entity
+struct root_entity : entity
 {
     float                           ScatterRate             = 0.0f;
     float                           SkyboxBrightness        = 1.0f;
     texture*                        SkyboxTexture           = nullptr;
 
-    root() { Type = ENTITY_TYPE_ROOT; }
+    root_entity() { Type = ENTITY_TYPE_ROOT; }
 };
 
-struct container : entity
+struct container_entity : entity
 {
-    container() { Type = ENTITY_TYPE_CONTAINER; }
+    container_entity() { Type = ENTITY_TYPE_CONTAINER; }
 };
 
 struct camera_pinhole
@@ -143,13 +143,11 @@ struct camera_thin_lens
     float                           FocusDistance           = 1.0f;
 };
 
-struct camera : entity
+struct camera_entity : entity
 {
     render_mode                     RenderMode              = RENDER_MODE_PATH_TRACE;
     uint32_t                        RenderFlags             = 0;
     uint32_t                        RenderBounceLimit       = 5;
-    uint32_t                        RenderMeshComplexityScale = 32;
-    uint32_t                        RenderSceneComplexityScale = 32;
     uint32_t                        RenderSampleBlockSizeLog2 = 0;
     float                           RenderTerminationProbability = 0.0f;
 
@@ -163,36 +161,36 @@ struct camera : entity
 
     glm::vec3                       Velocity                = { 0, 0, 0 };
 
-    camera() { ((entity*)this)->Type = ENTITY_TYPE_CAMERA; }
+    camera_entity() { ((entity*)this)->Type = ENTITY_TYPE_CAMERA; }
 };
 
-struct mesh_instance : entity
+struct mesh_entity : entity
 {
     mesh*                           Mesh = nullptr;
     material*                       Material = nullptr;
 
-    mesh_instance() { Type = ENTITY_TYPE_MESH_INSTANCE; }
+    mesh_entity() { Type = ENTITY_TYPE_MESH_INSTANCE; }
 };
 
-struct plane : entity
+struct plane_entity : entity
 {
     material*                       Material = nullptr;
 
-    plane() { Type = ENTITY_TYPE_PLANE; }
+    plane_entity() { Type = ENTITY_TYPE_PLANE; }
 };
 
-struct sphere : entity
+struct sphere_entity : entity
 {
     material*                       Material = nullptr;
 
-    sphere() { Type = ENTITY_TYPE_SPHERE; }
+    sphere_entity() { Type = ENTITY_TYPE_SPHERE; }
 };
 
-struct cube : entity
+struct cube_entity : entity
 {
     material*                       Material = nullptr;
 
-    cube() { Type = ENTITY_TYPE_CUBE; }
+    cube_entity() { Type = ENTITY_TYPE_CUBE; }
 };
 
 struct prefab
@@ -222,7 +220,7 @@ enum scene_dirty_flag
 struct scene
 {
     // Source description of the scene entities and assets.
-    root                                Root;
+    root_entity                         Root;
     std::vector<mesh*>                  Meshes;
     std::vector<material*>              Materials;
     std::vector<texture*>               Textures;

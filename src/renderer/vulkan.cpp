@@ -59,6 +59,18 @@ struct imgui_push_constant_buffer
     uint TextureID;
 };
 
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
+struct frame_uniform_buffer
+{
+    camera              Camera;
+    render_mode         RenderMode                      = RENDER_MODE_PATH_TRACE;
+    uint                RenderFlags                     = 0;
+    uint                RenderSampleBlockSize           = 1;
+    uint                RenderBounceLimit               = 0;
+    float               RenderTerminationProbability    = 0.0f;
+};
+
 struct compute_push_constant_buffer
 {
     uint RandomSeed;
@@ -74,12 +86,7 @@ struct resolve_push_constant_buffer
 
 struct preview_push_constant_buffer
 {
-    camera_model        CameraModel;
-    float               CameraFocalLength;
-    float               CameraApertureRadius;
-    float               CameraSensorDistance;
-    aligned_vec2        CameraSensorSize;
-    packed_transform    CameraTransform;
+    camera              Camera;
     uint                RenderMode;
     uint                RandomSeed;
     uint                SelectedShapeIndex;
@@ -2613,10 +2620,8 @@ static void InternalDispatchPath(
 }
 
 VkResult RenderFrame(
-    vulkan_context*       Vulkan,
-    frame_uniform_buffer* Uniforms,
-    bool                  Restart,
-    ImDrawData*           ImguiDrawData)
+    vulkan_context*          Vulkan,
+    render_frame_parameters* Parameters)
 {
     VkResult Result = VK_SUCCESS;
 
@@ -2624,6 +2629,8 @@ VkResult RenderFrame(
     vulkan_frame_state* Frame = &Vulkan->FrameStates[(Vulkan->FrameIndex + 1) % 2];
 
     Vulkan->FrameIndex++;
+
+    bool Restart = Parameters->RenderRestart;
 
     if (Frame0->Fresh)
         Restart = true;
@@ -2652,11 +2659,19 @@ VkResult RenderFrame(
     // Reset the fence to indicate that the frame state is no longer available.
     vkResetFences(Vulkan->Device, 1, &Frame->AvailableFence);
 
-    InternalWriteToHostVisibleBuffer(Vulkan, &Frame->FrameUniformBuffer, Uniforms, sizeof(frame_uniform_buffer));
-
     // --- Compute ------------------------------------------------------------
 
     {
+        auto FrameUBO = frame_uniform_buffer {
+            .Camera                         = Parameters->Camera,
+            .RenderMode                     = Parameters->RenderMode,
+            .RenderFlags                    = Parameters->RenderFlags,
+            .RenderSampleBlockSize          = Parameters->RenderSampleBlockSize,
+            .RenderBounceLimit              = Parameters->RenderBounceLimit,
+            .RenderTerminationProbability   = Parameters->RenderTerminationProbability,
+        };
+        InternalWriteToHostVisibleBuffer(Vulkan, &Frame->FrameUniformBuffer, &FrameUBO, sizeof(FrameUBO));
+
         vkResetCommandBuffer(Frame->ComputeCommandBuffer, 0);
         auto ComputeBeginInfo = VkCommandBufferBeginInfo {
             .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -2669,7 +2684,7 @@ VkResult RenderFrame(
             return Result;
         }
 
-        if (Uniforms->RenderMode == RENDER_MODE_PATH_TRACE) {
+        if (Parameters->RenderMode == RENDER_MODE_PATH_TRACE) {
             if (Restart) {
                 // Restarting the render, so prime the ray buffer by running one path pass.
                 InternalDispatchPath(Vulkan, Frame, RandomSeed++, true);
@@ -2701,15 +2716,10 @@ VkResult RenderFrame(
                 0, nullptr);
 
             auto PushConstantBuffer = preview_push_constant_buffer {
-                .CameraModel = Uniforms->CameraModel,
-                .CameraFocalLength = Uniforms->CameraFocalLength,
-                .CameraApertureRadius = Uniforms->CameraApertureRadius,
-                .CameraSensorDistance = Uniforms->CameraSensorDistance,
-                .CameraSensorSize = Uniforms->CameraSensorSize,
-                .CameraTransform = Uniforms->CameraTransform,
-                .RenderMode = (uint)Uniforms->RenderMode,
+                .Camera     = Parameters->Camera,
+                .RenderMode = (uint)Parameters->RenderMode,
                 .RandomSeed = RandomSeed,
-                .SelectedShapeIndex = Uniforms->SelectedShapeIndex,
+                //.SelectedShapeIndex = Uniforms->SelectedShapeIndex,
             };
 
             vkCmdPushConstants(
@@ -2854,9 +2864,9 @@ VkResult RenderFrame(
         vkCmdSetScissor(Frame->GraphicsCommandBuffer, 0, 1, &Scissor);
 
         auto ResolvePushConstants = resolve_push_constant_buffer {
-            .Brightness            = Uniforms->Brightness,
-            .ToneMappingMode       = Uniforms->ToneMappingMode,
-            .ToneMappingWhiteLevel = Uniforms->ToneMappingWhiteLevel,
+            .Brightness            = Parameters->Brightness,
+            .ToneMappingMode       = Parameters->ToneMappingMode,
+            .ToneMappingWhiteLevel = Parameters->ToneMappingWhiteLevel,
         };
 
         vkCmdPushConstants(
@@ -2870,6 +2880,8 @@ VkResult RenderFrame(
 
     // Render ImGui.
     {
+        ImDrawData* DrawData = Parameters->ImGuiDrawData;
+
         // Upload vertex and index data.
         void* VertexMemory;
         uint32_t VertexOffset = 0;
@@ -2881,8 +2893,8 @@ VkResult RenderFrame(
         ImDrawVert* VertexPointer = static_cast<ImDrawVert*>(VertexMemory);
         uint16_t* IndexPointer = static_cast<uint16_t*>(IndexMemory);
 
-        for (int I = 0; I < ImguiDrawData->CmdListsCount; I++) {
-            ImDrawList* CmdList = ImguiDrawData->CmdLists[I];
+        for (int I = 0; I < DrawData->CmdListsCount; I++) {
+            ImDrawList* CmdList = DrawData->CmdLists[I];
 
             uint32_t VertexDataSize = CmdList->VtxBuffer.Size * sizeof(ImDrawVert);
             memcpy(VertexPointer, CmdList->VtxBuffer.Data, VertexDataSize);
@@ -2938,10 +2950,10 @@ VkResult RenderFrame(
 
         imgui_push_constant_buffer PushConstantBuffer = {};
 
-        float L = ImguiDrawData->DisplayPos.x;
-        float R = ImguiDrawData->DisplayPos.x + ImguiDrawData->DisplaySize.x;
-        float T = ImguiDrawData->DisplayPos.y;
-        float B = ImguiDrawData->DisplayPos.y + ImguiDrawData->DisplaySize.y;
+        float L = DrawData->DisplayPos.x;
+        float R = DrawData->DisplayPos.x + DrawData->DisplaySize.x;
+        float T = DrawData->DisplayPos.y;
+        float B = DrawData->DisplayPos.y + DrawData->DisplaySize.y;
 
         PushConstantBuffer.ProjectionMatrix = {
             { 2.0f / (R - L),    0.0f,              0.0f, 0.0f },
@@ -2952,16 +2964,16 @@ VkResult RenderFrame(
 
         PushConstantBuffer.TextureID = 0xFFFFFFFF;
 
-        for (int I = 0; I < ImguiDrawData->CmdListsCount; I++) {
-            ImDrawList* CmdList = ImguiDrawData->CmdLists[I];
+        for (int I = 0; I < DrawData->CmdListsCount; I++) {
+            ImDrawList* CmdList = DrawData->CmdLists[I];
 
             for (int j = 0; j < CmdList->CmdBuffer.Size; j++) {
                 ImDrawCmd* Cmd = &CmdList->CmdBuffer[j];
 
-                int32_t X0 = static_cast<int32_t>(Cmd->ClipRect.x - ImguiDrawData->DisplayPos.x);
-                int32_t Y0 = static_cast<int32_t>(Cmd->ClipRect.y - ImguiDrawData->DisplayPos.y);
-                int32_t X1 = static_cast<int32_t>(Cmd->ClipRect.z - ImguiDrawData->DisplayPos.x);
-                int32_t Y1 = static_cast<int32_t>(Cmd->ClipRect.w - ImguiDrawData->DisplayPos.y);
+                int32_t X0 = static_cast<int32_t>(Cmd->ClipRect.x - DrawData->DisplayPos.x);
+                int32_t Y0 = static_cast<int32_t>(Cmd->ClipRect.y - DrawData->DisplayPos.y);
+                int32_t X1 = static_cast<int32_t>(Cmd->ClipRect.z - DrawData->DisplayPos.x);
+                int32_t Y1 = static_cast<int32_t>(Cmd->ClipRect.w - DrawData->DisplayPos.y);
 
                 auto scissor = VkRect2D {
                     .offset = { X0, Y0 },

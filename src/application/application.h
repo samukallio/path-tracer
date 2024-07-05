@@ -40,7 +40,7 @@ struct application
     entity*         SelectedEntity      = nullptr;
 
     scene*          Scene               = nullptr;
-    camera*         Camera              = nullptr;
+    camera_entity*  Camera              = nullptr;
 
     bool            ShowUI              = true;
 };

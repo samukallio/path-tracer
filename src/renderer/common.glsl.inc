@@ -1216,12 +1216,6 @@ uniform PathUBO
     uint    RenderSampleBlockSize;
     uint    RenderBounceLimit;
     float   RenderTerminationProbability;
-    uint    RenderMeshComplexityScale;
-    uint    RenderSceneComplexityScale;
-    uint    SelectedShapeIndex;
-    float   Brightness;
-    uint    ToneMappingMode;
-    float   ToneMappingWhiteLevel;
 };
 
 layout(set=BIND_PATH, binding=1, rgba32f)

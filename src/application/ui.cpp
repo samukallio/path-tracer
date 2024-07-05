@@ -197,7 +197,7 @@ static void MeshInspector(application* App, mesh* Mesh, bool Referenced = false)
     ImGui::PopID();
 }
 
-static void CameraInspector(application* App, camera* Camera)
+static void CameraInspector(application* App, camera_entity* Camera)
 {
     bool C = false;
 
@@ -234,18 +234,6 @@ static void CameraInspector(application* App, camera* Camera)
         C |= ImGui::InputInt("Bounce Limit", &BounceLimit);
         C |= ImGui::DragFloat("Termination Probability", &Camera->RenderTerminationProbability, 0.001f, 0.0f, 1.0f);
         Camera->RenderBounceLimit = std::max(1, BounceLimit);
-    }
-
-    if (Camera->RenderMode == RENDER_MODE_MESH_COMPLEXITY) {
-        int ComplexityScale = static_cast<int>(Camera->RenderMeshComplexityScale);
-        C |= ImGui::InputInt("Maximum Complexity", &ComplexityScale);
-        Camera->RenderMeshComplexityScale = std::max(1, ComplexityScale);
-    }
-
-    if (Camera->RenderMode == RENDER_MODE_SCENE_COMPLEXITY) {
-        int ComplexityScale = static_cast<int>(Camera->RenderSceneComplexityScale);
-        C |= ImGui::InputInt("Maximum Complexity", &ComplexityScale);
-        Camera->RenderSceneComplexityScale = std::max(1, ComplexityScale);
     }
 
     char const* const RenderSampleBlockSizeLabels[] = { "1x1", "2x2", "4x4", "8x8" };
@@ -360,7 +348,7 @@ static void EntityInspector(application* App, entity* Entity)
 
     switch (Entity->Type) {
         case ENTITY_TYPE_ROOT: {
-            auto Root = static_cast<root*>(Entity);
+            auto Root = static_cast<root_entity*>(Entity);
             C |= ImGui::DragFloat("Scattering Rate", &Root->ScatterRate, 0.001f, 0.00001f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
             C |= ImGui::DragFloat("Skybox Brightness", &Root->SkyboxBrightness, 0.01f, 0.0f, 1.0f);
             C |= ResourceSelectorDropDown("Skybox Texture", Scene->Textures, &Root->SkyboxTexture);
@@ -368,11 +356,11 @@ static void EntityInspector(application* App, entity* Entity)
             break;
         }
         case ENTITY_TYPE_CAMERA: {
-            CameraInspector(App, static_cast<camera*>(Entity));
+            CameraInspector(App, static_cast<camera_entity*>(Entity));
             break;
         }
         case ENTITY_TYPE_MESH_INSTANCE: {
-            auto Instance = static_cast<mesh_instance*>(Entity);
+            auto Instance = static_cast<mesh_entity*>(Entity);
             C |= ResourceSelectorDropDown("Mesh", Scene->Meshes, &Instance->Mesh);
             C |= ResourceSelectorDropDown("Material", Scene->Materials, &Instance->Material);
             ImGui::Spacing();
@@ -381,21 +369,21 @@ static void EntityInspector(application* App, entity* Entity)
             break;
         }
         case ENTITY_TYPE_PLANE: {
-            auto Plane = static_cast<plane*>(Entity);
+            auto Plane = static_cast<plane_entity*>(Entity);
             C |= ResourceSelectorDropDown("Material", Scene->Materials, &Plane->Material);
             ImGui::Spacing();
             MaterialInspector(App, Plane->Material, true);
             break;
         }
         case ENTITY_TYPE_SPHERE: {
-            auto Sphere = static_cast<sphere*>(Entity);
+            auto Sphere = static_cast<sphere_entity*>(Entity);
             C |= ResourceSelectorDropDown("Material", Scene->Materials, &Sphere->Material);
             ImGui::Spacing();
             MaterialInspector(App, Sphere->Material, true);
             break;
         }
         case ENTITY_TYPE_CUBE: {
-            auto Cube = static_cast<cube*>(Entity);
+            auto Cube = static_cast<cube_entity*>(Entity);
             C |= ResourceSelectorDropDown("Material", Scene->Materials, &Cube->Material);
             ImGui::Spacing();
             MaterialInspector(App, Cube->Material, true);

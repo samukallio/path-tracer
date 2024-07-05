@@ -116,25 +116,25 @@ entity* CreateEntityRaw(entity_type Type)
 {
     switch (Type) {
         case ENTITY_TYPE_ROOT:
-            return new root;
+            return new root_entity;
             break;
         case ENTITY_TYPE_CONTAINER:
-            return new container;
+            return new container_entity;
             break;
         case ENTITY_TYPE_CAMERA:
-            return new camera;
+            return new camera_entity;
             break;
         case ENTITY_TYPE_MESH_INSTANCE:
-            return new mesh_instance;
+            return new mesh_entity;
             break;
         case ENTITY_TYPE_PLANE:
-            return new plane;
+            return new plane_entity;
             break;
         case ENTITY_TYPE_SPHERE:
-            return new sphere;
+            return new sphere_entity;
             break;
         case ENTITY_TYPE_CUBE:
-            return new cube;
+            return new cube_entity;
             break;
         default:
             assert(false);
@@ -162,25 +162,25 @@ entity* CreateEntity(scene* Scene, entity* Source, entity* Parent)
 
     switch (Source->Type) {
         case ENTITY_TYPE_ROOT:
-            Entity = new root(*static_cast<root*>(Source));
+            Entity = new root_entity(*static_cast<root_entity*>(Source));
             break;
         case ENTITY_TYPE_CONTAINER:
-            Entity = new container(*static_cast<container*>(Source));
+            Entity = new container_entity(*static_cast<container_entity*>(Source));
             break;
         case ENTITY_TYPE_CAMERA:
-            Entity = new camera(*static_cast<camera*>(Source));
+            Entity = new camera_entity(*static_cast<camera_entity*>(Source));
             break;
         case ENTITY_TYPE_MESH_INSTANCE:
-            Entity = new mesh_instance(*static_cast<mesh_instance*>(Source));
+            Entity = new mesh_entity(*static_cast<mesh_entity*>(Source));
             break;
         case ENTITY_TYPE_PLANE:
-            Entity = new plane(*static_cast<plane*>(Source));
+            Entity = new plane_entity(*static_cast<plane_entity*>(Source));
             break;
         case ENTITY_TYPE_SPHERE:
-            Entity = new sphere(*static_cast<sphere*>(Source));
+            Entity = new sphere_entity(*static_cast<sphere_entity*>(Source));
             break;
         case ENTITY_TYPE_CUBE:
-            Entity = new cube(*static_cast<cube*>(Source));
+            Entity = new cube_entity(*static_cast<cube_entity*>(Source));
             break;
         default:
             assert(false);
@@ -300,7 +300,7 @@ void DestroyMesh(scene* Scene, mesh* Mesh)
 {
     ForEachEntity(&Scene->Root, [Scene, Mesh](entity* Entity) {
         if (Entity->Type == ENTITY_TYPE_MESH_INSTANCE) {
-            auto MeshInstance = static_cast<mesh_instance*>(Entity);
+            auto MeshInstance = static_cast<mesh_entity*>(Entity);
             if (MeshInstance->Mesh == Mesh) {
                 MeshInstance->Mesh = nullptr;
                 Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
@@ -311,7 +311,7 @@ void DestroyMesh(scene* Scene, mesh* Mesh)
     for (prefab* Prefab : Scene->Prefabs) {
         ForEachEntity(Prefab->Entity, [Scene, Mesh](entity* Entity) {
             if (Entity->Type == ENTITY_TYPE_MESH_INSTANCE) {
-                auto MeshInstance = static_cast<mesh_instance*>(Entity);
+                auto MeshInstance = static_cast<mesh_entity*>(Entity);
                 if (MeshInstance->Mesh == Mesh)
                     MeshInstance->Mesh = nullptr;
             }
@@ -340,7 +340,7 @@ void DestroyMaterial(scene* Scene, material* Material)
     ForEachEntity(&Scene->Root, [Scene, Material](entity* Entity) {
         switch (Entity->Type) {
             case ENTITY_TYPE_MESH_INSTANCE: {
-                auto MeshInstance = static_cast<mesh_instance*>(Entity);
+                auto MeshInstance = static_cast<mesh_entity*>(Entity);
                 if (MeshInstance->Material == Material) {
                     MeshInstance->Material = nullptr;
                     Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
@@ -348,7 +348,7 @@ void DestroyMaterial(scene* Scene, material* Material)
                 break;
             }
             case ENTITY_TYPE_PLANE: {
-                auto Plane = static_cast<plane*>(Entity);
+                auto Plane = static_cast<plane_entity*>(Entity);
                 if (Plane->Material == Material) {
                     Plane->Material = nullptr;
                     Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
@@ -356,7 +356,7 @@ void DestroyMaterial(scene* Scene, material* Material)
                 break;
             }
             case ENTITY_TYPE_SPHERE: {
-                auto Sphere = static_cast<sphere*>(Entity);
+                auto Sphere = static_cast<sphere_entity*>(Entity);
                 if (Sphere->Material == Material) {
                     Sphere->Material = nullptr;
                     Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
@@ -364,7 +364,7 @@ void DestroyMaterial(scene* Scene, material* Material)
                 break;
             }
             case ENTITY_TYPE_CUBE: {
-                auto Cube = static_cast<cube*>(Entity);
+                auto Cube = static_cast<cube_entity*>(Entity);
                 if (Cube->Material == Material) {
                     Cube->Material = nullptr;
                     Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
@@ -773,20 +773,20 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
     auto Prefab = new prefab;
 
     if (Meshes.size() == 1) {
-        auto Instance = new mesh_instance;
+        auto Instance = new mesh_entity;
         Instance->Name = Meshes[0]->Name;
         Instance->Mesh = Meshes[0];
         Instance->Material = MeshMaterials[0];
         Prefab->Entity = Instance;
     }
     else {
-        auto Container = new container;
+        auto Container = new container_entity;
         Container->Name = ModelName;
         for (size_t I = 0; I < Meshes.size(); I++) {
             mesh* Mesh = Meshes[I];
             glm::vec3 const& Origin = Origins[I];
 
-            auto Instance = new mesh_instance;
+            auto Instance = new mesh_entity;
             Instance->Name = Mesh->Name;
             Instance->Mesh = Mesh;
             Instance->Material = MeshMaterials[I];
@@ -824,13 +824,13 @@ scene* CreateScene()
         SaveParametricSpectrumTable(Scene->RGBSpectrumTable, SRGB_SPECTRUM_TABLE_FILE);
     }
 
-    plane* Plane = (plane*)CreateEntity(Scene, ENTITY_TYPE_PLANE);
+    plane_entity* Plane = (plane_entity*)CreateEntity(Scene, ENTITY_TYPE_PLANE);
     Plane->Name = "Plane";
     Plane->Material = CreateMaterial(Scene, "Plane Material");
     Plane->Material->BaseColorTexture = CreateCheckerTexture(Scene, "Plane Texture", TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA, glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
     Plane->Material->BaseColorTexture->EnableNearestFiltering = true;
 
-    camera* Camera = (camera*)CreateEntity(Scene, ENTITY_TYPE_CAMERA);
+    camera_entity* Camera = (camera_entity*)CreateEntity(Scene, ENTITY_TYPE_CAMERA);
     Camera->Name = "Camera";
     Camera->Transform.Position = { 0, 0, 1 };
 
@@ -940,7 +940,7 @@ static void PackShape(scene* Scene, glm::mat4 const& OuterTransform, entity* Ent
 
     switch (Entity->Type) {
         case ENTITY_TYPE_MESH_INSTANCE: {
-            auto Instance = static_cast<mesh_instance*>(Entity);
+            auto Instance = static_cast<mesh_entity*>(Entity);
             if (!Instance->Mesh) return;
             Packed.MaterialIndex = GetPackedMaterialIndex(Instance->Material);
             Packed.MeshRootNodeIndex = Instance->Mesh->PackedRootNodeIndex;
@@ -948,19 +948,19 @@ static void PackShape(scene* Scene, glm::mat4 const& OuterTransform, entity* Ent
             break;
         }
         case ENTITY_TYPE_PLANE: {
-            auto Plane = static_cast<plane*>(Entity);
+            auto Plane = static_cast<plane_entity*>(Entity);
             Packed.MaterialIndex = GetPackedMaterialIndex(Plane->Material);
             Packed.Type = SHAPE_TYPE_PLANE;
             break;
         }
         case ENTITY_TYPE_SPHERE: {
-            auto Sphere = static_cast<sphere*>(Entity);
+            auto Sphere = static_cast<sphere_entity*>(Entity);
             Packed.MaterialIndex = GetPackedMaterialIndex(Sphere->Material);
             Packed.Type = SHAPE_TYPE_SPHERE;
             break;
         }
         case ENTITY_TYPE_CUBE: {
-            auto Cube = static_cast<cube*>(Entity);
+            auto Cube = static_cast<cube_entity*>(Entity);
             Packed.MaterialIndex = GetPackedMaterialIndex(Cube->Material);
             Packed.Type = SHAPE_TYPE_CUBE;
             break;

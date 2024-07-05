@@ -145,6 +145,24 @@ struct vulkan_context
     vulkan_image                ImGuiTexture                = {};
 };
 
+struct render_frame_parameters
+{
+    camera                      Camera = {};
+
+    render_mode                 RenderMode                      = RENDER_MODE_PATH_TRACE;
+    uint                        RenderFlags                     = 0;
+    uint                        RenderSampleBlockSize           = 1;
+    uint                        RenderBounceLimit               = 0;
+    float                       RenderTerminationProbability    = 0.0f;
+    bool                        RenderRestart                   = false;
+
+    float                       Brightness                      = 1.0f;
+    tone_mapping_mode           ToneMappingMode                 = TONE_MAPPING_MODE_CLAMP;
+    float                       ToneMappingWhiteLevel           = 1.0f;
+
+    ImDrawData*                 ImGuiDrawData                   = nullptr;
+};
+
 vulkan_context* CreateVulkan(
     GLFWwindow* Window,
     char const* ApplicationName);
@@ -159,6 +177,4 @@ VkResult UploadScene(
 
 VkResult RenderFrame(
     vulkan_context* Vulkan,
-    frame_uniform_buffer* Parameters,
-    bool Restart,
-    ImDrawData* ImguiDrawData);
+    render_frame_parameters* Parameters);
