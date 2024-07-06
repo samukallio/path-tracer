@@ -2,7 +2,8 @@
 
 #define BIND_SCENE 1    // Scene data in descriptor set 0.
 
-#include "common.glsl.inc"
+#include "core/common.glsl.inc"
+#include "scene/scene.glsl.inc"
 
 layout(set=0, binding=0)
 uniform sampler2D TextureSampler;

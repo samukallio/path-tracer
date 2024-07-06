@@ -1,6 +1,6 @@
 #pragma once
 
-#include "path-tracer.h"
+#include "core/common.h"
 #include "scene/scene.h"
 
 struct GLFWwindow;

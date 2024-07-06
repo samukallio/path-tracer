@@ -1,6 +1,8 @@
-#include "path-tracer.h"
-#include "application/application.h"
+#include "core/common.h"
 #include "scene/scene.h"
+#include "scene/material.h"
+#include "scene/material_openpbr.h"
+#include "application/application.h"
 
 #include <imgui.h>
 #include <misc/cpp/imgui_stdlib.h>
@@ -111,25 +113,11 @@ static void TextureInspector(application* App, texture* Texture)
     ImGui::PopID();
 }
 
-static void MaterialInspector(application* App, material* Material, bool Referenced = false)
+static bool OpenPBRMaterialInspector(application* App, material_openpbr* Material)
 {
-    scene* Scene = App->Scene;
-
-    if (!Material) return;
-
-    ImGui::PushID(Material);
-
-    if (Referenced) {
-        char Title[256];
-        snprintf(Title, 256, "Material: %s", Material->Name.c_str());
-        ImGui::SeparatorText(Title);
-    }
-    else {
-        ImGui::SeparatorText("Material");
-        ImGui::InputText("Name", &Material->Name);
-    }
-
     bool C = false;
+
+    scene* Scene = App->Scene;
 
     C |= ImGui::DragFloat("Opacity", &Material->Opacity, 0.01f, 0.0f, 1.0f);
 
@@ -166,6 +154,32 @@ static void MaterialInspector(application* App, material* Material, bool Referen
     C |= ResourceSelectorDropDown("Emission Color Texture", Scene->Textures, &Material->EmissionColorTexture);
 
     C |= ImGui::DragInt("Layer Bounce Limit", &Material->LayerBounceLimit, 1.0f, 1, 128);
+
+    return C;
+}
+
+static void MaterialInspector(application* App, material* Material, bool Referenced = false)
+{
+    scene* Scene = App->Scene;
+
+    if (!Material) return;
+
+    ImGui::PushID(Material);
+
+    if (Referenced) {
+        char Title[256];
+        snprintf(Title, 256, "Material: %s", Material->Name.c_str());
+        ImGui::SeparatorText(Title);
+    }
+    else {
+        ImGui::SeparatorText("Material");
+        ImGui::InputText("Name", &Material->Name);
+    }
+
+    bool C = false;
+
+    if (Material->Type == MATERIAL_TYPE_OPENPBR)
+        OpenPBRMaterialInspector(App, static_cast<material_openpbr*>(Material));
 
     if (C) Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
 
@@ -573,13 +587,13 @@ void MaterialBrowserWindow(application* App)
     scene* Scene = App->Scene;
 
     if (ImGui::Button("New")) {
-        App->SelectedMaterial = CreateMaterial(App->Scene, "New Material");
+        App->SelectedMaterial = CreateMaterial(App->Scene, MATERIAL_TYPE_OPENPBR, "New Material");
         App->SelectionType = SELECTION_TYPE_MATERIAL;
     }
     ImGui::SameLine();
     ImGui::BeginDisabled(App->SelectionType != SELECTION_TYPE_MATERIAL);
     if (ImGui::Button("Clone")) {
-        material* Clone = CreateMaterial(App->Scene, "");
+        material* Clone = CreateMaterial(App->Scene, MATERIAL_TYPE_OPENPBR, "");
         *Clone = *App->SelectedMaterial;
         Clone->Name = std::format("{} (Clone)", App->SelectedMaterial->Name);
         App->SelectedMaterial = Clone;

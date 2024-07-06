@@ -2,7 +2,8 @@
 
 struct scene;
 
-#include "common.h"
+#include "core/common.h"
+#include "scene/scene.h"
 
 #include <vector>
 #include <span>

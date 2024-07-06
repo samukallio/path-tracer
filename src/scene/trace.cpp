@@ -1,4 +1,4 @@
-#include "path-tracer.h"
+#include "core/common.h"
 #include "scene/scene.h"
 
 static void IntersectMeshFace(scene* Scene, ray Ray, uint32_t MeshFaceIndex, hit& Hit)

@@ -1,10 +1,10 @@
-#include "utility/tiny_obj_loader.h"
-#include "utility/stb_image.h"
-#include "utility/stb_rect_pack.h"
+#include "core/tiny_obj_loader.h"
+#include "core/stb_image.h"
+#include "core/stb_rect_pack.h"
 
 #include "scene/scene.h"
-
-#include "renderer/openpbr.h"
+#include "scene/material.h"
+#include "scene/material_openpbr.h"
 
 #include <unordered_map>
 #include <unordered_set>
@@ -273,17 +273,14 @@ void DestroyTexture(scene* Scene, texture* Texture)
 {
     bool MaterialsDirty = false;
     for (material* Material : Scene->Materials) {
-        if (Material->BaseColorTexture == Texture) {
-            Material->BaseColorTexture = nullptr;
-            MaterialsDirty = true;
-        }
-        if (Material->SpecularRoughnessTexture == Texture) {
-            Material->SpecularRoughnessTexture = nullptr;
-            MaterialsDirty = true;
-        }
-        if (Material->EmissionColorTexture == Texture) {
-            Material->EmissionColorTexture = nullptr;
-            MaterialsDirty = true;
+        if (Material->Type == MATERIAL_TYPE_OPENPBR) {
+            OpenPBRForEachTexture(static_cast<material_openpbr*>(Material),
+                [Texture, &MaterialsDirty](texture*& T) {
+                    if (T == Texture) {
+                        T = nullptr;
+                        MaterialsDirty = true;
+                    }
+                });
         }
     }
 
@@ -324,10 +321,18 @@ void DestroyMesh(scene* Scene, mesh* Mesh)
     delete Mesh;
 }
 
-material* CreateMaterial(scene* Scene, char const* Name)
+material* CreateMaterial(scene* Scene, material_type Type, char const* Name)
 {
-    auto Material = new material;
+    material* Material = nullptr;
+
+    switch (Type) {
+        case MATERIAL_TYPE_OPENPBR:
+            Material = new material_openpbr;
+            break;
+    }
+
     Material->Name = Name;
+
     Scene->Materials.push_back(Material);
 
     Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
@@ -602,7 +607,7 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
     for (int MaterialId = 0; MaterialId < FileMaterials.size(); MaterialId++) {
         tinyobj::material_t const& FileMaterial = FileMaterials[MaterialId];
 
-        auto Material = CreateMaterial(Scene, FileMaterial.name.c_str());
+        auto Material = (material_openpbr*)CreateMaterial(Scene, MATERIAL_TYPE_OPENPBR, FileMaterial.name.c_str());
 
         Material->BaseColor = glm::vec4(
             FileMaterial.diffuse[0],
@@ -824,11 +829,12 @@ scene* CreateScene()
         SaveParametricSpectrumTable(Scene->RGBSpectrumTable, SRGB_SPECTRUM_TABLE_FILE);
     }
 
+    auto PlaneMaterial = (material_openpbr*)CreateMaterial(Scene, MATERIAL_TYPE_OPENPBR, "Plane Material");
+    PlaneMaterial->BaseColorTexture = CreateCheckerTexture(Scene, "Plane Texture", TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA, glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
+    PlaneMaterial->BaseColorTexture->EnableNearestFiltering = true;
     plane_entity* Plane = (plane_entity*)CreateEntity(Scene, ENTITY_TYPE_PLANE);
     Plane->Name = "Plane";
-    Plane->Material = CreateMaterial(Scene, "Plane Material");
-    Plane->Material->BaseColorTexture = CreateCheckerTexture(Scene, "Plane Texture", TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA, glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
-    Plane->Material->BaseColorTexture->EnableNearestFiltering = true;
+    Plane->Material = PlaneMaterial;
 
     camera_entity* Camera = (camera_entity*)CreateEntity(Scene, ENTITY_TYPE_CAMERA);
     Camera->Name = "Camera";
@@ -1165,7 +1171,7 @@ uint32_t PackSceneData(scene* Scene)
 
         // Fallback material.
         {
-            material Material = {};
+            material_openpbr Material = {};
             size_t Offset = Scene->MaterialAttributePack.size();
             Scene->MaterialAttributePack.resize(Offset + 64);
             OpenPBRPackMaterial(Scene, &Material, &Scene->MaterialAttributePack[Offset]);
@@ -1173,8 +1179,10 @@ uint32_t PackSceneData(scene* Scene)
 
         for (material* Material : Scene->Materials) {
             size_t Offset = Scene->MaterialAttributePack.size();
-            Scene->MaterialAttributePack.resize(Offset + 64);
-            OpenPBRPackMaterial(Scene, Material, &Scene->MaterialAttributePack[Offset]);
+            if (Material->Type == MATERIAL_TYPE_OPENPBR) {
+                Scene->MaterialAttributePack.resize(Offset + 64);
+                OpenPBRPackMaterial(Scene, static_cast<material_openpbr*>(Material), &Scene->MaterialAttributePack[Offset]);
+            }
             Material->PackedMaterialIndex = static_cast<uint32_t>(Offset) / 32;
         }
 

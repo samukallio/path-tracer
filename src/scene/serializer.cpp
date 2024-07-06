@@ -1,7 +1,9 @@
-#include "path-tracer.h"
+#include "core/common.h"
+#include "core/json.hpp"
+#include "core/miniz.h"
 #include "scene/scene.h"
-#include "utility/json.hpp"
-#include "utility/miniz.h"
+#include "scene/material.h"
+#include "scene/material_openpbr.h"
 
 #include <fstream>
 #include <filesystem>
@@ -65,7 +67,7 @@ std::string MakeFileName(std::string const& Name, char const* Extension)
 }
 
 template<typename type, int N>
-void Serialize(serializer& S, json& JSON, type (&Array)[N])
+void SerializeField(serializer& S, json& JSON, type (&Array)[N])
 {
     if (S.IsWriting) {
         for (uint I = 0; I < N; I++) {
@@ -81,29 +83,29 @@ void Serialize(serializer& S, json& JSON, type (&Array)[N])
 }
 
 template<typename type>
-void Serialize(serializer& S, json& JSON, std::vector<type>& Array)
+void SerializeField(serializer& S, json& JSON, std::vector<type>& Array)
 {
     if (S.IsWriting) {
         for (uint I = 0; I < Array.size(); I++) {
             json ValueJSON;
-            Serialize(S, ValueJSON, Array[I]);
+            SerializeField(S, ValueJSON, Array[I]);
             JSON.push_back(ValueJSON);
         }
     }
     else {
         Array.resize(JSON.size());
         for (uint I = 0; I < Array.size(); I++)
-            Serialize(S, JSON[I], Array[I]);
+            SerializeField(S, JSON[I], Array[I]);
     }
 }
 
 template<typename type>
-void Serialize(serializer& S, json& JSON, type& Value)
+void SerializeField(serializer& S, json& JSON, type& Value)
 {
     if (S.IsWriting) JSON = Value; else Value = JSON;
 }
 
-void Serialize(serializer& S, json& JSON, vec2& Value)
+void SerializeField(serializer& S, json& JSON, vec2& Value)
 {
     if (S.IsWriting) {
         JSON = { Value.x, Value.y };
@@ -114,7 +116,7 @@ void Serialize(serializer& S, json& JSON, vec2& Value)
     }
 }
 
-void Serialize(serializer& S, json& JSON, vec3& Value)
+void SerializeField(serializer& S, json& JSON, vec3& Value)
 {
     if (S.IsWriting) {
         JSON = { Value.x, Value.y, Value.z };
@@ -126,7 +128,7 @@ void Serialize(serializer& S, json& JSON, vec3& Value)
     }
 }
 
-void Serialize(serializer& S, json& JSON, vec4& Value)
+void SerializeField(serializer& S, json& JSON, vec4& Value)
 {
     if (S.IsWriting) {
         JSON = { Value.x, Value.y, Value.z, Value.w };
@@ -139,10 +141,27 @@ void Serialize(serializer& S, json& JSON, vec4& Value)
     }
 }
 
-#define F(NAME) Serialize(S, JSON[#NAME], Object.NAME);
-#define F2(NAME1, NAME2) Serialize(S, JSON[#NAME1][#NAME2], Object.NAME1.NAME2);
+#define F(NAME) SerializeField(S, JSON[#NAME], Object.NAME);
+#define F2(NAME1, NAME2) SerializeField(S, JSON[#NAME1][#NAME2], Object.NAME1.NAME2);
 
-void Serialize(serializer& S, json& JSON, texture& Object)
+template<typename type>
+void SerializeObject(serializer& S, json& JSON, std::vector<type>& Array)
+{
+    if (S.IsWriting) {
+        for (uint I = 0; I < Array.size(); I++) {
+            json ValueJSON;
+            SerializeObject(S, ValueJSON, Array[I]);
+            JSON.push_back(ValueJSON);
+        }
+    }
+    else {
+        Array.resize(JSON.size());
+        for (uint I = 0; I < Array.size(); I++)
+            SerializeObject(S, JSON[I], Array[I]);
+    }
+}
+
+void SerializeObject(serializer& S, json& JSON, texture& Object)
 {
     F(Name);
     F(Type);
@@ -191,7 +210,7 @@ void Serialize(serializer& S, json& JSON, texture& Object)
     }
 }
 
-void Serialize(serializer& S, json& JSON, texture*& Pointer)
+void SerializeField(serializer& S, json& JSON, texture*& Pointer)
 {
     if (S.IsWriting) {
         if (S.TextureIndexMap.contains(Pointer))
@@ -208,42 +227,46 @@ void Serialize(serializer& S, json& JSON, texture*& Pointer)
     }
 }
 
-void Serialize(serializer& S, json& JSON, material& Object)
+void SerializeObject(serializer& S, json& JSON, material*& Material)
 {
-    F(Name);
-    F(Flags);
-    F(Opacity);
-    F(BaseWeight);
-    F(BaseColor);
-    F(BaseColorTexture);
-    F(BaseMetalness);
-    F(BaseDiffuseRoughness);
-    F(SpecularWeight);
-    F(SpecularColor);
-    F(SpecularRoughness);
-    F(SpecularRoughnessTexture);
-    F(SpecularRoughnessAnisotropy);
-    F(SpecularIOR);
-    F(TransmissionWeight);
-    F(TransmissionColor);
-    F(TransmissionDepth);
-    F(TransmissionScatter);
-    F(TransmissionScatterAnisotropy);
-    F(TransmissionDispersionScale);
-    F(TransmissionDispersionAbbeNumber);
-    F(CoatWeight);
-    F(CoatColor);
-    F(CoatRoughness);
-    F(CoatRoughnessAnisotropy);
-    F(CoatIOR);
-    F(CoatDarkening);
-    F(EmissionLuminance);
-    F(EmissionColor);
-    F(EmissionColorTexture);
-    F(LayerBounceLimit);
+    if (Material->Type == MATERIAL_TYPE_OPENPBR) {
+        material_openpbr& Object = *static_cast<material_openpbr*>(Material);
+
+        F(Name);
+        F(Flags);
+        F(Opacity);
+        F(BaseWeight);
+        F(BaseColor);
+        F(BaseColorTexture);
+        F(BaseMetalness);
+        F(BaseDiffuseRoughness);
+        F(SpecularWeight);
+        F(SpecularColor);
+        F(SpecularRoughness);
+        F(SpecularRoughnessTexture);
+        F(SpecularRoughnessAnisotropy);
+        F(SpecularIOR);
+        F(TransmissionWeight);
+        F(TransmissionColor);
+        F(TransmissionDepth);
+        F(TransmissionScatter);
+        F(TransmissionScatterAnisotropy);
+        F(TransmissionDispersionScale);
+        F(TransmissionDispersionAbbeNumber);
+        F(CoatWeight);
+        F(CoatColor);
+        F(CoatRoughness);
+        F(CoatRoughnessAnisotropy);
+        F(CoatIOR);
+        F(CoatDarkening);
+        F(EmissionLuminance);
+        F(EmissionColor);
+        F(EmissionColorTexture);
+        F(LayerBounceLimit);
+    }
 }
 
-void Serialize(serializer& S, json& JSON, material*& Pointer)
+void SerializeField(serializer& S, json& JSON, material*& Pointer)
 {
     if (S.IsWriting) {
         if (S.MaterialIndexMap.contains(Pointer))
@@ -260,7 +283,7 @@ void Serialize(serializer& S, json& JSON, material*& Pointer)
     }
 }
 
-void Serialize(serializer& S, json& JSON, mesh& Object)
+void SerializeObject(serializer& S, json& JSON, mesh& Object)
 {
     F(Name);
 
@@ -312,7 +335,7 @@ void Serialize(serializer& S, json& JSON, mesh& Object)
     }
 }
 
-void Serialize(serializer& S, json& JSON, mesh*& Pointer)
+void SerializeField(serializer& S, json& JSON, mesh*& Pointer)
 {
     if (S.IsWriting) {
         if (S.MeshIndexMap.contains(Pointer))
@@ -329,7 +352,7 @@ void Serialize(serializer& S, json& JSON, mesh*& Pointer)
     }
 }
 
-void Serialize(serializer& S, json& JSON, entity*& Entity)
+void SerializeObject(serializer& S, json& JSON, entity*& Entity)
 {
     if (!S.IsWriting) {
         auto EntityType = static_cast<entity_type>(JSON["Type"].get<int>());
@@ -339,12 +362,12 @@ void Serialize(serializer& S, json& JSON, entity*& Entity)
         JSON["Type"] = Entity->Type;
     }
 
-    Serialize(S, JSON["Position"], Entity->Transform.Position);
-    Serialize(S, JSON["Rotation"], Entity->Transform.Rotation);
-    Serialize(S, JSON["Scale"], Entity->Transform.Scale);
-    Serialize(S, JSON["Name"], Entity->Name);
-    Serialize(S, JSON["Active"], Entity->Active);
-    Serialize(S, JSON["Children"], Entity->Children);
+    SerializeField(S, JSON["Position"], Entity->Transform.Position);
+    SerializeField(S, JSON["Rotation"], Entity->Transform.Rotation);
+    SerializeField(S, JSON["Scale"], Entity->Transform.Scale);
+    SerializeField(S, JSON["Name"], Entity->Name);
+    SerializeField(S, JSON["Active"], Entity->Active);
+    SerializeObject(S, JSON["Children"], Entity->Children);
 
     if (!S.IsWriting) {
         for (entity* Child : Entity->Children)
@@ -353,12 +376,10 @@ void Serialize(serializer& S, json& JSON, entity*& Entity)
 
     switch (Entity->Type) {
         case ENTITY_TYPE_CAMERA: {
-            camera& Object = *static_cast<camera*>(Entity);
+            camera_entity& Object = *static_cast<camera_entity*>(Entity);
             F(RenderMode);
             F(RenderFlags);
             F(RenderBounceLimit);
-            F(RenderMeshComplexityScale);
-            F(RenderSceneComplexityScale);
             F(RenderSampleBlockSizeLog2);
             F(RenderTerminationProbability);
             F(Brightness);
@@ -374,35 +395,36 @@ void Serialize(serializer& S, json& JSON, entity*& Entity)
             break;
         }
         case ENTITY_TYPE_MESH_INSTANCE: {
-            mesh_instance& Object = *static_cast<mesh_instance*>(Entity);
+            mesh_entity& Object = *static_cast<mesh_entity*>(Entity);
             F(Mesh);
             F(Material);
             break;
         }
         case ENTITY_TYPE_PLANE: {
-            plane& Object = *static_cast<plane*>(Entity);
+            plane_entity& Object = *static_cast<plane_entity*>(Entity);
             F(Material);
             break;
         }
         case ENTITY_TYPE_SPHERE: {
-            sphere& Object = *static_cast<sphere*>(Entity);
+            sphere_entity& Object = *static_cast<sphere_entity*>(Entity);
             F(Material);
             break;
         }
         case ENTITY_TYPE_CUBE: {
-            cube& Object = *static_cast<cube*>(Entity);
+            cube_entity& Object = *static_cast<cube_entity*>(Entity);
             F(Material);
             break;
         }
     }
 }
 
-void Serialize(serializer& S, json& JSON, root& Object)
+void SerializeObject(serializer& S, json& JSON, root_entity& Object)
 {
     F(ScatterRate);
     F(SkyboxBrightness);
     F(SkyboxTexture);
-    F(Children);
+
+    SerializeObject(S, JSON["Children"], Object.Children);
 
     if (!S.IsWriting) {
         for (entity* Child : Object.Children)
@@ -410,7 +432,7 @@ void Serialize(serializer& S, json& JSON, root& Object)
     }
 }
 
-void Serialize(serializer& S, scene& Scene)
+void SerializeObject(serializer& S, scene& Scene)
 {
     // Serialize assets and entities.
     {
@@ -435,28 +457,28 @@ void Serialize(serializer& S, scene& Scene)
         for (uint Index = 0; Index < Scene.Textures.size(); Index++) {
             texture* Texture = Scene.Textures[Index];
             S.TextureIndexMap[Texture] = Index;
-            Serialize(S, JSON["Textures"][Index], *Texture);
+            SerializeObject(S, JSON["Textures"][Index], *Texture);
         }
 
         for (uint Index = 0; Index < Scene.Materials.size(); Index++) {
             material* Material = Scene.Materials[Index];
             S.MaterialIndexMap[Material] = Index;
-            Serialize(S, JSON["Materials"][Index], *Material);
+            SerializeObject(S, JSON["Materials"][Index], Material);
         }
 
         for (uint Index = 0; Index < Scene.Meshes.size(); Index++) {
             mesh* Mesh = Scene.Meshes[Index];
             S.MeshIndexMap[Mesh] = Index;
-            Serialize(S, JSON["Meshes"][Index], *Mesh);
+            SerializeObject(S, JSON["Meshes"][Index], *Mesh);
         }
 
         for (uint Index = 0; Index < Scene.Prefabs.size(); Index++) {
             prefab* Prefab = Scene.Prefabs[Index];
             S.PrefabIndexMap[Prefab] = Index;
-            Serialize(S, JSON["Prefabs"][Index], Prefab->Entity);
+            SerializeObject(S, JSON["Prefabs"][Index], Prefab->Entity);
         }
 
-        Serialize(S, JSON["Root"], Scene.Root);
+        SerializeObject(S, JSON["Root"], Scene.Root);
 
         if (S.IsWriting) {
             auto SceneFile = std::ofstream(S.SceneFilePath);
@@ -515,7 +537,7 @@ scene* LoadScene(char const* Path)
     S.IsWriting = false;
     S.Scene = new scene;
 
-    Serialize(S, *S.Scene);
+    SerializeObject(S, *S.Scene);
 
     S.Scene->DirtyFlags = SCENE_DIRTY_ALL;
 
@@ -532,5 +554,5 @@ void SaveScene(char const* Path, scene* Scene)
 
     std::filesystem::create_directory(S.DirectoryPath);
 
-    Serialize(S, *Scene);
+    SerializeObject(S, *Scene);
 }

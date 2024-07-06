@@ -1,6 +1,6 @@
-#include "renderer/vulkan.h"
 #include "scene/scene.h"
 #include "application/ui_font.h"
+#include "renderer/vulkan.h"
 
 #include <array>
 #include <cassert>
@@ -30,12 +30,12 @@ uint32_t const RESOLVE_FRAGMENT_SHADER[] =
 
 uint32_t const PATH_COMPUTE_SHADER[] =
 {
-    #include "path.compute.inc"
+    #include "udpt_path.compute.inc"
 };
 
 uint32_t const TRACE_COMPUTE_SHADER[] =
 {
-    #include "trace.compute.inc"
+    #include "udpt_trace.compute.inc"
 };
 
 uint32_t const PREVIEW_COMPUTE_SHADER[] =

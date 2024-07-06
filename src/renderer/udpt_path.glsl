@@ -1,13 +1,13 @@
 #version 450
 
-
-
 #define BIND_PATH 0
 #define BIND_SCENE 1
 #define BIND_TRACE 2
 
-#include "common.glsl.inc"
-#include "openpbr.glsl.inc"
+#include "core/common.glsl.inc"
+#include "scene/scene.glsl.inc"
+#include "scene/trace.glsl.inc"
+#include "scene/material_openpbr.glsl.inc"
 
 layout(push_constant)
 uniform ComputePushConstantBuffer

@@ -1,4 +1,5 @@
-#include "scene/scene.h"
+#include "core/common.h"
+#include "core/spectrum.h"
 
 using glm::dvec3;
 

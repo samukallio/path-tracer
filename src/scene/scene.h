@@ -1,63 +1,142 @@
 #pragma once
 
-#include "renderer/common.h"
+#include "core/common.h"
+#include "core/spectrum.h"
+#include "scene/material.h"
 
-struct texture
+enum camera_model : int32_t
 {
-    std::string                     Name                    = "New Texture";
-    texture_type                    Type                    = TEXTURE_TYPE_RAW;
-    bool                            EnableNearestFiltering  = false;
-
-    uint32_t                        Width                   = 0;
-    uint32_t                        Height                  = 0;
-    glm::vec4 const*                Pixels                  = nullptr;
-
-    uint32_t                        PackedTextureIndex      = 0;
+    CAMERA_MODEL_PINHOLE                = 0,
+    CAMERA_MODEL_THIN_LENS              = 1,
+    CAMERA_MODEL_360                    = 2,
+    CAMERA_MODEL__COUNT                 = 3,
 };
 
-struct material
+enum shape_type : int32_t
 {
-    std::string                     Name                    = "New Material";
-    uint32_t                        Flags                   = 0;
-
-    float                           Opacity                 = 1.0f;
-
-    float                           BaseWeight              = 1.0f;
-    glm::vec3                       BaseColor               = glm::vec3(1, 1, 1);
-    texture*                        BaseColorTexture        = nullptr;
-    float                           BaseMetalness           = 0.0f;
-    float                           BaseDiffuseRoughness    = 0.0f;
-
-    float                           SpecularWeight          = 1.0f;
-    glm::vec3                       SpecularColor           = glm::vec3(1, 1, 1);
-    float                           SpecularRoughness       = 0.3f;
-    texture*                        SpecularRoughnessTexture = nullptr;
-    float                           SpecularRoughnessAnisotropy = 0.0f;
-    float                           SpecularIOR             = 1.5f;
-
-    float                           TransmissionWeight      = 0.0f;
-    glm::vec3                       TransmissionColor       = glm::vec3(1, 1, 1);
-    float                           TransmissionDepth       = 0.0f;
-    glm::vec3                       TransmissionScatter     = glm::vec3(0, 0, 0);
-    float                           TransmissionScatterAnisotropy = 0.0f;
-    float                           TransmissionDispersionScale = 0.0f;
-    float                           TransmissionDispersionAbbeNumber = 20.0f;
-
-    float                           CoatWeight              = 0.0f;
-    glm::vec3                       CoatColor               = glm::vec3(1, 1, 1);
-    float                           CoatRoughness           = 0.0f;
-    float                           CoatRoughnessAnisotropy = 0.0f;
-    float                           CoatIOR                 = 1.6f;
-    float                           CoatDarkening           = 1.0f;
-
-    float                           EmissionLuminance       = 0.0f;
-    glm::vec3                       EmissionColor           = glm::vec3(0, 0, 0);
-    texture*                        EmissionColorTexture    = nullptr;
-
-    int                             LayerBounceLimit        = 16;
-
-    uint32_t                        PackedMaterialIndex     = 0;
+    SHAPE_TYPE_MESH_INSTANCE            = 0,
+    SHAPE_TYPE_PLANE                    = 1,
+    SHAPE_TYPE_SPHERE                   = 2,
+    SHAPE_TYPE_CUBE                     = 3,
 };
+
+inline char const* CameraModelName(camera_model Model)
+{
+    switch (Model) {
+    case CAMERA_MODEL_PINHOLE:              return "Pinhole";
+    case CAMERA_MODEL_THIN_LENS:            return "Thin Lens";
+    case CAMERA_MODEL_360:                  return "360";
+    }
+    assert(false);
+    return nullptr;
+}
+
+struct hit
+{
+    float               Time;
+    shape_type          ShapeType;
+    uint                ShapeIndex;
+    uint                PrimitiveIndex;
+    vec3                PrimitiveCoordinates;
+};
+
+/* --- Low-Level Scene Representation ---------------------------------------- */
+
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
+struct alignas(16) packed_transform
+{
+    aligned_mat4        To      = mat4(1);
+    aligned_mat4        From    = mat4(1);
+};
+
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
+struct alignas(16) packed_texture
+{
+    vec2                AtlasPlacementMinimum;
+    vec2                AtlasPlacementMaximum;
+    uint                AtlasImageIndex;
+    uint                Type;
+    uint                Flags;
+    uint                Unused0;
+};
+
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
+struct alignas(16) packed_shape
+{
+    shape_type          Type;
+    uint                MaterialIndex;
+    uint                MeshRootNodeIndex;
+    packed_transform    Transform;
+};
+
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
+struct alignas(16) packed_shape_node
+{
+    vec3                Minimum;
+    uint                ChildNodeIndices;
+    vec3                Maximum;
+    uint                ShapeIndex;
+};
+
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
+struct alignas(16) packed_mesh_face
+{
+    vec3                Position0;
+    uint                VertexIndex0;
+    vec3                Position1;
+    uint                VertexIndex1;
+    vec3                Position2;
+    uint                VertexIndex2;
+};
+
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
+struct alignas(4) packed_mesh_vertex
+{
+    uint                PackedNormal;
+    uint                PackedUV;
+};
+
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
+struct alignas(16) packed_mesh_node
+{
+    vec3                Minimum;
+    uint                FaceBeginOrNodeIndex;
+    vec3                Maximum;
+    uint                FaceEndIndex;
+};
+
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
+struct alignas(16) packed_scene_globals
+{
+    aligned_mat3        SkyboxDistributionFrame         = {};
+    float               SkyboxDistributionConcentration = 1.0f;
+    float               SkyboxBrightness                = 1.0f;
+    uint                SkyboxTextureIndex              = TEXTURE_INDEX_NONE;
+    uint                ShapeCount                      = 0;
+    float               SceneScatterRate                = 0.0f;
+};
+
+// This structure is shared between CPU and GPU,
+// and must follow std430 layout rules.
+struct alignas(16) camera
+{
+    uint                Model;
+    float               FocalLength;
+    float               ApertureRadius;
+    float               SensorDistance;
+    vec2                SensorSize;
+    packed_transform    Transform;
+};
+
+/* --- High-Level Scene Representation --------------------------------------- */
 
 struct mesh_face
 {
@@ -198,13 +277,6 @@ struct prefab
     entity*                         Entity                  = nullptr;
 };
 
-struct parametric_spectrum_table
-{
-    static constexpr int SCALE_BINS = 64;
-    static constexpr int COLOR_BINS = 64;
-
-    glm::vec3 Coefficients[3][SCALE_BINS][COLOR_BINS][COLOR_BINS];
-};
 
 enum scene_dirty_flag
 {
@@ -279,7 +351,7 @@ entity*     CreateEntity(scene* Scene, entity* Source, entity* Parent = nullptr)
 entity*     CreateEntity(scene* Scene, prefab* Prefab, entity* Parent = nullptr);
 void        DestroyEntity(scene* Scene, entity* Entity);
 
-material*   CreateMaterial(scene* Scene, char const* Name);
+material*   CreateMaterial(scene* Scene, material_type Type, char const* Name);
 void        DestroyMaterial(scene* Scene, material* Material);
 
 texture*    CreateCheckerTexture(scene* Scene, char const* Name, texture_type Type, glm::vec4 const& ColorA, glm::vec4 const& ColorB);
@@ -303,11 +375,3 @@ entity*     FindEntityByPackedShapeIndex(scene* Scene, uint32_t PackedShapeIndex
 // --- trace.cpp --------------------------------------------------------------
 
 bool        Trace(scene* Scene, ray const& Ray, hit& Hit);
-
-// --- spectrum.cpp -----------------------------------------------------------
-
-void        BuildParametricSpectrumTableForSRGB(parametric_spectrum_table* Table);
-bool        SaveParametricSpectrumTable(parametric_spectrum_table const* Table, char const* Path);
-bool        LoadParametricSpectrumTable(parametric_spectrum_table* Table, char const* Path);
-glm::vec3   GetParametricSpectrumCoefficients(parametric_spectrum_table const* Table, glm::vec3 const& Color);
-float       SampleParametricSpectrum(glm::vec3 const& Beta, float Lambda);

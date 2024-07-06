@@ -3,7 +3,9 @@
 #define BIND_SCENE 0    // Scene data in descriptor set 0.
 #define BIND_TRACE 1    // Trace buffer in descriptor set 1.
 
-#include "common.glsl.inc"
+#include "core/common.glsl.inc"
+#include "scene/scene.glsl.inc"
+#include "scene/trace.glsl.inc"
 
 layout(local_size_x=256, local_size_y=1, local_size_z=1) in;
 

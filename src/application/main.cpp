@@ -2,10 +2,10 @@
 
 #include <format>
 
-#include "path-tracer.h"
-#include "application/application.h"
-#include "renderer/vulkan.h"
+#include "core/common.h"
 #include "scene/scene.h"
+#include "renderer/vulkan.h"
+#include "application/application.h"
 
 #include <GLFW/glfw3.h>
 #include <imgui.h>

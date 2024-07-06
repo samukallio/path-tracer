@@ -1,7 +1,8 @@
 #ifndef OPENPBR_GLSL_INC
 #define OPENPBR_GLSL_INC
 
-#include "common.glsl.inc"
+#include "core/common.glsl.inc"
+#include "scene/scene.glsl.inc"
 
 const uint OPENPBR_OPACITY                                 = 0;
 const uint OPENPBR_LAYER_BOUNCE_LIMIT                      = 1;
