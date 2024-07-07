@@ -147,6 +147,8 @@ struct vulkan_context
     vulkan_image                ImGuiTexture                = {};
 
     std::vector<vulkan_sample_buffer*> SampleBuffers        = {};
+
+    vulkan_frame*               CurrentFrame                = nullptr;
 };
 
 struct vulkan_scene
@@ -190,11 +192,9 @@ void            DestroyVulkanScene(vulkan_context* Vulkan, vulkan_scene* VulkanS
 
 vulkan_sample_buffer* CreateSampleBuffer(vulkan_context* Vulkan, uint Width, uint Height);
 void            DestroySampleBuffer(vulkan_context* Vulkan, vulkan_sample_buffer* SampleBuffer);
-void            RenderSampleBuffer(vulkan_context* Vulkan, vulkan_frame* Frame, vulkan_sample_buffer* SampleBuffer, vulkan_render_sample_buffer_parameters* Parameters);
 
-void            RenderPreview(vulkan_context* Vulkan, vulkan_frame* Frame, vulkan_sample_buffer* SampleBuffer, vulkan_scene* Scene, camera const& Camera, render_mode RenderMode);
-
-void            RenderImGui(vulkan_context* Vulkan, vulkan_frame* Frame, vulkan_scene* Scene, ImDrawData* DrawData);
-
-vulkan_frame*   BeginFrame(vulkan_context* Vulkan);
-void            EndFrame(vulkan_context* Vulkan, vulkan_frame* Frame);
+VkResult        BeginFrame(vulkan_context* Vulkan);
+void            RenderSampleBuffer(vulkan_context* Vulkan, vulkan_sample_buffer* SampleBuffer, vulkan_render_sample_buffer_parameters* Parameters);
+void            RenderPreview(vulkan_context* Vulkan, vulkan_sample_buffer* SampleBuffer, vulkan_scene* Scene, camera const& Camera, render_mode RenderMode);
+void            RenderImGui(vulkan_context* Vulkan, vulkan_scene* Scene, ImDrawData* DrawData);
+VkResult        EndFrame(vulkan_context* Vulkan);

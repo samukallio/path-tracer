@@ -2395,10 +2395,11 @@ void DestroySampleBuffer(
 
 void RenderSampleBuffer(
     vulkan_context*         Vulkan,
-    vulkan_frame*           Frame,
     vulkan_sample_buffer*   SampleBuffer,
     vulkan_render_sample_buffer_parameters* Parameters)
 {
+    auto Frame = Vulkan->CurrentFrame;
+
     auto Viewport = VkViewport {
         .x        = 0.0f,
         .y        = 0.0f,
@@ -2438,9 +2439,11 @@ void RenderSampleBuffer(
     vkCmdDraw(Frame->GraphicsCommandBuffer, 6, 1, 0, 0);
 }
 
-vulkan_frame* BeginFrame(
+VkResult BeginFrame(
     vulkan_context* Vulkan)
 {
+    assert(!Vulkan->CurrentFrame);
+
     VkResult Result = VK_SUCCESS;
 
     Vulkan->FrameIndex++;
@@ -2465,7 +2468,7 @@ vulkan_frame* BeginFrame(
 
     if (Result != VK_SUCCESS) {
         Errorf(Vulkan, "failed to acquire swap chain image");
-        return nullptr;
+        return Result;
     }
 
     // Reset the fence to indicate that the frame state is no longer available.
@@ -2481,7 +2484,7 @@ vulkan_frame* BeginFrame(
     Result = vkBeginCommandBuffer(Frame->ComputeCommandBuffer, &ComputeBeginInfo);
     if (Result != VK_SUCCESS) {
         Errorf(Vulkan, "failed to begin recording compute command buffer");
-        return nullptr;
+        return Result;
     }
 
     // Prepare graphics command buffer.
@@ -2494,7 +2497,7 @@ vulkan_frame* BeginFrame(
     Result = vkBeginCommandBuffer(Frame->GraphicsCommandBuffer, &GraphicsBeginInfo);
     if (Result != VK_SUCCESS) {
         Errorf(Vulkan, "failed to begin recording graphics command buffer");
-        return nullptr;
+        return Result;
     }
 
     for (vulkan_sample_buffer* SampleBuffer : Vulkan->SampleBuffers) {
@@ -2546,13 +2549,18 @@ vulkan_frame* BeginFrame(
         vkCmdBeginRenderPass(Frame->GraphicsCommandBuffer, &RenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
     }
 
-    return Frame;
+    Vulkan->CurrentFrame = Frame;
+
+    return VK_SUCCESS;
 }
 
-void EndFrame(
-    vulkan_context*     Vulkan,
-    vulkan_frame* Frame)
+VkResult EndFrame(
+    vulkan_context* Vulkan)
 {
+    assert(Vulkan->CurrentFrame);
+
+    vulkan_frame* Frame = Vulkan->CurrentFrame;
+
     VkResult Result = VK_SUCCESS;
 
     // Finish and submit compute command buffer.
@@ -2560,7 +2568,7 @@ void EndFrame(
         Result = vkEndCommandBuffer(Frame->ComputeCommandBuffer);
         if (Result != VK_SUCCESS) {
             Errorf(Vulkan, "failed to end recording compute command buffer");
-            return;
+            return Result;
         }
 
         VkSemaphore ComputeSignalSemaphores[] = {
@@ -2586,7 +2594,7 @@ void EndFrame(
         Result = vkQueueSubmit(Vulkan->ComputeQueue, 1, &ComputeSubmitInfo, nullptr);
         if (Result != VK_SUCCESS) {
             Errorf(Vulkan, "failed to submit compute command buffer");
-            return;
+            return Result;
         }
     }
 
@@ -2627,7 +2635,7 @@ void EndFrame(
         Result = vkEndCommandBuffer(Frame->GraphicsCommandBuffer);
         if (Result != VK_SUCCESS) {
             Errorf(Vulkan, "failed to end recording graphics command buffer");
-            return;
+            return Result;
         }
 
         VkPipelineStageFlags GraphicsWaitStages[] = {
@@ -2654,7 +2662,7 @@ void EndFrame(
         Result = vkQueueSubmit(Vulkan->GraphicsQueue, 1, &GraphicsSubmitInfo, Frame->AvailableFence);
         if (Result != VK_SUCCESS) {
             Errorf(Vulkan, "failed to submit graphics command buffer");
-            return;
+            return Result;
         }
 
         auto PresentInfo = VkPresentInfoKHR {
@@ -2671,21 +2679,26 @@ void EndFrame(
         if (Result != VK_SUCCESS) {
             if (Result != VK_ERROR_OUT_OF_DATE_KHR && Result != VK_SUBOPTIMAL_KHR)
                 Errorf(Vulkan, "failed to present swap chain image");
-            return;
+            return Result;
         }
     }
 
     Frame->Fresh = false;
+
+    Vulkan->CurrentFrame = nullptr;
+
+    return VK_SUCCESS;
 }
 
 void RenderPreview(
     vulkan_context*         Vulkan,
-    vulkan_frame*           Frame,
     vulkan_sample_buffer*   SampleBuffer, 
     vulkan_scene*           Scene,
     camera const&           Camera,
     render_mode             RenderMode)
 {
+    auto Frame = Vulkan->CurrentFrame;
+
     uint RandomSeed = 0;
 
     vkCmdBindPipeline(
@@ -2726,10 +2739,11 @@ void RenderPreview(
 
 void RenderImGui(
     vulkan_context* Vulkan,
-    vulkan_frame*   Frame,
     vulkan_scene*   Scene,
     ImDrawData*     DrawData)
 {
+    auto Frame = Vulkan->CurrentFrame;
+
     auto Viewport = VkViewport {
         .x        = 0.0f,
         .y        = 0.0f,

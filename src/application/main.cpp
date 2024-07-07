@@ -202,7 +202,7 @@ void Frame()
     uint DirtyFlags = PackSceneData(App.Scene);
     UpdateVulkanScene(App.Vulkan, App.VulkanScene, App.Scene, DirtyFlags);
 
-    auto Frame = BeginFrame(App.Vulkan);
+    BeginFrame(App.Vulkan);
 
     if (RenderMode == RENDER_MODE_PATH_TRACE) {
         if (Restart) {
@@ -211,22 +211,22 @@ void Frame()
             App.BasicRenderer->RenderFlags      = RenderFlags;
             App.BasicRenderer->PathTerminationProbability = 0.0f; //Parameters.RenderTerminationProbability;
 
-            ResetBasicRenderer(App.Vulkan, Frame, App.BasicRenderer);
-            RunBasicRenderer(App.Vulkan, Frame, App.BasicRenderer, 2);
+            ResetBasicRenderer(App.Vulkan, App.BasicRenderer);
+            RunBasicRenderer(App.Vulkan, App.BasicRenderer, 2);
         }
         else {
-            RunBasicRenderer(App.Vulkan, Frame, App.BasicRenderer, 1);
+            RunBasicRenderer(App.Vulkan, App.BasicRenderer, 1);
         }
     }
     else {
-        RenderPreview(App.Vulkan, Frame, App.SampleBuffer, App.VulkanScene, CameraParameters, RenderMode);
+        RenderPreview(App.Vulkan, App.SampleBuffer, App.VulkanScene, CameraParameters, RenderMode);
     }
 
-    RenderSampleBuffer(App.Vulkan, Frame, App.SampleBuffer, &ResolveParameters);
+    RenderSampleBuffer(App.Vulkan, App.SampleBuffer, &ResolveParameters);
 
-    RenderImGui(App.Vulkan, Frame, App.VulkanScene, ImGui::GetDrawData());
+    RenderImGui(App.Vulkan, App.VulkanScene, ImGui::GetDrawData());
 
-    EndFrame(App.Vulkan, Frame);
+    EndFrame(App.Vulkan);
 }
 
 static void MouseButtonInputCallback(GLFWwindow* Window, int Button, int Action, int Mods)

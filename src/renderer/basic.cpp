@@ -27,10 +27,11 @@ struct push_constant_buffer
 
 static void InternalDispatchTrace(
     vulkan_context*         Vulkan,
-    vulkan_frame*           Frame,
     basic_renderer*         Renderer,
     push_constant_buffer*   PushConstantBuffer)
 {
+    auto Frame = Vulkan->CurrentFrame;
+
     vkCmdBindPipeline(
         Frame->ComputeCommandBuffer,
         VK_PIPELINE_BIND_POINT_COMPUTE,
@@ -78,10 +79,11 @@ static void InternalDispatchTrace(
 
 static void InternalDispatchScatter(
     vulkan_context*         Vulkan,
-    vulkan_frame*           Frame,
     basic_renderer*         Renderer,
     push_constant_buffer*   PushConstantBuffer)
 {
+    auto Frame = Vulkan->CurrentFrame;
+
     uint RandomSeed = 0;
 
     vkCmdBindPipeline(
@@ -233,9 +235,10 @@ void DestroyBasicRenderer(
 
 void ResetBasicRenderer(
     vulkan_context*     Vulkan,
-    vulkan_frame*       Frame,
     basic_renderer*     Renderer)
 {
+    auto Frame = Vulkan->CurrentFrame;
+
     auto PushConstantBuffer = push_constant_buffer {
         .Camera                         = Renderer->Camera,
         .RenderFlags                    = Renderer->RenderFlags,
@@ -245,12 +248,11 @@ void ResetBasicRenderer(
         .Restart                        = 1u,
     };
 
-    InternalDispatchScatter(Vulkan, Frame, Renderer, &PushConstantBuffer);
+    InternalDispatchScatter(Vulkan, Renderer, &PushConstantBuffer);
 }
 
 void RunBasicRenderer(
     vulkan_context*     Vulkan,
-    vulkan_frame*       Frame,
     basic_renderer*     Renderer,
     uint                Rounds)
 {
@@ -268,7 +270,7 @@ void RunBasicRenderer(
     };
 
     for (uint Round = 0; Round < Rounds; Round++) {
-        InternalDispatchTrace(Vulkan, Frame, Renderer, &PushConstantBuffer);
-        InternalDispatchScatter(Vulkan, Frame, Renderer, &PushConstantBuffer);
+        InternalDispatchTrace(Vulkan, Renderer, &PushConstantBuffer);
+        InternalDispatchScatter(Vulkan, Renderer, &PushConstantBuffer);
     }
 }

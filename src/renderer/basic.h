@@ -27,5 +27,6 @@ struct basic_renderer
 
 basic_renderer*     CreateBasicRenderer(vulkan_context* Vulkan, vulkan_sample_buffer* SampleBuffer);
 void                DestroyBasicRenderer(vulkan_context* Vulkan, basic_renderer* Renderer);
-void                ResetBasicRenderer(vulkan_context* Vulkan, vulkan_frame* Frame, basic_renderer* Renderer);
-void                RunBasicRenderer(vulkan_context* Vulkan, vulkan_frame* Frame, basic_renderer* Renderer, uint Rounds);
+
+void                ResetBasicRenderer(vulkan_context* Vulkan, basic_renderer* Renderer);
+void                RunBasicRenderer(vulkan_context* Vulkan, basic_renderer* Renderer, uint Rounds);
