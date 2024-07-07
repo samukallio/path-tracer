@@ -3,8 +3,6 @@
 #include "core/stb_rect_pack.h"
 
 #include "scene/scene.h"
-#include "scene/material.h"
-#include "scene/material_openpbr.h"
 
 #include <unordered_map>
 #include <unordered_set>

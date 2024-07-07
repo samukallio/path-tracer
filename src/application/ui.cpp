@@ -1,7 +1,5 @@
 #include "core/common.h"
 #include "scene/scene.h"
-#include "scene/material.h"
-#include "scene/material_openpbr.h"
 #include "application/application.h"
 
 #include <imgui.h>

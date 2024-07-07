@@ -3,7 +3,7 @@
 #define BIND_SCENE 0
 
 #include "core/common.glsl.inc"
-#include "scene/material_openpbr.glsl.inc"
+#include "scene/openpbr.glsl.inc"
 
 const vec3 COLORS[20] = vec3[20](
     vec3(0.902, 0.098, 0.294),

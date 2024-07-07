@@ -27,8 +27,7 @@ add_executable (path-tracer
 	src/scene/scene.cpp
 	src/scene/serializer.cpp
 	src/scene/trace.cpp
-	src/scene/material.h
-	src/scene/material_openpbr.h
+	src/scene/openpbr.h
 	src/application/application.h
 	src/application/ui.cpp
 	src/application/ui_font.h
@@ -100,14 +99,14 @@ endfunction ()
 target_sources (path-tracer PRIVATE
 	src/core/common.glsl.inc
 	src/scene/scene.glsl.inc
-	src/scene/material_openpbr.glsl.inc
+	src/scene/openpbr.glsl.inc
 	src/renderer/basic.glsl.inc
 )
 
 source_group ("Shader Files" FILES
 	src/core/common.glsl.inc
 	src/scene/scene.glsl.inc
-	src/scene/material_openpbr.glsl.inc
+	src/scene/openpbr.glsl.inc
 	src/renderer/basic.glsl.inc
 )
 

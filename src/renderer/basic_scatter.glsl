@@ -1,7 +1,7 @@
 #version 450
 
 #include "renderer/basic.glsl.inc"
-#include "scene/material_openpbr.glsl.inc"
+#include "scene/openpbr.glsl.inc"
 
 layout(local_size_x=16, local_size_y=16, local_size_z=1) in;
 

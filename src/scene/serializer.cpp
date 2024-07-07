@@ -2,8 +2,6 @@
 #include "core/json.hpp"
 #include "core/miniz.h"
 #include "scene/scene.h"
-#include "scene/material.h"
-#include "scene/material_openpbr.h"
 
 #include <fstream>
 #include <filesystem>

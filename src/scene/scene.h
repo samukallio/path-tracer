@@ -2,7 +2,24 @@
 
 #include "core/common.h"
 #include "core/spectrum.h"
-#include "scene/material.h"
+
+enum texture_type
+{
+    TEXTURE_TYPE_RAW                    = 0,
+    TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA = 1,
+    TEXTURE_TYPE_RADIANCE               = 2,
+    TEXTURE_TYPE__COUNT                 = 3,
+};
+
+enum texture_flag : uint
+{
+    TEXTURE_FLAG_FILTER_NEAREST         = 1 << 0,
+};
+
+enum material_type
+{
+    MATERIAL_TYPE_OPENPBR               = 0,
+};
 
 enum camera_model : int32_t
 {
@@ -20,6 +37,26 @@ enum shape_type : int32_t
     SHAPE_TYPE_CUBE                     = 3,
 };
 
+inline char const* MaterialTypeName(material_type Type)
+{
+    switch (Type) {
+    case MATERIAL_TYPE_OPENPBR:             return "OpenPBR";
+    }
+    assert(false);
+    return nullptr;
+}
+
+inline char const* TextureTypeName(texture_type Type)
+{
+    switch (Type) {
+    case TEXTURE_TYPE_RAW:                  return "Raw";
+    case TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA: return "Reflectance (with alpha)";
+    case TEXTURE_TYPE_RADIANCE:             return "Radiance";
+    }
+    assert(false);
+    return nullptr;
+}
+
 inline char const* CameraModelName(camera_model Model)
 {
     switch (Model) {
@@ -30,15 +67,6 @@ inline char const* CameraModelName(camera_model Model)
     assert(false);
     return nullptr;
 }
-
-struct hit
-{
-    float               Time;
-    shape_type          ShapeType;
-    uint                ShapeIndex;
-    uint                PrimitiveIndex;
-    vec3                PrimitiveCoordinates;
-};
 
 /* --- Low-Level Scene Representation ---------------------------------------- */
 
@@ -137,6 +165,32 @@ struct alignas(16) camera
 };
 
 /* --- High-Level Scene Representation --------------------------------------- */
+
+struct texture
+{
+    std::string                     Name                    = "New Texture";
+    texture_type                    Type                    = TEXTURE_TYPE_RAW;
+    bool                            EnableNearestFiltering  = false;
+
+    uint32_t                        Width                   = 0;
+    uint32_t                        Height                  = 0;
+    glm::vec4 const*                Pixels                  = nullptr;
+
+    uint32_t                        PackedTextureIndex      = 0;
+};
+
+struct material
+{
+    material_type                   Type                    = {};
+    std::string                     Name                    = "New Material";
+    uint32_t                        Flags                   = 0;
+
+    float                           Opacity                 = 1.0f;
+
+    uint32_t                        PackedMaterialIndex     = 0;
+
+    virtual ~material() {}
+};
 
 struct mesh_face
 {
@@ -373,4 +427,17 @@ entity*     FindEntityByPackedShapeIndex(scene* Scene, uint32_t PackedShapeIndex
 
 // --- trace.cpp --------------------------------------------------------------
 
+struct hit
+{
+    float               Time;
+    shape_type          ShapeType;
+    uint                ShapeIndex;
+    uint                PrimitiveIndex;
+    vec3                PrimitiveCoordinates;
+};
+
 bool        Trace(scene* Scene, ray const& Ray, hit& Hit);
+
+/* --- Material Types -------------------------------------------------------- */
+
+#include "scene/openpbr.h"
