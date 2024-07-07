@@ -179,7 +179,7 @@ static void MaterialInspector(application* App, material* Material, bool Referen
     bool C = false;
 
     if (Material->Type == MATERIAL_TYPE_OPENPBR)
-        OpenPBRMaterialInspector(App, static_cast<material_openpbr*>(Material));
+        C |= OpenPBRMaterialInspector(App, static_cast<material_openpbr*>(Material));
 
     if (C) Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
 

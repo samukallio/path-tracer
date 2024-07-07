@@ -277,7 +277,6 @@ struct prefab
     entity*                         Entity                  = nullptr;
 };
 
-
 enum scene_dirty_flag
 {
     SCENE_DIRTY_GLOBALS             = 1 << 0,

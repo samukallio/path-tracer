@@ -5,6 +5,7 @@
 #include "core/common.h"
 #include "scene/scene.h"
 #include "renderer/vulkan.h"
+#include "renderer/basic.h"
 #include "application/application.h"
 
 #include <GLFW/glfw3.h>
@@ -20,7 +21,10 @@ void Frame()
 {
     ImGuiIO& IO = ImGui::GetIO();
 
-    render_frame_parameters Parameters = {};
+    vulkan_render_sample_buffer_parameters ResolveParameters = {};
+    camera CameraParameters = {};
+    render_mode RenderMode = {};
+    uint RenderFlags = 0;
 
     // ImGui.
     ImGui::NewFrame();
@@ -42,7 +46,7 @@ void Frame()
     ImGui::EndFrame();
     ImGui::Render();
 
-    Parameters.ImGuiDrawData = ImGui::GetDrawData();
+    bool Restart = false;
 
     // Handle camera movement.
     {
@@ -90,7 +94,7 @@ void Frame()
         }
 
         if (WasMoved) {
-            Parameters.RenderRestart = true;
+            Restart = true;
         }
     }
 
@@ -127,27 +131,27 @@ void Frame()
                 if (Entity) {
                     App.SelectedEntity = Entity;
                     App.SelectionType = SELECTION_TYPE_ENTITY;
-                    Parameters.RenderRestart = true;
+                    Restart = true;
                 }
             }
         }
 
-        Parameters.Camera.Model = CAMERA_MODEL_PINHOLE;
-        Parameters.Camera.SensorDistance = 0.020f;
-        Parameters.Camera.SensorSize = { 0.032f, 0.018f };
-        Parameters.Camera.ApertureRadius = 0.0f;
-        Parameters.Camera.Transform = {
+        CameraParameters.Model = CAMERA_MODEL_PINHOLE;
+        CameraParameters.SensorDistance = 0.020f;
+        CameraParameters.SensorSize = { 0.032f, 0.018f };
+        CameraParameters.ApertureRadius = 0.0f;
+        CameraParameters.Transform = {
             .To = WorldMatrix,
             .From = ViewMatrix,
         };
 
-        Parameters.RenderMode = RENDER_MODE_BASE_COLOR_SHADED;
-        Parameters.RenderFlags |= RENDER_FLAG_ACCUMULATE;
-        Parameters.RenderFlags |= RENDER_FLAG_SAMPLE_JITTER;
-        Parameters.RenderBounceLimit = 0;
-        Parameters.Brightness = 1.0f;
-        Parameters.ToneMappingMode = TONE_MAPPING_MODE_CLAMP;
-        Parameters.ToneMappingWhiteLevel = 1.0f;
+        RenderMode = RENDER_MODE_BASE_COLOR_SHADED;
+        RenderFlags |= RENDER_FLAG_ACCUMULATE;
+        RenderFlags |= RENDER_FLAG_SAMPLE_JITTER;
+
+        ResolveParameters.Brightness = 1.0f;
+        ResolveParameters.ToneMappingMode = TONE_MAPPING_MODE_CLAMP;
+        ResolveParameters.ToneMappingWhiteLevel = 1.0f;
 
         //if (App.SelectionType == SELECTION_TYPE_ENTITY)
         //    Uniforms.SelectedShapeIndex = App.SelectedEntity->PackedShapeIndex;
@@ -157,51 +161,72 @@ void Frame()
     else {
         camera_entity* CameraEntity = App.Camera;
 
-        Parameters.Camera.Model = CameraEntity->CameraModel;
+        CameraParameters.Model = CameraEntity->CameraModel;
 
         if (CameraEntity->CameraModel == CAMERA_MODEL_PINHOLE) {
             float const AspectRatio = WINDOW_WIDTH / float(WINDOW_HEIGHT);
-            Parameters.Camera.ApertureRadius = CameraEntity->Pinhole.ApertureDiameterInMM / 2000.0f;
-            Parameters.Camera.SensorSize.x   = 2 * glm::tan(glm::radians(CameraEntity->Pinhole.FieldOfViewInDegrees / 2));
-            Parameters.Camera.SensorSize.y   = Parameters.Camera.SensorSize.x / AspectRatio;
-            Parameters.Camera.SensorDistance = 1.0f;
+            CameraParameters.ApertureRadius = CameraEntity->Pinhole.ApertureDiameterInMM / 2000.0f;
+            CameraParameters.SensorSize.x   = 2 * glm::tan(glm::radians(CameraEntity->Pinhole.FieldOfViewInDegrees / 2));
+            CameraParameters.SensorSize.y   = CameraParameters.SensorSize.x / AspectRatio;
+            CameraParameters.SensorDistance = 1.0f;
         }
 
         if (CameraEntity->CameraModel == CAMERA_MODEL_THIN_LENS) {
-            Parameters.Camera.FocalLength    = CameraEntity->ThinLens.FocalLengthInMM / 1000.0f;
-            Parameters.Camera.ApertureRadius = CameraEntity->ThinLens.ApertureDiameterInMM / 2000.0f;
-            Parameters.Camera.SensorDistance = 1.0f / (1000.0f / CameraEntity->ThinLens.FocalLengthInMM - 1.0f / CameraEntity->ThinLens.FocusDistance);
-            Parameters.Camera.SensorSize     = CameraEntity->ThinLens.SensorSizeInMM / 1000.0f;
+            CameraParameters.FocalLength    = CameraEntity->ThinLens.FocalLengthInMM / 1000.0f;
+            CameraParameters.ApertureRadius = CameraEntity->ThinLens.ApertureDiameterInMM / 2000.0f;
+            CameraParameters.SensorDistance = 1.0f / (1000.0f / CameraEntity->ThinLens.FocalLengthInMM - 1.0f / CameraEntity->ThinLens.FocusDistance);
+            CameraParameters.SensorSize     = CameraEntity->ThinLens.SensorSizeInMM / 1000.0f;
         }
 
-        Parameters.RenderMode = RENDER_MODE_PATH_TRACE;
+        RenderMode  = RENDER_MODE_PATH_TRACE;
+        RenderFlags = CameraEntity->RenderFlags;
 
         vec3 Origin = CameraEntity->Transform.Position;
         vec3 Forward = glm::quat(CameraEntity->Transform.Rotation) * vec3(1, 0, 0);
         mat4 ViewMatrix = glm::lookAt(Origin - Forward * 2.0f, Origin, vec3(0, 0, 1));
         mat4 WorldMatrix = glm::inverse(ViewMatrix);
 
-        Parameters.Camera.Transform = {
+        CameraParameters.Transform = {
             .To = WorldMatrix,
             .From = ViewMatrix,
         };
 
-        Parameters.RenderSampleBlockSize        = 1u << CameraEntity->RenderSampleBlockSizeLog2;
-        Parameters.RenderBounceLimit            = CameraEntity->RenderBounceLimit;
-        Parameters.RenderTerminationProbability = CameraEntity->RenderTerminationProbability;
-        Parameters.Brightness                   = CameraEntity->Brightness;
-        Parameters.ToneMappingMode              = CameraEntity->ToneMappingMode;
-        Parameters.ToneMappingWhiteLevel        = CameraEntity->ToneMappingWhiteLevel;
-        Parameters.RenderFlags                  = CameraEntity->RenderFlags;
+        ResolveParameters.Brightness                   = CameraEntity->Brightness;
+        ResolveParameters.ToneMappingMode              = CameraEntity->ToneMappingMode;
+        ResolveParameters.ToneMappingWhiteLevel        = CameraEntity->ToneMappingWhiteLevel;
     }
 
     if (App.Scene->DirtyFlags != 0)
-        Parameters.RenderRestart = true;
+        Restart = true;
 
     uint DirtyFlags = PackSceneData(App.Scene);
-    UploadScene(App.Vulkan, App.Scene, DirtyFlags);
+    UpdateVulkanScene(App.Vulkan, App.VulkanScene, App.Scene, DirtyFlags);
 
-    RenderFrame(App.Vulkan, &Parameters);
+    auto Frame = BeginFrame(App.Vulkan);
+
+    if (RenderMode == RENDER_MODE_PATH_TRACE) {
+        if (Restart) {
+            App.BasicRenderer->Camera           = CameraParameters;
+            App.BasicRenderer->Scene            = App.VulkanScene;
+            App.BasicRenderer->RenderFlags      = RenderFlags;
+            App.BasicRenderer->PathTerminationProbability = 0.0f; //Parameters.RenderTerminationProbability;
+
+            ResetBasicRenderer(App.Vulkan, Frame, App.BasicRenderer);
+            RunBasicRenderer(App.Vulkan, Frame, App.BasicRenderer, 2);
+        }
+        else {
+            RunBasicRenderer(App.Vulkan, Frame, App.BasicRenderer, 1);
+        }
+    }
+    else {
+        RenderPreview(App.Vulkan, Frame, App.SampleBuffer, App.VulkanScene, CameraParameters, RenderMode);
+    }
+
+    RenderSampleBuffer(App.Vulkan, Frame, App.SampleBuffer, &ResolveParameters);
+
+    RenderImGui(App.Vulkan, Frame, App.VulkanScene, ImGui::GetDrawData());
+
+    EndFrame(App.Vulkan, Frame);
 }
 
 static void MouseButtonInputCallback(GLFWwindow* Window, int Button, int Action, int Mods)
@@ -386,6 +411,14 @@ int main()
     App.Window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, APPLICATION_NAME, nullptr, nullptr);
     App.Vulkan = CreateVulkan(App.Window, APPLICATION_NAME);
 
+    App.VulkanScene = CreateVulkanScene(App.Vulkan);
+
+    App.SampleBuffer = CreateSampleBuffer(App.Vulkan, WINDOW_WIDTH, WINDOW_HEIGHT);
+
+    UpdateVulkanScene(App.Vulkan, App.VulkanScene, Scene, SCENE_DIRTY_ALL);
+
+    App.BasicRenderer = CreateBasicRenderer(App.Vulkan, App.SampleBuffer);
+
     App.EditorCamera.Position = { 0, 0, 0 };
     App.EditorCamera.Velocity = { 0, 0, 0 };
     App.EditorCamera.Rotation = { 0, 0, 0 };
@@ -412,6 +445,14 @@ int main()
 
         App.FrameIndex++;
     }
+
+    vkDeviceWaitIdle(App.Vulkan->Device);
+
+    DestroyBasicRenderer(App.Vulkan, App.BasicRenderer);
+
+    DestroySampleBuffer(App.Vulkan, App.SampleBuffer);
+
+    DestroyVulkanScene(App.Vulkan, App.VulkanScene);
 
     DestroyVulkan(App.Vulkan);
 

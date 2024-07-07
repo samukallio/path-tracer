@@ -35,6 +35,8 @@ add_executable (path-tracer
 	src/application/main.cpp
 	src/renderer/vulkan.h
 	src/renderer/vulkan.cpp
+	src/renderer/basic.h
+	src/renderer/basic.cpp
 	#
 	lib/imgui-1.90.5-docking/imgui.cpp
 	lib/imgui-1.90.5-docking/imgui_draw.cpp
@@ -98,15 +100,15 @@ endfunction ()
 target_sources (path-tracer PRIVATE
 	src/core/common.glsl.inc
 	src/scene/scene.glsl.inc
-	src/scene/trace.glsl.inc
 	src/scene/material_openpbr.glsl.inc
+	src/renderer/basic.glsl.inc
 )
 
 source_group ("Shader Files" FILES
 	src/core/common.glsl.inc
 	src/scene/scene.glsl.inc
-	src/scene/trace.glsl.inc
 	src/scene/material_openpbr.glsl.inc
+	src/renderer/basic.glsl.inc
 )
 
 compile_shader (path-tracer src/renderer/imgui.glsl
@@ -118,15 +120,15 @@ compile_shader (path-tracer src/renderer/resolve.glsl
 		FRAGMENT resolve.fragment.inc
 		DEPENDS src/core/common.glsl.inc)
 
-compile_shader (path-tracer src/renderer/preview.glsl
-		COMPUTE preview.compute.inc
+compile_shader (path-tracer src/renderer/debug.glsl
+		COMPUTE debug.compute.inc
 		DEPENDS src/core/common.glsl.inc)
 
-compile_shader (path-tracer src/renderer/udpt_trace.glsl
-		COMPUTE udpt_trace.compute.inc
+compile_shader (path-tracer src/renderer/basic_trace.glsl
+		COMPUTE basic_trace.compute.inc
 		DEPENDS src/core/common.glsl.inc)
 
-compile_shader (path-tracer src/renderer/udpt_path.glsl
-		COMPUTE udpt_path.compute.inc
+compile_shader (path-tracer src/renderer/basic_scatter.glsl
+		COMPUTE basic_scatter.compute.inc
 		DEPENDS src/core/common.glsl.inc)
 

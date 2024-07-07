@@ -1,20 +1,7 @@
 #version 450
 
-#define BIND_PATH 0
-#define BIND_SCENE 1
-#define BIND_TRACE 2
-
-#include "core/common.glsl.inc"
-#include "scene/scene.glsl.inc"
-#include "scene/trace.glsl.inc"
+#include "renderer/basic.glsl.inc"
 #include "scene/material_openpbr.glsl.inc"
-
-layout(push_constant)
-uniform ComputePushConstantBuffer
-{
-    uint RandomSeed;
-    uint Restart;
-};
 
 layout(local_size_x=16, local_size_y=16, local_size_z=1) in;
 
@@ -253,17 +240,17 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
     }
 
     // Handle probabilistic termination.
-    if (Random0To1() < RenderTerminationProbability) {
+    if (Random0To1() < PathTerminationProbability) {
         Path.Weight = vec4(0.0);
         return;
     }
 
-    Path.Weight *= 1.0 - RenderTerminationProbability;
+    Path.Weight *= 1.0 - PathTerminationProbability;
 
     // Prepare the extension ray.
     Ray.Velocity = In.x * Hit.TangentX
-               + In.y * Hit.TangentY
-               + In.z * Hit.Normal;
+                 + In.y * Hit.TangentY
+                 + In.z * Hit.Normal;
 
     Ray.Origin = Hit.Position + 1e-3 * Ray.Velocity;
 

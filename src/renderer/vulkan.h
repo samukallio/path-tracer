@@ -31,16 +31,36 @@ struct vulkan_image
     uint32_t                    LayerCount                  = 0;
 };
 
+struct vulkan_compute_pipeline_configuration
+{
+    using descriptor_set_layouts = std::vector<VkDescriptorSetLayout>;
+
+    std::span<uint32_t const>   ComputeShaderCode           = {};
+    descriptor_set_layouts      DescriptorSetLayouts        = {};
+    uint32_t                    PushConstantBufferSize      = 0;
+};
+
 struct vulkan_pipeline
 {
     VkPipeline                  Pipeline                    = VK_NULL_HANDLE;
     VkPipelineLayout            PipelineLayout              = VK_NULL_HANDLE;
 };
 
-struct vulkan_frame_state
+struct vulkan_descriptor
+{
+    VkDescriptorType            Type                        = {};
+    vulkan_buffer*              Buffer                      = nullptr;
+    vulkan_image*               Image                       = nullptr;
+    VkImageLayout               ImageLayout                 = VK_IMAGE_LAYOUT_GENERAL;
+    VkSampler                   Sampler                     = VK_NULL_HANDLE;
+};
+
+struct vulkan_frame
 {
     uint32_t                    Index                       = 0;
     bool                        Fresh                       = false;
+
+    vulkan_frame*               Previous                    = nullptr;
 
     // Fence that gets signaled when the previous commands
     // accessing the resources of this frame state have been
@@ -57,14 +77,16 @@ struct vulkan_frame_state
     VkCommandBuffer             GraphicsCommandBuffer       = VK_NULL_HANDLE;
     VkCommandBuffer             ComputeCommandBuffer        = VK_NULL_HANDLE;
 
-    vulkan_buffer               FrameUniformBuffer          = {};
-    VkDescriptorSet             ComputeDescriptorSet        = VK_NULL_HANDLE;
-
-    VkDescriptorSet             ResolveDescriptorSet        = VK_NULL_HANDLE;
-
     vulkan_buffer               ImGuiIndexBuffer            = {};
     vulkan_buffer               ImGuiVertexBuffer           = {};
     VkDescriptorSet             ImGuiDescriptorSet          = {};
+};
+
+struct vulkan_sample_buffer
+{
+    VkDescriptorSet             ResolveDescriptorSet        = VK_NULL_HANDLE;
+    VkDescriptorSet             PreviewDescriptorSet        = VK_NULL_HANDLE;
+    vulkan_image                Image                       = {};
 };
 
 struct vulkan_context
@@ -106,15 +128,31 @@ struct vulkan_context
     VkRenderPass                MainRenderPass              = VK_NULL_HANDLE;
 
     uint32_t                    FrameIndex                  = 0;
-    vulkan_frame_state          FrameStates[2]              = {};
+    vulkan_frame                FrameStates[2]              = {};
 
     VkSampler                   ImageSamplerNearestNoMip    = VK_NULL_HANDLE;
     VkSampler                   ImageSamplerLinear          = VK_NULL_HANDLE;
     VkSampler                   ImageSamplerLinearNoMip     = VK_NULL_HANDLE;
 
     VkDescriptorSetLayout       SceneDescriptorSetLayout    = VK_NULL_HANDLE;
-    VkDescriptorSet             SceneDescriptorSet          = VK_NULL_HANDLE;
-    vulkan_buffer               SceneUniformBuffer          = {};
+
+    VkDescriptorSetLayout       PreviewDescriptorSetLayout  = VK_NULL_HANDLE;
+    vulkan_pipeline             PreviewPipeline             = {};
+
+    VkDescriptorSetLayout       ResolveDescriptorSetLayout  = VK_NULL_HANDLE;
+    vulkan_pipeline             ResolvePipeline             = {};
+
+    VkDescriptorSetLayout       ImGuiDescriptorSetLayout    = VK_NULL_HANDLE;
+    vulkan_pipeline             ImGuiPipeline               = {};
+    vulkan_image                ImGuiTexture                = {};
+
+    std::vector<vulkan_sample_buffer*> SampleBuffers        = {};
+};
+
+struct vulkan_scene
+{
+    VkDescriptorSet             DescriptorSet               = VK_NULL_HANDLE;
+    vulkan_buffer               UniformBuffer               = {};
     vulkan_image                ImageArray                  = {};
     vulkan_buffer               TextureBuffer               = {};
     vulkan_buffer               MaterialBuffer              = {};
@@ -123,59 +161,40 @@ struct vulkan_context
     vulkan_buffer               MeshFaceBuffer              = {};
     vulkan_buffer               MeshVertexBuffer            = {};
     vulkan_buffer               MeshNodeBuffer              = {};
-
-    VkDescriptorSetLayout       TraceDescriptorSetLayout    = VK_NULL_HANDLE;
-    VkDescriptorSet             TraceDescriptorSet          = VK_NULL_HANDLE;
-    vulkan_pipeline             TracePipeline               = {};
-    vulkan_buffer               TraceBuffer                 = {};
-
-    VkDescriptorSetLayout       PreviewDescriptorSetLayout  = VK_NULL_HANDLE;
-    VkDescriptorSet             PreviewDescriptorSet        = VK_NULL_HANDLE;
-    vulkan_pipeline             PreviewPipeline             = {};
-
-    VkDescriptorSetLayout       ComputeDescriptorSetLayout  = VK_NULL_HANDLE;
-    vulkan_pipeline             PathPipeline                = {};
-    vulkan_image                SampleAccumulatorImage      = {};
-    vulkan_buffer               PathBuffer                  = {};
-
-    VkDescriptorSetLayout       ResolveDescriptorSetLayout  = VK_NULL_HANDLE;
-    vulkan_pipeline             ResolvePipeline             = {};
-
-    VkDescriptorSetLayout       ImGuiDescriptorSetLayout    = VK_NULL_HANDLE;
-    vulkan_pipeline             ImGuiPipeline               = {};
-    vulkan_image                ImGuiTexture                = {};
 };
 
-struct render_frame_parameters
+struct vulkan_render_sample_buffer_parameters
 {
-    camera                      Camera = {};
-
-    render_mode                 RenderMode                      = RENDER_MODE_PATH_TRACE;
-    uint                        RenderFlags                     = 0;
-    uint                        RenderSampleBlockSize           = 1;
-    uint                        RenderBounceLimit               = 0;
-    float                       RenderTerminationProbability    = 0.0f;
-    bool                        RenderRestart                   = false;
-
     float                       Brightness                      = 1.0f;
     tone_mapping_mode           ToneMappingMode                 = TONE_MAPPING_MODE_CLAMP;
     float                       ToneMappingWhiteLevel           = 1.0f;
-
-    ImDrawData*                 ImGuiDrawData                   = nullptr;
 };
 
-vulkan_context* CreateVulkan(
-    GLFWwindow* Window,
-    char const* ApplicationName);
+vulkan_context* CreateVulkan(GLFWwindow* Window, char const* ApplicationName);
+void            DestroyVulkan(vulkan_context* Vulkan);
 
-void DestroyVulkan(
-    vulkan_context* Vulkan);
+VkResult        CreateBuffer(vulkan_context* Vulkan, vulkan_buffer* Buffer, VkBufferUsageFlags UsageFlags, VkMemoryPropertyFlags MemoryFlags, VkDeviceSize Size);
+void            DestroyBuffer(vulkan_context* Vulkan, vulkan_buffer* Buffer);
+void            WriteToHostVisibleBuffer(vulkan_context* Vulkan, vulkan_buffer* Buffer, void const* Data, size_t Size);
 
-VkResult UploadScene(
-    vulkan_context* Vulkan,
-    scene const* Scene,
-    uint32_t Flags);
+VkResult        CreateDescriptorSetLayout(vulkan_context* Vulkan, VkDescriptorSetLayout* Layout, std::span<VkDescriptorType> DescriptorTypes);
+void            WriteDescriptorSet(vulkan_context* Vulkan, VkDescriptorSet DescriptorSet, std::span<vulkan_descriptor> Descriptors);
+VkResult        CreateDescriptorSet(vulkan_context* Vulkan, VkDescriptorSetLayout DescriptorSetLayout, VkDescriptorSet* DescriptorSet, std::span<vulkan_descriptor> Descriptors);
 
-VkResult RenderFrame(
-    vulkan_context* Vulkan,
-    render_frame_parameters* Parameters);
+VkResult        CreateComputePipeline(vulkan_context* Vulkan, vulkan_pipeline* Pipeline, vulkan_compute_pipeline_configuration const& Config);
+void            DestroyPipeline(vulkan_context* Vulkan, vulkan_pipeline* Pipeline);
+
+vulkan_scene*   CreateVulkanScene(vulkan_context* Vulkan);
+void            UpdateVulkanScene(vulkan_context* Vulkan, vulkan_scene* VulkanScene, scene* Scene, uint32_t Flags);
+void            DestroyVulkanScene(vulkan_context* Vulkan, vulkan_scene* VulkanScene);
+
+vulkan_sample_buffer* CreateSampleBuffer(vulkan_context* Vulkan, uint Width, uint Height);
+void            DestroySampleBuffer(vulkan_context* Vulkan, vulkan_sample_buffer* SampleBuffer);
+void            RenderSampleBuffer(vulkan_context* Vulkan, vulkan_frame* Frame, vulkan_sample_buffer* SampleBuffer, vulkan_render_sample_buffer_parameters* Parameters);
+
+void            RenderPreview(vulkan_context* Vulkan, vulkan_frame* Frame, vulkan_sample_buffer* SampleBuffer, vulkan_scene* Scene, camera const& Camera, render_mode RenderMode);
+
+void            RenderImGui(vulkan_context* Vulkan, vulkan_frame* Frame, vulkan_scene* Scene, ImDrawData* DrawData);
+
+vulkan_frame*   BeginFrame(vulkan_context* Vulkan);
+void            EndFrame(vulkan_context* Vulkan, vulkan_frame* Frame);

@@ -5,6 +5,9 @@
 
 struct GLFWwindow;
 struct vulkan_context;
+struct vulkan_scene;
+struct vulkan_sample_buffer;
+struct basic_renderer;
 
 struct editor_camera
 {
@@ -25,24 +28,28 @@ enum selection_type
 
 struct application
 {
-    GLFWwindow*     Window              = nullptr;
-    vulkan_context* Vulkan              = nullptr;
+    GLFWwindow*             Window              = nullptr;
+    vulkan_context*         Vulkan              = nullptr;
+    vulkan_scene*           VulkanScene         = nullptr;
 
-    uint32_t        FrameIndex          = 0;
+    vulkan_sample_buffer*   SampleBuffer        = nullptr;
+    basic_renderer*         BasicRenderer       = nullptr;
 
-    editor_camera   EditorCamera;
+    uint32_t                FrameIndex          = 0;
 
-    selection_type  SelectionType       = SELECTION_TYPE_NONE;
-    texture*        SelectedTexture     = nullptr;
-    material*       SelectedMaterial    = nullptr;
-    mesh*           SelectedMesh        = nullptr;
-    prefab*         SelectedPrefab      = nullptr;
-    entity*         SelectedEntity      = nullptr;
+    editor_camera           EditorCamera;
 
-    scene*          Scene               = nullptr;
-    camera_entity*  Camera              = nullptr;
+    selection_type          SelectionType       = SELECTION_TYPE_NONE;
+    texture*                SelectedTexture     = nullptr;
+    material*               SelectedMaterial    = nullptr;
+    mesh*                   SelectedMesh        = nullptr;
+    prefab*                 SelectedPrefab      = nullptr;
+    entity*                 SelectedEntity      = nullptr;
 
-    bool            ShowUI              = true;
+    scene*                  Scene               = nullptr;
+    camera_entity*          Camera              = nullptr;
+
+    bool                    ShowUI              = true;
 };
 
 void InitializeUI(application* App);

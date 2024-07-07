@@ -28,19 +28,9 @@ uint32_t const RESOLVE_FRAGMENT_SHADER[] =
     #include "resolve.fragment.inc"
 };
 
-uint32_t const PATH_COMPUTE_SHADER[] =
+uint32_t const DEBUG_COMPUTE_SHADER[] =
 {
-    #include "udpt_path.compute.inc"
-};
-
-uint32_t const TRACE_COMPUTE_SHADER[] =
-{
-    #include "udpt_trace.compute.inc"
-};
-
-uint32_t const PREVIEW_COMPUTE_SHADER[] =
-{
-    #include "preview.compute.inc"
+    #include "debug.compute.inc"
 };
 
 uint32_t const IMGUI_VERTEX_SHADER[] =
@@ -59,29 +49,10 @@ struct imgui_push_constant_buffer
     uint TextureID;
 };
 
-// This structure is shared between CPU and GPU,
-// and must follow std430 layout rules.
-struct frame_uniform_buffer
-{
-    camera              Camera;
-    render_mode         RenderMode                      = RENDER_MODE_PATH_TRACE;
-    uint                RenderFlags                     = 0;
-    uint                RenderSampleBlockSize           = 1;
-    uint                RenderBounceLimit               = 0;
-    float               RenderTerminationProbability    = 0.0f;
-};
-
 struct compute_push_constant_buffer
 {
     uint RandomSeed;
     uint Restart;
-};
-
-struct resolve_push_constant_buffer
-{
-    float               Brightness;
-    tone_mapping_mode   ToneMappingMode;
-    float               ToneMappingWhiteLevel;
 };
 
 struct preview_push_constant_buffer
@@ -133,7 +104,7 @@ static void DestroyDebugUtilsMessengerEXT(
     Fn(Instance, DebugMessenger, Allocator);
 }
 
-static VkResult InternalCreateBuffer(
+VkResult CreateBuffer(
     vulkan_context* Vulkan,
     vulkan_buffer* Buffer,
     VkBufferUsageFlags UsageFlags,
@@ -194,7 +165,7 @@ static VkResult InternalCreateBuffer(
     return VK_SUCCESS;
 }
 
-static void InternalDestroyBuffer(
+void DestroyBuffer(
     vulkan_context* Vulkan,
     vulkan_buffer* Buffer)
 {
@@ -204,7 +175,7 @@ static void InternalDestroyBuffer(
         vkFreeMemory(Vulkan->Device, Buffer->Memory, nullptr);
 }
 
-static void InternalWriteToHostVisibleBuffer(
+void WriteToHostVisibleBuffer(
     vulkan_context* Vulkan,
     vulkan_buffer* Buffer,
     void const* Data,
@@ -227,12 +198,12 @@ static void InternalWriteToDeviceLocalBuffer(
 
     // Create a staging buffer and copy the data into it.
     vulkan_buffer Staging;
-    InternalCreateBuffer(Vulkan,
+    CreateBuffer(Vulkan,
         &Staging,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         Buffer->Size);
-    InternalWriteToHostVisibleBuffer(Vulkan, &Staging, Data, Size);
+    WriteToHostVisibleBuffer(Vulkan, &Staging, Data, Size);
 
     // Now copy the data into the device local buffer.
     VkCommandBufferAllocateInfo AllocateInfo = {
@@ -271,7 +242,7 @@ static void InternalWriteToDeviceLocalBuffer(
     vkFreeCommandBuffers(Vulkan->Device, Vulkan->ComputeCommandPool, 1, &CommandBuffer);
 
     // Delete the staging buffer.
-    InternalDestroyBuffer(Vulkan, &Staging);
+    DestroyBuffer(Vulkan, &Staging);
 }
 
 static VkResult InternalCreateImage(
@@ -482,12 +453,12 @@ static VkResult InternalWriteToDeviceLocalImage(
 
     // Create a staging buffer and copy the data into it.
     vulkan_buffer Staging;
-    InternalCreateBuffer(Vulkan,
+    CreateBuffer(Vulkan,
         &Staging,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         Size);
-    InternalWriteToHostVisibleBuffer(Vulkan, &Staging, Data, Size);
+    WriteToHostVisibleBuffer(Vulkan, &Staging, Data, Size);
 
     VkCommandBufferAllocateInfo AllocateInfo = {
         .sType              = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
@@ -634,15 +605,15 @@ static VkResult InternalWriteToDeviceLocalImage(
     vkFreeCommandBuffers(Vulkan->Device, Vulkan->ComputeCommandPool, 1, &CommandBuffer);
 
     // Delete the staging buffer.
-    InternalDestroyBuffer(Vulkan, &Staging);
+    DestroyBuffer(Vulkan, &Staging);
 
     return VK_SUCCESS;
 }
 
-static VkResult InternalCreateDescriptorSetLayout(
-    vulkan_context*                    Vulkan,
-    VkDescriptorSetLayout*             Layout,
-    std::span<VkDescriptorType> const& DescriptorTypes)
+VkResult CreateDescriptorSetLayout(
+    vulkan_context*             Vulkan,
+    VkDescriptorSetLayout*      Layout,
+    std::span<VkDescriptorType> DescriptorTypes)
 {
     VkResult Result = VK_SUCCESS;
 
@@ -672,16 +643,7 @@ static VkResult InternalCreateDescriptorSetLayout(
     return Result;
 }
 
-struct vulkan_descriptor
-{
-    VkDescriptorType    Type        = {};
-    vulkan_buffer*      Buffer      = nullptr;
-    vulkan_image*       Image       = nullptr;
-    VkImageLayout       ImageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    VkSampler           Sampler     = VK_NULL_HANDLE;
-};
-
-static void InternalWriteDescriptorSet(
+void WriteDescriptorSet(
     vulkan_context*              Vulkan,
     VkDescriptorSet              DescriptorSet,
     std::span<vulkan_descriptor> Descriptors)
@@ -729,7 +691,7 @@ static void InternalWriteDescriptorSet(
     vkUpdateDescriptorSets(Vulkan->Device, static_cast<uint32_t>(std::size(Descriptors)), Writes, 0, nullptr);
 }
 
-static VkResult InternalCreateDescriptorSet(
+VkResult CreateDescriptorSet(
     vulkan_context*              Vulkan,
     VkDescriptorSetLayout        DescriptorSetLayout,
     VkDescriptorSet*             DescriptorSet,
@@ -750,7 +712,7 @@ static VkResult InternalCreateDescriptorSet(
         return Result;
     }
 
-    InternalWriteDescriptorSet(Vulkan, *DescriptorSet, Descriptors);
+    WriteDescriptorSet(Vulkan, *DescriptorSet, Descriptors);
     return Result;
 }
 
@@ -921,7 +883,7 @@ static VkResult InternalCreateFrameResources(
     VkResult Result = VK_SUCCESS;
 
     for (int Index = 0; Index < 2; Index++) {
-        vulkan_frame_state* Frame = &Vulkan->FrameStates[Index];
+        vulkan_frame* Frame = &Vulkan->FrameStates[Index];
 
         Frame->Index = Index;
         Frame->Fresh = true;
@@ -988,19 +950,13 @@ static VkResult InternalCreateFrameResources(
             }
         }
 
-        InternalCreateBuffer(Vulkan,
-            &Frame->FrameUniformBuffer,
-            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-            sizeof(frame_uniform_buffer));
-
-        InternalCreateBuffer(Vulkan,
+        CreateBuffer(Vulkan,
             &Frame->ImGuiVertexBuffer,
             VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             65536 * sizeof(ImDrawVert));
 
-        InternalCreateBuffer(Vulkan,
+        CreateBuffer(Vulkan,
             &Frame->ImGuiIndexBuffer,
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
@@ -1009,46 +965,8 @@ static VkResult InternalCreateFrameResources(
 
     // Allocate and initialize descriptor sets.
     for (int Index = 0; Index < 2; Index++) {
-        vulkan_frame_state* Frame0 = &Vulkan->FrameStates[1-Index];
-        vulkan_frame_state* Frame = &Vulkan->FrameStates[Index];
-
-        // Compute kernels' descriptor set.
-        vulkan_descriptor ComputeDescriptors[] = {
-            {
-                .Type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .Buffer = &Frame->FrameUniformBuffer,
-            },
-            {
-                .Type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                .Image = &Vulkan->SampleAccumulatorImage,
-            },
-            {
-                .Type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .Buffer = &Vulkan->PathBuffer,
-            },
-        };
-
-        Result = InternalCreateDescriptorSet(Vulkan,
-            Vulkan->ComputeDescriptorSetLayout,
-            &Frame->ComputeDescriptorSet,
-            ComputeDescriptors);
-        if (Result != VK_SUCCESS) return Result;
-
-        // Resolve descriptor set.
-        vulkan_descriptor ResolveDescriptors[] = {
-            {
-                .Type        = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-                .Image       = &Vulkan->SampleAccumulatorImage,
-                .ImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                .Sampler     = Vulkan->ImageSamplerLinear
-            }
-        };
-
-        Result = InternalCreateDescriptorSet(Vulkan,
-            Vulkan->ResolveDescriptorSetLayout,
-            &Frame->ResolveDescriptorSet,
-            ResolveDescriptors);
-        if (Result != VK_SUCCESS) return Result;
+        vulkan_frame* Frame0 = &Vulkan->FrameStates[1-Index];
+        vulkan_frame* Frame = &Vulkan->FrameStates[Index];
 
         // ImGui descriptor set.
         vulkan_descriptor ImguiDescriptors[] = {
@@ -1060,12 +978,15 @@ static VkResult InternalCreateFrameResources(
             }
         };
 
-        Result = InternalCreateDescriptorSet(Vulkan,
+        Result = CreateDescriptorSet(Vulkan,
             Vulkan->ImGuiDescriptorSetLayout,
             &Frame->ImGuiDescriptorSet,
             ImguiDescriptors);
         if (Result != VK_SUCCESS) return Result;
     }
+
+    Vulkan->FrameStates[0].Previous = &Vulkan->FrameStates[1];
+    Vulkan->FrameStates[1].Previous = &Vulkan->FrameStates[0];
 
     return VK_SUCCESS;
 }
@@ -1074,12 +995,10 @@ static VkResult InternalDestroyFrameResources(
     vulkan_context* Vulkan)
 {
     for (int Index = 0; Index < 2; Index++) {
-        vulkan_frame_state* Frame = &Vulkan->FrameStates[Index];
+        vulkan_frame* Frame = &Vulkan->FrameStates[Index];
 
-        InternalDestroyBuffer(Vulkan, &Frame->ImGuiIndexBuffer);
-        InternalDestroyBuffer(Vulkan, &Frame->ImGuiVertexBuffer);
-
-        InternalDestroyBuffer(Vulkan, &Frame->FrameUniformBuffer);
+        DestroyBuffer(Vulkan, &Frame->ImGuiIndexBuffer);
+        DestroyBuffer(Vulkan, &Frame->ImGuiVertexBuffer);
 
         vkDestroySemaphore(Vulkan->Device, Frame->ComputeToComputeSemaphore, nullptr);
         vkDestroySemaphore(Vulkan->Device, Frame->ComputeToGraphicsSemaphore, nullptr);
@@ -1309,16 +1228,7 @@ static VkResult InternalCreateGraphicsPipeline(
     return Result;
 }
 
-struct vulkan_compute_pipeline_configuration
-{
-    using descriptor_set_layouts = std::vector<VkDescriptorSetLayout>;
-
-    std::span<uint32_t const>   ComputeShaderCode           = {};
-    descriptor_set_layouts      DescriptorSetLayouts        = {};
-    uint32_t                    PushConstantBufferSize      = 0;
-};
-
-static VkResult InternalCreateComputePipeline(
+VkResult CreateComputePipeline(
     vulkan_context*     Vulkan,
     vulkan_pipeline*    Pipeline,
     vulkan_compute_pipeline_configuration const& Config)
@@ -1385,7 +1295,7 @@ static VkResult InternalCreateComputePipeline(
     return Result;
 }
 
-static void InternalDestroyPipeline(
+void DestroyPipeline(
     vulkan_context*     Vulkan,
     vulkan_pipeline*    Pipeline)
 {
@@ -1855,29 +1765,8 @@ static VkResult InternalCreateVulkan(
         }
     }
 
-    //
+    // Create descriptor set layout for scene resources.
     {
-        InternalCreateImage(Vulkan,
-            &Vulkan->SampleAccumulatorImage,
-            VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            VK_IMAGE_TYPE_2D,
-            VK_FORMAT_R32G32B32A32_SFLOAT,
-            { .width = RENDER_WIDTH, .height = RENDER_HEIGHT, .depth = 1 },
-            0,
-            VK_IMAGE_TILING_OPTIMAL,
-            VK_IMAGE_LAYOUT_GENERAL,
-            true);
-    }
-
-    // Create scene resources.
-    {
-        InternalCreateBuffer(Vulkan,
-            &Vulkan->SceneUniformBuffer,
-            VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            sizeof(packed_scene_globals));
-
         VkDescriptorType SceneDescriptorTypes[] = {
             VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,          // SceneUniformBuffer
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,  // TextureArrayNearest
@@ -1891,61 +1780,7 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // MeshNodeSSBO
         };
 
-        InternalCreateDescriptorSetLayout(Vulkan, &Vulkan->SceneDescriptorSetLayout, SceneDescriptorTypes);
-
-        VkDescriptorSetAllocateInfo DescriptorSetAllocateInfo = {
-            .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool     = Vulkan->DescriptorPool,
-            .descriptorSetCount = 1,
-            .pSetLayouts        = &Vulkan->SceneDescriptorSetLayout,
-        };
-
-        Result = vkAllocateDescriptorSets(Vulkan->Device, &DescriptorSetAllocateInfo, &Vulkan->SceneDescriptorSet);
-        if (Result != VK_SUCCESS) {
-            Errorf(Vulkan, "failed to allocate scene descriptor set");
-            return Result;
-        }
-    }
-
-    // Create trace kernel resources.
-    {
-        VkDescriptorType TraceDescriptorTypes[] = {
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER, // TraceSSBO
-        };
-
-        Result = InternalCreateDescriptorSetLayout(Vulkan, &Vulkan->TraceDescriptorSetLayout, TraceDescriptorTypes);
-        if (Result != VK_SUCCESS) return Result;
-
-        auto TraceConfig = vulkan_compute_pipeline_configuration {
-            .ComputeShaderCode = TRACE_COMPUTE_SHADER,
-            .DescriptorSetLayouts = {
-                Vulkan->SceneDescriptorSetLayout,
-                Vulkan->TraceDescriptorSetLayout,
-            },
-        };
-
-        Result = InternalCreateComputePipeline(Vulkan, &Vulkan->TracePipeline, TraceConfig);
-        if (Result != VK_SUCCESS) return Result;
-
-        Result = InternalCreateBuffer(Vulkan,
-            &Vulkan->TraceBuffer,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            256ull << 20);
-        if (Result != VK_SUCCESS) return Result;
-
-        vulkan_descriptor TraceDescriptors[] = {
-            {
-                .Type = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .Buffer = &Vulkan->TraceBuffer,
-            },
-        };
-
-        Result = InternalCreateDescriptorSet(Vulkan,
-            Vulkan->TraceDescriptorSetLayout,
-            &Vulkan->TraceDescriptorSet,
-            TraceDescriptors);
-        if (Result != VK_SUCCESS) return Result;
+        CreateDescriptorSetLayout(Vulkan, &Vulkan->SceneDescriptorSetLayout, SceneDescriptorTypes);
     }
 
     // Create preview renderer resources.
@@ -1954,11 +1789,11 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, // SampleAccumulatorImage
         };
 
-        Result = InternalCreateDescriptorSetLayout(Vulkan, &Vulkan->PreviewDescriptorSetLayout, DescriptorTypes);
+        Result = CreateDescriptorSetLayout(Vulkan, &Vulkan->PreviewDescriptorSetLayout, DescriptorTypes);
         if (Result != VK_SUCCESS) return Result;
 
         auto PipelineConfig = vulkan_compute_pipeline_configuration {
-            .ComputeShaderCode = PREVIEW_COMPUTE_SHADER,
+            .ComputeShaderCode = DEBUG_COMPUTE_SHADER,
             .DescriptorSetLayouts = {
                 Vulkan->PreviewDescriptorSetLayout,
                 Vulkan->SceneDescriptorSetLayout,
@@ -1966,20 +1801,7 @@ static VkResult InternalCreateVulkan(
             .PushConstantBufferSize = sizeof(preview_push_constant_buffer),
         };
 
-        Result = InternalCreateComputePipeline(Vulkan, &Vulkan->PreviewPipeline, PipelineConfig);
-        if (Result != VK_SUCCESS) return Result;
-
-        vulkan_descriptor Descriptors[] = {
-            {
-                .Type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-                .Image = &Vulkan->SampleAccumulatorImage,
-            },
-        };
-
-        Result = InternalCreateDescriptorSet(Vulkan,
-            Vulkan->PreviewDescriptorSetLayout,
-            &Vulkan->PreviewDescriptorSet,
-            Descriptors);
+        Result = CreateComputePipeline(Vulkan, &Vulkan->PreviewPipeline, PipelineConfig);
         if (Result != VK_SUCCESS) return Result;
     }
 
@@ -2017,7 +1839,7 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
         };
 
-        Result = InternalCreateDescriptorSetLayout(Vulkan, &Vulkan->ImGuiDescriptorSetLayout, DescriptorTypes);
+        Result = CreateDescriptorSetLayout(Vulkan, &Vulkan->ImGuiDescriptorSetLayout, DescriptorTypes);
         if (Result != VK_SUCCESS) return Result;
 
         auto ImguiConfig = vulkan_graphics_pipeline_configuration {
@@ -2057,54 +1879,22 @@ static VkResult InternalCreateVulkan(
         }
     }
 
-    // Create compute resources.
-    {
-        Result = InternalCreateBuffer(Vulkan,
-            &Vulkan->PathBuffer,
-            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
-            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-            144ull << 20);
-        if (Result != VK_SUCCESS) return Result;
-
-        VkDescriptorType ComputeDescriptorTypes[] = {
-            VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,          // FrameUniformBuffer
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,           // SampleAccumulatorImage
-            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // PathSSBO
-        };
-
-        Result = InternalCreateDescriptorSetLayout(Vulkan, &Vulkan->ComputeDescriptorSetLayout, ComputeDescriptorTypes);
-        if (Result != VK_SUCCESS) return Result;
-
-        auto PathConfig = vulkan_compute_pipeline_configuration {
-            .ComputeShaderCode = PATH_COMPUTE_SHADER,
-            .DescriptorSetLayouts = {
-                Vulkan->ComputeDescriptorSetLayout,
-                Vulkan->SceneDescriptorSetLayout,
-                Vulkan->TraceDescriptorSetLayout,
-            },
-            .PushConstantBufferSize = sizeof(compute_push_constant_buffer),
-        };
-
-        Result = InternalCreateComputePipeline(Vulkan, &Vulkan->PathPipeline, PathConfig);
-        if (Result != VK_SUCCESS) return Result;
-    }
-
-    // Create resolver resources.
+    // Create sample buffer resolver resources.
     {
         VkDescriptorType ResolveDescriptorTypes[] = {
             VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // SampleAccumulatorImage
         };
 
-        Result = InternalCreateDescriptorSetLayout(Vulkan, &Vulkan->ResolveDescriptorSetLayout, ResolveDescriptorTypes);
+        Result = CreateDescriptorSetLayout(Vulkan, &Vulkan->ResolveDescriptorSetLayout, ResolveDescriptorTypes);
         if (Result != VK_SUCCESS) return Result;
 
         auto ResolveConfig = vulkan_graphics_pipeline_configuration {
-            .VertexSize         = 0,
-            .VertexFormat       = {},
-            .VertexShaderCode   = RESOLVE_VERTEX_SHADER,
-            .FragmentShaderCode = RESOLVE_FRAGMENT_SHADER,
-            .DescriptorSetLayouts = { Vulkan->ResolveDescriptorSetLayout },
-            .PushConstantBufferSize = sizeof(resolve_push_constant_buffer),
+            .VertexSize             = 0,
+            .VertexFormat           = {},
+            .VertexShaderCode       = RESOLVE_VERTEX_SHADER,
+            .FragmentShaderCode     = RESOLVE_FRAGMENT_SHADER,
+            .DescriptorSetLayouts   = { Vulkan->ResolveDescriptorSetLayout },
+            .PushConstantBufferSize = sizeof(vulkan_render_sample_buffer_parameters),
         };
 
         Result = InternalCreateGraphicsPipeline(Vulkan, &Vulkan->ResolvePipeline, ResolveConfig);
@@ -2147,31 +1937,14 @@ void DestroyVulkan(vulkan_context* Vulkan)
 
     InternalDestroyImage(Vulkan, &Vulkan->ImGuiTexture);
 
-    InternalDestroyBuffer(Vulkan, &Vulkan->PathBuffer);
-    InternalDestroyBuffer(Vulkan, &Vulkan->TraceBuffer);
-
-    InternalDestroyBuffer(Vulkan, &Vulkan->TextureBuffer);
-    InternalDestroyBuffer(Vulkan, &Vulkan->MaterialBuffer);
-    InternalDestroyBuffer(Vulkan, &Vulkan->ShapeNodeBuffer);
-    InternalDestroyBuffer(Vulkan, &Vulkan->ShapeBuffer);
-    InternalDestroyBuffer(Vulkan, &Vulkan->MeshNodeBuffer);
-    InternalDestroyBuffer(Vulkan, &Vulkan->MeshVertexBuffer);
-    InternalDestroyBuffer(Vulkan, &Vulkan->MeshFaceBuffer);
-    InternalDestroyImage(Vulkan, &Vulkan->ImageArray);
-    InternalDestroyBuffer(Vulkan, &Vulkan->SceneUniformBuffer);
-
-    InternalDestroyImage(Vulkan, &Vulkan->SampleAccumulatorImage);
-
     InternalDestroyFrameResources(Vulkan);
 
     // Destroy swap chain and any other window-related resources.
     InternalDestroyPresentationResources(Vulkan);
 
-    InternalDestroyPipeline(Vulkan, &Vulkan->ImGuiPipeline);
-    InternalDestroyPipeline(Vulkan, &Vulkan->ResolvePipeline);
-    InternalDestroyPipeline(Vulkan, &Vulkan->PathPipeline);
-    InternalDestroyPipeline(Vulkan, &Vulkan->TracePipeline);
-    InternalDestroyPipeline(Vulkan, &Vulkan->PreviewPipeline);
+    DestroyPipeline(Vulkan, &Vulkan->ImGuiPipeline);
+    DestroyPipeline(Vulkan, &Vulkan->ResolvePipeline);
+    DestroyPipeline(Vulkan, &Vulkan->PreviewPipeline);
 
     if (Vulkan->ImGuiDescriptorSetLayout) {
         vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->ImGuiDescriptorSetLayout, nullptr);
@@ -2183,19 +1956,9 @@ void DestroyVulkan(vulkan_context* Vulkan)
         Vulkan->ResolveDescriptorSetLayout = VK_NULL_HANDLE;
     }
 
-    if (Vulkan->ComputeDescriptorSetLayout) {
-        vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->ComputeDescriptorSetLayout, nullptr);
-        Vulkan->ComputeDescriptorSetLayout = VK_NULL_HANDLE;
-    }
-
     if (Vulkan->PreviewDescriptorSetLayout) {
         vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->PreviewDescriptorSetLayout, nullptr);
         Vulkan->PreviewDescriptorSetLayout = VK_NULL_HANDLE;
-    }
-
-    if (Vulkan->TraceDescriptorSetLayout) {
-        vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->TraceDescriptorSetLayout, nullptr);
-        Vulkan->TraceDescriptorSetLayout = VK_NULL_HANDLE;
     }
 
     if (Vulkan->SceneDescriptorSetLayout) {
@@ -2285,9 +2048,38 @@ static void InternalWaitForWindowSize(
     }
 }
 
-VkResult UploadScene(
+vulkan_scene* CreateVulkanScene(
+    vulkan_context* Vulkan)
+{
+    VkResult Result = VK_SUCCESS;
+    auto VulkanScene = new vulkan_scene;
+
+    CreateBuffer(Vulkan,
+        &VulkanScene->UniformBuffer,
+        VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        sizeof(packed_scene_globals));
+
+    VkDescriptorSetAllocateInfo DescriptorSetAllocateInfo = {
+        .sType              = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool     = Vulkan->DescriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts        = &Vulkan->SceneDescriptorSetLayout,
+    };
+
+    Result = vkAllocateDescriptorSets(Vulkan->Device, &DescriptorSetAllocateInfo, &VulkanScene->DescriptorSet);
+    if (Result != VK_SUCCESS) {
+        Errorf(Vulkan, "failed to allocate scene descriptor set");
+        return nullptr;
+    }
+
+    return VulkanScene;
+}
+
+void UpdateVulkanScene(
     vulkan_context* Vulkan,
-    scene const*    Scene,
+    vulkan_scene*   VulkanScene,
+    scene*          Scene,
     uint32_t        DirtyFlags)
 {
     VkResult Result = VK_SUCCESS;
@@ -2308,12 +2100,12 @@ VkResult UploadScene(
     vulkan_buffer MeshNodeBufferOld = {};
 
     if (DirtyFlags & SCENE_DIRTY_GLOBALS) {
-        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->SceneUniformBuffer, &Scene->Globals, sizeof(packed_scene_globals));
+        InternalWriteToDeviceLocalBuffer(Vulkan, &VulkanScene->UniformBuffer, &Scene->Globals, sizeof(packed_scene_globals));
     }
 
     if (DirtyFlags & SCENE_DIRTY_TEXTURES) {
-        ImageArrayOld = Vulkan->ImageArray;
-        Vulkan->ImageArray = vulkan_image {};
+        ImageArrayOld = VulkanScene->ImageArray;
+        VulkanScene->ImageArray = vulkan_image {};
 
         uint32_t ImageCount = static_cast<uint32_t>(Scene->Images.size());
 
@@ -2332,7 +2124,7 @@ VkResult UploadScene(
 
         Result = InternalCreateImage(
             Vulkan,
-            &Vulkan->ImageArray,
+            &VulkanScene->ImageArray,
             VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             VK_IMAGE_TYPE_2D,
@@ -2345,295 +2137,315 @@ VkResult UploadScene(
         for (uint32_t Index = 0; Index < ImageCount; Index++) {
             image const& Image = Scene->Images[Index];
             InternalWriteToDeviceLocalImage(Vulkan,
-                &Vulkan->ImageArray,
+                &VulkanScene->ImageArray,
                 Index, 1,
                 Image.Pixels,
                 Image.Width, Image.Height, sizeof(vec4),
                 VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
         }
 
-        TextureBufferOld = Vulkan->TextureBuffer;
-        Vulkan->TextureBuffer = vulkan_buffer {};
+        TextureBufferOld = VulkanScene->TextureBuffer;
+        VulkanScene->TextureBuffer = vulkan_buffer {};
 
         size_t TextureBufferSize = sizeof(packed_texture) * Scene->TexturePack.size();
-        Result = InternalCreateBuffer(
+        Result = CreateBuffer(
             Vulkan,
-            &Vulkan->TextureBuffer,
+            &VulkanScene->TextureBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             std::max(1024ull, TextureBufferSize));
-        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->TextureBuffer, Scene->TexturePack.data(), TextureBufferSize);
+        InternalWriteToDeviceLocalBuffer(Vulkan, &VulkanScene->TextureBuffer, Scene->TexturePack.data(), TextureBufferSize);
     }
 
     if (DirtyFlags & SCENE_DIRTY_MATERIALS) {
-        MaterialBufferOld = Vulkan->MaterialBuffer;
-        Vulkan->MaterialBuffer = vulkan_buffer {};
+        MaterialBufferOld = VulkanScene->MaterialBuffer;
+        VulkanScene->MaterialBuffer = vulkan_buffer {};
 
         size_t MaterialBufferSize = sizeof(uint) * Scene->MaterialAttributePack.size();
-        Result = InternalCreateBuffer(
+        Result = CreateBuffer(
             Vulkan,
-            &Vulkan->MaterialBuffer,
+            &VulkanScene->MaterialBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             std::max(1024ull, MaterialBufferSize));
-        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MaterialBuffer, Scene->MaterialAttributePack.data(), MaterialBufferSize);
+        InternalWriteToDeviceLocalBuffer(Vulkan, &VulkanScene->MaterialBuffer, Scene->MaterialAttributePack.data(), MaterialBufferSize);
     }
 
     if (DirtyFlags & SCENE_DIRTY_SHAPES) {
-        size_t ShapeBufferSize = sizeof(packed_shape) * Scene->ShapePack.size();
-        if (ShapeBufferSize > Vulkan->ShapeBuffer.Size) {
-            ShapeBufferOld = Vulkan->ShapeBuffer;
-            Vulkan->ShapeBuffer = vulkan_buffer {};
+        size_t ShapeBufferCreateSize = std::max(1024ull, sizeof(packed_shape) * Scene->ShapePack.size());
+        if (ShapeBufferCreateSize > VulkanScene->ShapeBuffer.Size) {
+            ShapeBufferOld = VulkanScene->ShapeBuffer;
+            VulkanScene->ShapeBuffer = vulkan_buffer {};
 
-            Result = InternalCreateBuffer(
+            Result = CreateBuffer(
                 Vulkan,
-                &Vulkan->ShapeBuffer,
+                &VulkanScene->ShapeBuffer,
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                std::max(1024ull, ShapeBufferSize));
+                ShapeBufferCreateSize);
 
         }
-        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->ShapeBuffer, Scene->ShapePack.data(), ShapeBufferSize);
+        InternalWriteToDeviceLocalBuffer(
+            Vulkan, &VulkanScene->ShapeBuffer,
+            Scene->ShapePack.data(),
+            Scene->ShapePack.size() * sizeof(packed_shape));
 
-        size_t ShapeNodeBufferSize = sizeof(packed_shape_node) * Scene->ShapeNodePack.size();
-        if (ShapeNodeBufferSize > Vulkan->ShapeNodeBuffer.Size) {
-            ShapeNodeBufferOld = Vulkan->ShapeNodeBuffer;
-            Vulkan->ShapeNodeBuffer = vulkan_buffer {};
+        size_t ShapeNodeBufferCreateSize = std::max(1024ull, sizeof(packed_shape_node) * Scene->ShapeNodePack.size());
+        if (ShapeNodeBufferCreateSize > VulkanScene->ShapeNodeBuffer.Size) {
+            ShapeNodeBufferOld = VulkanScene->ShapeNodeBuffer;
+            VulkanScene->ShapeNodeBuffer = vulkan_buffer {};
 
-            Result = InternalCreateBuffer(
+            Result = CreateBuffer(
                 Vulkan,
-                &Vulkan->ShapeNodeBuffer,
+                &VulkanScene->ShapeNodeBuffer,
                 VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                 VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                std::max(1024ull, ShapeNodeBufferSize));
+                ShapeNodeBufferCreateSize);
         }
-        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->ShapeNodeBuffer, Scene->ShapeNodePack.data(), ShapeNodeBufferSize);
+        InternalWriteToDeviceLocalBuffer(
+            Vulkan, &VulkanScene->ShapeNodeBuffer,
+            Scene->ShapeNodePack.data(),
+            Scene->ShapeNodePack.size() * sizeof(packed_shape_node));
     }
 
     if (DirtyFlags & SCENE_DIRTY_MESHES) {
-        MeshVertexBufferOld = Vulkan->MeshVertexBuffer;
-        Vulkan->MeshVertexBuffer = vulkan_buffer {};
-        MeshFaceBufferOld = Vulkan->MeshFaceBuffer;
-        Vulkan->MeshFaceBuffer = vulkan_buffer {};
-        MeshNodeBufferOld = Vulkan->MeshNodeBuffer;
-        Vulkan->MeshNodeBuffer = vulkan_buffer {};
+        MeshVertexBufferOld = VulkanScene->MeshVertexBuffer;
+        VulkanScene->MeshVertexBuffer = vulkan_buffer {};
+        MeshFaceBufferOld = VulkanScene->MeshFaceBuffer;
+        VulkanScene->MeshFaceBuffer = vulkan_buffer {};
+        MeshNodeBufferOld = VulkanScene->MeshNodeBuffer;
+        VulkanScene->MeshNodeBuffer = vulkan_buffer {};
 
         size_t MeshVertexBufferSize = sizeof(packed_mesh_vertex) * Scene->MeshVertexPack.size();
-        Result = InternalCreateBuffer(
+        Result = CreateBuffer(
             Vulkan,
-            &Vulkan->MeshVertexBuffer,
+            &VulkanScene->MeshVertexBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             std::max(1024ull, MeshVertexBufferSize));
-        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MeshVertexBuffer, Scene->MeshVertexPack.data(), MeshVertexBufferSize);
+        InternalWriteToDeviceLocalBuffer(Vulkan, &VulkanScene->MeshVertexBuffer, Scene->MeshVertexPack.data(), MeshVertexBufferSize);
 
         size_t MeshFaceBufferSize = sizeof(packed_mesh_face) * Scene->MeshFacePack.size();
-        Result = InternalCreateBuffer(
+        Result = CreateBuffer(
             Vulkan,
-            &Vulkan->MeshFaceBuffer,
+            &VulkanScene->MeshFaceBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             std::max(1024ull, MeshFaceBufferSize));
-        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MeshFaceBuffer, Scene->MeshFacePack.data(), MeshFaceBufferSize);
+        InternalWriteToDeviceLocalBuffer(Vulkan, &VulkanScene->MeshFaceBuffer, Scene->MeshFacePack.data(), MeshFaceBufferSize);
 
         size_t MeshNodeBufferSize = sizeof(packed_mesh_node) * Scene->MeshNodePack.size();
-        Result = InternalCreateBuffer(
+        Result = CreateBuffer(
             Vulkan,
-            &Vulkan->MeshNodeBuffer,
+            &VulkanScene->MeshNodeBuffer,
             VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             std::max(1024ull, MeshNodeBufferSize));
-        InternalWriteToDeviceLocalBuffer(Vulkan, &Vulkan->MeshNodeBuffer, Scene->MeshNodePack.data(), MeshNodeBufferSize);
+        InternalWriteToDeviceLocalBuffer(Vulkan, &VulkanScene->MeshNodeBuffer, Scene->MeshNodePack.data(), MeshNodeBufferSize);
     }
 
     vulkan_descriptor Descriptors[] = {
         {
             .Type        = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .Buffer      = &Vulkan->SceneUniformBuffer,
+            .Buffer      = &VulkanScene->UniformBuffer,
         },
         {
             .Type        = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .Image       = &Vulkan->ImageArray,
+            .Image       = &VulkanScene->ImageArray,
             .ImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             .Sampler     = Vulkan->ImageSamplerNearestNoMip,
         },
         {
             .Type        = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
-            .Image       = &Vulkan->ImageArray,
+            .Image       = &VulkanScene->ImageArray,
             .ImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             .Sampler     = Vulkan->ImageSamplerLinearNoMip,
         },
         {
             .Type        = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .Buffer      = &Vulkan->TextureBuffer,
+            .Buffer      = &VulkanScene->TextureBuffer,
         },
         {
             .Type        = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .Buffer      = &Vulkan->MaterialBuffer,
+            .Buffer      = &VulkanScene->MaterialBuffer,
         },
         {
             .Type        = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .Buffer      = &Vulkan->ShapeBuffer,
+            .Buffer      = &VulkanScene->ShapeBuffer,
         },
         {
             .Type        = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .Buffer      = &Vulkan->ShapeNodeBuffer,
+            .Buffer      = &VulkanScene->ShapeNodeBuffer,
         },
         {
             .Type        = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .Buffer      = &Vulkan->MeshFaceBuffer,
+            .Buffer      = &VulkanScene->MeshFaceBuffer,
         },
         {
             .Type        = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .Buffer      = &Vulkan->MeshVertexBuffer,
+            .Buffer      = &VulkanScene->MeshVertexBuffer,
         },
         {
             .Type        = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .Buffer      = &Vulkan->MeshNodeBuffer,
+            .Buffer      = &VulkanScene->MeshNodeBuffer,
         },
     };
 
-    InternalWriteDescriptorSet(Vulkan, Vulkan->SceneDescriptorSet, Descriptors);
+    WriteDescriptorSet(Vulkan, VulkanScene->DescriptorSet, Descriptors);
 
-    InternalDestroyBuffer(Vulkan, &MeshVertexBufferOld);
-    InternalDestroyBuffer(Vulkan, &MeshFaceBufferOld);
-    InternalDestroyBuffer(Vulkan, &MeshNodeBufferOld);
-    InternalDestroyBuffer(Vulkan, &ShapeBufferOld);
-    InternalDestroyBuffer(Vulkan, &ShapeNodeBufferOld);
-    InternalDestroyBuffer(Vulkan, &MaterialBufferOld);
-    InternalDestroyBuffer(Vulkan, &TextureBufferOld);
+    DestroyBuffer(Vulkan, &MeshVertexBufferOld);
+    DestroyBuffer(Vulkan, &MeshFaceBufferOld);
+    DestroyBuffer(Vulkan, &MeshNodeBufferOld);
+    DestroyBuffer(Vulkan, &ShapeBufferOld);
+    DestroyBuffer(Vulkan, &ShapeNodeBufferOld);
+    DestroyBuffer(Vulkan, &MaterialBufferOld);
+    DestroyBuffer(Vulkan, &TextureBufferOld);
     InternalDestroyImage(Vulkan, &ImageArrayOld);
-
-    return Result;
 }
 
-static void InternalDispatchTrace(
-    vulkan_context*     Vulkan,
-    vulkan_frame_state* Frame,
-    uint32_t            RandomSeed)
+void DestroyVulkanScene(
+    vulkan_context* Vulkan,
+    vulkan_scene*   VulkanScene)
 {
-    vkCmdBindPipeline(
-        Frame->ComputeCommandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE,
-        Vulkan->TracePipeline.Pipeline);
+    if (Vulkan->Device) {
+        // Device exists, make sure there is nothing going on
+        // before we start releasing resources.
+        vkDeviceWaitIdle(Vulkan->Device);
+    }
 
-    VkDescriptorSet DescriptorSets[] = {
-        Vulkan->SceneDescriptorSet,
-        Vulkan->TraceDescriptorSet,
-    };
-
-    vkCmdBindDescriptorSets(
-        Frame->ComputeCommandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE,
-        Vulkan->TracePipeline.PipelineLayout,
-        0, 2, DescriptorSets,
-        0, nullptr);
-
-    //uint32_t GroupPixelSize = 16 * Uniforms->RenderSampleBlockSize;
-    //uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
-    //uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
-    //vkCmdDispatch(Frame->TraceCommandBuffer, GroupCountX, GroupCountY, 1);
-    vkCmdDispatch(Frame->ComputeCommandBuffer, 2048*1024 / 256, 1, 1);
-
-    // Trace buffer barrier between tracing and path evaluation.
-    auto TraceBufferBarrier = VkBufferMemoryBarrier {
-        .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask       = VK_ACCESS_SHADER_WRITE_BIT,
-        .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer              = Vulkan->TraceBuffer.Buffer,
-        .offset              = 0,
-        .size                = Vulkan->TraceBuffer.Size,
-    };
-
-    vkCmdPipelineBarrier(Frame->ComputeCommandBuffer,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0,
-        0, nullptr,
-        1, &TraceBufferBarrier,
-        0, nullptr);
+    DestroyBuffer(Vulkan, &VulkanScene->TextureBuffer);
+    DestroyBuffer(Vulkan, &VulkanScene->MaterialBuffer);
+    DestroyBuffer(Vulkan, &VulkanScene->ShapeNodeBuffer);
+    DestroyBuffer(Vulkan, &VulkanScene->ShapeBuffer);
+    DestroyBuffer(Vulkan, &VulkanScene->MeshNodeBuffer);
+    DestroyBuffer(Vulkan, &VulkanScene->MeshVertexBuffer);
+    DestroyBuffer(Vulkan, &VulkanScene->MeshFaceBuffer);
+    InternalDestroyImage(Vulkan, &VulkanScene->ImageArray);
+    DestroyBuffer(Vulkan, &VulkanScene->UniformBuffer);
 }
 
-static void InternalDispatchPath(
-    vulkan_context*     Vulkan,
-    vulkan_frame_state* Frame,
-    uint32_t            RandomSeed,
-    bool                Restart)
-{
-    vkCmdBindPipeline(
-        Frame->ComputeCommandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE,
-        Vulkan->PathPipeline.Pipeline);
-
-    VkDescriptorSet DescriptorSets[] = {
-        Frame->ComputeDescriptorSet,
-        Vulkan->SceneDescriptorSet,
-        Vulkan->TraceDescriptorSet,
-    };
-
-    vkCmdBindDescriptorSets(
-        Frame->ComputeCommandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE,
-        Vulkan->PathPipeline.PipelineLayout,
-        0, 3, DescriptorSets,
-        0, nullptr);
-
-    auto PushConstantBuffer = compute_push_constant_buffer {
-        .RandomSeed = RandomSeed++,
-        .Restart    = Restart ? 1u : 0u,
-    };
-
-    vkCmdPushConstants(
-        Frame->ComputeCommandBuffer,
-        Vulkan->PathPipeline.PipelineLayout,
-        VK_SHADER_STAGE_COMPUTE_BIT,
-        0, sizeof(compute_push_constant_buffer), &PushConstantBuffer);
-
-    uint32_t GroupPixelSize = 16; //Uniforms->RenderSampleBlockSize;
-    uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
-    uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
-    vkCmdDispatch(Frame->ComputeCommandBuffer, GroupCountX, GroupCountY, 1);
-
-    // Trace buffer barrier between tracing and path evaluation.
-    auto TraceBufferBarrier = VkBufferMemoryBarrier {
-        .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask       = VK_ACCESS_SHADER_WRITE_BIT,
-        .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer              = Vulkan->TraceBuffer.Buffer,
-        .offset              = 0,
-        .size                = Vulkan->TraceBuffer.Size,
-    };
-
-    vkCmdPipelineBarrier(Frame->ComputeCommandBuffer,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        0,
-        0, nullptr,
-        1, &TraceBufferBarrier,
-        0, nullptr);
-
-    Restart = false;
-}
-
-VkResult RenderFrame(
-    vulkan_context*          Vulkan,
-    render_frame_parameters* Parameters)
+vulkan_sample_buffer* CreateSampleBuffer(
+    vulkan_context*         Vulkan,
+    uint                    Width,
+    uint                    Height)
 {
     VkResult Result = VK_SUCCESS;
 
-    vulkan_frame_state* Frame0 = &Vulkan->FrameStates[Vulkan->FrameIndex % 2];
-    vulkan_frame_state* Frame = &Vulkan->FrameStates[(Vulkan->FrameIndex + 1) % 2];
+    auto SampleBuffer = new vulkan_sample_buffer;
+
+    Result = InternalCreateImage(Vulkan,
+        &SampleBuffer->Image,
+        VK_IMAGE_USAGE_STORAGE_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+        VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        VK_IMAGE_TYPE_2D,
+        VK_FORMAT_R32G32B32A32_SFLOAT,
+        { .width = Width, .height = Height, .depth = 1 },
+        0,
+        VK_IMAGE_TILING_OPTIMAL,
+        VK_IMAGE_LAYOUT_GENERAL,
+        true);
+
+    if (Result != VK_SUCCESS) return nullptr;
+            
+    vulkan_descriptor ResolveDescriptors[] = {
+        {
+            .Type        = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
+            .Image       = &SampleBuffer->Image,
+            .ImageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            .Sampler     = Vulkan->ImageSamplerLinear
+        }
+    };
+
+    Result = CreateDescriptorSet(Vulkan,
+        Vulkan->ResolveDescriptorSetLayout,
+        &SampleBuffer->ResolveDescriptorSet,
+        ResolveDescriptors);
+
+    if (Result != VK_SUCCESS) return nullptr;
+
+    vulkan_descriptor PreviewDescriptors[] = {
+        {
+            .Type       = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .Image      = &SampleBuffer->Image,
+        },
+    };
+
+    Result = CreateDescriptorSet(Vulkan,
+        Vulkan->PreviewDescriptorSetLayout,
+        &SampleBuffer->PreviewDescriptorSet,
+        PreviewDescriptors);
+
+    if (Result != VK_SUCCESS) return nullptr;
+
+    Vulkan->SampleBuffers.push_back(SampleBuffer);
+
+    return SampleBuffer;
+}
+
+void DestroySampleBuffer(
+    vulkan_context*         Vulkan,
+    vulkan_sample_buffer*   SampleBuffer)
+{
+    std::erase(Vulkan->SampleBuffers, SampleBuffer);
+
+    InternalDestroyImage(Vulkan, &SampleBuffer->Image);
+
+    delete SampleBuffer;
+}
+
+void RenderSampleBuffer(
+    vulkan_context*         Vulkan,
+    vulkan_frame*           Frame,
+    vulkan_sample_buffer*   SampleBuffer,
+    vulkan_render_sample_buffer_parameters* Parameters)
+{
+    auto Viewport = VkViewport {
+        .x        = 0.0f,
+        .y        = 0.0f,
+        .width    = static_cast<float>(Vulkan->SwapChainExtent.width),
+        .height   = static_cast<float>(Vulkan->SwapChainExtent.height),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+
+    vkCmdBindPipeline(
+        Frame->GraphicsCommandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        Vulkan->ResolvePipeline.Pipeline);
+
+    vkCmdBindDescriptorSets(
+        Frame->GraphicsCommandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        Vulkan->ResolvePipeline.PipelineLayout,
+        0, 1, &SampleBuffer->ResolveDescriptorSet,
+        0, nullptr);
+
+    vkCmdSetViewport(Frame->GraphicsCommandBuffer, 0, 1, &Viewport);
+
+    auto Scissor = VkRect2D {
+        .offset = { 0, 0 },
+        .extent = Vulkan->SwapChainExtent,
+    };
+
+    vkCmdSetScissor(Frame->GraphicsCommandBuffer, 0, 1, &Scissor);
+
+    vkCmdPushConstants(
+        Frame->GraphicsCommandBuffer,
+        Vulkan->ResolvePipeline.PipelineLayout,
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        0, sizeof(vulkan_render_sample_buffer_parameters), Parameters);
+
+    vkCmdDraw(Frame->GraphicsCommandBuffer, 6, 1, 0, 0);
+}
+
+vulkan_frame* BeginFrame(
+    vulkan_context* Vulkan)
+{
+    VkResult Result = VK_SUCCESS;
 
     Vulkan->FrameIndex++;
 
-    bool Restart = Parameters->RenderRestart;
-
-    if (Frame0->Fresh)
-        Restart = true;
+    vulkan_frame* Frame = &Vulkan->FrameStates[Vulkan->FrameIndex % 2];
 
     uint32_t RandomSeed = Vulkan->FrameIndex * 65537;
 
@@ -2653,124 +2465,26 @@ VkResult RenderFrame(
 
     if (Result != VK_SUCCESS) {
         Errorf(Vulkan, "failed to acquire swap chain image");
-        return Result;
+        return nullptr;
     }
 
     // Reset the fence to indicate that the frame state is no longer available.
     vkResetFences(Vulkan->Device, 1, &Frame->AvailableFence);
 
-    // --- Compute ------------------------------------------------------------
-
-    {
-        auto FrameUBO = frame_uniform_buffer {
-            .Camera                         = Parameters->Camera,
-            .RenderMode                     = Parameters->RenderMode,
-            .RenderFlags                    = Parameters->RenderFlags,
-            .RenderSampleBlockSize          = Parameters->RenderSampleBlockSize,
-            .RenderBounceLimit              = Parameters->RenderBounceLimit,
-            .RenderTerminationProbability   = Parameters->RenderTerminationProbability,
-        };
-        InternalWriteToHostVisibleBuffer(Vulkan, &Frame->FrameUniformBuffer, &FrameUBO, sizeof(FrameUBO));
-
-        vkResetCommandBuffer(Frame->ComputeCommandBuffer, 0);
-        auto ComputeBeginInfo = VkCommandBufferBeginInfo {
-            .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-            .flags            = 0,
-            .pInheritanceInfo = nullptr,
-        };
-        Result = vkBeginCommandBuffer(Frame->ComputeCommandBuffer, &ComputeBeginInfo);
-        if (Result != VK_SUCCESS) {
-            Errorf(Vulkan, "failed to begin recording compute command buffer");
-            return Result;
-        }
-
-        if (Parameters->RenderMode == RENDER_MODE_PATH_TRACE) {
-            if (Restart) {
-                // Restarting the render, so prime the ray buffer by running one path pass.
-                InternalDispatchPath(Vulkan, Frame, RandomSeed++, true);
-            }
-
-            int Rounds = Restart ? 2 : 1;
-
-            for (int Round = 0; Round < Rounds; Round++) {
-                InternalDispatchTrace(Vulkan, Frame, RandomSeed++);
-                InternalDispatchPath(Vulkan, Frame, RandomSeed++, false);
-            }
-        }
-        else {
-            vkCmdBindPipeline(
-                Frame->ComputeCommandBuffer,
-                VK_PIPELINE_BIND_POINT_COMPUTE,
-                Vulkan->PreviewPipeline.Pipeline);
-
-            VkDescriptorSet DescriptorSets[] = {
-                Vulkan->PreviewDescriptorSet,
-                Vulkan->SceneDescriptorSet,
-            };
-
-            vkCmdBindDescriptorSets(
-                Frame->ComputeCommandBuffer,
-                VK_PIPELINE_BIND_POINT_COMPUTE,
-                Vulkan->PreviewPipeline.PipelineLayout,
-                0, 2, DescriptorSets,
-                0, nullptr);
-
-            auto PushConstantBuffer = preview_push_constant_buffer {
-                .Camera     = Parameters->Camera,
-                .RenderMode = (uint)Parameters->RenderMode,
-                .RandomSeed = RandomSeed,
-                //.SelectedShapeIndex = Uniforms->SelectedShapeIndex,
-            };
-
-            vkCmdPushConstants(
-                Frame->ComputeCommandBuffer,
-                Vulkan->PreviewPipeline.PipelineLayout,
-                VK_SHADER_STAGE_COMPUTE_BIT,
-                0, sizeof(PushConstantBuffer), &PushConstantBuffer);
-
-            uint32_t GroupPixelSize = 16; //Uniforms->RenderSampleBlockSize;
-            uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
-            uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
-            vkCmdDispatch(Frame->ComputeCommandBuffer, GroupCountX, GroupCountY, 1);
-        }
-
-        // End compute command buffer.
-        Result = vkEndCommandBuffer(Frame->ComputeCommandBuffer);
-        if (Result != VK_SUCCESS) {
-            Errorf(Vulkan, "failed to end recording compute command buffer");
-            return Result;
-        }
-
-        VkSemaphore ComputeSignalSemaphores[] = {
-            Frame->ComputeToComputeSemaphore,
-            Frame->ComputeToGraphicsSemaphore,
-        };
-
-        VkPipelineStageFlags ComputeWaitStages[] = {
-            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        };
-
-        auto ComputeSubmitInfo = VkSubmitInfo {
-            .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-            .waitSemaphoreCount   = Frame0->Fresh ? 0u : 1u,
-            .pWaitSemaphores      = &Frame0->ComputeToComputeSemaphore,
-            .pWaitDstStageMask    = ComputeWaitStages,
-            .commandBufferCount   = 1,
-            .pCommandBuffers      = &Frame->ComputeCommandBuffer,
-            .signalSemaphoreCount = static_cast<uint32_t>(std::size(ComputeSignalSemaphores)),
-            .pSignalSemaphores    = ComputeSignalSemaphores,
-        };
-
-        Result = vkQueueSubmit(Vulkan->ComputeQueue, 1, &ComputeSubmitInfo, nullptr);
-        if (Result != VK_SUCCESS) {
-            Errorf(Vulkan, "failed to submit compute command buffer");
-            return Result;
-        }
+    // Prepare compute command buffer.
+    vkResetCommandBuffer(Frame->ComputeCommandBuffer, 0);
+    auto ComputeBeginInfo = VkCommandBufferBeginInfo {
+        .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+        .flags            = 0,
+        .pInheritanceInfo = nullptr,
+    };
+    Result = vkBeginCommandBuffer(Frame->ComputeCommandBuffer, &ComputeBeginInfo);
+    if (Result != VK_SUCCESS) {
+        Errorf(Vulkan, "failed to begin recording compute command buffer");
+        return nullptr;
     }
 
-    // --- Graphics -----------------------------------------------------------
-
-    // Start graphics command buffer.
+    // Prepare graphics command buffer.
     vkResetCommandBuffer(Frame->GraphicsCommandBuffer, 0);
     auto GraphicsBeginInfo = VkCommandBufferBeginInfo {
         .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
@@ -2780,11 +2494,10 @@ VkResult RenderFrame(
     Result = vkBeginCommandBuffer(Frame->GraphicsCommandBuffer, &GraphicsBeginInfo);
     if (Result != VK_SUCCESS) {
         Errorf(Vulkan, "failed to begin recording graphics command buffer");
-        return Result;
+        return nullptr;
     }
 
-    // Transition the render target copy for reading from the fragment shader.
-    {
+    for (vulkan_sample_buffer* SampleBuffer : Vulkan->SampleBuffers) {
         auto SubresourceRange = VkImageSubresourceRange {
             .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
             .baseMipLevel   = 0,
@@ -2801,7 +2514,7 @@ VkResult RenderFrame(
             .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image               = Vulkan->SampleAccumulatorImage.Image,
+            .image               = SampleBuffer->Image.Image,
             .subresourceRange    = SubresourceRange,
         };
 
@@ -2833,261 +2546,307 @@ VkResult RenderFrame(
         vkCmdBeginRenderPass(Frame->GraphicsCommandBuffer, &RenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
     }
 
-    // Render the path traced result.
+    return Frame;
+}
+
+void EndFrame(
+    vulkan_context*     Vulkan,
+    vulkan_frame* Frame)
+{
+    VkResult Result = VK_SUCCESS;
+
+    // Finish and submit compute command buffer.
     {
-        vkCmdBindPipeline(
-            Frame->GraphicsCommandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-            Vulkan->ResolvePipeline.Pipeline);
-
-        vkCmdBindDescriptorSets(
-            Frame->GraphicsCommandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-            Vulkan->ResolvePipeline.PipelineLayout,
-            0, 1, &Frame->ResolveDescriptorSet,
-            0, nullptr);
-
-        auto Viewport = VkViewport {
-            .x        = 0.0f,
-            .y        = 0.0f,
-            .width    = static_cast<float>(Vulkan->SwapChainExtent.width),
-            .height   = static_cast<float>(Vulkan->SwapChainExtent.height),
-            .minDepth = 0.0f,
-            .maxDepth = 1.0f,
-        };
-        vkCmdSetViewport(Frame->GraphicsCommandBuffer, 0, 1, &Viewport);
-
-        auto Scissor = VkRect2D {
-            .offset = { 0, 0 },
-            .extent = Vulkan->SwapChainExtent,
-        };
-        vkCmdSetScissor(Frame->GraphicsCommandBuffer, 0, 1, &Scissor);
-
-        auto ResolvePushConstants = resolve_push_constant_buffer {
-            .Brightness            = Parameters->Brightness,
-            .ToneMappingMode       = Parameters->ToneMappingMode,
-            .ToneMappingWhiteLevel = Parameters->ToneMappingWhiteLevel,
-        };
-
-        vkCmdPushConstants(
-            Frame->GraphicsCommandBuffer,
-            Vulkan->ResolvePipeline.PipelineLayout,
-            VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            0, sizeof(resolve_push_constant_buffer), &ResolvePushConstants);
-
-        vkCmdDraw(Frame->GraphicsCommandBuffer, 6, 1, 0, 0);
-    }
-
-    // Render ImGui.
-    {
-        ImDrawData* DrawData = Parameters->ImGuiDrawData;
-
-        // Upload vertex and index data.
-        void* VertexMemory;
-        uint32_t VertexOffset = 0;
-        vkMapMemory(Vulkan->Device, Frame->ImGuiVertexBuffer.Memory, 0, Frame->ImGuiVertexBuffer.Size, 0, &VertexMemory);
-        void* IndexMemory;
-        uint32_t IndexOffset = 0;
-        vkMapMemory(Vulkan->Device, Frame->ImGuiIndexBuffer.Memory, 0, Frame->ImGuiIndexBuffer.Size, 0, &IndexMemory);
-
-        ImDrawVert* VertexPointer = static_cast<ImDrawVert*>(VertexMemory);
-        uint16_t* IndexPointer = static_cast<uint16_t*>(IndexMemory);
-
-        for (int I = 0; I < DrawData->CmdListsCount; I++) {
-            ImDrawList* CmdList = DrawData->CmdLists[I];
-
-            uint32_t VertexDataSize = CmdList->VtxBuffer.Size * sizeof(ImDrawVert);
-            memcpy(VertexPointer, CmdList->VtxBuffer.Data, VertexDataSize);
-            VertexPointer += CmdList->VtxBuffer.Size;
-
-            uint32_t IndexDataSize = CmdList->IdxBuffer.Size * sizeof(uint16_t);
-            memcpy(IndexPointer, CmdList->IdxBuffer.Data, IndexDataSize);
-            IndexPointer += CmdList->IdxBuffer.Size;
+        Result = vkEndCommandBuffer(Frame->ComputeCommandBuffer);
+        if (Result != VK_SUCCESS) {
+            Errorf(Vulkan, "failed to end recording compute command buffer");
+            return;
         }
 
-        vkUnmapMemory(Vulkan->Device, Frame->ImGuiIndexBuffer.Memory);
-        vkUnmapMemory(Vulkan->Device, Frame->ImGuiVertexBuffer.Memory);
-
-        vkCmdBindPipeline(
-            Frame->GraphicsCommandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-            Vulkan->ImGuiPipeline.Pipeline);
-
-        VkDescriptorSet DescriptorSets[] = {
-            Frame->ImGuiDescriptorSet,
-            Vulkan->SceneDescriptorSet,
+        VkSemaphore ComputeSignalSemaphores[] = {
+            Frame->ComputeToComputeSemaphore,
+            Frame->ComputeToGraphicsSemaphore,
         };
 
-        vkCmdBindDescriptorSets(
-            Frame->GraphicsCommandBuffer,
-            VK_PIPELINE_BIND_POINT_GRAPHICS,
-            Vulkan->ImGuiPipeline.PipelineLayout,
-            0, 2, DescriptorSets,
-            0, nullptr);
-
-        VkDeviceSize Offset = 0;
-        vkCmdBindVertexBuffers(
-            Frame->GraphicsCommandBuffer,
-            0, 1, &Frame->ImGuiVertexBuffer.Buffer, &Offset);
-
-        vkCmdBindIndexBuffer(
-            Frame->GraphicsCommandBuffer,
-            Frame->ImGuiIndexBuffer.Buffer,
-            0, VK_INDEX_TYPE_UINT16);
-
-        auto Viewport = VkViewport {
-            .x        = 0.0f,
-            .y        = 0.0f,
-            .width    = static_cast<float>(Vulkan->SwapChainExtent.width),
-            .height   = static_cast<float>(Vulkan->SwapChainExtent.height),
-            .minDepth = 0.0f,
-            .maxDepth = 1.0f,
-        };
-        vkCmdSetViewport(Frame->GraphicsCommandBuffer, 0, 1, &Viewport);
-
-        uint32_t IndexBase = 0;
-        uint32_t VertexBase = 0;
-
-        imgui_push_constant_buffer PushConstantBuffer = {};
-
-        float L = DrawData->DisplayPos.x;
-        float R = DrawData->DisplayPos.x + DrawData->DisplaySize.x;
-        float T = DrawData->DisplayPos.y;
-        float B = DrawData->DisplayPos.y + DrawData->DisplaySize.y;
-
-        PushConstantBuffer.ProjectionMatrix = {
-            { 2.0f / (R - L),    0.0f,              0.0f, 0.0f },
-            { 0.0f,              2.0f / (B - T),    0.0f, 0.0f },
-            { 0.0f,              0.0f,              0.5f, 0.0f },
-            { (R + L) / (L - R), (T + B) / (T - B), 0.5f, 1.0f },
-        };
-
-        PushConstantBuffer.TextureID = 0xFFFFFFFF;
-
-        for (int I = 0; I < DrawData->CmdListsCount; I++) {
-            ImDrawList* CmdList = DrawData->CmdLists[I];
-
-            for (int j = 0; j < CmdList->CmdBuffer.Size; j++) {
-                ImDrawCmd* Cmd = &CmdList->CmdBuffer[j];
-
-                int32_t X0 = static_cast<int32_t>(Cmd->ClipRect.x - DrawData->DisplayPos.x);
-                int32_t Y0 = static_cast<int32_t>(Cmd->ClipRect.y - DrawData->DisplayPos.y);
-                int32_t X1 = static_cast<int32_t>(Cmd->ClipRect.z - DrawData->DisplayPos.x);
-                int32_t Y1 = static_cast<int32_t>(Cmd->ClipRect.w - DrawData->DisplayPos.y);
-
-                auto scissor = VkRect2D {
-                    .offset = { X0, Y0 },
-                    .extent = { static_cast<uint32_t>(X1 - X0), static_cast<uint32_t>(Y1 - Y0) },
-                };
-                vkCmdSetScissor(Frame->GraphicsCommandBuffer, 0, 1, &scissor);
-
-                uint32_t TextureID = static_cast<uint32_t>(reinterpret_cast<size_t>(Cmd->TextureId));
-                if (TextureID != PushConstantBuffer.TextureID) {
-                    PushConstantBuffer.TextureID = TextureID;
-                    vkCmdPushConstants(
-                        Frame->GraphicsCommandBuffer,
-                        Vulkan->ImGuiPipeline.PipelineLayout,
-                        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-                        0, sizeof(imgui_push_constant_buffer), &PushConstantBuffer);
-                }
-
-                uint32_t IndexCount = Cmd->ElemCount;
-                uint32_t FirstIndex = IndexBase + Cmd->IdxOffset;
-                uint32_t VertexOffset = VertexBase + Cmd->VtxOffset;
-                vkCmdDrawIndexed(Frame->GraphicsCommandBuffer, IndexCount, 1, FirstIndex, VertexOffset, 0);
-            }
-
-            IndexBase += CmdList->IdxBuffer.Size;
-            VertexBase += CmdList->VtxBuffer.Size;
-        }
-    }
-
-    vkCmdEndRenderPass(Frame->GraphicsCommandBuffer);
-
-    // Transition the render target graphics copy back to transfer destination.
-    {
-        auto SubresourceRange = VkImageSubresourceRange {
-            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-            .baseMipLevel   = 0,
-            .levelCount     = 1,
-            .baseArrayLayer = 0,
-            .layerCount     = 1,
-        };
-
-        auto Barrier = VkImageMemoryBarrier {
-            .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-            .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
-            .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
-            .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            .newLayout           = VK_IMAGE_LAYOUT_GENERAL,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image               = Vulkan->SampleAccumulatorImage.Image,
-            .subresourceRange    = SubresourceRange,
-        };
-
-        vkCmdPipelineBarrier(Frame->GraphicsCommandBuffer,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        VkPipelineStageFlags ComputeWaitStages[] = {
             VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-            0,
-            0, nullptr,
-            0, nullptr,
-            1, &Barrier);
+        };
+
+        auto ComputeSubmitInfo = VkSubmitInfo {
+            .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .waitSemaphoreCount   = Frame->Previous->Fresh ? 0u : 1u,
+            .pWaitSemaphores      = &Frame->Previous->ComputeToComputeSemaphore,
+            .pWaitDstStageMask    = ComputeWaitStages,
+            .commandBufferCount   = 1,
+            .pCommandBuffers      = &Frame->ComputeCommandBuffer,
+            .signalSemaphoreCount = static_cast<uint32_t>(std::size(ComputeSignalSemaphores)),
+            .pSignalSemaphores    = ComputeSignalSemaphores,
+        };
+
+        Result = vkQueueSubmit(Vulkan->ComputeQueue, 1, &ComputeSubmitInfo, nullptr);
+        if (Result != VK_SUCCESS) {
+            Errorf(Vulkan, "failed to submit compute command buffer");
+            return;
+        }
     }
 
-    Result = vkEndCommandBuffer(Frame->GraphicsCommandBuffer);
-    if (Result != VK_SUCCESS) {
-        Errorf(Vulkan, "failed to end recording graphics command buffer");
-        return Result;
-    }
+    // Finish and submit graphics command buffer.
+    {
+        vkCmdEndRenderPass(Frame->GraphicsCommandBuffer);
 
-    VkPipelineStageFlags GraphicsWaitStages[] = {
-        VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
-        VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
-    };
+        for (vulkan_sample_buffer* SampleBuffer : Vulkan->SampleBuffers) {
+            auto SubresourceRange = VkImageSubresourceRange {
+                .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
+                .baseMipLevel   = 0,
+                .levelCount     = 1,
+                .baseArrayLayer = 0,
+                .layerCount     = 1,
+            };
 
-    VkSemaphore GraphicsWaitSemaphores[] = {
-        Frame->ComputeToGraphicsSemaphore,
-        Frame->ImageAvailableSemaphore,
-    };
+            auto Barrier = VkImageMemoryBarrier {
+                .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+                .srcAccessMask       = VK_ACCESS_SHADER_READ_BIT,
+                .dstAccessMask       = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                .oldLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .newLayout           = VK_IMAGE_LAYOUT_GENERAL,
+                .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+                .image               = SampleBuffer->Image.Image,
+                .subresourceRange    = SubresourceRange,
+            };
 
-    auto GraphicsSubmitInfo = VkSubmitInfo {
-        .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .waitSemaphoreCount   = static_cast<uint32_t>(std::size(GraphicsWaitSemaphores)),
-        .pWaitSemaphores      = GraphicsWaitSemaphores,
-        .pWaitDstStageMask    = GraphicsWaitStages,
-        .commandBufferCount   = 1,
-        .pCommandBuffers      = &Frame->GraphicsCommandBuffer,
-        .signalSemaphoreCount = 1,
-        .pSignalSemaphores    = &Frame->ImageFinishedSemaphore,
-    };
+            vkCmdPipelineBarrier(Frame->GraphicsCommandBuffer,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+                0,
+                0, nullptr,
+                0, nullptr,
+                1, &Barrier);
+        }
 
-    Result = vkQueueSubmit(Vulkan->GraphicsQueue, 1, &GraphicsSubmitInfo, Frame->AvailableFence);
-    if (Result != VK_SUCCESS) {
-        Errorf(Vulkan, "failed to submit graphics command buffer");
-        return Result;
-    }
+        Result = vkEndCommandBuffer(Frame->GraphicsCommandBuffer);
+        if (Result != VK_SUCCESS) {
+            Errorf(Vulkan, "failed to end recording graphics command buffer");
+            return;
+        }
 
-    // --- Presentation -------------------------------------------------------
+        VkPipelineStageFlags GraphicsWaitStages[] = {
+            VK_PIPELINE_STAGE_COMPUTE_SHADER_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT
+        };
 
-    auto PresentInfo = VkPresentInfoKHR {
-        .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
-        .waitSemaphoreCount = 1,
-        .pWaitSemaphores    = &Frame->ImageFinishedSemaphore,
-        .swapchainCount     = 1,
-        .pSwapchains        = &Vulkan->SwapChain,
-        .pImageIndices      = &Frame->ImageIndex,
-        .pResults           = nullptr,
-    };
+        VkSemaphore GraphicsWaitSemaphores[] = {
+            Frame->ComputeToGraphicsSemaphore,
+            Frame->ImageAvailableSemaphore,
+        };
 
-    Result = vkQueuePresentKHR(Vulkan->PresentQueue, &PresentInfo);
-    if (Result != VK_SUCCESS) {
-        if (Result != VK_ERROR_OUT_OF_DATE_KHR && Result != VK_SUBOPTIMAL_KHR)
-            Errorf(Vulkan, "failed to present swap chain image");
-        return Result;
+        auto GraphicsSubmitInfo = VkSubmitInfo {
+            .sType                = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .waitSemaphoreCount   = static_cast<uint32_t>(std::size(GraphicsWaitSemaphores)),
+            .pWaitSemaphores      = GraphicsWaitSemaphores,
+            .pWaitDstStageMask    = GraphicsWaitStages,
+            .commandBufferCount   = 1,
+            .pCommandBuffers      = &Frame->GraphicsCommandBuffer,
+            .signalSemaphoreCount = 1,
+            .pSignalSemaphores    = &Frame->ImageFinishedSemaphore,
+        };
+
+        Result = vkQueueSubmit(Vulkan->GraphicsQueue, 1, &GraphicsSubmitInfo, Frame->AvailableFence);
+        if (Result != VK_SUCCESS) {
+            Errorf(Vulkan, "failed to submit graphics command buffer");
+            return;
+        }
+
+        auto PresentInfo = VkPresentInfoKHR {
+            .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores    = &Frame->ImageFinishedSemaphore,
+            .swapchainCount     = 1,
+            .pSwapchains        = &Vulkan->SwapChain,
+            .pImageIndices      = &Frame->ImageIndex,
+            .pResults           = nullptr,
+        };
+
+        Result = vkQueuePresentKHR(Vulkan->PresentQueue, &PresentInfo);
+        if (Result != VK_SUCCESS) {
+            if (Result != VK_ERROR_OUT_OF_DATE_KHR && Result != VK_SUBOPTIMAL_KHR)
+                Errorf(Vulkan, "failed to present swap chain image");
+            return;
+        }
     }
 
     Frame->Fresh = false;
+}
 
-    return VK_SUCCESS;
+void RenderPreview(
+    vulkan_context*         Vulkan,
+    vulkan_frame*           Frame,
+    vulkan_sample_buffer*   SampleBuffer, 
+    vulkan_scene*           Scene,
+    camera const&           Camera,
+    render_mode             RenderMode)
+{
+    uint RandomSeed = 0;
+
+    vkCmdBindPipeline(
+        Frame->ComputeCommandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        Vulkan->PreviewPipeline.Pipeline);
+
+    VkDescriptorSet DescriptorSets[] = {
+        SampleBuffer->PreviewDescriptorSet,
+        Scene->DescriptorSet,
+    };
+
+    vkCmdBindDescriptorSets(
+        Frame->ComputeCommandBuffer,
+        VK_PIPELINE_BIND_POINT_COMPUTE,
+        Vulkan->PreviewPipeline.PipelineLayout,
+        0, 2, DescriptorSets,
+        0, nullptr);
+
+    auto PushConstantBuffer = preview_push_constant_buffer {
+        .Camera     = Camera,
+        .RenderMode = (uint)RenderMode,
+        .RandomSeed = RandomSeed,
+        //.SelectedShapeIndex = Uniforms->SelectedShapeIndex,
+    };
+
+    vkCmdPushConstants(
+        Frame->ComputeCommandBuffer,
+        Vulkan->PreviewPipeline.PipelineLayout,
+        VK_SHADER_STAGE_COMPUTE_BIT,
+        0, sizeof(PushConstantBuffer), &PushConstantBuffer);
+
+    uint32_t GroupPixelSize = 16; //Uniforms->RenderSampleBlockSize;
+    uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
+    uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
+    vkCmdDispatch(Frame->ComputeCommandBuffer, GroupCountX, GroupCountY, 1);
+}
+
+void RenderImGui(
+    vulkan_context* Vulkan,
+    vulkan_frame*   Frame,
+    vulkan_scene*   Scene,
+    ImDrawData*     DrawData)
+{
+    auto Viewport = VkViewport {
+        .x        = 0.0f,
+        .y        = 0.0f,
+        .width    = static_cast<float>(Vulkan->SwapChainExtent.width),
+        .height   = static_cast<float>(Vulkan->SwapChainExtent.height),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+
+    // Upload vertex and index data.
+    void* VertexMemory;
+    uint32_t VertexOffset = 0;
+    vkMapMemory(Vulkan->Device, Frame->ImGuiVertexBuffer.Memory, 0, Frame->ImGuiVertexBuffer.Size, 0, &VertexMemory);
+    void* IndexMemory;
+    uint32_t IndexOffset = 0;
+    vkMapMemory(Vulkan->Device, Frame->ImGuiIndexBuffer.Memory, 0, Frame->ImGuiIndexBuffer.Size, 0, &IndexMemory);
+
+    ImDrawVert* VertexPointer = static_cast<ImDrawVert*>(VertexMemory);
+    uint16_t* IndexPointer = static_cast<uint16_t*>(IndexMemory);
+
+    for (int I = 0; I < DrawData->CmdListsCount; I++) {
+        ImDrawList* CmdList = DrawData->CmdLists[I];
+
+        uint32_t VertexDataSize = CmdList->VtxBuffer.Size * sizeof(ImDrawVert);
+        memcpy(VertexPointer, CmdList->VtxBuffer.Data, VertexDataSize);
+        VertexPointer += CmdList->VtxBuffer.Size;
+
+        uint32_t IndexDataSize = CmdList->IdxBuffer.Size * sizeof(uint16_t);
+        memcpy(IndexPointer, CmdList->IdxBuffer.Data, IndexDataSize);
+        IndexPointer += CmdList->IdxBuffer.Size;
+    }
+
+    vkUnmapMemory(Vulkan->Device, Frame->ImGuiIndexBuffer.Memory);
+    vkUnmapMemory(Vulkan->Device, Frame->ImGuiVertexBuffer.Memory);
+
+    vkCmdBindPipeline(
+        Frame->GraphicsCommandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        Vulkan->ImGuiPipeline.Pipeline);
+
+    VkDescriptorSet DescriptorSets[] = {
+        Frame->ImGuiDescriptorSet,
+        Scene->DescriptorSet,
+    };
+
+    vkCmdBindDescriptorSets(
+        Frame->GraphicsCommandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
+        Vulkan->ImGuiPipeline.PipelineLayout,
+        0, 2, DescriptorSets,
+        0, nullptr);
+
+    VkDeviceSize Offset = 0;
+    vkCmdBindVertexBuffers(
+        Frame->GraphicsCommandBuffer,
+        0, 1, &Frame->ImGuiVertexBuffer.Buffer, &Offset);
+
+    vkCmdBindIndexBuffer(
+        Frame->GraphicsCommandBuffer,
+        Frame->ImGuiIndexBuffer.Buffer,
+        0, VK_INDEX_TYPE_UINT16);
+
+    vkCmdSetViewport(Frame->GraphicsCommandBuffer, 0, 1, &Viewport);
+
+    uint32_t IndexBase = 0;
+    uint32_t VertexBase = 0;
+
+    imgui_push_constant_buffer PushConstantBuffer = {};
+
+    float L = DrawData->DisplayPos.x;
+    float R = DrawData->DisplayPos.x + DrawData->DisplaySize.x;
+    float T = DrawData->DisplayPos.y;
+    float B = DrawData->DisplayPos.y + DrawData->DisplaySize.y;
+
+    PushConstantBuffer.ProjectionMatrix = {
+        { 2.0f / (R - L),    0.0f,              0.0f, 0.0f },
+        { 0.0f,              2.0f / (B - T),    0.0f, 0.0f },
+        { 0.0f,              0.0f,              0.5f, 0.0f },
+        { (R + L) / (L - R), (T + B) / (T - B), 0.5f, 1.0f },
+    };
+
+    PushConstantBuffer.TextureID = 0xFFFFFFFF;
+
+    for (int I = 0; I < DrawData->CmdListsCount; I++) {
+        ImDrawList* CmdList = DrawData->CmdLists[I];
+
+        for (int j = 0; j < CmdList->CmdBuffer.Size; j++) {
+            ImDrawCmd* Cmd = &CmdList->CmdBuffer[j];
+
+            int32_t X0 = static_cast<int32_t>(Cmd->ClipRect.x - DrawData->DisplayPos.x);
+            int32_t Y0 = static_cast<int32_t>(Cmd->ClipRect.y - DrawData->DisplayPos.y);
+            int32_t X1 = static_cast<int32_t>(Cmd->ClipRect.z - DrawData->DisplayPos.x);
+            int32_t Y1 = static_cast<int32_t>(Cmd->ClipRect.w - DrawData->DisplayPos.y);
+
+            auto scissor = VkRect2D {
+                .offset = { X0, Y0 },
+                .extent = { static_cast<uint32_t>(X1 - X0), static_cast<uint32_t>(Y1 - Y0) },
+            };
+            vkCmdSetScissor(Frame->GraphicsCommandBuffer, 0, 1, &scissor);
+
+            uint32_t TextureID = static_cast<uint32_t>(reinterpret_cast<size_t>(Cmd->TextureId));
+            if (TextureID != PushConstantBuffer.TextureID) {
+                PushConstantBuffer.TextureID = TextureID;
+                vkCmdPushConstants(
+                    Frame->GraphicsCommandBuffer,
+                    Vulkan->ImGuiPipeline.PipelineLayout,
+                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                    0, sizeof(imgui_push_constant_buffer), &PushConstantBuffer);
+            }
+
+            uint32_t IndexCount = Cmd->ElemCount;
+            uint32_t FirstIndex = IndexBase + Cmd->IdxOffset;
+            uint32_t VertexOffset = VertexBase + Cmd->VtxOffset;
+            vkCmdDrawIndexed(Frame->GraphicsCommandBuffer, IndexCount, 1, FirstIndex, VertexOffset, 0);
+        }
+
+        IndexBase += CmdList->IdxBuffer.Size;
+        VertexBase += CmdList->VtxBuffer.Size;
+    }
 }
