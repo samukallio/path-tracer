@@ -2,9 +2,6 @@
 #include "renderer/vulkan.h"
 #include "renderer/basic.h"
 
-uint32_t const RENDER_WIDTH = 2048;
-uint32_t const RENDER_HEIGHT = 1024;
-
 uint32_t const SCATTER_COMPUTE_SHADER[] =
 {
     #include "basic_scatter.compute.inc"
@@ -26,7 +23,7 @@ struct push_constant_buffer
 };
 
 static void InternalDispatchTrace(
-    vulkan*         Vulkan,
+    vulkan*                 Vulkan,
     basic_renderer*         Renderer,
     push_constant_buffer*   PushConstantBuffer)
 {
@@ -55,7 +52,11 @@ static void InternalDispatchTrace(
         VK_SHADER_STAGE_COMPUTE_BIT,
         0, sizeof(push_constant_buffer), PushConstantBuffer);
 
-    vkCmdDispatch(Frame->ComputeCommandBuffer, 2048*1024 / 256, 1, 1);
+    uint RenderSizeX = Renderer->SampleBuffer->Image.Extent.width;
+    uint RenderSizeY = Renderer->SampleBuffer->Image.Extent.height;
+    uint GroupCount = RenderSizeX * RenderSizeY / 256;
+
+    vkCmdDispatch(Frame->ComputeCommandBuffer, GroupCount, 1, 1);
 
     auto TraceBufferBarrier = VkBufferMemoryBarrier {
         .sType               = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
@@ -78,7 +79,7 @@ static void InternalDispatchTrace(
 }
 
 static void InternalDispatchScatter(
-    vulkan*         Vulkan,
+    vulkan*                 Vulkan,
     basic_renderer*         Renderer,
     push_constant_buffer*   PushConstantBuffer)
 {
@@ -109,9 +110,11 @@ static void InternalDispatchScatter(
         VK_SHADER_STAGE_COMPUTE_BIT,
         0, sizeof(push_constant_buffer), PushConstantBuffer);
 
-    uint32_t GroupPixelSize = 16; //Uniforms->RenderSampleBlockSize;
-    uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
-    uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
+    uint RenderSizeX = Renderer->SampleBuffer->Image.Extent.width;
+    uint RenderSizeY = Renderer->SampleBuffer->Image.Extent.height;
+    uint GroupPixelSize = 16; //Uniforms->RenderSampleBlockSize;
+    uint GroupCountX = (RenderSizeX + GroupPixelSize - 1) / GroupPixelSize;
+    uint GroupCountY = (RenderSizeY + GroupPixelSize - 1) / GroupPixelSize;
     vkCmdDispatch(Frame->ComputeCommandBuffer, GroupCountX, GroupCountY, 1);
 
     auto TraceBufferBarrier = VkBufferMemoryBarrier {

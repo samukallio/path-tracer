@@ -15,9 +15,6 @@
 
 #include <vulkan/vulkan.h>
 
-uint32_t const RENDER_WIDTH = 2048;
-uint32_t const RENDER_HEIGHT = 1024;
-
 uint32_t const RESOLVE_VERTEX_SHADER[] =
 {
     #include "resolve.vertex.inc"
@@ -2691,11 +2688,6 @@ void RenderPreview(
         Vulkan->PreviewPipeline.PipelineLayout,
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         0, sizeof(preview_parameters), Parameters);
-
-    //uint32_t GroupPixelSize = 16; //Uniforms->RenderSampleBlockSize;
-    //uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
-    //uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
-    //vkCmdDispatch(Frame->ComputeCommandBuffer, GroupCountX, GroupCountY, 1);
 
     auto Viewport = VkViewport {
         .x        = 0.0f,

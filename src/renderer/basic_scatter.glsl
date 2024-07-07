@@ -265,11 +265,12 @@ void main()
         + gl_GlobalInvocationID.x
         + RandomSeed * 277803737u;
 
-    if (gl_GlobalInvocationID.x >= 2048) return;
-    if (gl_GlobalInvocationID.y >= 1024) return;
+    uvec2 ImageSize = imageSize(SampleAccumulatorImage);
+    if (gl_GlobalInvocationID.x >= ImageSize.x) return;
+    if (gl_GlobalInvocationID.y >= ImageSize.y) return;
 
     uint Index
-        = gl_WorkGroupID.y * 16 * 16 * (2048 / 16)
+        = gl_WorkGroupID.y * 16 * 16 * (ImageSize.x / 16)
         + gl_WorkGroupID.x * 16 * 16
         + gl_LocalInvocationID.y * 16
         + gl_LocalInvocationID.x;
