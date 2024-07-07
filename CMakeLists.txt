@@ -121,7 +121,8 @@ compile_shader (path-tracer src/renderer/resolve.glsl
 		DEPENDS src/core/common.glsl.inc)
 
 compile_shader (path-tracer src/renderer/debug.glsl
-		COMPUTE debug.compute.inc
+		VERTEX debug.vertex.inc
+		FRAGMENT debug.fragment.inc
 		DEPENDS src/core/common.glsl.inc)
 
 compile_shader (path-tracer src/renderer/basic_trace.glsl

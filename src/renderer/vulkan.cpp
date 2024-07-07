@@ -28,9 +28,14 @@ uint32_t const RESOLVE_FRAGMENT_SHADER[] =
     #include "resolve.fragment.inc"
 };
 
-uint32_t const DEBUG_COMPUTE_SHADER[] =
+uint32_t const DEBUG_VERTEX_SHADER[] =
 {
-    #include "debug.compute.inc"
+    #include "debug.vertex.inc"
+};
+
+uint32_t const DEBUG_FRAGMENT_SHADER[] =
+{
+    #include "debug.fragment.inc"
 };
 
 uint32_t const IMGUI_VERTEX_SHADER[] =
@@ -1785,23 +1790,16 @@ static VkResult InternalCreateVulkan(
 
     // Create preview renderer resources.
     {
-        VkDescriptorType DescriptorTypes[] = {
-            VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, // SampleAccumulatorImage
-        };
-
-        Result = CreateDescriptorSetLayout(Vulkan, &Vulkan->PreviewDescriptorSetLayout, DescriptorTypes);
-        if (Result != VK_SUCCESS) return Result;
-
-        auto PipelineConfig = vulkan_compute_pipeline_configuration {
-            .ComputeShaderCode = DEBUG_COMPUTE_SHADER,
+        auto PipelineConfig = vulkan_graphics_pipeline_configuration {
+            .VertexShaderCode = DEBUG_VERTEX_SHADER,
+            .FragmentShaderCode = DEBUG_FRAGMENT_SHADER,
             .DescriptorSetLayouts = {
-                Vulkan->PreviewDescriptorSetLayout,
                 Vulkan->SceneDescriptorSetLayout,
             },
             .PushConstantBufferSize = sizeof(preview_push_constant_buffer),
         };
 
-        Result = CreateComputePipeline(Vulkan, &Vulkan->PreviewPipeline, PipelineConfig);
+        Result = InternalCreateGraphicsPipeline(Vulkan, &Vulkan->PreviewPipeline, PipelineConfig);
         if (Result != VK_SUCCESS) return Result;
     }
 
@@ -1954,11 +1952,6 @@ void DestroyVulkan(vulkan_context* Vulkan)
     if (Vulkan->ResolveDescriptorSetLayout) {
         vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->ResolveDescriptorSetLayout, nullptr);
         Vulkan->ResolveDescriptorSetLayout = VK_NULL_HANDLE;
-    }
-
-    if (Vulkan->PreviewDescriptorSetLayout) {
-        vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->PreviewDescriptorSetLayout, nullptr);
-        Vulkan->PreviewDescriptorSetLayout = VK_NULL_HANDLE;
     }
 
     if (Vulkan->SceneDescriptorSetLayout) {
@@ -2363,20 +2356,6 @@ vulkan_sample_buffer* CreateSampleBuffer(
 
     if (Result != VK_SUCCESS) return nullptr;
 
-    vulkan_descriptor PreviewDescriptors[] = {
-        {
-            .Type       = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-            .Image      = &SampleBuffer->Image,
-        },
-    };
-
-    Result = CreateDescriptorSet(Vulkan,
-        Vulkan->PreviewDescriptorSetLayout,
-        &SampleBuffer->PreviewDescriptorSet,
-        PreviewDescriptors);
-
-    if (Result != VK_SUCCESS) return nullptr;
-
     Vulkan->SampleBuffers.push_back(SampleBuffer);
 
     return SampleBuffer;
@@ -2692,7 +2671,6 @@ VkResult EndFrame(
 
 void RenderPreview(
     vulkan_context*         Vulkan,
-    vulkan_sample_buffer*   SampleBuffer, 
     vulkan_scene*           Scene,
     camera const&           Camera,
     render_mode             RenderMode)
@@ -2702,20 +2680,19 @@ void RenderPreview(
     uint RandomSeed = 0;
 
     vkCmdBindPipeline(
-        Frame->ComputeCommandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE,
+        Frame->GraphicsCommandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
         Vulkan->PreviewPipeline.Pipeline);
 
     VkDescriptorSet DescriptorSets[] = {
-        SampleBuffer->PreviewDescriptorSet,
         Scene->DescriptorSet,
     };
 
     vkCmdBindDescriptorSets(
-        Frame->ComputeCommandBuffer,
-        VK_PIPELINE_BIND_POINT_COMPUTE,
+        Frame->GraphicsCommandBuffer,
+        VK_PIPELINE_BIND_POINT_GRAPHICS,
         Vulkan->PreviewPipeline.PipelineLayout,
-        0, 2, DescriptorSets,
+        0, 1, DescriptorSets,
         0, nullptr);
 
     auto PushConstantBuffer = preview_push_constant_buffer {
@@ -2726,15 +2703,35 @@ void RenderPreview(
     };
 
     vkCmdPushConstants(
-        Frame->ComputeCommandBuffer,
+        Frame->GraphicsCommandBuffer,
         Vulkan->PreviewPipeline.PipelineLayout,
-        VK_SHADER_STAGE_COMPUTE_BIT,
+        VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         0, sizeof(PushConstantBuffer), &PushConstantBuffer);
 
-    uint32_t GroupPixelSize = 16; //Uniforms->RenderSampleBlockSize;
-    uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
-    uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
-    vkCmdDispatch(Frame->ComputeCommandBuffer, GroupCountX, GroupCountY, 1);
+    //uint32_t GroupPixelSize = 16; //Uniforms->RenderSampleBlockSize;
+    //uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
+    //uint32_t GroupCountY = (RENDER_HEIGHT + GroupPixelSize - 1) / GroupPixelSize;
+    //vkCmdDispatch(Frame->ComputeCommandBuffer, GroupCountX, GroupCountY, 1);
+
+    auto Viewport = VkViewport {
+        .x        = 0.0f,
+        .y        = 0.0f,
+        .width    = static_cast<float>(Vulkan->SwapChainExtent.width),
+        .height   = static_cast<float>(Vulkan->SwapChainExtent.height),
+        .minDepth = 0.0f,
+        .maxDepth = 1.0f,
+    };
+
+    vkCmdSetViewport(Frame->GraphicsCommandBuffer, 0, 1, &Viewport);
+
+    auto Scissor = VkRect2D {
+        .offset = { 0, 0 },
+        .extent = Vulkan->SwapChainExtent,
+    };
+
+    vkCmdSetScissor(Frame->GraphicsCommandBuffer, 0, 1, &Scissor);
+
+    vkCmdDraw(Frame->GraphicsCommandBuffer, 6, 1, 0, 0);
 }
 
 void RenderImGui(

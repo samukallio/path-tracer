@@ -217,12 +217,12 @@ void Frame()
         else {
             RunBasicRenderer(App.Vulkan, App.BasicRenderer, 1);
         }
+
+        RenderSampleBuffer(App.Vulkan, App.SampleBuffer, &ResolveParameters);
     }
     else {
-        RenderPreview(App.Vulkan, App.SampleBuffer, App.VulkanScene, CameraParameters, RenderMode);
+        RenderPreview(App.Vulkan, App.VulkanScene, CameraParameters, RenderMode);
     }
-
-    RenderSampleBuffer(App.Vulkan, App.SampleBuffer, &ResolveParameters);
 
     RenderImGui(App.Vulkan, App.VulkanScene, ImGui::GetDrawData());
 

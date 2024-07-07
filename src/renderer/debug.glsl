@@ -1,6 +1,6 @@
 #version 450
 
-#define BIND_SCENE 1
+#define BIND_SCENE 0
 
 #include "core/common.glsl.inc"
 #include "scene/material_openpbr.glsl.inc"
@@ -28,9 +28,6 @@ const vec3 COLORS[20] = vec3[20](
     vec3(0.502, 0.502, 0.502)
 );
 
-layout(set=0, binding=0, rgba32f)
-uniform image2D SampleAccumulatorImage;
-
 layout(push_constant)
 uniform PreviewPushConstantBuffer
 {
@@ -40,30 +37,43 @@ uniform PreviewPushConstantBuffer
     uint    SelectedShapeIndex;
 };
 
-layout(local_size_x=16, local_size_y=16, local_size_z=1) in;
+#if VERTEX
+
+vec2 Positions[6] = vec2[](
+    vec2(-1.0, -1.0),
+    vec2( 1.0, -1.0),
+    vec2( 1.0,  1.0),
+    vec2(-1.0, -1.0),
+    vec2( 1.0,  1.0),
+    vec2(-1.0,  1.0)
+);
+
+vec2 UVs[6] = vec2[](
+	vec2(0.0, 0.0),
+	vec2(1.0, 0.0),
+	vec2(1.0, 1.0),
+	vec2(0.0, 0.0),
+	vec2(1.0, 1.0),
+	vec2(0.0, 1.0)
+);
+
+layout(location = 0) out vec2 FragmentUV;
 
 void main()
 {
-    // Initialize random number generator.
-    RandomState
-        = gl_GlobalInvocationID.y * 65537
-        + gl_GlobalInvocationID.x
-        + RandomSeed * 277803737u;
+    gl_Position = vec4(Positions[gl_VertexIndex], 0.0, 1.0);
+    FragmentUV = UVs[gl_VertexIndex];
+}
 
-    ivec2 ImagePosition = ivec2(gl_GlobalInvocationID.xy);
-    ivec2 ImageSize = imageSize(SampleAccumulatorImage);
+#elif FRAGMENT
 
-    if (ImagePosition.x >= 2048) return;
-    if (ImagePosition.y >= 1024) return;
+layout(location = 0) in vec2 FragmentUV;
 
-    // Compute the position of the sample we are going to produce in image
-    // coordinates from (0, 0) to (ImageSizeX, ImageSizeY).
-    vec2 SamplePosition = ImagePosition;
+layout(location = 0) out vec4 OutColor;
 
-    //SamplePosition += vec2(Random0To1(), Random0To1());
-
-    // Compute normalized sample position from (0, 0) to (1, 1).
-    vec2 NormalizedSamplePosition = SamplePosition / ImageSize;
+void main()
+{
+    vec2 NormalizedSamplePosition = FragmentUV;
 
     ray Ray = GenerateCameraRay(Camera, NormalizedSamplePosition);
     hit Hit = Trace(Ray);
@@ -119,5 +129,7 @@ void main()
             break;
     }
 
-    imageStore(SampleAccumulatorImage, ImagePosition, vec4(Color, 1.0));
+    OutColor = vec4(Color, 1.0);
 }
+
+#endif

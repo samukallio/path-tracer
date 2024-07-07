@@ -85,7 +85,6 @@ struct vulkan_frame
 struct vulkan_sample_buffer
 {
     VkDescriptorSet             ResolveDescriptorSet        = VK_NULL_HANDLE;
-    VkDescriptorSet             PreviewDescriptorSet        = VK_NULL_HANDLE;
     vulkan_image                Image                       = {};
 };
 
@@ -136,7 +135,6 @@ struct vulkan_context
 
     VkDescriptorSetLayout       SceneDescriptorSetLayout    = VK_NULL_HANDLE;
 
-    VkDescriptorSetLayout       PreviewDescriptorSetLayout  = VK_NULL_HANDLE;
     vulkan_pipeline             PreviewPipeline             = {};
 
     VkDescriptorSetLayout       ResolveDescriptorSetLayout  = VK_NULL_HANDLE;
@@ -195,6 +193,6 @@ void            DestroySampleBuffer(vulkan_context* Vulkan, vulkan_sample_buffer
 
 VkResult        BeginFrame(vulkan_context* Vulkan);
 void            RenderSampleBuffer(vulkan_context* Vulkan, vulkan_sample_buffer* SampleBuffer, vulkan_render_sample_buffer_parameters* Parameters);
-void            RenderPreview(vulkan_context* Vulkan, vulkan_sample_buffer* SampleBuffer, vulkan_scene* Scene, camera const& Camera, render_mode RenderMode);
+void            RenderPreview(vulkan_context* Vulkan, vulkan_scene* Scene, camera const& Camera, render_mode RenderMode);
 void            RenderImGui(vulkan_context* Vulkan, vulkan_scene* Scene, ImDrawData* DrawData);
 VkResult        EndFrame(vulkan_context* Vulkan);
