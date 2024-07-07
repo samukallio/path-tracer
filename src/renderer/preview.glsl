@@ -105,12 +105,12 @@ void main()
                 // We hit the skybox.  Generate a color sample from the skybox radiance
                 // spectrum by integrating against the standard observer.
                 vec4 Spectrum = SampleSkyboxSpectrum(Ray.Velocity);
-                Color = ObserveParametricSpectrumUnderD65(Spectrum);
+                Color = CIE_XYZ_TO_SRGB * ObserveParametricSpectrumUnderD65(Spectrum);
             }
             else {
                 // We hit a surface.  Resolve the base color sample from the reflectance
                 // spectrum by integrating against the standard observer.
-                Color = OpenPBRBaseColor(Hit);
+                Color = CIE_XYZ_TO_SRGB * OpenPBRBaseColor(Hit);
 
                 if (RenderMode == PREVIEW_RENDER_MODE_BASE_COLOR_SHADED)
                     Color *= dot(Hit.Normal, -Ray.Velocity);
@@ -144,11 +144,8 @@ void main()
             break;
     }
 
-    // Convert to SRGB color space.
-    vec3 ColorRGB = CIE_XYZ_TO_SRGB * Color;
-
     if (Hit.ShapeIndex == SelectedShapeIndex)
-        ColorRGB *= vec3(1.0, 0.5, 0.5);
+        Color *= vec3(1.0, 0.5, 0.5);
 
     uint PixelX = uint(floor(FragmentUV.x * RenderSizeX));
     uint PixelY = uint(floor(FragmentUV.y * RenderSizeY));
@@ -156,7 +153,7 @@ void main()
     if (PixelX == MouseX && PixelY == MouseY)
         HitShapeIndex = Hit.ShapeIndex;
 
-    OutColor = vec4(ColorRGB, 1.0);
+    OutColor = vec4(Color, 1.0);
 }
 
 #endif
