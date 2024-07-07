@@ -33,7 +33,6 @@ uniform PreviewPushConstantBuffer
 {
     camera  Camera;
     uint    RenderMode;
-    uint    RandomSeed;
     uint    SelectedShapeIndex;
 };
 

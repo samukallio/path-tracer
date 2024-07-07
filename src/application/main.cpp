@@ -21,7 +21,7 @@ void Frame()
 {
     ImGuiIO& IO = ImGui::GetIO();
 
-    vulkan_render_sample_buffer_parameters ResolveParameters = {};
+    resolve_parameters ResolveParameters = {};
     camera CameraParameters = {};
     render_mode RenderMode = {};
     uint RenderFlags = 0;
@@ -221,7 +221,13 @@ void Frame()
         RenderSampleBuffer(App.Vulkan, App.SampleBuffer, &ResolveParameters);
     }
     else {
-        RenderPreview(App.Vulkan, App.VulkanScene, CameraParameters, RenderMode);
+        auto PreviewParameters = preview_parameters {
+            .Camera = CameraParameters,
+            .RenderMode = RenderMode,
+            .SelectedShapeIndex = 0,
+        };
+
+        RenderPreview(App.Vulkan, App.VulkanScene, &PreviewParameters);
     }
 
     RenderImGui(App.Vulkan, App.VulkanScene, ImGui::GetDrawData());

@@ -163,11 +163,18 @@ struct vulkan_scene
     vulkan_buffer               MeshNodeBuffer              = {};
 };
 
-struct vulkan_render_sample_buffer_parameters
+struct resolve_parameters
 {
     float                       Brightness                      = 1.0f;
     tone_mapping_mode           ToneMappingMode                 = TONE_MAPPING_MODE_CLAMP;
     float                       ToneMappingWhiteLevel           = 1.0f;
+};
+
+struct preview_parameters
+{
+    camera                      Camera;
+    render_mode                 RenderMode;
+    uint                        SelectedShapeIndex;
 };
 
 vulkan_context* CreateVulkan(GLFWwindow* Window, char const* ApplicationName);
@@ -192,7 +199,7 @@ vulkan_sample_buffer* CreateSampleBuffer(vulkan_context* Vulkan, uint Width, uin
 void            DestroySampleBuffer(vulkan_context* Vulkan, vulkan_sample_buffer* SampleBuffer);
 
 VkResult        BeginFrame(vulkan_context* Vulkan);
-void            RenderSampleBuffer(vulkan_context* Vulkan, vulkan_sample_buffer* SampleBuffer, vulkan_render_sample_buffer_parameters* Parameters);
-void            RenderPreview(vulkan_context* Vulkan, vulkan_scene* Scene, camera const& Camera, render_mode RenderMode);
+void            RenderSampleBuffer(vulkan_context* Vulkan, vulkan_sample_buffer* SampleBuffer, resolve_parameters* Parameters);
+void            RenderPreview(vulkan_context* Vulkan, vulkan_scene* Scene, preview_parameters* Parameters);
 void            RenderImGui(vulkan_context* Vulkan, vulkan_scene* Scene, ImDrawData* DrawData);
 VkResult        EndFrame(vulkan_context* Vulkan);

@@ -60,14 +60,6 @@ struct compute_push_constant_buffer
     uint Restart;
 };
 
-struct preview_push_constant_buffer
-{
-    camera              Camera;
-    uint                RenderMode;
-    uint                RandomSeed;
-    uint                SelectedShapeIndex;
-};
-
 static void Errorf(vulkan_context* Vk, char const* Fmt, ...)
 {
     va_list Args;
@@ -1796,7 +1788,7 @@ static VkResult InternalCreateVulkan(
             .DescriptorSetLayouts = {
                 Vulkan->SceneDescriptorSetLayout,
             },
-            .PushConstantBufferSize = sizeof(preview_push_constant_buffer),
+            .PushConstantBufferSize = sizeof(preview_parameters),
         };
 
         Result = InternalCreateGraphicsPipeline(Vulkan, &Vulkan->PreviewPipeline, PipelineConfig);
@@ -1892,7 +1884,7 @@ static VkResult InternalCreateVulkan(
             .VertexShaderCode       = RESOLVE_VERTEX_SHADER,
             .FragmentShaderCode     = RESOLVE_FRAGMENT_SHADER,
             .DescriptorSetLayouts   = { Vulkan->ResolveDescriptorSetLayout },
-            .PushConstantBufferSize = sizeof(vulkan_render_sample_buffer_parameters),
+            .PushConstantBufferSize = sizeof(resolve_parameters),
         };
 
         Result = InternalCreateGraphicsPipeline(Vulkan, &Vulkan->ResolvePipeline, ResolveConfig);
@@ -2375,7 +2367,7 @@ void DestroySampleBuffer(
 void RenderSampleBuffer(
     vulkan_context*         Vulkan,
     vulkan_sample_buffer*   SampleBuffer,
-    vulkan_render_sample_buffer_parameters* Parameters)
+    resolve_parameters*     Parameters)
 {
     auto Frame = Vulkan->CurrentFrame;
 
@@ -2413,7 +2405,7 @@ void RenderSampleBuffer(
         Frame->GraphicsCommandBuffer,
         Vulkan->ResolvePipeline.PipelineLayout,
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        0, sizeof(vulkan_render_sample_buffer_parameters), Parameters);
+        0, sizeof(resolve_parameters), Parameters);
 
     vkCmdDraw(Frame->GraphicsCommandBuffer, 6, 1, 0, 0);
 }
@@ -2670,10 +2662,9 @@ VkResult EndFrame(
 }
 
 void RenderPreview(
-    vulkan_context*         Vulkan,
-    vulkan_scene*           Scene,
-    camera const&           Camera,
-    render_mode             RenderMode)
+    vulkan_context*     Vulkan,
+    vulkan_scene*       Scene,
+    preview_parameters* Parameters)
 {
     auto Frame = Vulkan->CurrentFrame;
 
@@ -2695,18 +2686,11 @@ void RenderPreview(
         0, 1, DescriptorSets,
         0, nullptr);
 
-    auto PushConstantBuffer = preview_push_constant_buffer {
-        .Camera     = Camera,
-        .RenderMode = (uint)RenderMode,
-        .RandomSeed = RandomSeed,
-        //.SelectedShapeIndex = Uniforms->SelectedShapeIndex,
-    };
-
     vkCmdPushConstants(
         Frame->GraphicsCommandBuffer,
         Vulkan->PreviewPipeline.PipelineLayout,
         VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        0, sizeof(PushConstantBuffer), &PushConstantBuffer);
+        0, sizeof(preview_parameters), Parameters);
 
     //uint32_t GroupPixelSize = 16; //Uniforms->RenderSampleBlockSize;
     //uint32_t GroupCountX = (RENDER_WIDTH + GroupPixelSize - 1) / GroupPixelSize;
