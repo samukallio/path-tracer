@@ -2348,7 +2348,7 @@ vulkan_sample_buffer* CreateSampleBuffer(
 
     if (Result != VK_SUCCESS) return nullptr;
 
-    Vulkan->SampleBuffers.push_back(SampleBuffer);
+    Vulkan->SharedImages.push_back(SampleBuffer->Image.Image);
 
     return SampleBuffer;
 }
@@ -2357,7 +2357,7 @@ void DestroySampleBuffer(
     vulkan_context*         Vulkan,
     vulkan_sample_buffer*   SampleBuffer)
 {
-    std::erase(Vulkan->SampleBuffers, SampleBuffer);
+    std::erase(Vulkan->SharedImages, SampleBuffer->Image.Image);
 
     InternalDestroyImage(Vulkan, &SampleBuffer->Image);
 
@@ -2471,7 +2471,7 @@ VkResult BeginFrame(
         return Result;
     }
 
-    for (vulkan_sample_buffer* SampleBuffer : Vulkan->SampleBuffers) {
+    for (VkImage Image : Vulkan->SharedImages) {
         auto SubresourceRange = VkImageSubresourceRange {
             .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
             .baseMipLevel   = 0,
@@ -2488,7 +2488,7 @@ VkResult BeginFrame(
             .newLayout           = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
             .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
             .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .image               = SampleBuffer->Image.Image,
+            .image               = Image,
             .subresourceRange    = SubresourceRange,
         };
 
@@ -2573,7 +2573,7 @@ VkResult EndFrame(
     {
         vkCmdEndRenderPass(Frame->GraphicsCommandBuffer);
 
-        for (vulkan_sample_buffer* SampleBuffer : Vulkan->SampleBuffers) {
+        for (VkImage Image : Vulkan->SharedImages) {
             auto SubresourceRange = VkImageSubresourceRange {
                 .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
                 .baseMipLevel   = 0,
@@ -2590,7 +2590,7 @@ VkResult EndFrame(
                 .newLayout           = VK_IMAGE_LAYOUT_GENERAL,
                 .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
                 .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-                .image               = SampleBuffer->Image.Image,
+                .image               = Image,
                 .subresourceRange    = SubresourceRange,
             };
 

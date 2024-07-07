@@ -144,7 +144,9 @@ struct vulkan_context
     vulkan_pipeline             ImGuiPipeline               = {};
     vulkan_image                ImGuiTexture                = {};
 
-    std::vector<vulkan_sample_buffer*> SampleBuffers        = {};
+    // List of images that must be transitioned from compute-write
+    // to fragment-read and back before/after the graphics render pass.
+    std::vector<VkImage>        SharedImages                = {};
 
     vulkan_frame*               CurrentFrame                = nullptr;
 };
