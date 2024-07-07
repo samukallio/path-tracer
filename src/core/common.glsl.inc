@@ -630,10 +630,8 @@ vec4 SampleParametricSpectrum(vec4 BetaAndIntensity, vec4 Lambdas)
     return BetaAndIntensity.w * SampleParametricSpectrum(BetaAndIntensity.xyz, Lambdas);
 }
 
-/* --- Parametric Spectrum Representation ---------------------------------- */
-
-// Compute the SRGB tristimulus response of a parametric spectrum under
-// illuminant D65.  This is useful to retrieve the SRGB color corresponding
+// Compute the XYZ tristimulus response of a parametric spectrum under
+// illuminant D65.  This is useful to retrieve the XYZ color corresponding
 // to a parametric spectrum for simple surface color visualization.
 vec3 ObserveParametricSpectrumUnderD65(vec4 BetaAndIntensity)
 {
