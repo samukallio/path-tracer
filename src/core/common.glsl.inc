@@ -1,35 +1,18 @@
 #ifndef COMMON_GLSL_INC
 #define COMMON_GLSL_INC
 
-const float INFINITY        = 1e30f;
-const float EPSILON         = 1e-9f;
-const float PI              = 3.141592653f;
-const float TAU             = 6.283185306f;
+const float INFINITY                    = 1e30f;
+const float EPSILON                     = 1e-9f;
+const float PI                          = 3.141592653f;
+const float TAU                         = 6.283185306f;
 
-const float HIT_TIME_LIMIT  = 1048576.0;
+const float HIT_TIME_LIMIT              = 1048576.0;
 
-const float CIE_LAMBDA_MIN  = 360.0;
-const float CIE_LAMBDA_MAX  = 830.0;
+const float CIE_LAMBDA_MIN              = 360.0;
+const float CIE_LAMBDA_MAX              = 830.0;
 
-const uint SHAPE_INDEX_NONE                 = 0xFFFFFFFF;
-const uint TEXTURE_INDEX_NONE               = 0xFFFFFFFF;
-
-const uint RENDER_MODE_PATH_TRACE           = 0;
-const uint RENDER_MODE_BASE_COLOR           = 1;
-const uint RENDER_MODE_BASE_COLOR_SHADED    = 2;
-const uint RENDER_MODE_NORMAL               = 3;
-const uint RENDER_MODE_MATERIAL_INDEX       = 4;
-const uint RENDER_MODE_PRIMITIVE_INDEX      = 5;
-const uint RENDER_MODE_MESH_COMPLEXITY      = 6;
-const uint RENDER_MODE_SCENE_COMPLEXITY     = 7;
-
-const uint RENDER_FLAG_ACCUMULATE           = 1 << 0;
-const uint RENDER_FLAG_SAMPLE_JITTER        = 1 << 1;
-
-const uint TONE_MAPPING_MODE_CLAMP          = 0;
-const uint TONE_MAPPING_MODE_REINHARD       = 1;
-const uint TONE_MAPPING_MODE_HABLE          = 2;
-const uint TONE_MAPPING_MODE_ACES           = 3;
+const uint RENDER_FLAG_ACCUMULATE       = 1 << 0;
+const uint RENDER_FLAG_SAMPLE_JITTER    = 1 << 1;
 
 struct packed_transform
 {

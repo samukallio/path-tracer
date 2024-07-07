@@ -23,7 +23,7 @@ void Frame()
 
     resolve_parameters ResolveParameters = {};
     camera CameraParameters = {};
-    render_mode RenderMode = {};
+    preview_render_mode RenderMode = {};
     uint RenderFlags = 0;
 
     // ImGui.
@@ -145,7 +145,7 @@ void Frame()
             .From = ViewMatrix,
         };
 
-        RenderMode = RENDER_MODE_BASE_COLOR_SHADED;
+        RenderMode = PREVIEW_RENDER_MODE_BASE_COLOR_SHADED;
         RenderFlags |= RENDER_FLAG_ACCUMULATE;
         RenderFlags |= RENDER_FLAG_SAMPLE_JITTER;
 
@@ -173,7 +173,6 @@ void Frame()
             CameraParameters.SensorSize     = CameraEntity->ThinLens.SensorSizeInMM / 1000.0f;
         }
 
-        RenderMode  = RENDER_MODE_PATH_TRACE;
         RenderFlags = CameraEntity->RenderFlags;
 
         vec3 Origin = CameraEntity->Transform.Position;
@@ -199,7 +198,7 @@ void Frame()
 
     BeginFrame(App.Vulkan);
 
-    if (RenderMode == RENDER_MODE_PATH_TRACE) {
+    if (App.Camera) {
         if (Restart) {
             App.BasicRenderer->Camera           = CameraParameters;
             App.BasicRenderer->Scene            = App.VulkanScene;

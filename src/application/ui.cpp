@@ -213,69 +213,6 @@ static void CameraInspector(application* App, camera_entity* Camera)
 {
     bool C = false;
 
-    if (App->Camera == Camera) {
-        bool Active = true;
-        C |= ImGui::Checkbox("Render Using This Camera", &Active);
-        if (!Active) App->Camera = nullptr;
-    }
-    else {
-        bool Active = false;
-        C |= ImGui::Checkbox("Render Using This Camera", &Active);
-        if (Active) App->Camera = Camera;
-    }
-
-    if (C) App->Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
-
-    ImGui::Spacing();
-    ImGui::SeparatorText("Rendering");
-
-    if (ImGui::BeginCombo("Render Mode", RenderModeName(Camera->RenderMode))) {
-        for (int I = 0; I < RENDER_MODE__COUNT; I++) {
-            auto RenderMode = static_cast<render_mode>(I);
-            bool IsSelected = Camera->RenderMode == RenderMode;
-            if (ImGui::Selectable(RenderModeName(RenderMode), &IsSelected)) {
-                Camera->RenderMode = RenderMode;
-                C = true;
-            }
-        }
-        ImGui::EndCombo();
-    }
-    
-    if (Camera->RenderMode == RENDER_MODE_PATH_TRACE) {
-        int BounceLimit = static_cast<int>(Camera->RenderBounceLimit);
-        C |= ImGui::InputInt("Bounce Limit", &BounceLimit);
-        C |= ImGui::DragFloat("Termination Probability", &Camera->RenderTerminationProbability, 0.001f, 0.0f, 1.0f);
-        Camera->RenderBounceLimit = std::max(1, BounceLimit);
-    }
-
-    char const* const RenderSampleBlockSizeLabels[] = { "1x1", "2x2", "4x4", "8x8" };
-    ImGui::Combo("Sample Block Size",
-        (int*)&Camera->RenderSampleBlockSizeLog2,
-        RenderSampleBlockSizeLabels, 4);
-
-    C |= ImGui::CheckboxFlags("Sample Accumulation", &Camera->RenderFlags, RENDER_FLAG_ACCUMULATE);
-    C |= ImGui::CheckboxFlags("Sample Jitter", &Camera->RenderFlags, RENDER_FLAG_SAMPLE_JITTER);
-
-    ImGui::Spacing();
-    ImGui::SeparatorText("Post-Processing");
-
-    ImGui::SliderFloat("Brightness", &Camera->Brightness, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-
-    if (ImGui::BeginCombo("Tone Mapping", ToneMappingModeName(Camera->ToneMappingMode))) {
-        for (int I = 0; I < TONE_MAPPING_MODE__COUNT; I++) {
-            auto ToneMappingMode = static_cast<tone_mapping_mode>(I);
-            bool IsSelected = Camera->ToneMappingMode == ToneMappingMode;
-            if (ImGui::Selectable(ToneMappingModeName(ToneMappingMode), &IsSelected)) {
-                Camera->ToneMappingMode = ToneMappingMode;
-            }
-        }
-        ImGui::EndCombo();
-    }
-
-    if (Camera->ToneMappingMode == TONE_MAPPING_MODE_REINHARD) {
-        ImGui::SliderFloat("White Level", &Camera->ToneMappingWhiteLevel, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-    }
-
     ImGui::Spacing();
     ImGui::SeparatorText("Projection");
 
@@ -312,6 +249,69 @@ static void CameraInspector(application* App, camera_entity* Camera)
         C |= ImGui::DragFloat("Aperture (mm)", &Camera->ThinLens.ApertureDiameterInMM, 0.5f, 0.0f, 100.0f);
         C |= ImGui::DragFloat("Focus Distance", &Camera->ThinLens.FocusDistance, 1.0f, 0.01f, 1000.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
     }
+
+    ImGui::Spacing();
+    ImGui::SeparatorText("Rendering");
+
+    if (App->Camera == Camera) {
+        bool Active = true;
+        C |= ImGui::Checkbox("Render Using This Camera", &Active);
+        if (!Active) App->Camera = nullptr;
+    }
+    else {
+        bool Active = false;
+        C |= ImGui::Checkbox("Render Using This Camera", &Active);
+        if (Active) App->Camera = Camera;
+    }
+
+    //if (ImGui::BeginCombo("Render Mode", RenderModeName(Camera->RenderMode))) {
+    //    for (int I = 0; I < RENDER_MODE__COUNT; I++) {
+    //        auto RenderMode = static_cast<render_mode>(I);
+    //        bool IsSelected = Camera->RenderMode == RenderMode;
+    //        if (ImGui::Selectable(RenderModeName(RenderMode), &IsSelected)) {
+    //            Camera->RenderMode = RenderMode;
+    //            C = true;
+    //        }
+    //    }
+    //    ImGui::EndCombo();
+    //}
+    //
+    //if (Camera->RenderMode == RENDER_MODE_PATH_TRACE) {
+    //    int BounceLimit = static_cast<int>(Camera->RenderBounceLimit);
+    //    C |= ImGui::InputInt("Bounce Limit", &BounceLimit);
+    //    C |= ImGui::DragFloat("Termination Probability", &Camera->RenderTerminationProbability, 0.001f, 0.0f, 1.0f);
+    //    Camera->RenderBounceLimit = std::max(1, BounceLimit);
+    //}
+
+    //char const* const RenderSampleBlockSizeLabels[] = { "1x1", "2x2", "4x4", "8x8" };
+    //ImGui::Combo("Sample Block Size",
+    //    (int*)&Camera->RenderSampleBlockSizeLog2,
+    //    RenderSampleBlockSizeLabels, 4);
+
+    C |= ImGui::CheckboxFlags("Sample Accumulation", &Camera->RenderFlags, RENDER_FLAG_ACCUMULATE);
+    C |= ImGui::CheckboxFlags("Sample Jitter", &Camera->RenderFlags, RENDER_FLAG_SAMPLE_JITTER);
+
+    ImGui::Spacing();
+    ImGui::SeparatorText("Post-Processing");
+
+    ImGui::SliderFloat("Brightness", &Camera->Brightness, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+
+    if (ImGui::BeginCombo("Tone Mapping", ToneMappingModeName(Camera->ToneMappingMode))) {
+        for (int I = 0; I < TONE_MAPPING_MODE__COUNT; I++) {
+            auto ToneMappingMode = static_cast<tone_mapping_mode>(I);
+            bool IsSelected = Camera->ToneMappingMode == ToneMappingMode;
+            if (ImGui::Selectable(ToneMappingModeName(ToneMappingMode), &IsSelected)) {
+                Camera->ToneMappingMode = ToneMappingMode;
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    if (Camera->ToneMappingMode == TONE_MAPPING_MODE_REINHARD) {
+        ImGui::SliderFloat("White Level", &Camera->ToneMappingWhiteLevel, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+    }
+
+    ImGui::Spacing();
 
     if (C) App->Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
 }

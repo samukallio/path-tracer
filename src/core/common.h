@@ -41,32 +41,10 @@ using glm::aligned_mat4;
 uint const SHAPE_INDEX_NONE     = 0xFFFFFFFF;
 uint const TEXTURE_INDEX_NONE   = 0xFFFFFFFF;
 
-enum render_mode : int32_t
-{
-    RENDER_MODE_PATH_TRACE              = 0,
-    RENDER_MODE_BASE_COLOR              = 1,
-    RENDER_MODE_BASE_COLOR_SHADED       = 2,
-    RENDER_MODE_NORMAL                  = 3,
-    RENDER_MODE_MATERIAL_INDEX          = 4,
-    RENDER_MODE_PRIMITIVE_INDEX         = 5,
-    RENDER_MODE_MESH_COMPLEXITY         = 6,
-    RENDER_MODE_SCENE_COMPLEXITY        = 7,
-    RENDER_MODE__COUNT                  = 8,
-};
-
 enum render_flag : uint
 {
     RENDER_FLAG_ACCUMULATE              = 1 << 0,
     RENDER_FLAG_SAMPLE_JITTER           = 1 << 1,
-};
-
-enum tone_mapping_mode : int32_t
-{
-    TONE_MAPPING_MODE_CLAMP             = 0,
-    TONE_MAPPING_MODE_REINHARD          = 1,
-    TONE_MAPPING_MODE_HABLE             = 2,
-    TONE_MAPPING_MODE_ACES              = 3,
-    TONE_MAPPING_MODE__COUNT            = 4,
 };
 
 struct image
@@ -95,34 +73,6 @@ struct ray
     vec3        Origin;
     vec3        Vector;
 };
-
-inline char const* RenderModeName(render_mode Mode)
-{
-    switch (Mode) {
-    case RENDER_MODE_PATH_TRACE:            return "Path Trace";
-    case RENDER_MODE_BASE_COLOR:            return "Base Color";
-    case RENDER_MODE_BASE_COLOR_SHADED:     return "Base Color (Shaded)";
-    case RENDER_MODE_NORMAL:                return "Normal";
-    case RENDER_MODE_MATERIAL_INDEX:        return "Material ID";
-    case RENDER_MODE_PRIMITIVE_INDEX:       return "Primitive ID";
-    case RENDER_MODE_MESH_COMPLEXITY:       return "Mesh Complexity";
-    case RENDER_MODE_SCENE_COMPLEXITY:      return "Scene Complexity";
-    }
-    assert(false);
-    return nullptr;
-}
-
-inline char const* ToneMappingModeName(tone_mapping_mode Mode)
-{
-    switch (Mode) {
-    case TONE_MAPPING_MODE_CLAMP:           return "Clamp";
-    case TONE_MAPPING_MODE_REINHARD:        return "Reinhard";
-    case TONE_MAPPING_MODE_HABLE:           return "Hable";
-    case TONE_MAPPING_MODE_ACES:            return "ACES";
-    }
-    assert(false);
-    return nullptr;
-}
 
 inline ray TransformRay(ray const& Ray, mat4 const& Matrix)
 {

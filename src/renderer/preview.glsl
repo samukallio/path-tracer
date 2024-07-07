@@ -5,6 +5,14 @@
 #include "core/common.glsl.inc"
 #include "scene/openpbr.glsl.inc"
 
+const uint PREVIEW_RENDER_MODE_BASE_COLOR           = 0;
+const uint PREVIEW_RENDER_MODE_BASE_COLOR_SHADED    = 1;
+const uint PREVIEW_RENDER_MODE_NORMAL               = 2;
+const uint PREVIEW_RENDER_MODE_MATERIAL_INDEX       = 3;
+const uint PREVIEW_RENDER_MODE_PRIMITIVE_INDEX      = 4;
+const uint PREVIEW_RENDER_MODE_MESH_COMPLEXITY      = 5;
+const uint PREVIEW_RENDER_MODE_SCENE_COMPLEXITY     = 6;
+
 const vec3 COLORS[20] = vec3[20](
     vec3(0.902, 0.098, 0.294),
     vec3(0.235, 0.706, 0.294),
@@ -80,8 +88,8 @@ void main()
     vec3 Color = vec3(0.0);
 
     switch (RenderMode) {
-        case RENDER_MODE_BASE_COLOR:
-        case RENDER_MODE_BASE_COLOR_SHADED:
+        case PREVIEW_RENDER_MODE_BASE_COLOR:
+        case PREVIEW_RENDER_MODE_BASE_COLOR_SHADED:
             if (Hit.ShapeIndex == SHAPE_INDEX_NONE) {
                 // We hit the skybox.  Generate a color sample from the skybox radiance
                 // spectrum by integrating against the standard observer.
@@ -93,33 +101,33 @@ void main()
                 // spectrum by integrating against the standard observer.
                 Color = OpenPBRBaseColor(Hit);
 
-                if (RenderMode == RENDER_MODE_BASE_COLOR_SHADED)
+                if (RenderMode == PREVIEW_RENDER_MODE_BASE_COLOR_SHADED)
                     Color *= dot(Hit.Normal, -Ray.Velocity);
             }
             break;
 
-        case RENDER_MODE_NORMAL:
+        case PREVIEW_RENDER_MODE_NORMAL:
             if (Hit.ShapeIndex == SHAPE_INDEX_NONE)
                 Color = 0.5 * (1 - Ray.Velocity);
             else
                 Color = 0.5 * (Hit.Normal + 1);
             break;
 
-        case RENDER_MODE_MATERIAL_INDEX:
+        case PREVIEW_RENDER_MODE_MATERIAL_INDEX:
             if (Hit.ShapeIndex != SHAPE_INDEX_NONE)
                 Color = COLORS[Hit.MaterialIndex % 20];
             break;
 
-        case RENDER_MODE_PRIMITIVE_INDEX:
+        case PREVIEW_RENDER_MODE_PRIMITIVE_INDEX:
             if (Hit.ShapeIndex != SHAPE_INDEX_NONE)
                 Color = COLORS[Hit.PrimitiveIndex % 20];
             break;
 
-        case RENDER_MODE_MESH_COMPLEXITY:
+        case PREVIEW_RENDER_MODE_MESH_COMPLEXITY:
             Color = vec3(0,1,0) * Hit.MeshComplexity / 256.0;
             break;
 
-        case RENDER_MODE_SCENE_COMPLEXITY:
+        case PREVIEW_RENDER_MODE_SCENE_COMPLEXITY:
             Color = vec3(0,1,0) * Hit.SceneComplexity / 256.0;
             break;
     }

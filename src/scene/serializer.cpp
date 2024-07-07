@@ -375,7 +375,7 @@ void SerializeObject(serializer& S, json& JSON, entity*& Entity)
     switch (Entity->Type) {
         case ENTITY_TYPE_CAMERA: {
             camera_entity& Object = *static_cast<camera_entity*>(Entity);
-            F(RenderMode);
+            //F(RenderMode);
             F(RenderFlags);
             F(RenderBounceLimit);
             F(RenderSampleBlockSizeLog2);

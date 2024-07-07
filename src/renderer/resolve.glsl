@@ -3,6 +3,7 @@
 #version 450
 
 #include "core/common.glsl.inc"
+#include "scene/scene.glsl.inc"
 
 layout(set=0, binding=0)
 uniform sampler2D SampleAccumulatorImageSampler;

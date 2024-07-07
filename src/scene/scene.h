@@ -21,6 +21,14 @@ enum material_type
     MATERIAL_TYPE_OPENPBR               = 0,
 };
 
+enum shape_type : int32_t
+{
+    SHAPE_TYPE_MESH_INSTANCE            = 0,
+    SHAPE_TYPE_PLANE                    = 1,
+    SHAPE_TYPE_SPHERE                   = 2,
+    SHAPE_TYPE_CUBE                     = 3,
+};
+
 enum camera_model : int32_t
 {
     CAMERA_MODEL_PINHOLE                = 0,
@@ -29,12 +37,13 @@ enum camera_model : int32_t
     CAMERA_MODEL__COUNT                 = 3,
 };
 
-enum shape_type : int32_t
+enum tone_mapping_mode : uint
 {
-    SHAPE_TYPE_MESH_INSTANCE            = 0,
-    SHAPE_TYPE_PLANE                    = 1,
-    SHAPE_TYPE_SPHERE                   = 2,
-    SHAPE_TYPE_CUBE                     = 3,
+    TONE_MAPPING_MODE_CLAMP             = 0,
+    TONE_MAPPING_MODE_REINHARD          = 1,
+    TONE_MAPPING_MODE_HABLE             = 2,
+    TONE_MAPPING_MODE_ACES              = 3,
+    TONE_MAPPING_MODE__COUNT            = 4,
 };
 
 inline char const* MaterialTypeName(material_type Type)
@@ -63,6 +72,18 @@ inline char const* CameraModelName(camera_model Model)
     case CAMERA_MODEL_PINHOLE:              return "Pinhole";
     case CAMERA_MODEL_THIN_LENS:            return "Thin Lens";
     case CAMERA_MODEL_360:                  return "360";
+    }
+    assert(false);
+    return nullptr;
+}
+
+inline char const* ToneMappingModeName(tone_mapping_mode Mode)
+{
+    switch (Mode) {
+    case TONE_MAPPING_MODE_CLAMP:           return "Clamp";
+    case TONE_MAPPING_MODE_REINHARD:        return "Reinhard";
+    case TONE_MAPPING_MODE_HABLE:           return "Hable";
+    case TONE_MAPPING_MODE_ACES:            return "ACES";
     }
     assert(false);
     return nullptr;
@@ -278,7 +299,6 @@ struct camera_thin_lens
 
 struct camera_entity : entity
 {
-    render_mode                     RenderMode              = RENDER_MODE_PATH_TRACE;
     uint32_t                        RenderFlags             = 0;
     uint32_t                        RenderBounceLimit       = 5;
     uint32_t                        RenderSampleBlockSizeLog2 = 0;

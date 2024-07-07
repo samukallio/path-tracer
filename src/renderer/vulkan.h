@@ -209,11 +209,38 @@ struct resolve_parameters
     float                       ToneMappingWhiteLevel           = 1.0f;
 };
 
+enum preview_render_mode : uint
+{
+    PREVIEW_RENDER_MODE_BASE_COLOR              = 0,
+    PREVIEW_RENDER_MODE_BASE_COLOR_SHADED       = 1,
+    PREVIEW_RENDER_MODE_NORMAL                  = 2,
+    PREVIEW_RENDER_MODE_MATERIAL_INDEX          = 3,
+    PREVIEW_RENDER_MODE_PRIMITIVE_INDEX         = 4,
+    PREVIEW_RENDER_MODE_MESH_COMPLEXITY         = 5,
+    PREVIEW_RENDER_MODE_SCENE_COMPLEXITY        = 6,
+    PREVIEW_RENDER_MODE__COUNT                  = 7,
+};
+
+inline char const* PreviewRenderModeName(preview_render_mode Mode)
+{
+    switch (Mode) {
+    case PREVIEW_RENDER_MODE_BASE_COLOR:            return "Base Color";
+    case PREVIEW_RENDER_MODE_BASE_COLOR_SHADED:     return "Base Color (Shaded)";
+    case PREVIEW_RENDER_MODE_NORMAL:                return "Normal";
+    case PREVIEW_RENDER_MODE_MATERIAL_INDEX:        return "Material ID";
+    case PREVIEW_RENDER_MODE_PRIMITIVE_INDEX:       return "Primitive ID";
+    case PREVIEW_RENDER_MODE_MESH_COMPLEXITY:       return "Mesh Complexity";
+    case PREVIEW_RENDER_MODE_SCENE_COMPLEXITY:      return "Scene Complexity";
+    }
+    assert(false);
+    return nullptr;
+}
+
 // Parameters for RenderPreview().
 struct preview_parameters
 {
     camera                      Camera;
-    render_mode                 RenderMode;
+    preview_render_mode         RenderMode;
     uint                        SelectedShapeIndex;
 };
 

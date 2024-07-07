@@ -3,16 +3,24 @@
 
 #include "core/common.glsl.inc"
 
-const uint SHAPE_TYPE_MESH_INSTANCE         = 0;
-const uint SHAPE_TYPE_PLANE                 = 1;
-const uint SHAPE_TYPE_SPHERE                = 2;
-const uint SHAPE_TYPE_CUBE                  = 3;
+const uint SHAPE_INDEX_NONE                     = 0xFFFFFFFF;
+const uint TEXTURE_INDEX_NONE                   = 0xFFFFFFFF;
 
-const uint TEXTURE_TYPE_RAW                 = 0;
-const uint TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA = 1;
-const uint TEXTURE_TYPE_RADIANCE            = 2;
+const uint SHAPE_TYPE_MESH_INSTANCE             = 0;
+const uint SHAPE_TYPE_PLANE                     = 1;
+const uint SHAPE_TYPE_SPHERE                    = 2;
+const uint SHAPE_TYPE_CUBE                      = 3;
 
-const uint TEXTURE_FLAG_FILTER_NEAREST      = 1 << 0;
+const uint TEXTURE_TYPE_RAW                     = 0;
+const uint TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA  = 1;
+const uint TEXTURE_TYPE_RADIANCE                = 2;
+
+const uint TEXTURE_FLAG_FILTER_NEAREST          = 1 << 0;
+
+const uint TONE_MAPPING_MODE_CLAMP              = 0;
+const uint TONE_MAPPING_MODE_REINHARD           = 1;
+const uint TONE_MAPPING_MODE_HABLE              = 2;
+const uint TONE_MAPPING_MODE_ACES               = 3;
 
 struct packed_texture
 {
@@ -93,6 +101,8 @@ struct hit
     uint                SceneComplexity;            // Total number of shape nodes traversed while tracing.
     uint                MeshComplexity;             // Total number of mesh nodes traversed while tracing.
 };
+
+#ifdef BIND_SCENE
 
 layout(set=BIND_SCENE, binding=0)
 uniform SceneUBO
@@ -497,5 +507,7 @@ hit Trace(ray Ray)
 
     return Hit;
 }
+
+#endif // BIND_SCENE
 
 #endif // SCENE_GLSL_INC
