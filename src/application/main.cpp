@@ -17,7 +17,7 @@ char const* APPLICATION_NAME = "Path Tracer";
 
 application App;
 
-void Frame()
+void Update()
 {
     ImGuiIO& IO = ImGui::GetIO();
 
@@ -428,7 +428,7 @@ int main()
         IO.DeltaTime = static_cast<float>(CurrentTime - PreviousTime);
         PreviousTime = CurrentTime;
 
-        Frame();
+        Update();
 
         App.FrameIndex++;
     }
