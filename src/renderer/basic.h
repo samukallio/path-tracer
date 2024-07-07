@@ -25,8 +25,8 @@ struct basic_renderer
     float                       PathTerminationProbability = 0.0f;
 };
 
-basic_renderer*     CreateBasicRenderer(vulkan_context* Vulkan, vulkan_sample_buffer* SampleBuffer);
-void                DestroyBasicRenderer(vulkan_context* Vulkan, basic_renderer* Renderer);
+basic_renderer*     CreateBasicRenderer(vulkan* Vulkan, vulkan_sample_buffer* SampleBuffer);
+void                DestroyBasicRenderer(vulkan* Vulkan, basic_renderer* Renderer);
 
-void                ResetBasicRenderer(vulkan_context* Vulkan, basic_renderer* Renderer);
-void                RunBasicRenderer(vulkan_context* Vulkan, basic_renderer* Renderer, uint Rounds);
+void                ResetBasicRenderer(vulkan* Vulkan, basic_renderer* Renderer);
+void                RunBasicRenderer(vulkan* Vulkan, basic_renderer* Renderer, uint Rounds);

@@ -101,7 +101,7 @@ struct vulkan_frame
 };
 
 // Common resources associated with a Vulkan renderer instance.
-struct vulkan_context
+struct vulkan
 {
     // Vulkan instance.
     VkInstance                  Instance                    = VK_NULL_HANDLE;
@@ -217,29 +217,29 @@ struct preview_parameters
     uint                        SelectedShapeIndex;
 };
 
-vulkan_context* CreateVulkan(GLFWwindow* Window, char const* ApplicationName);
-void            DestroyVulkan(vulkan_context* Vulkan);
+vulkan*         CreateVulkan(GLFWwindow* Window, char const* ApplicationName);
+void            DestroyVulkan(vulkan* Vulkan);
 
-VkResult        CreateBuffer(vulkan_context* Vulkan, vulkan_buffer* Buffer, VkBufferUsageFlags UsageFlags, VkMemoryPropertyFlags MemoryFlags, VkDeviceSize Size);
-void            DestroyBuffer(vulkan_context* Vulkan, vulkan_buffer* Buffer);
-void            WriteToHostVisibleBuffer(vulkan_context* Vulkan, vulkan_buffer* Buffer, void const* Data, size_t Size);
+VkResult        CreateBuffer(vulkan* Vulkan, vulkan_buffer* Buffer, VkBufferUsageFlags UsageFlags, VkMemoryPropertyFlags MemoryFlags, VkDeviceSize Size);
+void            DestroyBuffer(vulkan* Vulkan, vulkan_buffer* Buffer);
+void            WriteToHostVisibleBuffer(vulkan* Vulkan, vulkan_buffer* Buffer, void const* Data, size_t Size);
 
-VkResult        CreateDescriptorSetLayout(vulkan_context* Vulkan, VkDescriptorSetLayout* Layout, std::span<VkDescriptorType> DescriptorTypes);
-void            WriteDescriptorSet(vulkan_context* Vulkan, VkDescriptorSet DescriptorSet, std::span<vulkan_descriptor> Descriptors);
-VkResult        CreateDescriptorSet(vulkan_context* Vulkan, VkDescriptorSetLayout DescriptorSetLayout, VkDescriptorSet* DescriptorSet, std::span<vulkan_descriptor> Descriptors);
+VkResult        CreateDescriptorSetLayout(vulkan* Vulkan, VkDescriptorSetLayout* Layout, std::span<VkDescriptorType> DescriptorTypes);
+void            WriteDescriptorSet(vulkan* Vulkan, VkDescriptorSet DescriptorSet, std::span<vulkan_descriptor> Descriptors);
+VkResult        CreateDescriptorSet(vulkan* Vulkan, VkDescriptorSetLayout DescriptorSetLayout, VkDescriptorSet* DescriptorSet, std::span<vulkan_descriptor> Descriptors);
 
-VkResult        CreateComputePipeline(vulkan_context* Vulkan, vulkan_pipeline* Pipeline, vulkan_compute_pipeline_configuration const& Config);
-void            DestroyPipeline(vulkan_context* Vulkan, vulkan_pipeline* Pipeline);
+VkResult        CreateComputePipeline(vulkan* Vulkan, vulkan_pipeline* Pipeline, vulkan_compute_pipeline_configuration const& Config);
+void            DestroyPipeline(vulkan* Vulkan, vulkan_pipeline* Pipeline);
 
-vulkan_scene*   CreateVulkanScene(vulkan_context* Vulkan);
-void            UpdateVulkanScene(vulkan_context* Vulkan, vulkan_scene* VulkanScene, scene* Scene, uint32_t Flags);
-void            DestroyVulkanScene(vulkan_context* Vulkan, vulkan_scene* VulkanScene);
+vulkan_scene*   CreateVulkanScene(vulkan* Vulkan);
+void            UpdateVulkanScene(vulkan* Vulkan, vulkan_scene* VulkanScene, scene* Scene, uint32_t Flags);
+void            DestroyVulkanScene(vulkan* Vulkan, vulkan_scene* VulkanScene);
 
-vulkan_sample_buffer* CreateSampleBuffer(vulkan_context* Vulkan, uint Width, uint Height);
-void            DestroySampleBuffer(vulkan_context* Vulkan, vulkan_sample_buffer* SampleBuffer);
+vulkan_sample_buffer* CreateSampleBuffer(vulkan* Vulkan, uint Width, uint Height);
+void            DestroySampleBuffer(vulkan* Vulkan, vulkan_sample_buffer* SampleBuffer);
 
-VkResult        BeginFrame(vulkan_context* Vulkan);
-void            RenderSampleBuffer(vulkan_context* Vulkan, vulkan_sample_buffer* SampleBuffer, resolve_parameters* Parameters);
-void            RenderPreview(vulkan_context* Vulkan, vulkan_scene* Scene, preview_parameters* Parameters);
-void            RenderImGui(vulkan_context* Vulkan, vulkan_scene* Scene, ImDrawData* DrawData);
-VkResult        EndFrame(vulkan_context* Vulkan);
+VkResult        BeginFrame(vulkan* Vulkan);
+void            RenderSampleBuffer(vulkan* Vulkan, vulkan_sample_buffer* SampleBuffer, resolve_parameters* Parameters);
+void            RenderPreview(vulkan* Vulkan, vulkan_scene* Scene, preview_parameters* Parameters);
+void            RenderImGui(vulkan* Vulkan, vulkan_scene* Scene, ImDrawData* DrawData);
+VkResult        EndFrame(vulkan* Vulkan);

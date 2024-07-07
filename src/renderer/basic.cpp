@@ -26,7 +26,7 @@ struct push_constant_buffer
 };
 
 static void InternalDispatchTrace(
-    vulkan_context*         Vulkan,
+    vulkan*         Vulkan,
     basic_renderer*         Renderer,
     push_constant_buffer*   PushConstantBuffer)
 {
@@ -78,7 +78,7 @@ static void InternalDispatchTrace(
 }
 
 static void InternalDispatchScatter(
-    vulkan_context*         Vulkan,
+    vulkan*         Vulkan,
     basic_renderer*         Renderer,
     push_constant_buffer*   PushConstantBuffer)
 {
@@ -135,7 +135,7 @@ static void InternalDispatchScatter(
 }
 
 basic_renderer* CreateBasicRenderer(
-    vulkan_context*         Vulkan,
+    vulkan*         Vulkan,
     vulkan_sample_buffer*   SampleBuffer)
 {
     VkResult Result = VK_SUCCESS;
@@ -216,7 +216,7 @@ basic_renderer* CreateBasicRenderer(
 }
 
 void DestroyBasicRenderer(
-    vulkan_context*     Vulkan,
+    vulkan*     Vulkan,
     basic_renderer*     Renderer)
 {
     DestroyBuffer(Vulkan, &Renderer->PathBuffer);
@@ -234,7 +234,7 @@ void DestroyBasicRenderer(
 }
 
 void ResetBasicRenderer(
-    vulkan_context*     Vulkan,
+    vulkan*     Vulkan,
     basic_renderer*     Renderer)
 {
     auto Frame = Vulkan->CurrentFrame;
@@ -252,7 +252,7 @@ void ResetBasicRenderer(
 }
 
 void RunBasicRenderer(
-    vulkan_context*     Vulkan,
+    vulkan*     Vulkan,
     basic_renderer*     Renderer,
     uint                Rounds)
 {

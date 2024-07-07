@@ -60,7 +60,7 @@ struct compute_push_constant_buffer
     uint Restart;
 };
 
-static void Errorf(vulkan_context* Vk, char const* Fmt, ...)
+static void Errorf(vulkan* Vk, char const* Fmt, ...)
 {
     va_list Args;
     va_start(Args, Fmt);
@@ -75,7 +75,7 @@ static VKAPI_ATTR VkBool32 VKAPI_CALL VulkanDebugCallback(
     const VkDebugUtilsMessengerCallbackDataEXT* CallbackData,
     void* UserDataPtr)
 {
-    auto Context = static_cast<vulkan_context*>(UserDataPtr);
+    auto Context = static_cast<vulkan*>(UserDataPtr);
     Errorf(Context, CallbackData->pMessage);
     return VK_FALSE;
 }
@@ -102,7 +102,7 @@ static void DestroyDebugUtilsMessengerEXT(
 }
 
 VkResult CreateBuffer(
-    vulkan_context* Vulkan,
+    vulkan* Vulkan,
     vulkan_buffer* Buffer,
     VkBufferUsageFlags UsageFlags,
     VkMemoryPropertyFlags MemoryFlags,
@@ -163,8 +163,8 @@ VkResult CreateBuffer(
 }
 
 void DestroyBuffer(
-    vulkan_context* Vulkan,
-    vulkan_buffer* Buffer)
+    vulkan*         Vulkan,
+    vulkan_buffer*  Buffer)
 {
     if (Buffer->Buffer)
         vkDestroyBuffer(Vulkan->Device, Buffer->Buffer, nullptr);
@@ -173,10 +173,10 @@ void DestroyBuffer(
 }
 
 void WriteToHostVisibleBuffer(
-    vulkan_context* Vulkan,
-    vulkan_buffer* Buffer,
-    void const* Data,
-    size_t Size)
+    vulkan*         Vulkan,
+    vulkan_buffer*  Buffer,
+    void const*     Data,
+    size_t          Size)
 {
     assert(Size <= Buffer->Size);
     void* BufferMemory;
@@ -186,10 +186,10 @@ void WriteToHostVisibleBuffer(
 }
 
 static void InternalWriteToDeviceLocalBuffer(
-    vulkan_context* Vulkan,
-    vulkan_buffer* Buffer,
-    void const* Data,
-    size_t Size)
+    vulkan*         Vulkan,
+    vulkan_buffer*  Buffer,
+    void const*     Data,
+    size_t          Size)
 {
     if (Size == 0) return;
 
@@ -243,7 +243,7 @@ static void InternalWriteToDeviceLocalBuffer(
 }
 
 static VkResult InternalCreateImage(
-    vulkan_context*         Vulkan,
+    vulkan*                 Vulkan,
     vulkan_image*           Image,
     VkImageUsageFlags       UsageFlags,
     VkMemoryPropertyFlags   MemoryFlags,
@@ -424,7 +424,7 @@ static VkResult InternalCreateImage(
 }
 
 static void InternalDestroyImage(
-    vulkan_context* Vulkan,
+    vulkan*         Vulkan,
     vulkan_image*   Image)
 {
     if (Image->View)
@@ -436,7 +436,7 @@ static void InternalDestroyImage(
 }
 
 static VkResult InternalWriteToDeviceLocalImage(
-    vulkan_context* Vulkan,
+    vulkan*         Vulkan,
     vulkan_image*   Image,
     uint32_t        LayerIndex,
     uint32_t        LayerCount,
@@ -608,7 +608,7 @@ static VkResult InternalWriteToDeviceLocalImage(
 }
 
 VkResult CreateDescriptorSetLayout(
-    vulkan_context*             Vulkan,
+    vulkan*                     Vulkan,
     VkDescriptorSetLayout*      Layout,
     std::span<VkDescriptorType> DescriptorTypes)
 {
@@ -641,7 +641,7 @@ VkResult CreateDescriptorSetLayout(
 }
 
 void WriteDescriptorSet(
-    vulkan_context*              Vulkan,
+    vulkan*                      Vulkan,
     VkDescriptorSet              DescriptorSet,
     std::span<vulkan_descriptor> Descriptors)
 {
@@ -689,7 +689,7 @@ void WriteDescriptorSet(
 }
 
 VkResult CreateDescriptorSet(
-    vulkan_context*              Vulkan,
+    vulkan*                      Vulkan,
     VkDescriptorSetLayout        DescriptorSetLayout,
     VkDescriptorSet*             DescriptorSet,
     std::span<vulkan_descriptor> Descriptors)
@@ -714,7 +714,7 @@ VkResult CreateDescriptorSet(
 }
 
 static VkResult InternalCreatePresentationResources(
-    vulkan_context* Vulkan)
+    vulkan* Vulkan)
 {
     VkResult Result = VK_SUCCESS;
 
@@ -855,7 +855,7 @@ static VkResult InternalCreatePresentationResources(
 }
 
 static void InternalDestroyPresentationResources(
-    vulkan_context* Vulkan)
+    vulkan* Vulkan)
 {
     for (VkFramebuffer FrameBuffer : Vulkan->SwapChainFrameBuffers)
         vkDestroyFramebuffer(Vulkan->Device, FrameBuffer, nullptr);
@@ -875,7 +875,7 @@ static void InternalDestroyPresentationResources(
 }
 
 static VkResult InternalCreateFrameResources(
-    vulkan_context* Vulkan)
+    vulkan* Vulkan)
 {
     VkResult Result = VK_SUCCESS;
 
@@ -989,7 +989,7 @@ static VkResult InternalCreateFrameResources(
 }
 
 static VkResult InternalDestroyFrameResources(
-    vulkan_context* Vulkan)
+    vulkan* Vulkan)
 {
     for (int Index = 0; Index < 2; Index++) {
         vulkan_frame* Frame = &Vulkan->FrameStates[Index];
@@ -1021,7 +1021,7 @@ struct vulkan_graphics_pipeline_configuration
 };
 
 static VkResult InternalCreateGraphicsPipeline(
-    vulkan_context*     Vulkan,
+    vulkan*             Vulkan,
     vulkan_pipeline*    Pipeline,
     vulkan_graphics_pipeline_configuration const& Config)
 {
@@ -1226,7 +1226,7 @@ static VkResult InternalCreateGraphicsPipeline(
 }
 
 VkResult CreateComputePipeline(
-    vulkan_context*     Vulkan,
+    vulkan*             Vulkan,
     vulkan_pipeline*    Pipeline,
     vulkan_compute_pipeline_configuration const& Config)
 {
@@ -1293,7 +1293,7 @@ VkResult CreateComputePipeline(
 }
 
 void DestroyPipeline(
-    vulkan_context*     Vulkan,
+    vulkan*             Vulkan,
     vulkan_pipeline*    Pipeline)
 {
     if (Pipeline->Pipeline)
@@ -1303,7 +1303,7 @@ void DestroyPipeline(
 }
 
 static VkResult InternalCreateVulkan(
-    vulkan_context*     Vulkan,
+    vulkan*             Vulkan,
     GLFWwindow*         Window,
     char const*         ApplicationName)
 {
@@ -1902,11 +1902,11 @@ static VkResult InternalCreateVulkan(
     return VK_SUCCESS;
 }
 
-vulkan_context* CreateVulkan(
+vulkan* CreateVulkan(
     GLFWwindow* Window,
     char const* ApplicationName)
 {
-    auto Vulkan = new vulkan_context;
+    auto Vulkan = new vulkan;
 
     if (InternalCreateVulkan(Vulkan, Window, ApplicationName) != VK_SUCCESS) {
         DestroyVulkan(Vulkan);
@@ -1917,7 +1917,7 @@ vulkan_context* CreateVulkan(
     return Vulkan;
 }
 
-void DestroyVulkan(vulkan_context* Vulkan)
+void DestroyVulkan(vulkan* Vulkan)
 {
     if (Vulkan->Device) {
         // Device exists, make sure there is nothing going on
@@ -2023,7 +2023,7 @@ void DestroyVulkan(vulkan_context* Vulkan)
 }
 
 static void InternalWaitForWindowSize(
-    vulkan_context* Vulkan)
+    vulkan* Vulkan)
 {
     int Width = 0, Height = 0;
     glfwGetFramebufferSize(Vulkan->Window, &Width, &Height);
@@ -2034,7 +2034,7 @@ static void InternalWaitForWindowSize(
 }
 
 vulkan_scene* CreateVulkanScene(
-    vulkan_context* Vulkan)
+    vulkan* Vulkan)
 {
     VkResult Result = VK_SUCCESS;
     auto VulkanScene = new vulkan_scene;
@@ -2062,7 +2062,7 @@ vulkan_scene* CreateVulkanScene(
 }
 
 void UpdateVulkanScene(
-    vulkan_context* Vulkan,
+    vulkan*         Vulkan,
     vulkan_scene*   VulkanScene,
     scene*          Scene,
     uint32_t        DirtyFlags)
@@ -2289,7 +2289,7 @@ void UpdateVulkanScene(
 }
 
 void DestroyVulkanScene(
-    vulkan_context* Vulkan,
+    vulkan*         Vulkan,
     vulkan_scene*   VulkanScene)
 {
     if (Vulkan->Device) {
@@ -2310,9 +2310,9 @@ void DestroyVulkanScene(
 }
 
 vulkan_sample_buffer* CreateSampleBuffer(
-    vulkan_context*         Vulkan,
-    uint                    Width,
-    uint                    Height)
+    vulkan* Vulkan,
+    uint    Width,
+    uint    Height)
 {
     VkResult Result = VK_SUCCESS;
 
@@ -2354,7 +2354,7 @@ vulkan_sample_buffer* CreateSampleBuffer(
 }
 
 void DestroySampleBuffer(
-    vulkan_context*         Vulkan,
+    vulkan*                 Vulkan,
     vulkan_sample_buffer*   SampleBuffer)
 {
     std::erase(Vulkan->SharedImages, SampleBuffer->Image.Image);
@@ -2365,7 +2365,7 @@ void DestroySampleBuffer(
 }
 
 void RenderSampleBuffer(
-    vulkan_context*         Vulkan,
+    vulkan*                 Vulkan,
     vulkan_sample_buffer*   SampleBuffer,
     resolve_parameters*     Parameters)
 {
@@ -2411,7 +2411,7 @@ void RenderSampleBuffer(
 }
 
 VkResult BeginFrame(
-    vulkan_context* Vulkan)
+    vulkan* Vulkan)
 {
     assert(!Vulkan->CurrentFrame);
 
@@ -2526,7 +2526,7 @@ VkResult BeginFrame(
 }
 
 VkResult EndFrame(
-    vulkan_context* Vulkan)
+    vulkan* Vulkan)
 {
     assert(Vulkan->CurrentFrame);
 
@@ -2662,7 +2662,7 @@ VkResult EndFrame(
 }
 
 void RenderPreview(
-    vulkan_context*     Vulkan,
+    vulkan*             Vulkan,
     vulkan_scene*       Scene,
     preview_parameters* Parameters)
 {
@@ -2719,7 +2719,7 @@ void RenderPreview(
 }
 
 void RenderImGui(
-    vulkan_context* Vulkan,
+    vulkan*         Vulkan,
     vulkan_scene*   Scene,
     ImDrawData*     DrawData)
 {

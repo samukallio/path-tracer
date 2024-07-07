@@ -4,7 +4,7 @@
 #include "scene/scene.h"
 
 struct GLFWwindow;
-struct vulkan_context;
+struct vulkan;
 struct vulkan_scene;
 struct vulkan_sample_buffer;
 struct basic_renderer;
@@ -29,7 +29,7 @@ enum selection_type
 struct application
 {
     GLFWwindow*             Window              = nullptr;
-    vulkan_context*         Vulkan              = nullptr;
+    vulkan*                 Vulkan              = nullptr;
     vulkan_scene*           VulkanScene         = nullptr;
 
     vulkan_sample_buffer*   SampleBuffer        = nullptr;
