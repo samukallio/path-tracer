@@ -12,6 +12,7 @@ struct scene;
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 
+// Resources associated with a Vulkan buffer.
 struct vulkan_buffer
 {
     VkBuffer                    Buffer                      = VK_NULL_HANDLE;
@@ -19,6 +20,7 @@ struct vulkan_buffer
     VkDeviceSize                Size                        = 0;
 };
 
+// Resources associated with a Vulkan image.
 struct vulkan_image
 {
     VkImage                     Image                       = VK_NULL_HANDLE;
@@ -31,6 +33,7 @@ struct vulkan_image
     uint32_t                    LayerCount                  = 0;
 };
 
+// Description of the code and data bindings of a compute shader.
 struct vulkan_compute_pipeline_configuration
 {
     using descriptor_set_layouts = std::vector<VkDescriptorSetLayout>;
@@ -40,12 +43,14 @@ struct vulkan_compute_pipeline_configuration
     uint32_t                    PushConstantBufferSize      = 0;
 };
 
+// Resources associated with a Vulkan compute or graphics pipeline.
 struct vulkan_pipeline
 {
     VkPipeline                  Pipeline                    = VK_NULL_HANDLE;
     VkPipelineLayout            PipelineLayout              = VK_NULL_HANDLE;
 };
 
+// Simplified description of a descriptor for creating/updating descriptor sets.
 struct vulkan_descriptor
 {
     VkDescriptorType            Type                        = {};
@@ -55,66 +60,82 @@ struct vulkan_descriptor
     VkSampler                   Sampler                     = VK_NULL_HANDLE;
 };
 
+// Vulkan resources and information required to track one in-flight frame.
 struct vulkan_frame
 {
+    // For indexing external arrays of per-in-flight-frame resources.
     uint32_t                    Index                       = 0;
+
+    // When true, this frame has not been in flight yet and cannot be waited on.
     bool                        Fresh                       = false;
 
+    // Previous in-flight frame.
     vulkan_frame*               Previous                    = nullptr;
 
-    // Fence that gets signaled when the previous commands
-    // accessing the resources of this frame state have been
-    // completed.
+    // Signaled when the previous commands accessing the resources of this frame state have been completed.
     VkFence                     AvailableFence              = VK_NULL_HANDLE;
 
-    // Swap chain image state for this frame.
+    // Index of the swap chain image to render to in this frame.
     uint32_t                    ImageIndex                  = 0;
+
+    // Signaled when a swap chain image is ready to render into.
     VkSemaphore                 ImageAvailableSemaphore     = VK_NULL_HANDLE;
+
+    // Signaled when rendering has finished and swap chain image can be presented.
     VkSemaphore                 ImageFinishedSemaphore      = VK_NULL_HANDLE;
 
+    // Signaled when compute has finished for this frame, waited on by next frame compute.
     VkSemaphore                 ComputeToComputeSemaphore   = VK_NULL_HANDLE;
+
+    // Signaled when compute has finished for this frame, waited on by this frame graphics.
     VkSemaphore                 ComputeToGraphicsSemaphore  = VK_NULL_HANDLE;
+
+    // Command buffers for this frame.
     VkCommandBuffer             GraphicsCommandBuffer       = VK_NULL_HANDLE;
     VkCommandBuffer             ComputeCommandBuffer        = VK_NULL_HANDLE;
 
+    // Resources for dynamic ImGui geometry submitted during this frame.
     vulkan_buffer               ImGuiIndexBuffer            = {};
     vulkan_buffer               ImGuiVertexBuffer           = {};
     VkDescriptorSet             ImGuiDescriptorSet          = {};
 };
 
-struct vulkan_sample_buffer
-{
-    VkDescriptorSet             ResolveDescriptorSet        = VK_NULL_HANDLE;
-    vulkan_image                Image                       = {};
-};
-
+// Common resources associated with a Vulkan renderer instance.
 struct vulkan_context
 {
+    // Vulkan instance.
     VkInstance                  Instance                    = VK_NULL_HANDLE;
     VkDebugUtilsMessengerEXT    Messenger                   = VK_NULL_HANDLE;
 
+    // Physical devices.
     VkPhysicalDevice            PhysicalDevice              = VK_NULL_HANDLE;
     VkPhysicalDeviceFeatures    PhysicalDeviceFeatures      = {};
     VkPhysicalDeviceProperties  PhysicalDeviceProperties    = {};
 
+    // Logical device.
     VkDevice                    Device                      = VK_NULL_HANDLE;
 
+    // Graphics queue.
     uint32_t                    GraphicsQueueFamilyIndex    = 0;
     VkQueue                     GraphicsQueue               = VK_NULL_HANDLE;
     VkCommandPool               GraphicsCommandPool         = VK_NULL_HANDLE;
 
+    // Compute queue.
     uint32_t                    ComputeQueueFamilyIndex     = 0;
     VkQueue                     ComputeQueue                = VK_NULL_HANDLE;
     VkCommandPool               ComputeCommandPool          = VK_NULL_HANDLE;
 
+    // Presentation queue.
     uint32_t                    PresentQueueFamilyIndex     = 0;
     VkQueue                     PresentQueue                = VK_NULL_HANDLE;
     VkPresentModeKHR            PresentMode                 = VK_PRESENT_MODE_IMMEDIATE_KHR;
 
+    // Window resources.
     GLFWwindow*                 Window                      = nullptr;
     VkSurfaceKHR                Surface                     = VK_NULL_HANDLE;
     VkSurfaceFormatKHR          SurfaceFormat               = {};
 
+    // Swap chain resources.
     VkSwapchainKHR              SwapChain                   = VK_NULL_HANDLE;
     VkExtent2D                  SwapChainExtent             = {};
     VkFormat                    SwapChainFormat             = VK_FORMAT_UNDEFINED;
@@ -122,24 +143,33 @@ struct vulkan_context
     std::vector<VkImageView>    SwapChainImageViews         = {};
     std::vector<VkFramebuffer>  SwapChainFrameBuffers       = {};
 
+    // Shared descriptor pool from which all descriptor sets are allocated.
     VkDescriptorPool            DescriptorPool              = VK_NULL_HANDLE;
 
+    // Render pass for all graphics rendering operations.
     VkRenderPass                MainRenderPass              = VK_NULL_HANDLE;
 
+    // Resources per in-flight frame.
     uint32_t                    FrameIndex                  = 0;
     vulkan_frame                FrameStates[2]              = {};
+    vulkan_frame*               CurrentFrame                = nullptr;
 
+    // Texture samplers.
     VkSampler                   ImageSamplerNearestNoMip    = VK_NULL_HANDLE;
     VkSampler                   ImageSamplerLinear          = VK_NULL_HANDLE;
     VkSampler                   ImageSamplerLinearNoMip     = VK_NULL_HANDLE;
 
+    // Descriptor set layout for all scene-related resources.
     VkDescriptorSetLayout       SceneDescriptorSetLayout    = VK_NULL_HANDLE;
 
+    // Common resources for rendering a scene preview in edit mode.
     vulkan_pipeline             PreviewPipeline             = {};
 
+    // Common resources for rendering a resolved view of a sample buffer.
     VkDescriptorSetLayout       ResolveDescriptorSetLayout  = VK_NULL_HANDLE;
     vulkan_pipeline             ResolvePipeline             = {};
 
+    // Common resources for rendering ImGui.
     VkDescriptorSetLayout       ImGuiDescriptorSetLayout    = VK_NULL_HANDLE;
     vulkan_pipeline             ImGuiPipeline               = {};
     vulkan_image                ImGuiTexture                = {};
@@ -147,10 +177,16 @@ struct vulkan_context
     // List of images that must be transitioned from compute-write
     // to fragment-read and back before/after the graphics render pass.
     std::vector<VkImage>        SharedImages                = {};
-
-    vulkan_frame*               CurrentFrame                = nullptr;
 };
 
+// A floating point sample accumulator buffer for Monte Carlo integration operations.
+struct vulkan_sample_buffer
+{
+    VkDescriptorSet             ResolveDescriptorSet        = VK_NULL_HANDLE;
+    vulkan_image                Image                       = {};
+};
+
+// Vulkan resources associated with a scene.
 struct vulkan_scene
 {
     VkDescriptorSet             DescriptorSet               = VK_NULL_HANDLE;
@@ -165,6 +201,7 @@ struct vulkan_scene
     vulkan_buffer               MeshNodeBuffer              = {};
 };
 
+// Parameters for RenderSampleBuffer().
 struct resolve_parameters
 {
     float                       Brightness                      = 1.0f;
@@ -172,6 +209,7 @@ struct resolve_parameters
     float                       ToneMappingWhiteLevel           = 1.0f;
 };
 
+// Parameters for RenderPreview().
 struct preview_parameters
 {
     camera                      Camera;
