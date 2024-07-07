@@ -28,14 +28,14 @@ uint32_t const RESOLVE_FRAGMENT_SHADER[] =
     #include "resolve.fragment.inc"
 };
 
-uint32_t const DEBUG_VERTEX_SHADER[] =
+uint32_t const PREVIEW_VERTEX_SHADER[] =
 {
-    #include "debug.vertex.inc"
+    #include "preview.vertex.inc"
 };
 
-uint32_t const DEBUG_FRAGMENT_SHADER[] =
+uint32_t const PREVIEW_FRAGMENT_SHADER[] =
 {
-    #include "debug.fragment.inc"
+    #include "preview.fragment.inc"
 };
 
 uint32_t const IMGUI_VERTEX_SHADER[] =
@@ -1783,8 +1783,8 @@ static VkResult InternalCreateVulkan(
     // Create preview renderer resources.
     {
         auto PipelineConfig = vulkan_graphics_pipeline_configuration {
-            .VertexShaderCode = DEBUG_VERTEX_SHADER,
-            .FragmentShaderCode = DEBUG_FRAGMENT_SHADER,
+            .VertexShaderCode = PREVIEW_VERTEX_SHADER,
+            .FragmentShaderCode = PREVIEW_FRAGMENT_SHADER,
             .DescriptorSetLayouts = {
                 Vulkan->SceneDescriptorSetLayout,
             },
