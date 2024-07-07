@@ -139,7 +139,7 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
         else {
             vec4 Emission = SampleSkyboxRadiance(Ray.Velocity, Lambda);
             float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
-            Path.Sample += SampleStandardObserverSRGB(Lambda) * (Emission * Path.Throughput) / ClusterPDF;
+            Path.Sample += SampleStandardObserver(Lambda) * (Emission * Path.Throughput) / ClusterPDF;
             Path.Weight = vec4(0.0);
         }
 

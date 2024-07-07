@@ -57,12 +57,12 @@ vec3 OpenPBRBaseColor(hit Hit)
 {
     uint MI = Hit.MaterialIndex;
 
-    vec3 BaseColor = ObserveParametricSpectrumSRGB(MaterialVec3(MI, OPENPBR_BASE_SPECTRUM));
+    vec3 BaseColor = ObserveParametricSpectrumUnderD65(MaterialVec3(MI, OPENPBR_BASE_SPECTRUM));
     uint BaseSpectrumTextureIndex = MaterialUint(MI, OPENPBR_BASE_SPECTRUM_TEXTURE_INDEX);
 
     if (BaseSpectrumTextureIndex != TEXTURE_INDEX_NONE) {
         vec4 Value = SampleTexture(BaseSpectrumTextureIndex, Hit.UV);
-        BaseColor *= ObserveParametricSpectrumSRGB(Value.xyz);
+        BaseColor *= ObserveParametricSpectrumUnderD65(Value.xyz);
     }
 
     return BaseColor;
@@ -260,7 +260,7 @@ void OpenPBRBaseSpecularBSDF(openpbr_surface Surface, vec4 Lambda, vec3 Out, out
 {
     if (Out.z > 0) {
         float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
-        Path.Sample += SampleStandardObserverSRGB(Lambda) * (Surface.Emission * Path.Throughput) / ClusterPDF;
+        Path.Sample += SampleStandardObserver(Lambda) * (Surface.Emission * Path.Throughput) / ClusterPDF;
     }
 
     // Sample a microsurface normal for specular scattering.
