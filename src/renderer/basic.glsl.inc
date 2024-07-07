@@ -26,11 +26,6 @@ struct trace_buffer
     uint    PackedTangentX          [TRACE_COUNT];
     float   TextureU                [TRACE_COUNT];
     float   TextureV                [TRACE_COUNT];
-
-    // Result data stored only for specific rendering modes.
-    uint    PrimitiveIndex          [TRACE_COUNT];
-    uint    SceneComplexity         [TRACE_COUNT];
-    uint    MeshComplexity          [TRACE_COUNT];
 };
 
 struct path_buffer
@@ -104,13 +99,6 @@ hit LoadTraceHit(uint Index)
 {
     hit Hit;
 
-    //if (RenderMode == RENDER_MODE_SCENE_COMPLEXITY)
-        Hit.SceneComplexity    = TraceBuffer.SceneComplexity [Index];
-    //if (RenderMode == RENDER_MODE_MESH_COMPLEXITY)
-        Hit.MeshComplexity     = TraceBuffer.MeshComplexity  [Index];
-    //if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
-        Hit.PrimitiveIndex     = TraceBuffer.PrimitiveIndex  [Index];
-
     uint ShapeAndMaterialIndex = TraceBuffer.ShapeAndMaterialIndex[Index];
 
     if (ShapeAndMaterialIndex == 0xFFFFFFFF) {
@@ -135,13 +123,6 @@ hit LoadTraceHit(uint Index)
 
 void StoreTraceHit(uint Index, hit Hit)
 {
-    //if (RenderMode == RENDER_MODE_SCENE_COMPLEXITY)
-        TraceBuffer.SceneComplexity [Index] = Hit.SceneComplexity;
-    //if (RenderMode == RENDER_MODE_MESH_COMPLEXITY)
-        TraceBuffer.MeshComplexity  [Index] = Hit.MeshComplexity;
-    //if (RenderMode == RENDER_MODE_PRIMITIVE_INDEX)
-        TraceBuffer.PrimitiveIndex  [Index] = Hit.PrimitiveIndex;
-
     if (Hit.ShapeIndex == SHAPE_INDEX_NONE) {
         TraceBuffer.ShapeAndMaterialIndex[Index] = 0xFFFFFFFF;
         return;
