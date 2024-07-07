@@ -12,6 +12,11 @@ struct scene;
 #include <GLFW/glfw3.h>
 #include <imgui.h>
 
+struct query_buffer
+{
+    uint                        HitShapeIndex;
+};
+
 // Resources associated with a Vulkan buffer.
 struct vulkan_buffer
 {
@@ -98,6 +103,10 @@ struct vulkan_frame
     vulkan_buffer               ImGuiIndexBuffer            = {};
     vulkan_buffer               ImGuiVertexBuffer           = {};
     VkDescriptorSet             ImGuiDescriptorSet          = {};
+
+    //
+    vulkan_buffer               QueryBuffer                 = {};
+    VkDescriptorSet             QueryDescriptorSet          = {};
 };
 
 // Common resources associated with a Vulkan renderer instance.
@@ -158,6 +167,9 @@ struct vulkan
     VkSampler                   ImageSamplerNearestNoMip    = VK_NULL_HANDLE;
     VkSampler                   ImageSamplerLinear          = VK_NULL_HANDLE;
     VkSampler                   ImageSamplerLinearNoMip     = VK_NULL_HANDLE;
+
+    //
+    VkDescriptorSetLayout       QueryDescriptorSetLayout    = VK_NULL_HANDLE;
 
     // Descriptor set layout for all scene-related resources.
     VkDescriptorSetLayout       SceneDescriptorSetLayout    = VK_NULL_HANDLE;
@@ -242,6 +254,11 @@ struct preview_parameters
     camera                      Camera;
     preview_render_mode         RenderMode;
     uint                        SelectedShapeIndex;
+
+    uint                        RenderSizeX;
+    uint                        RenderSizeY;
+    uint                        MouseX;
+    uint                        MouseY;
 };
 
 vulkan*         CreateVulkan(GLFWwindow* Window, char const* ApplicationName);
@@ -269,4 +286,5 @@ VkResult        BeginFrame(vulkan* Vulkan);
 void            RenderSampleBuffer(vulkan* Vulkan, vulkan_sample_buffer* SampleBuffer, resolve_parameters* Parameters);
 void            RenderPreview(vulkan* Vulkan, vulkan_scene* Scene, preview_parameters* Parameters);
 void            RenderImGui(vulkan* Vulkan, vulkan_scene* Scene, ImDrawData* DrawData);
+bool            RetrieveQueryResult(vulkan* Vulkan, query_buffer* Buffer);
 VkResult        EndFrame(vulkan* Vulkan);

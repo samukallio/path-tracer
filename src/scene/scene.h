@@ -445,19 +445,6 @@ uint32_t    PackSceneData(scene* Scene);
 
 entity*     FindEntityByPackedShapeIndex(scene* Scene, uint32_t PackedShapeIndex);
 
-// --- trace.cpp --------------------------------------------------------------
-
-struct hit
-{
-    float               Time;
-    shape_type          ShapeType;
-    uint                ShapeIndex;
-    uint                PrimitiveIndex;
-    vec3                PrimitiveCoordinates;
-};
-
-bool        Trace(scene* Scene, ray const& Ray, hit& Hit);
-
 /* --- Material Types -------------------------------------------------------- */
 
 #include "scene/openpbr.h"

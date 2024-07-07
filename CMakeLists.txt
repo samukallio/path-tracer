@@ -26,7 +26,6 @@ add_executable (path-tracer
 	src/scene/scene.h
 	src/scene/scene.cpp
 	src/scene/serializer.cpp
-	src/scene/trace.cpp
 	src/scene/openpbr.h
 	src/application/application.h
 	src/application/ui.cpp

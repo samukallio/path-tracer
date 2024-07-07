@@ -955,12 +955,32 @@ static VkResult InternalCreateFrameResources(
             VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
             VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
             65536 * sizeof(uint16_t));
+
+        CreateBuffer(Vulkan,
+            &Frame->QueryBuffer,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            256 * sizeof(uint32_t));
     }
 
     // Allocate and initialize descriptor sets.
     for (int Index = 0; Index < 2; Index++) {
         vulkan_frame* Frame0 = &Vulkan->FrameStates[1-Index];
         vulkan_frame* Frame = &Vulkan->FrameStates[Index];
+
+        // Query descriptor set.
+        vulkan_descriptor QueryDescriptors[] = {
+            {
+                .Type   = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .Buffer = &Frame->QueryBuffer,
+            }
+        };
+
+        Result = CreateDescriptorSet(Vulkan,
+            Vulkan->QueryDescriptorSetLayout,
+            &Frame->QueryDescriptorSet,
+            QueryDescriptors);
+        if (Result != VK_SUCCESS) return Result;
 
         // ImGui descriptor set.
         vulkan_descriptor ImguiDescriptors[] = {
@@ -990,6 +1010,8 @@ static VkResult InternalDestroyFrameResources(
 {
     for (int Index = 0; Index < 2; Index++) {
         vulkan_frame* Frame = &Vulkan->FrameStates[Index];
+
+        DestroyBuffer(Vulkan, &Frame->QueryBuffer);
 
         DestroyBuffer(Vulkan, &Frame->ImGuiIndexBuffer);
         DestroyBuffer(Vulkan, &Frame->ImGuiVertexBuffer);
@@ -1777,6 +1799,15 @@ static VkResult InternalCreateVulkan(
         CreateDescriptorSetLayout(Vulkan, &Vulkan->SceneDescriptorSetLayout, SceneDescriptorTypes);
     }
 
+    //
+    {
+        VkDescriptorType QueryDescriptorTypes[] = {
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        };
+
+        CreateDescriptorSetLayout(Vulkan, &Vulkan->QueryDescriptorSetLayout, QueryDescriptorTypes);
+    }
+
     // Create preview renderer resources.
     {
         auto PipelineConfig = vulkan_graphics_pipeline_configuration {
@@ -1784,6 +1815,7 @@ static VkResult InternalCreateVulkan(
             .FragmentShaderCode = PREVIEW_FRAGMENT_SHADER,
             .DescriptorSetLayouts = {
                 Vulkan->SceneDescriptorSetLayout,
+                Vulkan->QueryDescriptorSetLayout,
             },
             .PushConstantBufferSize = sizeof(preview_parameters),
         };
@@ -1932,6 +1964,11 @@ void DestroyVulkan(vulkan* Vulkan)
     DestroyPipeline(Vulkan, &Vulkan->ImGuiPipeline);
     DestroyPipeline(Vulkan, &Vulkan->ResolvePipeline);
     DestroyPipeline(Vulkan, &Vulkan->PreviewPipeline);
+
+    if (Vulkan->QueryDescriptorSetLayout) {
+        vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->QueryDescriptorSetLayout, nullptr);
+        Vulkan->QueryDescriptorSetLayout = VK_NULL_HANDLE;
+    }
 
     if (Vulkan->ImGuiDescriptorSetLayout) {
         vkDestroyDescriptorSetLayout(Vulkan->Device, Vulkan->ImGuiDescriptorSetLayout, nullptr);
@@ -2674,13 +2711,14 @@ void RenderPreview(
 
     VkDescriptorSet DescriptorSets[] = {
         Scene->DescriptorSet,
+        Frame->QueryDescriptorSet,
     };
 
     vkCmdBindDescriptorSets(
         Frame->GraphicsCommandBuffer,
         VK_PIPELINE_BIND_POINT_GRAPHICS,
         Vulkan->PreviewPipeline.PipelineLayout,
-        0, 1, DescriptorSets,
+        0, 2, DescriptorSets,
         0, nullptr);
 
     vkCmdPushConstants(
@@ -2708,6 +2746,24 @@ void RenderPreview(
     vkCmdSetScissor(Frame->GraphicsCommandBuffer, 0, 1, &Scissor);
 
     vkCmdDraw(Frame->GraphicsCommandBuffer, 6, 1, 0, 0);
+}
+
+bool RetrieveQueryResult(
+    vulkan*       Vulkan,
+    query_buffer* Buffer)
+{
+    auto Frame = Vulkan->CurrentFrame;
+
+    assert(Frame);
+
+    if (Frame->Fresh) return false;
+
+    void* QueryMemory;
+    vkMapMemory(Vulkan->Device, Frame->QueryBuffer.Memory, 0, sizeof(query_buffer), 0, &QueryMemory);
+    memcpy(Buffer, QueryMemory, sizeof(query_buffer));
+    vkUnmapMemory(Vulkan->Device, Frame->QueryBuffer.Memory);
+
+    return true;
 }
 
 void RenderImGui(

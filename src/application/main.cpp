@@ -105,37 +105,6 @@ void Frame()
         mat4 ViewMatrix = glm::lookAt(Camera.Position - Forward * 2.0f, Camera.Position, vec3(0, 0, 1));
         mat4 WorldMatrix = glm::inverse(ViewMatrix);
 
-        if (!IO.WantCaptureMouse && IO.MouseDown[0]) {
-            vec2 SensorSize = { 0.032f, 0.018f };
-
-            vec2 SamplePositionNormalized = {
-                IO.MousePos.x / WINDOW_WIDTH,
-                IO.MousePos.y / WINDOW_HEIGHT
-            };
-
-            vec3 SensorPositionNormalized = {
-                -SensorSize.x * (SamplePositionNormalized.x - 0.5),
-                -SensorSize.y * (0.5 - SamplePositionNormalized.y),
-                0.020f
-            };
-
-            vec3 RayVector = -SensorPositionNormalized;
-
-            ray Ray;
-            Ray.Origin = (WorldMatrix * vec4(0, 0, 0, 1)).xyz;
-            Ray.Vector = glm::normalize(WorldMatrix * vec4(RayVector, 0)).xyz;
-
-            hit Hit;
-            if (Trace(App.Scene, Ray, Hit)) {
-                entity* Entity = FindEntityByPackedShapeIndex(App.Scene, Hit.ShapeIndex);
-                if (Entity) {
-                    App.SelectedEntity = Entity;
-                    App.SelectionType = SELECTION_TYPE_ENTITY;
-                    Restart = true;
-                }
-            }
-        }
-
         CameraParameters.Model = CAMERA_MODEL_PINHOLE;
         CameraParameters.SensorDistance = 0.020f;
         CameraParameters.SensorSize = { 0.032f, 0.018f };
@@ -219,7 +188,22 @@ void Frame()
             .Camera             = CameraParameters,
             .RenderMode         = RenderMode,
             .SelectedShapeIndex = SHAPE_INDEX_NONE,
+            .RenderSizeX        = WINDOW_WIDTH,
+            .RenderSizeY        = WINDOW_HEIGHT,
+            .MouseX             = static_cast<uint>(IO.MousePos.x),
+            .MouseY             = static_cast<uint>(IO.MousePos.y),
         };
+
+        if (!IO.WantCaptureMouse && IO.MouseDown[0]) {
+            query_buffer QueryBuffer;
+            if (RetrieveQueryResult(App.Vulkan, &QueryBuffer)) {
+                entity* Entity = FindEntityByPackedShapeIndex(App.Scene, QueryBuffer.HitShapeIndex);
+                if (Entity) {
+                    App.SelectedEntity = Entity;
+                    App.SelectionType = SELECTION_TYPE_ENTITY;
+                }
+            }
+        }
 
         if (App.SelectionType == SELECTION_TYPE_ENTITY)
             PreviewParameters.SelectedShapeIndex = App.SelectedEntity->PackedShapeIndex;

@@ -36,12 +36,23 @@ const vec3 COLORS[20] = vec3[20](
     vec3(0.502, 0.502, 0.502)
 );
 
+layout(set=1, binding=0, std430)
+buffer QuerySSBO
+{
+    uint    HitShapeIndex;
+};
+
 layout(push_constant)
 uniform PreviewPushConstantBuffer
 {
     camera  Camera;
     uint    RenderMode;
     uint    SelectedShapeIndex;
+
+    uint    RenderSizeX;
+    uint    RenderSizeY;
+    uint    MouseX;
+    uint    MouseY;
 };
 
 #if VERTEX
@@ -134,6 +145,12 @@ void main()
 
     if (Hit.ShapeIndex == SelectedShapeIndex)
         Color.r += 1.0;
+
+    uint PixelX = uint(floor(FragmentUV.x * RenderSizeX));
+    uint PixelY = uint(floor(FragmentUV.y * RenderSizeY));
+
+    if (PixelX == MouseX && PixelY == MouseY)
+        HitShapeIndex = Hit.ShapeIndex;
 
     OutColor = vec4(Color, 1.0);
 }
