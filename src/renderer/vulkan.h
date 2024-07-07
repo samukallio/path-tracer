@@ -147,7 +147,7 @@ struct vulkan
     VkDescriptorPool            DescriptorPool              = VK_NULL_HANDLE;
 
     // Render pass for all graphics rendering operations.
-    VkRenderPass                MainRenderPass              = VK_NULL_HANDLE;
+    VkRenderPass                RenderPass                  = VK_NULL_HANDLE;
 
     // Resources per in-flight frame.
     uint32_t                    FrameIndex                  = 0;

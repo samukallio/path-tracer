@@ -831,7 +831,7 @@ static VkResult InternalCreatePresentationResources(
 
             auto FrameBufferInfo = VkFramebufferCreateInfo {
                 .sType              = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-                .renderPass         = Vulkan->MainRenderPass,
+                .renderPass         = Vulkan->RenderPass,
                 .attachmentCount    = 1,
                 .pAttachments       = &ImageView,
                 .width              = Vulkan->SwapChainExtent.width,
@@ -1207,7 +1207,7 @@ static VkResult InternalCreateGraphicsPipeline(
         .pColorBlendState       = &ColorBlendStateInfo,
         .pDynamicState          = &DynamicStateInfo,
         .layout                 = Pipeline->PipelineLayout,
-        .renderPass             = Vulkan->MainRenderPass,
+        .renderPass             = Vulkan->RenderPass,
         .subpass                = 0,
         .basePipelineHandle     = VK_NULL_HANDLE,
         .basePipelineIndex      = -1,
@@ -1629,7 +1629,7 @@ static VkResult InternalCreateVulkan(
         }
     }
 
-    // Create main render pass.
+    // Create render pass.
     {
         auto ColorAttachment = VkAttachmentDescription {
             .format         = Vulkan->SurfaceFormat.format,
@@ -1674,7 +1674,7 @@ static VkResult InternalCreateVulkan(
             .pDependencies   = &Dependency,
         };
 
-        Result = vkCreateRenderPass(Vulkan->Device, &RenderPassInfo, nullptr, &Vulkan->MainRenderPass);
+        Result = vkCreateRenderPass(Vulkan->Device, &RenderPassInfo, nullptr, &Vulkan->RenderPass);
         if (Result != VK_SUCCESS) {
             Errorf(Vulkan, "failed to create main render pass");
             return Result;
@@ -1966,9 +1966,9 @@ void DestroyVulkan(vulkan* Vulkan)
         Vulkan->ImageSamplerLinear = VK_NULL_HANDLE;
     }
 
-    if (Vulkan->MainRenderPass) {
-        vkDestroyRenderPass(Vulkan->Device, Vulkan->MainRenderPass, nullptr);
-        Vulkan->MainRenderPass = VK_NULL_HANDLE;
+    if (Vulkan->RenderPass) {
+        vkDestroyRenderPass(Vulkan->Device, Vulkan->RenderPass, nullptr);
+        Vulkan->RenderPass = VK_NULL_HANDLE;
     }
 
     if (Vulkan->DescriptorPool) {
@@ -2510,7 +2510,7 @@ VkResult BeginFrame(
 
         auto RenderPassBeginInfo = VkRenderPassBeginInfo {
             .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .renderPass      = Vulkan->MainRenderPass,
+            .renderPass      = Vulkan->RenderPass,
             .framebuffer     = Vulkan->SwapChainFrameBuffers[Frame->ImageIndex],
             .renderArea      = { .offset = { 0, 0 }, .extent = Vulkan->SwapChainExtent },
             .clearValueCount = 2,
