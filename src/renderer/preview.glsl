@@ -93,12 +93,8 @@ void main()
                 // spectrum by integrating against the standard observer.
                 Color = OpenPBRBaseColor(Hit);
 
-                if (RenderMode == RENDER_MODE_BASE_COLOR_SHADED) {
-                    float Shading = dot(Hit.Normal, -Ray.Velocity); 
-                    if (Hit.ShapeIndex == SelectedShapeIndex)
-                        Color.r += 1.0;
-                    Color *= Shading;
-                }
+                if (RenderMode == RENDER_MODE_BASE_COLOR_SHADED)
+                    Color *= dot(Hit.Normal, -Ray.Velocity);
             }
             break;
 
@@ -127,6 +123,9 @@ void main()
             Color = vec3(0,1,0) * Hit.SceneComplexity / 256.0;
             break;
     }
+
+    if (Hit.ShapeIndex == SelectedShapeIndex)
+        Color.r += 1.0;
 
     OutColor = vec4(Color, 1.0);
 }

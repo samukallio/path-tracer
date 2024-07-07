@@ -152,11 +152,6 @@ void Frame()
         ResolveParameters.Brightness = 1.0f;
         ResolveParameters.ToneMappingMode = TONE_MAPPING_MODE_CLAMP;
         ResolveParameters.ToneMappingWhiteLevel = 1.0f;
-
-        //if (App.SelectionType == SELECTION_TYPE_ENTITY)
-        //    Uniforms.SelectedShapeIndex = App.SelectedEntity->PackedShapeIndex;
-        //else
-        //    Uniforms.SelectedShapeIndex = SHAPE_INDEX_NONE;
     }
     else {
         camera_entity* CameraEntity = App.Camera;
@@ -222,10 +217,13 @@ void Frame()
     }
     else {
         auto PreviewParameters = preview_parameters {
-            .Camera = CameraParameters,
-            .RenderMode = RenderMode,
-            .SelectedShapeIndex = 0,
+            .Camera             = CameraParameters,
+            .RenderMode         = RenderMode,
+            .SelectedShapeIndex = SHAPE_INDEX_NONE,
         };
+
+        if (App.SelectionType == SELECTION_TYPE_ENTITY)
+            PreviewParameters.SelectedShapeIndex = App.SelectedEntity->PackedShapeIndex;
 
         RenderPreview(App.Vulkan, App.VulkanScene, &PreviewParameters);
     }
