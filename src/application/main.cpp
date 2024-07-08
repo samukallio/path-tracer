@@ -42,7 +42,7 @@ void Update()
         vec3& Rotation = IsEditing ? App.EditorCamera.Rotation : App.Camera->Transform.Rotation;
         bool WasMoved = false;
 
-        vec3 Forward = glm::quat(Rotation) * vec3(1, 0, 0);
+        vec3 Forward = glm::quat(Rotation) * vec3(0, 0, -1);
 
         if (!IO.WantCaptureMouse && IO.MouseDown[1]) {
             vec3 Delta {};
@@ -59,8 +59,8 @@ void Update()
 
             Rotation.z -= IO.MouseDelta.x * 0.01f;
             Rotation.z = RepeatRange(Rotation.z, -PI, +PI);
-            Rotation.y += IO.MouseDelta.y * 0.01f;
-            Rotation.y = glm::clamp(Rotation.y, -0.45f * PI, +0.45f * PI);
+            Rotation.x -= IO.MouseDelta.y * 0.01f;
+            Rotation.x = glm::clamp(Rotation.x, 0.05f * PI, +0.95f * PI);
             WasMoved = true;
         }
 
@@ -117,18 +117,22 @@ void Update()
     else {
         editor_camera& Camera = App.EditorCamera;
 
-        vec3 Forward = glm::quat(Camera.Rotation) * vec3(1, 0, 0);
-        mat4 ViewMatrix = glm::lookAt(Camera.Position - Forward * 2.0f, Camera.Position, vec3(0, 0, 1));
-        mat4 WorldMatrix = glm::inverse(ViewMatrix);
+        mat4 Transform
+            = glm::translate(glm::mat4(1), Camera.Position)
+            * glm::eulerAngleZYX(
+                Camera.Rotation.z,
+                Camera.Rotation.y,
+                Camera.Rotation.x);
 
-        packed_camera CameraParameters;
-        CameraParameters.Model = CAMERA_MODEL_PINHOLE;
-        CameraParameters.SensorDistance = 0.020f;
-        CameraParameters.SensorSize = { 0.032f, 0.018f };
-        CameraParameters.ApertureRadius = 0.0f;
-        CameraParameters.Transform = {
-            .To = WorldMatrix,
-            .From = ViewMatrix,
+        auto CameraParameters = packed_camera {
+            .Model = CAMERA_MODEL_PINHOLE,
+            .ApertureRadius = 0.0f,
+            .SensorDistance = 0.020f,
+            .SensorSize = { 0.032f, 0.018f },
+            .Transform = {
+                .To = Transform,
+                .From = glm::inverse(Transform),
+            },
         };
 
         auto PreviewParameters = preview_parameters {

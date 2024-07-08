@@ -937,7 +937,10 @@ static void ForEachEntity(
     glm::mat4 InnerTransform
         = OuterTransform
         * glm::translate(glm::mat4(1), Entity->Transform.Position)
-        * glm::orientate4(Entity->Transform.Rotation)
+        * glm::eulerAngleZYX(
+            Entity->Transform.Rotation.z,
+            Entity->Transform.Rotation.y,
+            Entity->Transform.Rotation.x)
         * glm::scale(glm::mat4(1), Entity->Transform.Scale);
 
     for (entity* Child : Entity->Children)
@@ -954,22 +957,6 @@ static void ForEachEntity(
     mat4 OuterTransform = mat4(1.0);
 
     ForEachEntity(Scene, OuterTransform, &Scene->Root, Function);
-}
-
-static void PackShape(scene* Scene, glm::mat4 const& OuterTransform, entity* Entity)
-{
-    if (!Entity->Active)
-        return;
-
-    glm::mat4 InnerTransform
-        = OuterTransform
-        * glm::translate(glm::mat4(1), Entity->Transform.Position)
-        * glm::orientate4(Entity->Transform.Rotation)
-        * glm::scale(glm::mat4(1), Entity->Transform.Scale);
-
-    for (entity* Child : Entity->Children)
-        PackShape(Scene, InnerTransform, Child);
-
 }
 
 static bounds ShapeBounds(scene const* Scene, packed_shape const& Object)
