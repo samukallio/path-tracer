@@ -47,6 +47,7 @@ uniform PreviewPushConstantBuffer
 {
     camera  Camera;
     uint    RenderMode;
+    float   Brightness;
     uint    SelectedShapeIndex;
 
     uint    RenderSizeX;
@@ -146,6 +147,8 @@ void main()
 
     if (Hit.ShapeIndex == SelectedShapeIndex)
         Color *= vec3(1.0, 0.5, 0.5);
+
+    Color *= Brightness;
 
     uint PixelX = uint(floor(FragmentUV.x * RenderSizeX));
     uint PixelY = uint(floor(FragmentUV.y * RenderSizeY));

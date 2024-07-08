@@ -38,6 +38,8 @@ struct application
     uint32_t                FrameIndex          = 0;
 
     editor_camera           EditorCamera;
+    preview_render_mode     PreviewRenderMode   = PREVIEW_RENDER_MODE_BASE_COLOR_SHADED;
+    float                   PreviewBrightness   = 1.0f;
 
     selection_type          SelectionType       = SELECTION_TYPE_NONE;
     texture*                SelectedTexture     = nullptr;
@@ -53,11 +55,4 @@ struct application
 };
 
 void InitializeUI(application* App);
-void SceneHierarchyWindow(application* App);
-void InspectorWindow(application* App);
-void TextureBrowserWindow(application* App);
-void MaterialBrowserWindow(application* App);
-void MeshBrowserWindow(application* App);
-void PrefabBrowserWindow(application* App);
-void ParametricSpectrumViewerWindow(application* App);
-void MainMenuBar(application* App);
+void ShowUI(application* App);

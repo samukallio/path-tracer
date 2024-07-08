@@ -253,6 +253,7 @@ struct preview_parameters
 {
     camera                      Camera;
     preview_render_mode         RenderMode;
+    float                       Brightness;
     uint                        SelectedShapeIndex;
 
     uint                        RenderSizeX;

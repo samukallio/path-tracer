@@ -28,21 +28,12 @@ void Update()
 
     // ImGui.
     ImGui::NewFrame();
-    if (ImGui::IsKeyPressed(ImGuiKey_F11, false)) {
+    if (ImGui::IsKeyPressed(ImGuiKey_F11, false))
         App.ShowUI = !App.ShowUI;
-    }
-    if (App.ShowUI) {
-        MainMenuBar(&App);
-        ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_PassthruCentralNode);
-        ImGui::ShowDemoWindow();
-        InspectorWindow(&App);
-        TextureBrowserWindow(&App);
-        MaterialBrowserWindow(&App);
-        MeshBrowserWindow(&App);
-        PrefabBrowserWindow(&App);
-        SceneHierarchyWindow(&App);
-        ParametricSpectrumViewerWindow(&App);
-    }
+
+    if (App.ShowUI)
+        ShowUI(&App);
+
     ImGui::EndFrame();
     ImGui::Render();
 
@@ -186,7 +177,8 @@ void Update()
     else {
         auto PreviewParameters = preview_parameters {
             .Camera             = CameraParameters,
-            .RenderMode         = RenderMode,
+            .RenderMode         = App.PreviewRenderMode,
+            .Brightness         = App.PreviewBrightness,
             .SelectedShapeIndex = SHAPE_INDEX_NONE,
             .RenderSizeX        = WINDOW_WIDTH,
             .RenderSizeY        = WINDOW_HEIGHT,

@@ -1,8 +1,10 @@
 #include "core/common.h"
 #include "scene/scene.h"
+#include "renderer/vulkan.h"
 #include "application/application.h"
 
 #include <imgui.h>
+#include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
 #include <nfd.h>
 
@@ -758,6 +760,42 @@ void InspectorWindow(application* App)
     ImGui::End();
 }
 
+void PreviewSettingsWindow(application* App, ImGuiDockNode* Node)
+{
+    if (App->Camera) return;
+
+    ImVec2 Size = { 400, 70 };
+    ImVec2 Margin = { 16, 16 };
+
+    ImVec2 Position = Node->Pos;
+    Position.x = Node->Pos.x + Node->Size.x - Size.x - Margin.x;
+    Position.y = Node->Pos.y + Margin.y;
+    ImGui::SetNextWindowPos(Position);
+    ImGui::SetNextWindowSize(Size);
+    ImGui::SetNextWindowBgAlpha(0.5f);
+
+    bool Open = true;
+    ImGui::Begin("Preview Settings", &Open,
+        ImGuiWindowFlags_NoDecoration |
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoDocking);
+
+    if (ImGui::BeginCombo("Preview Mode", PreviewRenderModeName(App->PreviewRenderMode))) {
+        for (int I = 0; I < PREVIEW_RENDER_MODE__COUNT; I++) {
+            auto RenderMode = static_cast<preview_render_mode>(I);
+            bool IsSelected = App->PreviewRenderMode == RenderMode;
+            if (ImGui::Selectable(PreviewRenderModeName(RenderMode), &IsSelected))
+                App->PreviewRenderMode = RenderMode;
+        }
+        ImGui::EndCombo();
+    }
+
+    ImGui::SliderFloat("Brightness", &App->PreviewBrightness, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+
+    ImGui::End();
+}
+
 void ParametricSpectrumViewerWindow(application* App)
 {
     static float Spectrum[512] = {};
@@ -906,4 +944,22 @@ void InitializeUI(application* App)
     Style.GrabRounding                      = 3;
     Style.LogSliderDeadzone                 = 4;
     Style.TabRounding                       = 4;
+}
+
+void ShowUI(application* App)
+{
+    MainMenuBar(App);
+
+    ImGuiID NodeID = ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
+    ImGuiDockNode* Node = ImGui::DockBuilderGetCentralNode(NodeID);
+    PreviewSettingsWindow(App, Node);
+
+    ImGui::ShowDemoWindow();
+    InspectorWindow(App);
+    TextureBrowserWindow(App);
+    MaterialBrowserWindow(App);
+    MeshBrowserWindow(App);
+    PrefabBrowserWindow(App);
+    SceneHierarchyWindow(App);
+    ParametricSpectrumViewerWindow(App);
 }
