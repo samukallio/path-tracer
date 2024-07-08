@@ -21,10 +21,10 @@ bool HandleCameraMovement()
 {
     ImGuiIO& IO = ImGui::GetIO();
 
-    bool IsEditing = !App.Camera;
-    vec3& Position = IsEditing ? App.EditorCamera.Position : App.Camera->Transform.Position;
-    vec3& Velocity = IsEditing ? App.EditorCamera.Velocity : App.Camera->Velocity;
-    vec3& Rotation = IsEditing ? App.EditorCamera.Rotation : App.Camera->Transform.Rotation;
+    bool IsEditing = !App.SceneCameraToRender;
+    vec3& Position = IsEditing ? App.PreviewCamera.Position : App.SceneCameraToRender->Transform.Position;
+    vec3& Velocity = IsEditing ? App.PreviewCamera.Velocity : App.SceneCameraToRender->Velocity;
+    vec3& Rotation = IsEditing ? App.PreviewCamera.Rotation : App.SceneCameraToRender->Transform.Rotation;
     bool WasMoved = false;
 
     vec3 Forward = glm::quat(Rotation) * vec3(0, 0, -1);
@@ -58,10 +58,10 @@ bool HandleCameraMovement()
     if (glm::length(Velocity) < 1e-2f)
         Velocity = vec3(0);
 
-    if (WasMoved && App.Camera) {
+    if (WasMoved && App.SceneCameraToRender) {
         App.Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
-        App.EditorCamera.Position = App.Camera->Transform.Position;
-        App.EditorCamera.Rotation = App.Camera->Transform.Rotation;
+        App.PreviewCamera.Position = App.SceneCameraToRender->Transform.Position;
+        App.PreviewCamera.Rotation = App.SceneCameraToRender->Transform.Rotation;
     }
 
     return WasMoved;
@@ -97,9 +97,9 @@ void Update()
 
     BeginFrame(App.Vulkan);
 
-    if (App.Camera) {
+    if (App.SceneCameraToRender) {
         if (Restart) {
-            App.BasicRenderer->CameraIndex      = App.Camera->PackedCameraIndex;
+            App.BasicRenderer->CameraIndex      = App.SceneCameraToRender->PackedCameraIndex;
             App.BasicRenderer->Scene            = App.VulkanScene;
             App.BasicRenderer->RenderFlags      = 0;
             App.BasicRenderer->PathTerminationProbability = 0.0f; //Parameters.RenderTerminationProbability;
@@ -112,31 +112,20 @@ void Update()
         }
 
         auto ResolveParameters = resolve_parameters {
-            .Brightness             = App.Camera->Brightness,
-            .ToneMappingMode        = App.Camera->ToneMappingMode,
-            .ToneMappingWhiteLevel  = App.Camera->ToneMappingWhiteLevel,
+            .Brightness             = App.SceneCameraToRender->Brightness,
+            .ToneMappingMode        = App.SceneCameraToRender->ToneMappingMode,
+            .ToneMappingWhiteLevel  = App.SceneCameraToRender->ToneMappingWhiteLevel,
         };
 
         RenderSampleBuffer(App.Vulkan, App.SampleBuffer, &ResolveParameters);
     }
     else {
-        editor_camera& Camera = App.EditorCamera;
+        preview_camera& Camera = App.PreviewCamera;
 
         mat4 Transform = MakeTransformMatrix(Camera.Position, Camera.Rotation);
 
-        auto CameraParameters = packed_camera {
-            .Model = CAMERA_MODEL_PINHOLE,
-            .ApertureRadius = 0.0f,
-            .SensorDistance = 0.020f,
-            .SensorSize = { 0.032f, 0.018f },
-            .Transform = {
-                .To = Transform,
-                .From = glm::inverse(Transform),
-            },
-        };
-
         auto PreviewParameters = preview_parameters {
-            .Camera             = CameraParameters,
+            .CameraTransform    = PackTransform(Transform),
             .RenderMode         = App.PreviewRenderMode,
             .Brightness         = App.PreviewBrightness,
             .SelectedShapeIndex = SHAPE_INDEX_NONE,
@@ -339,7 +328,7 @@ int main()
     scene* Scene = CreateScene();
 
     App.Scene = Scene;
-    App.Camera = nullptr;
+    App.SceneCameraToRender = nullptr;
 
     InitializeUI(&App);
 
@@ -358,9 +347,9 @@ int main()
 
     App.BasicRenderer = CreateBasicRenderer(App.Vulkan, App.SampleBuffer);
 
-    App.EditorCamera.Position = { 0, 0, 0 };
-    App.EditorCamera.Velocity = { 0, 0, 0 };
-    App.EditorCamera.Rotation = { 0, 0, 0 };
+    App.PreviewCamera.Position = { 0, 0, 0 };
+    App.PreviewCamera.Velocity = { 0, 0, 0 };
+    App.PreviewCamera.Rotation = { 0, 0, 0 };
 
     ImGuiIO& IO = ImGui::GetIO();
     IO.DisplaySize.x = WINDOW_WIDTH;

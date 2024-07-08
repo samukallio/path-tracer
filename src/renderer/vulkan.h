@@ -252,7 +252,7 @@ inline char const* PreviewRenderModeName(preview_render_mode Mode)
 // Parameters for RenderPreview().
 struct preview_parameters
 {
-    packed_camera               Camera;
+    packed_transform            CameraTransform;
     preview_render_mode         RenderMode;
     float                       Brightness;
     uint                        SelectedShapeIndex;

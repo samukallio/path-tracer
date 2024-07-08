@@ -39,21 +39,21 @@ const vec3 COLORS[20] = vec3[20](
 layout(set=1, binding=0, std430)
 buffer QuerySSBO
 {
-    uint            HitShapeIndex;
+    uint                HitShapeIndex;
 };
 
 layout(push_constant)
 uniform PreviewPushConstantBuffer
 {
-    packed_camera   Camera;
-    uint            RenderMode;
-    float           Brightness;
-    uint            SelectedShapeIndex;
+    packed_transform    CameraTransform; 
+    uint                RenderMode;
+    float               Brightness;
+    uint                SelectedShapeIndex;
 
-    uint            RenderSizeX;
-    uint            RenderSizeY;
-    uint            MouseX;
-    uint            MouseY;
+    uint                RenderSizeX;
+    uint                RenderSizeY;
+    uint                MouseX;
+    uint                MouseY;
 };
 
 #if VERTEX
@@ -67,7 +67,7 @@ vec2 Positions[6] = vec2[](
     vec2(-1.0,  1.0)
 );
 
-vec2 UVs[6] = vec2[](
+vec2 ScreenXYs[6] = vec2[](
 	vec2(0.0, 0.0),
 	vec2(1.0, 0.0),
 	vec2(1.0, 1.0),
@@ -76,25 +76,32 @@ vec2 UVs[6] = vec2[](
 	vec2(0.0, 1.0)
 );
 
-layout(location = 0) out vec2 FragmentUV;
+layout(location = 0) out vec2 ScreenXY;
 
 void main()
 {
     gl_Position = vec4(Positions[gl_VertexIndex], 0.0, 1.0);
-    FragmentUV = UVs[gl_VertexIndex];
+    ScreenXY = ScreenXYs[gl_VertexIndex];
 }
 
 #elif FRAGMENT
 
-layout(location = 0) in vec2 FragmentUV;
+layout(location = 0) in vec2 ScreenXY;
 
 layout(location = 0) out vec4 OutColor;
 
 void main()
 {
-    vec2 NormalizedSamplePosition = FragmentUV;
+    float AspectRatio = float(RenderSizeX) / float(RenderSizeY);
+    float NearX = (ScreenXY.x - 0.5) * AspectRatio;
+    float NearY = 0.5 - ScreenXY.y;
 
-    ray Ray = GenerateCameraRay(Camera, NormalizedSamplePosition);
+    ray Ray;
+    Ray.Origin = vec3(0, 0, 0);
+    Ray.Velocity = normalize(vec3(NearX, NearY, -1.0));
+    Ray.Duration = HIT_TIME_LIMIT;
+    Ray = TransformRay(Ray, CameraTransform);
+
     hit Hit = Trace(Ray);
 
     vec3 Color = vec3(0.0);
@@ -150,8 +157,8 @@ void main()
 
     Color *= Brightness;
 
-    uint PixelX = uint(floor(FragmentUV.x * RenderSizeX));
-    uint PixelY = uint(floor(FragmentUV.y * RenderSizeY));
+    uint PixelX = uint(floor(ScreenXY.x * RenderSizeX));
+    uint PixelY = uint(floor(ScreenXY.y * RenderSizeY));
 
     if (PixelX == MouseX && PixelY == MouseY)
         HitShapeIndex = Hit.ShapeIndex;

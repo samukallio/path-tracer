@@ -417,6 +417,11 @@ inline uint32_t GetPackedMaterialIndex(material* Material)
     return Material->PackedMaterialIndex;
 }
 
+inline packed_transform PackTransform(mat4 const& Matrix)
+{
+    return { .To = Matrix, .From = glm::inverse(Matrix) };
+}
+
 // --- scene.cpp --------------------------------------------------------------
 
 char const* EntityTypeName(entity_type Type);

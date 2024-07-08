@@ -1276,8 +1276,7 @@ uint32_t PackSceneData(scene* Scene)
                 }
             }
 
-            Packed.Transform.To = Transform;
-            Packed.Transform.From = glm::inverse(Transform);
+            Packed.Transform = PackTransform(Transform);
 
             Entity->PackedShapeIndex = static_cast<uint32_t>(Scene->ShapePack.size());
 
@@ -1405,8 +1404,7 @@ uint32_t PackSceneData(scene* Scene)
                 Packed.SensorSize     = Camera->ThinLens.SensorSizeInMM / 1000.0f;
             }
 
-            Packed.Transform.To = Transform;
-            Packed.Transform.From = glm::inverse(Transform);
+            Packed.Transform = PackTransform(Transform);
 
             Camera->PackedCameraIndex = static_cast<uint>(Scene->CameraPack.size());
 

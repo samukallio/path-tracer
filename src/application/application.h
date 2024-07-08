@@ -9,7 +9,7 @@ struct vulkan_scene;
 struct vulkan_sample_buffer;
 struct basic_renderer;
 
-struct editor_camera
+struct preview_camera
 {
     glm::vec3       Position;
     glm::vec3       Velocity;
@@ -37,7 +37,7 @@ struct application
 
     uint32_t                FrameIndex          = 0;
 
-    editor_camera           EditorCamera;
+    preview_camera          PreviewCamera       = {};
     preview_render_mode     PreviewRenderMode   = PREVIEW_RENDER_MODE_BASE_COLOR_SHADED;
     float                   PreviewBrightness   = 1.0f;
 
@@ -49,7 +49,7 @@ struct application
     entity*                 SelectedEntity      = nullptr;
 
     scene*                  Scene               = nullptr;
-    camera_entity*          Camera              = nullptr;
+    camera_entity*          SceneCameraToRender = nullptr;
 
     bool                    ShowUI              = true;
 };

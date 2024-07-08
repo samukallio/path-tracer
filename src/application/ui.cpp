@@ -255,15 +255,15 @@ static void CameraInspector(application* App, camera_entity* Camera)
     ImGui::Spacing();
     ImGui::SeparatorText("Rendering");
 
-    if (App->Camera == Camera) {
+    if (App->SceneCameraToRender == Camera) {
         bool Active = true;
         C |= ImGui::Checkbox("Render Using This Camera", &Active);
-        if (!Active) App->Camera = nullptr;
+        if (!Active) App->SceneCameraToRender = nullptr;
     }
     else {
         bool Active = false;
         C |= ImGui::Checkbox("Render Using This Camera", &Active);
-        if (Active) App->Camera = Camera;
+        if (Active) App->SceneCameraToRender = Camera;
     }
 
     //if (ImGui::BeginCombo("Render Mode", RenderModeName(Camera->RenderMode))) {
@@ -502,8 +502,8 @@ static void EntityTreeNode(application* App, entity* Entity, bool PrefabMode=fal
             App->SelectionType = SELECTION_TYPE_NONE;
             App->SelectedEntity = nullptr;
         }
-        if (App->Camera == Entity) {
-            App->Camera = nullptr;
+        if (App->SceneCameraToRender == Entity) {
+            App->SceneCameraToRender = nullptr;
         }
         DestroyEntity(App->Scene, Entity);
         App->Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
@@ -763,7 +763,7 @@ void InspectorWindow(application* App)
 
 void PreviewSettingsWindow(application* App, ImGuiDockNode* Node)
 {
-    if (App->Camera) return;
+    if (App->SceneCameraToRender) return;
 
     ImVec2 Size = { 400, 70 };
     ImVec2 Margin = { 16, 16 };
@@ -827,7 +827,7 @@ void MainMenuBar(application* App)
         if (ImGui::MenuItem("New Scene")) {
             DestroyScene(App->Scene);
             App->SelectionType = SELECTION_TYPE_NONE;
-            App->Camera = nullptr;
+            App->SceneCameraToRender = nullptr;
             App->Scene = CreateScene();
             App->Scene->DirtyFlags = SCENE_DIRTY_ALL;
         }
@@ -839,7 +839,7 @@ void MainMenuBar(application* App)
                 if (Scene) {
                     DestroyScene(App->Scene);
                     App->SelectionType = SELECTION_TYPE_NONE;
-                    App->Camera = nullptr;
+                    App->SceneCameraToRender = nullptr;
                     App->Scene = Scene;
                 }
             }
