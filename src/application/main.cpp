@@ -17,6 +17,56 @@ char const* APPLICATION_NAME = "Path Tracer";
 
 application App;
 
+bool HandleCameraMovement()
+{
+    ImGuiIO& IO = ImGui::GetIO();
+
+    bool IsEditing = !App.Camera;
+    vec3& Position = IsEditing ? App.EditorCamera.Position : App.Camera->Transform.Position;
+    vec3& Velocity = IsEditing ? App.EditorCamera.Velocity : App.Camera->Velocity;
+    vec3& Rotation = IsEditing ? App.EditorCamera.Rotation : App.Camera->Transform.Rotation;
+    bool WasMoved = false;
+
+    vec3 Forward = glm::quat(Rotation) * vec3(0, 0, -1);
+
+    if (!IO.WantCaptureMouse && IO.MouseDown[1]) {
+        vec3 Delta {};
+        if (glfwGetKey(App.Window, GLFW_KEY_A))
+            Delta -= glm::cross(Forward, vec3(0, 0, 1));
+        if (glfwGetKey(App.Window, GLFW_KEY_D))
+            Delta += glm::cross(Forward, vec3(0, 0, 1));
+        if (glfwGetKey(App.Window, GLFW_KEY_W))
+            Delta += Forward;
+        if (glfwGetKey(App.Window, GLFW_KEY_S))
+            Delta -= Forward;
+        if (glm::length(Delta) > 0)
+            Velocity = 2.0f * glm::normalize(Delta);
+
+        Rotation.z -= IO.MouseDelta.x * 0.01f;
+        Rotation.z = RepeatRange(Rotation.z, -PI, +PI);
+        Rotation.x -= IO.MouseDelta.y * 0.01f;
+        Rotation.x = glm::clamp(Rotation.x, 0.05f * PI, +0.95f * PI);
+        WasMoved = true;
+    }
+
+    Position += IO.DeltaTime * Velocity;
+    Velocity *= expf(-IO.DeltaTime / 0.05f);
+
+    if (glm::length(Velocity) > 0)
+        WasMoved = true;
+
+    if (glm::length(Velocity) < 1e-2f)
+        Velocity = vec3(0);
+
+    if (WasMoved && App.Camera) {
+        App.Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
+        App.EditorCamera.Position = App.Camera->Transform.Position;
+        App.EditorCamera.Rotation = App.Camera->Transform.Rotation;
+    }
+
+    return WasMoved;
+}
+
 void Update()
 {
     ImGuiIO& IO = ImGui::GetIO();
@@ -32,62 +82,17 @@ void Update()
     ImGui::EndFrame();
     ImGui::Render();
 
+    // 
     bool Restart = false;
 
-    // Handle camera movement.
-    {
-        bool IsEditing = !App.Camera;
-        vec3& Position = IsEditing ? App.EditorCamera.Position : App.Camera->Transform.Position;
-        vec3& Velocity = IsEditing ? App.EditorCamera.Velocity : App.Camera->Velocity;
-        vec3& Rotation = IsEditing ? App.EditorCamera.Rotation : App.Camera->Transform.Rotation;
-        bool WasMoved = false;
-
-        vec3 Forward = glm::quat(Rotation) * vec3(0, 0, -1);
-
-        if (!IO.WantCaptureMouse && IO.MouseDown[1]) {
-            vec3 Delta {};
-            if (glfwGetKey(App.Window, GLFW_KEY_A))
-                Delta -= glm::cross(Forward, vec3(0, 0, 1));
-            if (glfwGetKey(App.Window, GLFW_KEY_D))
-                Delta += glm::cross(Forward, vec3(0, 0, 1));
-            if (glfwGetKey(App.Window, GLFW_KEY_W))
-                Delta += Forward;
-            if (glfwGetKey(App.Window, GLFW_KEY_S))
-                Delta -= Forward;
-            if (glm::length(Delta) > 0)
-                Velocity = 2.0f * glm::normalize(Delta);
-
-            Rotation.z -= IO.MouseDelta.x * 0.01f;
-            Rotation.z = RepeatRange(Rotation.z, -PI, +PI);
-            Rotation.x -= IO.MouseDelta.y * 0.01f;
-            Rotation.x = glm::clamp(Rotation.x, 0.05f * PI, +0.95f * PI);
-            WasMoved = true;
-        }
-
-        Position += IO.DeltaTime * Velocity;
-        Velocity *= expf(-IO.DeltaTime / 0.05f);
-
-        if (glm::length(Velocity) > 0)
-            WasMoved = true;
-
-        if (glm::length(Velocity) < 1e-2f)
-            Velocity = vec3(0);
-
-        if (WasMoved && App.Camera) {
-            App.Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
-            App.EditorCamera.Position = App.Camera->Transform.Position;
-            App.EditorCamera.Rotation = App.Camera->Transform.Rotation;
-        }
-
-        if (WasMoved) {
-            Restart = true;
-        }
-    }
-
-    if (App.Scene->DirtyFlags != 0)
+    if (HandleCameraMovement())
         Restart = true;
 
     uint DirtyFlags = PackSceneData(App.Scene);
+
+    if (DirtyFlags != 0)
+        Restart = true;
+
     UpdateVulkanScene(App.Vulkan, App.VulkanScene, App.Scene, DirtyFlags);
 
     BeginFrame(App.Vulkan);
@@ -117,12 +122,7 @@ void Update()
     else {
         editor_camera& Camera = App.EditorCamera;
 
-        mat4 Transform
-            = glm::translate(glm::mat4(1), Camera.Position)
-            * glm::eulerAngleZYX(
-                Camera.Rotation.z,
-                Camera.Rotation.y,
-                Camera.Rotation.x);
+        mat4 Transform = MakeTransformMatrix(Camera.Position, Camera.Rotation);
 
         auto CameraParameters = packed_camera {
             .Model = CAMERA_MODEL_PINHOLE,

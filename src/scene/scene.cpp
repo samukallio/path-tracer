@@ -110,6 +110,47 @@ glm::vec4 ColorToSpectrum(scene* Scene, glm::vec4 const& Color)
     return glm::vec4(Beta, Color.a);
 }
 
+template<typename function_type>
+static void ForEachEntity(
+    entity*         Entity,
+    function_type&& Function)
+{
+    for (entity* Child : Entity->Children)
+        ForEachEntity(Child, Function);
+
+    Function(Entity);
+}
+
+template<typename function_type>
+static void ForEachEntityWithTransform(
+    entity*         Entity,
+    mat4 const&     OuterTransform,
+    function_type&& Function)
+{
+    if (!Entity->Active)
+        return;
+
+    mat4 Transform
+        = OuterTransform
+        * MakeTransformMatrix(
+            Entity->Transform.Position,
+            Entity->Transform.Rotation,
+            Entity->Transform.Scale);
+
+    for (entity* InnerEntity : Entity->Children)
+        ForEachEntityWithTransform(InnerEntity, Transform, Function);
+
+    Function(Entity, Transform);
+}
+
+template<typename function_type>
+static void ForEachEntityWithTransform(
+    entity*         Entity,
+    function_type&& Function)
+{
+    ForEachEntityWithTransform(Entity, mat4(1.0f), Function);
+}
+
 entity* CreateEntityRaw(entity_type Type)
 {
     switch (Type) {
@@ -214,14 +255,6 @@ void DestroyEntity(scene* Scene, entity* Entity)
         DestroyEntity(Scene, Child);
 
     delete Entity;
-}
-
-template<typename callback>
-static void ForEachEntity(entity* Entity, callback&& Callback)
-{
-    Callback(Entity);
-    for (entity* Child : Entity->Children)
-        ForEachEntity(Child, Callback);
 }
 
 texture* CreateCheckerTexture(scene* Scene, char const* Name, texture_type Type, glm::vec4 const& ColorA, glm::vec4 const& ColorB)
@@ -924,41 +957,6 @@ void DestroyScene(scene* Scene)
 //    return true;
 //}
 
-template<typename function_type>
-static void ForEachEntity(
-    scene*          Scene,
-    mat4 const&     OuterTransform,
-    entity*         Entity,
-    function_type   Function)
-{
-    if (!Entity->Active)
-        return;
-
-    glm::mat4 InnerTransform
-        = OuterTransform
-        * glm::translate(glm::mat4(1), Entity->Transform.Position)
-        * glm::eulerAngleZYX(
-            Entity->Transform.Rotation.z,
-            Entity->Transform.Rotation.y,
-            Entity->Transform.Rotation.x)
-        * glm::scale(glm::mat4(1), Entity->Transform.Scale);
-
-    for (entity* Child : Entity->Children)
-        ForEachEntity(Scene, InnerTransform, Child, Function);
-
-    Function(Entity, InnerTransform);
-}
-
-template<typename function_type>
-static void ForEachEntity(
-    scene*          Scene,
-    function_type   Function)
-{
-    mat4 OuterTransform = mat4(1.0);
-
-    ForEachEntity(Scene, OuterTransform, &Scene->Root, Function);
-}
-
 static bounds ShapeBounds(scene const* Scene, packed_shape const& Object)
 {
     glm::vec4 Corners[8] = {};
@@ -1241,7 +1239,7 @@ uint32_t PackSceneData(scene* Scene)
         Scene->ShapePack.clear();
         Scene->ShapeNodePack.resize(1);
 
-        ForEachEntity(Scene, [Scene](entity* Entity, mat4 const& Transform) {
+        ForEachEntityWithTransform(&Scene->Root, [Scene](entity* Entity, mat4 const& Transform) {
             packed_shape Packed;
 
             Packed.MaterialIndex = 0;
@@ -1382,7 +1380,7 @@ uint32_t PackSceneData(scene* Scene)
     if (DirtyFlags & SCENE_DIRTY_CAMERAS) {
         Scene->CameraPack.clear();
 
-        ForEachEntity(Scene, [Scene](entity* Entity, mat4 const& Transform) {
+        ForEachEntityWithTransform(&Scene->Root, [Scene](entity* Entity, mat4 const& Transform) {
             if (Entity->Type != ENTITY_TYPE_CAMERA)
                 return;
 

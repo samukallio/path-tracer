@@ -74,6 +74,24 @@ struct ray
     vec3        Vector;
 };
 
+inline mat4 MakeTransformMatrix(
+    vec3 const& Position,
+    vec3 const& Rotation)
+{
+    return glm::translate(glm::mat4(1.0f), Position)
+         * glm::eulerAngleZYX(Rotation.z, Rotation.y, Rotation.x);
+}
+
+inline mat4 MakeTransformMatrix(
+    vec3 const& Position,
+    vec3 const& Rotation,
+    vec3 const& Scale)
+{
+    return glm::translate(glm::mat4(1.0f), Position)
+         * glm::eulerAngleZYX(Rotation.z, Rotation.y, Rotation.x)
+         * glm::scale(glm::mat4(1.0f), Scale);
+}
+
 inline ray TransformRay(ray const& Ray, mat4 const& Matrix)
 {
     return {
