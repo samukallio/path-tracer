@@ -175,7 +175,7 @@ struct alignas(16) packed_scene_globals
 
 // This structure is shared between CPU and GPU,
 // and must follow std430 layout rules.
-struct alignas(16) camera
+struct alignas(16) packed_camera
 {
     uint                Model;
     float               FocalLength;
@@ -314,6 +314,8 @@ struct camera_entity : entity
 
     glm::vec3                       Velocity                = { 0, 0, 0 };
 
+    uint                            PackedCameraIndex       = 0;
+
     camera_entity() { ((entity*)this)->Type = ENTITY_TYPE_CAMERA; }
 };
 
@@ -384,6 +386,7 @@ struct scene
     std::vector<packed_mesh_face>       MeshFacePack;
     std::vector<packed_mesh_vertex>     MeshVertexPack;
     std::vector<packed_mesh_node>       MeshNodePack;
+    std::vector<packed_camera>          CameraPack;
     packed_scene_globals                Globals;
 
     // Flags that track which portion of the source description has

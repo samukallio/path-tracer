@@ -66,7 +66,7 @@ buffer TraceSSBO
 layout(push_constant)
 uniform ComputePushConstantBuffer
 {
-    camera  Camera;
+    uint    CameraIndex;
     uint    RenderFlags;
     uint    PathLengthLimit;
     float   PathTerminationProbability;

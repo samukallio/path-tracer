@@ -17,7 +17,7 @@ struct basic_renderer
     vulkan_pipeline             TracePipeline           = {};
 
     uint                        FrameIndex              = 0;
-    camera                      Camera                  = {};
+    uint                        CameraIndex             = 0;
     vulkan_scene*               Scene                   = nullptr;
 
     uint                        RenderFlags             = 0;

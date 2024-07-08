@@ -14,7 +14,7 @@ uint32_t const TRACE_COMPUTE_SHADER[] =
 
 struct push_constant_buffer
 {
-    camera      Camera;
+    uint        CameraIndex;
     uint        RenderFlags;
     uint        PathLengthLimit;
     float       PathTerminationProbability;
@@ -243,7 +243,7 @@ void ResetBasicRenderer(
     auto Frame = Vulkan->CurrentFrame;
 
     auto PushConstantBuffer = push_constant_buffer {
-        .Camera                         = Renderer->Camera,
+        .CameraIndex                    = Renderer->CameraIndex,
         .RenderFlags                    = Renderer->RenderFlags,
         .PathLengthLimit                = Renderer->PathLengthLimit,
         .PathTerminationProbability     = Renderer->PathTerminationProbability,
@@ -264,7 +264,7 @@ void RunBasicRenderer(
     Renderer->FrameIndex += 1;
 
     auto PushConstantBuffer = push_constant_buffer {
-        .Camera                         = Renderer->Camera,
+        .CameraIndex                    = Renderer->CameraIndex,
         .RenderFlags                    = Renderer->RenderFlags,
         .PathLengthLimit                = Renderer->PathLengthLimit,
         .PathTerminationProbability     = Renderer->PathTerminationProbability,

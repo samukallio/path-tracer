@@ -211,6 +211,7 @@ struct vulkan_scene
     vulkan_buffer               MeshFaceBuffer              = {};
     vulkan_buffer               MeshVertexBuffer            = {};
     vulkan_buffer               MeshNodeBuffer              = {};
+    vulkan_buffer               CameraBuffer                = {};
 };
 
 // Parameters for RenderSampleBuffer().
@@ -251,7 +252,7 @@ inline char const* PreviewRenderModeName(preview_render_mode Mode)
 // Parameters for RenderPreview().
 struct preview_parameters
 {
-    camera                      Camera;
+    packed_camera               Camera;
     preview_render_mode         RenderMode;
     float                       Brightness;
     uint                        SelectedShapeIndex;

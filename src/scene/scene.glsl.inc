@@ -22,6 +22,10 @@ const uint TONE_MAPPING_MODE_REINHARD           = 1;
 const uint TONE_MAPPING_MODE_HABLE              = 2;
 const uint TONE_MAPPING_MODE_ACES               = 3;
 
+const uint CAMERA_MODEL_PINHOLE             = 0;
+const uint CAMERA_MODEL_THIN_LENS           = 1;
+const uint CAMERA_MODEL_360                 = 2;
+
 struct packed_texture
 {
     vec2                AtlasPlacementMinimum;
@@ -70,6 +74,16 @@ struct packed_mesh_node
     uint                FaceBeginOrNodeIndex;
     vec3                Maximum;
     uint                FaceEndIndex;
+};
+
+struct packed_camera
+{
+    uint                Model;
+    float               FocalLength;
+    float               ApertureRadius;
+    float               SensorDistance;
+    vec2                SensorSize;
+    packed_transform    Transform;
 };
 
 struct packed_scene_globals
@@ -156,6 +170,12 @@ layout(set=BIND_SCENE, binding=9, std430)
 readonly buffer MeshNodeSSBO
 {
     packed_mesh_node MeshNodes[];
+};
+
+layout(set=BIND_SCENE, binding=10, std430)
+readonly buffer CameraSSBO
+{
+    packed_camera Cameras[];
 };
 
 uint MaterialUint(uint MaterialSlotIndex, uint AttributeIndex)
@@ -506,6 +526,45 @@ hit Trace(ray Ray)
     }
 
     return Hit;
+}
+
+ray GenerateCameraRay(packed_camera Camera, vec2 NormalizedSamplePosition)
+{
+    ray Ray;
+
+    Ray.Duration = HIT_TIME_LIMIT;
+
+    if (Camera.Model == CAMERA_MODEL_PINHOLE) {
+        vec3 SensorPosition = vec3(
+            -Camera.SensorSize.x * (NormalizedSamplePosition.x - 0.5),
+            -Camera.SensorSize.y * (0.5 - NormalizedSamplePosition.y),
+            Camera.SensorDistance);
+
+        Ray.Origin = vec3(Camera.ApertureRadius * RandomPointOnDisk(), 0);
+        Ray.Velocity = normalize(Ray.Origin - SensorPosition);
+    }
+
+    else if (Camera.Model == CAMERA_MODEL_THIN_LENS) {
+        vec3 SensorPosition = vec3(
+            -Camera.SensorSize.x * (NormalizedSamplePosition.x - 0.5),
+            -Camera.SensorSize.y * (0.5 - NormalizedSamplePosition.y),
+            Camera.SensorDistance);
+
+        vec3 ObjectPosition = -SensorPosition * Camera.FocalLength / (SensorPosition.z - Camera.FocalLength);
+
+        Ray.Origin = vec3(Camera.ApertureRadius * RandomPointOnDisk(), 0);
+        Ray.Velocity = normalize(ObjectPosition - Ray.Origin);
+    }
+
+    else if (Camera.Model == CAMERA_MODEL_360) {
+        float Phi = (NormalizedSamplePosition.x - 0.5f) * TAU;
+        float Theta = (0.5f - NormalizedSamplePosition.y) * PI;
+
+        Ray.Origin = vec3(0, 0, 0);
+        Ray.Velocity = vec3(cos(Theta) * sin(Phi), sin(Theta), -cos(Theta) * cos(Phi));
+    }
+
+    return TransformRay(Ray, Camera.Transform);
 }
 
 #endif // BIND_SCENE

@@ -39,21 +39,21 @@ const vec3 COLORS[20] = vec3[20](
 layout(set=1, binding=0, std430)
 buffer QuerySSBO
 {
-    uint    HitShapeIndex;
+    uint            HitShapeIndex;
 };
 
 layout(push_constant)
 uniform PreviewPushConstantBuffer
 {
-    camera  Camera;
-    uint    RenderMode;
-    float   Brightness;
-    uint    SelectedShapeIndex;
+    packed_camera   Camera;
+    uint            RenderMode;
+    float           Brightness;
+    uint            SelectedShapeIndex;
 
-    uint    RenderSizeX;
-    uint    RenderSizeY;
-    uint    MouseX;
-    uint    MouseY;
+    uint            RenderSizeX;
+    uint            RenderSizeY;
+    uint            MouseX;
+    uint            MouseY;
 };
 
 #if VERTEX

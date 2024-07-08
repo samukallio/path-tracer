@@ -241,61 +241,6 @@ vec3 RandomVonMisesFisher(float Kappa)
     return vec3(X, Y, Z);
 }
 
-/* --- Camera -------------------------------------------------------------- */
-
-const uint CAMERA_MODEL_PINHOLE             = 0;
-const uint CAMERA_MODEL_THIN_LENS           = 1;
-const uint CAMERA_MODEL_360                 = 2;
-
-struct camera
-{
-    uint                Model;
-    float               FocalLength;
-    float               ApertureRadius;
-    float               SensorDistance;
-    vec2                SensorSize;
-    packed_transform    Transform;
-};
-
-ray GenerateCameraRay(camera Camera, vec2 NormalizedSamplePosition)
-{
-    ray Ray;
-
-    Ray.Duration = HIT_TIME_LIMIT;
-
-    if (Camera.Model == CAMERA_MODEL_PINHOLE) {
-        vec3 SensorPosition = vec3(
-            -Camera.SensorSize.x * (NormalizedSamplePosition.x - 0.5),
-            -Camera.SensorSize.y * (0.5 - NormalizedSamplePosition.y),
-            Camera.SensorDistance);
-
-        Ray.Origin = vec3(Camera.ApertureRadius * RandomPointOnDisk(), 0);
-        Ray.Velocity = normalize(Ray.Origin - SensorPosition);
-    }
-
-    else if (Camera.Model == CAMERA_MODEL_THIN_LENS) {
-        vec3 SensorPosition = vec3(
-            -Camera.SensorSize.x * (NormalizedSamplePosition.x - 0.5),
-            -Camera.SensorSize.y * (0.5 - NormalizedSamplePosition.y),
-            Camera.SensorDistance);
-
-        vec3 ObjectPosition = -SensorPosition * Camera.FocalLength / (SensorPosition.z - Camera.FocalLength);
-
-        Ray.Origin = vec3(Camera.ApertureRadius * RandomPointOnDisk(), 0);
-        Ray.Velocity = normalize(ObjectPosition - Ray.Origin);
-    }
-
-    else if (Camera.Model == CAMERA_MODEL_360) {
-        float Phi = (NormalizedSamplePosition.x - 0.5f) * TAU;
-        float Theta = (0.5f - NormalizedSamplePosition.y) * PI;
-
-        Ray.Origin = vec3(0, 0, 0);
-        Ray.Velocity = vec3(cos(Theta) * sin(Phi), sin(Theta), -cos(Theta) * cos(Phi));
-    }
-
-    return TransformRay(Ray, Camera.Transform);
-}
-
 /* --- Refraction Utilities ------------------------------------------------ */
 
 // Computes a wavelength-dependent refractive index according to

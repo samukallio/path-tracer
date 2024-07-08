@@ -1794,6 +1794,7 @@ static VkResult InternalCreateVulkan(
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // MeshFaceSSBO
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // MeshVertexSSBO
             VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // MeshNodeSSBO
+            VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // CameraSSBO
         };
 
         CreateDescriptorSetLayout(Vulkan, &Vulkan->SceneDescriptorSetLayout, SceneDescriptorTypes);
@@ -2117,6 +2118,7 @@ void UpdateVulkanScene(
     vulkan_buffer MeshFaceBufferOld = {};
     vulkan_buffer MeshVertexBufferOld = {};
     vulkan_buffer MeshNodeBufferOld = {};
+    vulkan_buffer CameraBufferOld = {};
 
     if (DirtyFlags & SCENE_DIRTY_GLOBALS) {
         InternalWriteToDeviceLocalBuffer(Vulkan, &VulkanScene->UniformBuffer, &Scene->Globals, sizeof(packed_scene_globals));
@@ -2263,6 +2265,20 @@ void UpdateVulkanScene(
         InternalWriteToDeviceLocalBuffer(Vulkan, &VulkanScene->MeshNodeBuffer, Scene->MeshNodePack.data(), MeshNodeBufferSize);
     }
 
+    if (DirtyFlags & SCENE_DIRTY_CAMERAS) {
+        CameraBufferOld = VulkanScene->CameraBuffer;
+        VulkanScene->CameraBuffer = vulkan_buffer {};
+
+        size_t CameraBufferSize = sizeof(packed_camera) * Scene->CameraPack.size();
+        Result = CreateBuffer(
+            Vulkan,
+            &VulkanScene->CameraBuffer,
+            VK_BUFFER_USAGE_STORAGE_BUFFER_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT,
+            VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+            std::max(1024ull, CameraBufferSize));
+        InternalWriteToDeviceLocalBuffer(Vulkan, &VulkanScene->CameraBuffer, Scene->CameraPack.data(), CameraBufferSize);
+    }
+
     vulkan_descriptor Descriptors[] = {
         {
             .Type        = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
@@ -2308,10 +2324,15 @@ void UpdateVulkanScene(
             .Type        = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
             .Buffer      = &VulkanScene->MeshNodeBuffer,
         },
+        {
+            .Type        = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .Buffer      = &VulkanScene->CameraBuffer,
+        },
     };
 
     WriteDescriptorSet(Vulkan, VulkanScene->DescriptorSet, Descriptors);
 
+    DestroyBuffer(Vulkan, &CameraBufferOld);
     DestroyBuffer(Vulkan, &MeshVertexBufferOld);
     DestroyBuffer(Vulkan, &MeshFaceBufferOld);
     DestroyBuffer(Vulkan, &MeshNodeBufferOld);
@@ -2339,6 +2360,7 @@ void DestroyVulkanScene(
     DestroyBuffer(Vulkan, &VulkanScene->MeshNodeBuffer);
     DestroyBuffer(Vulkan, &VulkanScene->MeshVertexBuffer);
     DestroyBuffer(Vulkan, &VulkanScene->MeshFaceBuffer);
+    DestroyBuffer(Vulkan, &VulkanScene->CameraBuffer);
     InternalDestroyImage(Vulkan, &VulkanScene->ImageArray);
     DestroyBuffer(Vulkan, &VulkanScene->UniformBuffer);
 }

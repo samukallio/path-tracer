@@ -21,11 +21,6 @@ void Update()
 {
     ImGuiIO& IO = ImGui::GetIO();
 
-    resolve_parameters ResolveParameters = {};
-    camera CameraParameters = {};
-    preview_render_mode RenderMode = {};
-    uint RenderFlags = 0;
-
     // ImGui.
     ImGui::NewFrame();
     if (ImGui::IsKeyPressed(ImGuiKey_F11, false))
@@ -89,67 +84,6 @@ void Update()
         }
     }
 
-    if (!App.Camera) {
-        editor_camera& Camera = App.EditorCamera;
-
-        vec3 Forward = glm::quat(Camera.Rotation) * vec3(1, 0, 0);
-        mat4 ViewMatrix = glm::lookAt(Camera.Position - Forward * 2.0f, Camera.Position, vec3(0, 0, 1));
-        mat4 WorldMatrix = glm::inverse(ViewMatrix);
-
-        CameraParameters.Model = CAMERA_MODEL_PINHOLE;
-        CameraParameters.SensorDistance = 0.020f;
-        CameraParameters.SensorSize = { 0.032f, 0.018f };
-        CameraParameters.ApertureRadius = 0.0f;
-        CameraParameters.Transform = {
-            .To = WorldMatrix,
-            .From = ViewMatrix,
-        };
-
-        RenderMode = PREVIEW_RENDER_MODE_BASE_COLOR_SHADED;
-        RenderFlags |= RENDER_FLAG_ACCUMULATE;
-        RenderFlags |= RENDER_FLAG_SAMPLE_JITTER;
-
-        ResolveParameters.Brightness = 1.0f;
-        ResolveParameters.ToneMappingMode = TONE_MAPPING_MODE_CLAMP;
-        ResolveParameters.ToneMappingWhiteLevel = 1.0f;
-    }
-    else {
-        camera_entity* CameraEntity = App.Camera;
-
-        CameraParameters.Model = CameraEntity->CameraModel;
-
-        if (CameraEntity->CameraModel == CAMERA_MODEL_PINHOLE) {
-            float const AspectRatio = WINDOW_WIDTH / float(WINDOW_HEIGHT);
-            CameraParameters.ApertureRadius = CameraEntity->Pinhole.ApertureDiameterInMM / 2000.0f;
-            CameraParameters.SensorSize.x   = 2 * glm::tan(glm::radians(CameraEntity->Pinhole.FieldOfViewInDegrees / 2));
-            CameraParameters.SensorSize.y   = CameraParameters.SensorSize.x / AspectRatio;
-            CameraParameters.SensorDistance = 1.0f;
-        }
-
-        if (CameraEntity->CameraModel == CAMERA_MODEL_THIN_LENS) {
-            CameraParameters.FocalLength    = CameraEntity->ThinLens.FocalLengthInMM / 1000.0f;
-            CameraParameters.ApertureRadius = CameraEntity->ThinLens.ApertureDiameterInMM / 2000.0f;
-            CameraParameters.SensorDistance = 1.0f / (1000.0f / CameraEntity->ThinLens.FocalLengthInMM - 1.0f / CameraEntity->ThinLens.FocusDistance);
-            CameraParameters.SensorSize     = CameraEntity->ThinLens.SensorSizeInMM / 1000.0f;
-        }
-
-        RenderFlags = CameraEntity->RenderFlags;
-
-        vec3 Origin = CameraEntity->Transform.Position;
-        vec3 Forward = glm::quat(CameraEntity->Transform.Rotation) * vec3(1, 0, 0);
-        mat4 ViewMatrix = glm::lookAt(Origin - Forward * 2.0f, Origin, vec3(0, 0, 1));
-        mat4 WorldMatrix = glm::inverse(ViewMatrix);
-
-        CameraParameters.Transform = {
-            .To = WorldMatrix,
-            .From = ViewMatrix,
-        };
-
-        ResolveParameters.Brightness                   = CameraEntity->Brightness;
-        ResolveParameters.ToneMappingMode              = CameraEntity->ToneMappingMode;
-        ResolveParameters.ToneMappingWhiteLevel        = CameraEntity->ToneMappingWhiteLevel;
-    }
-
     if (App.Scene->DirtyFlags != 0)
         Restart = true;
 
@@ -160,9 +94,9 @@ void Update()
 
     if (App.Camera) {
         if (Restart) {
-            App.BasicRenderer->Camera           = CameraParameters;
+            App.BasicRenderer->CameraIndex      = App.Camera->PackedCameraIndex;
             App.BasicRenderer->Scene            = App.VulkanScene;
-            App.BasicRenderer->RenderFlags      = RenderFlags;
+            App.BasicRenderer->RenderFlags      = 0;
             App.BasicRenderer->PathTerminationProbability = 0.0f; //Parameters.RenderTerminationProbability;
 
             ResetBasicRenderer(App.Vulkan, App.BasicRenderer);
@@ -172,9 +106,31 @@ void Update()
             RunBasicRenderer(App.Vulkan, App.BasicRenderer, 1);
         }
 
+        auto ResolveParameters = resolve_parameters {
+            .Brightness             = App.Camera->Brightness,
+            .ToneMappingMode        = App.Camera->ToneMappingMode,
+            .ToneMappingWhiteLevel  = App.Camera->ToneMappingWhiteLevel,
+        };
+
         RenderSampleBuffer(App.Vulkan, App.SampleBuffer, &ResolveParameters);
     }
     else {
+        editor_camera& Camera = App.EditorCamera;
+
+        vec3 Forward = glm::quat(Camera.Rotation) * vec3(1, 0, 0);
+        mat4 ViewMatrix = glm::lookAt(Camera.Position - Forward * 2.0f, Camera.Position, vec3(0, 0, 1));
+        mat4 WorldMatrix = glm::inverse(ViewMatrix);
+
+        packed_camera CameraParameters;
+        CameraParameters.Model = CAMERA_MODEL_PINHOLE;
+        CameraParameters.SensorDistance = 0.020f;
+        CameraParameters.SensorSize = { 0.032f, 0.018f };
+        CameraParameters.ApertureRadius = 0.0f;
+        CameraParameters.Transform = {
+            .To = WorldMatrix,
+            .From = ViewMatrix,
+        };
+
         auto PreviewParameters = preview_parameters {
             .Camera             = CameraParameters,
             .RenderMode         = App.PreviewRenderMode,

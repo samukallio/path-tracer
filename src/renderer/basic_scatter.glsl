@@ -50,6 +50,8 @@ void GenerateNewPath(uint Index, ivec2 ImagePosition)
     // Compute normalized sample position from (0, 0) to (1, 1).
     vec2 NormalizedSamplePosition = SamplePosition / ImageSize;
 
+    packed_camera Camera = Cameras[CameraIndex];
+
     ray Ray = GenerateCameraRay(Camera, NormalizedSamplePosition);
 
     // Write initial ray.

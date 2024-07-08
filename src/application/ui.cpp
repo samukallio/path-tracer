@@ -371,6 +371,7 @@ static void EntityInspector(application* App, entity* Entity)
         }
         case ENTITY_TYPE_CAMERA: {
             CameraInspector(App, static_cast<camera_entity*>(Entity));
+            if (C) Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
             break;
         }
         case ENTITY_TYPE_MESH_INSTANCE: {
