@@ -1408,16 +1408,6 @@ uint32_t PackSceneData(scene* Scene)
             Packed.Transform.To = Transform;
             Packed.Transform.From = glm::inverse(Transform);
 
-            //vec3 Origin = Transform.Position;
-            //vec3 Forward = glm::quat(CameraEntity->Transform.Rotation) * vec3(1, 0, 0);
-            //mat4 ViewMatrix = glm::lookAt(Origin - Forward * 2.0f, Origin, vec3(0, 0, 1));
-            //mat4 WorldMatrix = glm::inverse(ViewMatrix);
-
-            //CameraParameters.Transform = {
-            //    .To = WorldMatrix,
-            //    .From = ViewMatrix,
-            //};
-
             Camera->PackedCameraIndex = static_cast<uint>(Scene->CameraPack.size());
 
             Scene->CameraPack.push_back(Packed);
