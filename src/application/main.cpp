@@ -101,7 +101,7 @@ void Update()
         if (Restart) {
             App.BasicRenderer->CameraIndex      = App.SceneCameraToRender->PackedCameraIndex;
             App.BasicRenderer->Scene            = App.VulkanScene;
-            App.BasicRenderer->RenderFlags      = 0;
+            App.BasicRenderer->RenderFlags      = App.SceneCameraToRender->RenderFlags;
             App.BasicRenderer->PathTerminationProbability = 0.0f; //Parameters.RenderTerminationProbability;
 
             ResetBasicRenderer(App.Vulkan, App.BasicRenderer);
