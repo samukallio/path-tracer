@@ -61,7 +61,7 @@ static void DestroyDebugUtilsMessengerEXT
     Fn(Instance, DebugMessenger, Allocator);
 }
 
-VkResult CreateBuffer
+VkResult CreateVulkanBuffer
 (
     vulkan* Vulkan,
     vulkan_buffer* Buffer,
@@ -73,6 +73,7 @@ VkResult CreateBuffer
     VkResult Result = VK_SUCCESS;
 
     Buffer->Size = Size;
+    Buffer->IsDeviceLocal = (MemoryFlags & VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT) != 0;
 
     // Create the buffer.
     VkBufferCreateInfo BufferInfo =
@@ -129,7 +130,7 @@ VkResult CreateBuffer
     return VK_SUCCESS;
 }
 
-void DestroyBuffer
+void DestroyVulkanBuffer
 (
     vulkan*         Vulkan,
     vulkan_buffer*  Buffer
@@ -141,22 +142,7 @@ void DestroyBuffer
         vkFreeMemory(Vulkan->Device, Buffer->Memory, nullptr);
 }
 
-void WriteToHostVisibleBuffer
-(
-    vulkan*         Vulkan,
-    vulkan_buffer*  Buffer,
-    void const*     Data,
-    size_t          Size
-)
-{
-    assert(Size <= Buffer->Size);
-    void* BufferMemory;
-    vkMapMemory(Vulkan->Device, Buffer->Memory, 0, Buffer->Size, 0, &BufferMemory);
-    memcpy(BufferMemory, Data, Size);
-    vkUnmapMemory(Vulkan->Device, Buffer->Memory);
-}
-
-void WriteToDeviceLocalBuffer
+void WriteToVulkanBuffer
 (
     vulkan*         Vulkan,
     vulkan_buffer*  Buffer,
@@ -166,62 +152,76 @@ void WriteToDeviceLocalBuffer
 {
     if (Size == 0) return;
 
-    // Create a staging buffer and copy the data into it.
-    vulkan_buffer Staging;
-    CreateBuffer
-    (
-        Vulkan, &Staging,
-        VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-        VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-        Buffer->Size
-    );
-    WriteToHostVisibleBuffer(Vulkan, &Staging, Data, Size);
-
-    // Now copy the data into the device local buffer.
-    VkCommandBufferAllocateInfo AllocateInfo =
+    if (Buffer->IsDeviceLocal)
     {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = Vulkan->ComputeCommandPool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1,
-    };
+        // Create a staging buffer and copy the data into it.
+        vulkan_buffer Staging;
+        CreateVulkanBuffer
+        (
+            Vulkan, &Staging,
+            VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+            VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+            Buffer->Size
+        );
 
-    VkCommandBuffer CommandBuffer;
-    vkAllocateCommandBuffers(Vulkan->Device, &AllocateInfo, &CommandBuffer);
+        void* BufferMemory;
+        vkMapMemory(Vulkan->Device, Staging.Memory, 0, Buffer->Size, 0, &BufferMemory);
+        memcpy(BufferMemory, Data, Size);
+        vkUnmapMemory(Vulkan->Device, Staging.Memory);
 
-    VkCommandBufferBeginInfo BeginInfo =
+        // Now copy the data into the device local buffer.
+        VkCommandBufferAllocateInfo AllocateInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+            .commandPool = Vulkan->ComputeCommandPool,
+            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+            .commandBufferCount = 1,
+        };
+
+        VkCommandBuffer CommandBuffer;
+        vkAllocateCommandBuffers(Vulkan->Device, &AllocateInfo, &CommandBuffer);
+
+        VkCommandBufferBeginInfo BeginInfo =
+        {
+            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
+            .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
+        };
+        vkBeginCommandBuffer(CommandBuffer, &BeginInfo);
+
+        VkBufferCopy Region =
+        {
+            .srcOffset  = 0,
+            .dstOffset  = 0,
+            .size       = Buffer->Size,
+        };
+        vkCmdCopyBuffer(CommandBuffer, Staging.Buffer, Buffer->Buffer, 1, &Region);
+
+        vkEndCommandBuffer(CommandBuffer);
+
+        VkSubmitInfo SubmitInfo =
+        {
+            .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .commandBufferCount = 1,
+            .pCommandBuffers    = &CommandBuffer,
+        };
+        vkQueueSubmit(Vulkan->ComputeQueue, 1, &SubmitInfo, VK_NULL_HANDLE);
+        vkQueueWaitIdle(Vulkan->ComputeQueue);
+
+        vkFreeCommandBuffers(Vulkan->Device, Vulkan->ComputeCommandPool, 1, &CommandBuffer);
+
+        // Delete the staging buffer.
+        DestroyVulkanBuffer(Vulkan, &Staging);
+    }
+    else
     {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT,
-    };
-    vkBeginCommandBuffer(CommandBuffer, &BeginInfo);
-
-    VkBufferCopy Region =
-    {
-        .srcOffset  = 0,
-        .dstOffset  = 0,
-        .size       = Buffer->Size,
-    };
-    vkCmdCopyBuffer(CommandBuffer, Staging.Buffer, Buffer->Buffer, 1, &Region);
-
-    vkEndCommandBuffer(CommandBuffer);
-
-    VkSubmitInfo SubmitInfo =
-    {
-        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .commandBufferCount = 1,
-        .pCommandBuffers    = &CommandBuffer,
-    };
-    vkQueueSubmit(Vulkan->ComputeQueue, 1, &SubmitInfo, VK_NULL_HANDLE);
-    vkQueueWaitIdle(Vulkan->ComputeQueue);
-
-    vkFreeCommandBuffers(Vulkan->Device, Vulkan->ComputeCommandPool, 1, &CommandBuffer);
-
-    // Delete the staging buffer.
-    DestroyBuffer(Vulkan, &Staging);
+        void* BufferMemory;
+        vkMapMemory(Vulkan->Device, Buffer->Memory, 0, Buffer->Size, 0, &BufferMemory);
+        memcpy(BufferMemory, Data, Size);
+        vkUnmapMemory(Vulkan->Device, Buffer->Memory);
+    }
 }
 
-VkResult CreateImage
+VkResult CreateVulkanImage
 (
     vulkan*                 Vulkan,
     vulkan_image*           Image,
@@ -422,7 +422,7 @@ VkResult CreateImage
     return Result;
 }
 
-void DestroyImage
+void DestroyVulkanImage
 (
     vulkan*         Vulkan,
     vulkan_image*   Image
@@ -436,7 +436,7 @@ void DestroyImage
         vkFreeMemory(Vulkan->Device, Image->Memory, nullptr);
 }
 
-VkResult WriteToDeviceLocalImage
+VkResult WriteToVulkanImage
 (
     vulkan*         Vulkan,
     vulkan_image*   Image,
@@ -453,14 +453,14 @@ VkResult WriteToDeviceLocalImage
 
     // Create a staging buffer and copy the data into it.
     vulkan_buffer Staging;
-    CreateBuffer
+    CreateVulkanBuffer
     (
         Vulkan, &Staging,
         VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
         VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
         Size
     );
-    WriteToHostVisibleBuffer(Vulkan, &Staging, Data, Size);
+    WriteToVulkanBuffer(Vulkan, &Staging, Data, Size);
 
     VkCommandBufferAllocateInfo AllocateInfo =
     {
@@ -621,12 +621,12 @@ VkResult WriteToDeviceLocalImage
     vkFreeCommandBuffers(Vulkan->Device, Vulkan->ComputeCommandPool, 1, &CommandBuffer);
 
     // Delete the staging buffer.
-    DestroyBuffer(Vulkan, &Staging);
+    DestroyVulkanBuffer(Vulkan, &Staging);
 
     return VK_SUCCESS;
 }
 
-VkResult CreateDescriptorSetLayout
+VkResult CreateVulkanDescriptorSetLayout
 (
     vulkan*                     Vulkan,
     VkDescriptorSetLayout*      Layout,
@@ -665,7 +665,7 @@ VkResult CreateDescriptorSetLayout
     return Result;
 }
 
-void WriteDescriptorSet
+void UpdateVulkanDescriptorSet
 (
     vulkan*                      Vulkan,
     VkDescriptorSet              DescriptorSet,
@@ -718,7 +718,7 @@ void WriteDescriptorSet
     vkUpdateDescriptorSets(Vulkan->Device, static_cast<uint32_t>(std::size(Descriptors)), Writes, 0, nullptr);
 }
 
-VkResult CreateDescriptorSet
+VkResult CreateVulkanDescriptorSet
 (
     vulkan*                      Vulkan,
     VkDescriptorSetLayout        DescriptorSetLayout,
@@ -743,7 +743,7 @@ VkResult CreateDescriptorSet
         return Result;
     }
 
-    WriteDescriptorSet(Vulkan, *DescriptorSet, Descriptors);
+    UpdateVulkanDescriptorSet(Vulkan, *DescriptorSet, Descriptors);
     return Result;
 }
 
@@ -1031,7 +1031,7 @@ static VkResult InternalDestroyFrameResources(vulkan* Vulkan)
     return VK_SUCCESS;
 }
 
-VkResult CreateGraphicsPipeline
+VkResult CreateVulkanGraphicsPipeline
 (
     vulkan*             Vulkan,
     vulkan_pipeline*    Pipeline,
@@ -1259,7 +1259,7 @@ VkResult CreateGraphicsPipeline
     return Result;
 }
 
-VkResult CreateComputePipeline
+VkResult CreateVulkanComputePipeline
 (
     vulkan*             Vulkan,
     vulkan_pipeline*    Pipeline,
@@ -1336,7 +1336,7 @@ VkResult CreateComputePipeline
     return Result;
 }
 
-void DestroyPipeline
+void DestroyVulkanPipeline
 (
     vulkan*             Vulkan,
     vulkan_pipeline*    Pipeline
@@ -1990,7 +1990,7 @@ static void InternalWaitForWindowSize(vulkan* Vulkan)
     }
 }
 
-VkResult BeginFrame(vulkan* Vulkan)
+VkResult BeginVulkanFrame(vulkan* Vulkan)
 {
     assert(!Vulkan->CurrentFrame);
 
@@ -2118,7 +2118,7 @@ VkResult BeginFrame(vulkan* Vulkan)
     return VK_SUCCESS;
 }
 
-VkResult EndFrame(vulkan* Vulkan)
+VkResult EndVulkanFrame(vulkan* Vulkan)
 {
     assert(Vulkan->CurrentFrame);
 

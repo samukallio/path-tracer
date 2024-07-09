@@ -35,7 +35,7 @@ void CreateImGuiRenderContext
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER,
     };
 
-    VkResult Result = CreateDescriptorSetLayout(Vulkan, &Context->DescriptorSetLayout, DescriptorTypes);
+    VkResult Result = CreateVulkanDescriptorSetLayout(Vulkan, &Context->DescriptorSetLayout, DescriptorTypes);
     if (Result != VK_SUCCESS) return;
 
     ImGuiIO& IO = ImGui::GetIO();
@@ -44,7 +44,7 @@ void CreateImGuiRenderContext
     IO.Fonts->GetTexDataAsRGBA32(&Data, &Width, &Height);
     size_t Size = Width * Height * sizeof(uint32_t);
 
-    CreateImage
+    CreateVulkanImage
     (
         Vulkan,
         &Context->Texture,
@@ -59,7 +59,7 @@ void CreateImGuiRenderContext
         false
     );
 
-    WriteToDeviceLocalImage
+    WriteToVulkanImage
     (
         Vulkan,
         &Context->Texture,
@@ -102,12 +102,12 @@ void CreateImGuiRenderContext
         .PushConstantBufferSize = sizeof(imgui_push_constant_buffer),
     };
 
-    Result = CreateGraphicsPipeline(Vulkan, &Context->Pipeline, ImguiConfig);
+    Result = CreateVulkanGraphicsPipeline(Vulkan, &Context->Pipeline, ImguiConfig);
     if (Result != VK_SUCCESS) return;
 
     for (uint I = 0; I < 2; I++)
     {
-        CreateBuffer
+        CreateVulkanBuffer
         (
             Vulkan,
             &Context->VertexBuffer[I],
@@ -116,7 +116,7 @@ void CreateImGuiRenderContext
             65536 * sizeof(ImDrawVert)
         );
 
-        CreateBuffer
+        CreateVulkanBuffer
         (
             Vulkan,
             &Context->IndexBuffer[I],
@@ -136,7 +136,7 @@ void CreateImGuiRenderContext
             }
         };
 
-        VkResult Result = CreateDescriptorSet
+        VkResult Result = CreateVulkanDescriptorSet
         (
             Vulkan,
             Context->DescriptorSetLayout,
@@ -153,14 +153,14 @@ void DestroyImGuiRenderContext
     imgui_render_context* Context
 )
 {
-    DestroyImage(Vulkan, &Context->Texture);
+    DestroyVulkanImage(Vulkan, &Context->Texture);
 
-    DestroyPipeline(Vulkan, &Context->Pipeline);
+    DestroyVulkanPipeline(Vulkan, &Context->Pipeline);
 
     for (uint I = 0; I < 2; I++)
     {
-        DestroyBuffer(Vulkan, &Context->IndexBuffer[I]);
-        DestroyBuffer(Vulkan, &Context->VertexBuffer[I]);
+        DestroyVulkanBuffer(Vulkan, &Context->IndexBuffer[I]);
+        DestroyVulkanBuffer(Vulkan, &Context->VertexBuffer[I]);
     }
 
     vkDestroyDescriptorSetLayout(Vulkan->Device, Context->DescriptorSetLayout, nullptr);

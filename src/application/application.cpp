@@ -95,7 +95,7 @@ void Update(application* App)
 
     UpdateVulkanScene(App->Vulkan, App->VulkanScene, App->Scene, DirtyFlags);
 
-    BeginFrame(App->Vulkan);
+    BeginVulkanFrame(App->Vulkan);
 
     if (App->SceneCameraToRender)
     {
@@ -162,7 +162,7 @@ void Update(application* App)
 
     RenderImGui(App->Vulkan, &App->ImGuiRenderContext);
 
-    EndFrame(App->Vulkan);
+    EndVulkanFrame(App->Vulkan);
 }
 
 static void MouseButtonInputCallback(GLFWwindow* Window, int Button, int Action, int Mods)

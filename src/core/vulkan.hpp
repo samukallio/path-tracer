@@ -7,15 +7,14 @@ struct scene;
 #include <vulkan/vulkan.h>
 #include <GLFW/glfw3.h>
 
-// Resources associated with a Vulkan buffer.
 struct vulkan_buffer
 {
     VkBuffer       Buffer = VK_NULL_HANDLE;
     VkDeviceMemory Memory = VK_NULL_HANDLE;
     VkDeviceSize   Size = 0;
+    bool           IsDeviceLocal = false;
 };
 
-// Resources associated with a Vulkan image.
 struct vulkan_image
 {
     VkImage        Image      = VK_NULL_HANDLE;
@@ -28,7 +27,6 @@ struct vulkan_image
     uint32_t       LayerCount = 0;
 };
 
-// Description of the code and data bindings of a compute shader.
 struct vulkan_compute_pipeline_configuration
 {
     using descriptor_set_layouts = std::vector<VkDescriptorSetLayout>;
@@ -51,7 +49,6 @@ struct vulkan_graphics_pipeline_configuration
     uint32_t                  PushConstantBufferSize = 0;
 };
 
-// Resources associated with a Vulkan compute or graphics pipeline.
 struct vulkan_pipeline
 {
     VkPipeline       Pipeline       = VK_NULL_HANDLE;
@@ -168,9 +165,10 @@ struct vulkan
 
 
 vulkan* CreateVulkan(GLFWwindow* Window, char const* ApplicationName);
+
 void DestroyVulkan(vulkan* Vulkan);
 
-VkResult CreateBuffer
+VkResult CreateVulkanBuffer
 (
     vulkan*               Vulkan,
     vulkan_buffer*        Buffer,
@@ -179,9 +177,9 @@ VkResult CreateBuffer
     VkDeviceSize          Size
 );
 
-void DestroyBuffer(vulkan* Vulkan, vulkan_buffer* Buffer);
+void DestroyVulkanBuffer(vulkan* Vulkan, vulkan_buffer* Buffer);
 
-void WriteToHostVisibleBuffer
+void WriteToVulkanBuffer
 (
     vulkan*        Vulkan,
     vulkan_buffer* Buffer,
@@ -189,15 +187,7 @@ void WriteToHostVisibleBuffer
     size_t         Size
 );
 
-void WriteToDeviceLocalBuffer
-(
-    vulkan*        Vulkan,
-    vulkan_buffer* Buffer,
-    void const*    Data,
-    size_t         Size
-);
-
-VkResult CreateImage
+VkResult CreateVulkanImage
 (
     vulkan*               Vulkan,
     vulkan_image*         Image,
@@ -212,9 +202,9 @@ VkResult CreateImage
     bool                  Compute
 );
 
-void DestroyImage(vulkan* Vulkan, vulkan_image* Image);
+void DestroyVulkanImage(vulkan* Vulkan, vulkan_image* Image);
 
-VkResult WriteToDeviceLocalImage
+VkResult WriteToVulkanImage
 (
     vulkan*       Vulkan,
     vulkan_image* Image,
@@ -227,21 +217,21 @@ VkResult WriteToDeviceLocalImage
     VkImageLayout NewLayout
 );
 
-VkResult CreateDescriptorSetLayout
+VkResult CreateVulkanDescriptorSetLayout
 (
     vulkan*                     Vulkan,
     VkDescriptorSetLayout*      Layout,
     std::span<VkDescriptorType> DescriptorTypes
 );
 
-void WriteDescriptorSet
+void UpdateVulkanDescriptorSet
 (
     vulkan*                      Vulkan,
     VkDescriptorSet              DescriptorSet,
     std::span<vulkan_descriptor> Descriptors
 );
 
-VkResult CreateDescriptorSet
+VkResult CreateVulkanDescriptorSet
 (
     vulkan*                      Vulkan,
     VkDescriptorSetLayout        DescriptorSetLayout,
@@ -249,21 +239,22 @@ VkResult CreateDescriptorSet
     std::span<vulkan_descriptor> Descriptors
 );
 
-VkResult CreateComputePipeline
+VkResult CreateVulkanComputePipeline
 (
     vulkan* Vulkan,
     vulkan_pipeline* Pipeline,
     vulkan_compute_pipeline_configuration const& Config
 );
 
-VkResult CreateGraphicsPipeline
+VkResult CreateVulkanGraphicsPipeline
 (
     vulkan* Vulkan,
     vulkan_pipeline* Pipeline,
     vulkan_graphics_pipeline_configuration const& Config
 );
 
-void DestroyPipeline(vulkan* Vulkan, vulkan_pipeline* Pipeline);
+void DestroyVulkanPipeline(vulkan* Vulkan, vulkan_pipeline* Pipeline);
 
-VkResult BeginFrame(vulkan* Vulkan);
-VkResult EndFrame(vulkan* Vulkan);
+VkResult BeginVulkanFrame(vulkan* Vulkan);
+
+VkResult EndVulkanFrame(vulkan* Vulkan);

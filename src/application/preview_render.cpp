@@ -30,7 +30,7 @@ void CreatePreviewRenderContext
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
     };
 
-    CreateDescriptorSetLayout(Vulkan, &Context->DescriptorSetLayout, DescriptorTypes);
+    CreateVulkanDescriptorSetLayout(Vulkan, &Context->DescriptorSetLayout, DescriptorTypes);
 
     auto PipelineConfig = vulkan_graphics_pipeline_configuration
     {
@@ -44,12 +44,12 @@ void CreatePreviewRenderContext
         .PushConstantBufferSize = sizeof(preview_parameters),
     };
 
-    Result = CreateGraphicsPipeline(Vulkan, &Context->Pipeline, PipelineConfig);
+    Result = CreateVulkanGraphicsPipeline(Vulkan, &Context->Pipeline, PipelineConfig);
     if (Result != VK_SUCCESS) return;
 
     for (uint I = 0; I < 2; I++)
     {
-        CreateBuffer
+        CreateVulkanBuffer
         (
             Vulkan,
             &Context->QueryBuffer[I],
@@ -66,7 +66,7 @@ void CreatePreviewRenderContext
             }
         };
 
-        Result = CreateDescriptorSet
+        Result = CreateVulkanDescriptorSet
         (
             Vulkan,
             Context->DescriptorSetLayout,
@@ -83,10 +83,10 @@ void DestroyPreviewRenderContext
     preview_render_context* Context
 )
 {
-    DestroyPipeline(Vulkan, &Context->Pipeline);
+    DestroyVulkanPipeline(Vulkan, &Context->Pipeline);
 
     for (uint I = 0; I < 2; I++)
-        DestroyBuffer(Vulkan, &Context->QueryBuffer[I]);
+        DestroyVulkanBuffer(Vulkan, &Context->QueryBuffer[I]);
 
     vkDestroyDescriptorSetLayout(Vulkan->Device, Context->DescriptorSetLayout, nullptr);
 }

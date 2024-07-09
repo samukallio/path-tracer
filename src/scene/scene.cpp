@@ -1636,9 +1636,9 @@ vulkan_scene* CreateVulkanScene(vulkan* Vulkan)
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,          // CameraSSBO
     };
 
-    CreateDescriptorSetLayout(Vulkan, &VulkanScene->DescriptorSetLayout, SceneDescriptorTypes);
+    CreateVulkanDescriptorSetLayout(Vulkan, &VulkanScene->DescriptorSetLayout, SceneDescriptorTypes);
 
-    CreateBuffer
+    CreateVulkanBuffer
     (
         Vulkan,
         &VulkanScene->UniformBuffer,
@@ -1693,7 +1693,7 @@ void UpdateVulkanScene
 
     if (DirtyFlags & SCENE_DIRTY_GLOBALS)
     {
-        WriteToDeviceLocalBuffer(Vulkan, &VulkanScene->UniformBuffer, &Scene->Globals, sizeof(packed_scene_globals));
+        WriteToVulkanBuffer(Vulkan, &VulkanScene->UniformBuffer, &Scene->Globals, sizeof(packed_scene_globals));
     }
 
     if (DirtyFlags & SCENE_DIRTY_TEXTURES)
@@ -1718,7 +1718,7 @@ void UpdateVulkanScene
             LayerCount = 1;
         }
 
-        Result = CreateImage
+        Result = CreateVulkanImage
         (
             Vulkan,
             &VulkanScene->ImageArray,
@@ -1735,7 +1735,7 @@ void UpdateVulkanScene
         for (uint32_t Index = 0; Index < ImageCount; Index++)
         {
             image const& Image = Scene->Images[Index];
-            WriteToDeviceLocalImage
+            WriteToVulkanImage
             (
                 Vulkan,
                 &VulkanScene->ImageArray,
@@ -1750,7 +1750,7 @@ void UpdateVulkanScene
         VulkanScene->TextureBuffer = vulkan_buffer {};
 
         size_t TextureBufferSize = sizeof(packed_texture) * Scene->TexturePack.size();
-        Result = CreateBuffer
+        Result = CreateVulkanBuffer
         (
             Vulkan,
             &VulkanScene->TextureBuffer,
@@ -1758,7 +1758,7 @@ void UpdateVulkanScene
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             std::max(1024ull, TextureBufferSize)
         );
-        WriteToDeviceLocalBuffer(Vulkan, &VulkanScene->TextureBuffer, Scene->TexturePack.data(), TextureBufferSize);
+        WriteToVulkanBuffer(Vulkan, &VulkanScene->TextureBuffer, Scene->TexturePack.data(), TextureBufferSize);
     }
 
     if (DirtyFlags & SCENE_DIRTY_MATERIALS)
@@ -1767,7 +1767,7 @@ void UpdateVulkanScene
         VulkanScene->MaterialBuffer = vulkan_buffer {};
 
         size_t MaterialBufferSize = sizeof(uint) * Scene->MaterialAttributePack.size();
-        Result = CreateBuffer
+        Result = CreateVulkanBuffer
         (
             Vulkan,
             &VulkanScene->MaterialBuffer,
@@ -1775,7 +1775,7 @@ void UpdateVulkanScene
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             std::max(1024ull, MaterialBufferSize)
         );
-        WriteToDeviceLocalBuffer(Vulkan, &VulkanScene->MaterialBuffer, Scene->MaterialAttributePack.data(), MaterialBufferSize);
+        WriteToVulkanBuffer(Vulkan, &VulkanScene->MaterialBuffer, Scene->MaterialAttributePack.data(), MaterialBufferSize);
     }
 
     if (DirtyFlags & SCENE_DIRTY_SHAPES)
@@ -1786,7 +1786,7 @@ void UpdateVulkanScene
             ShapeBufferOld = VulkanScene->ShapeBuffer;
             VulkanScene->ShapeBuffer = vulkan_buffer {};
 
-            Result = CreateBuffer
+            Result = CreateVulkanBuffer
             (
                 Vulkan,
                 &VulkanScene->ShapeBuffer,
@@ -1795,7 +1795,7 @@ void UpdateVulkanScene
                 ShapeBufferCreateSize
             );
         }
-        WriteToDeviceLocalBuffer
+        WriteToVulkanBuffer
         (
             Vulkan, &VulkanScene->ShapeBuffer,
             Scene->ShapePack.data(),
@@ -1808,7 +1808,7 @@ void UpdateVulkanScene
             ShapeNodeBufferOld = VulkanScene->ShapeNodeBuffer;
             VulkanScene->ShapeNodeBuffer = vulkan_buffer {};
 
-            Result = CreateBuffer
+            Result = CreateVulkanBuffer
             (
                 Vulkan,
                 &VulkanScene->ShapeNodeBuffer,
@@ -1817,7 +1817,7 @@ void UpdateVulkanScene
                 ShapeNodeBufferCreateSize
             );
         }
-        WriteToDeviceLocalBuffer
+        WriteToVulkanBuffer
         (
             Vulkan, &VulkanScene->ShapeNodeBuffer,
             Scene->ShapeNodePack.data(),
@@ -1835,7 +1835,7 @@ void UpdateVulkanScene
         VulkanScene->MeshNodeBuffer = vulkan_buffer {};
 
         size_t MeshVertexBufferSize = sizeof(packed_mesh_vertex) * Scene->MeshVertexPack.size();
-        Result = CreateBuffer
+        Result = CreateVulkanBuffer
         (
             Vulkan,
             &VulkanScene->MeshVertexBuffer,
@@ -1843,10 +1843,10 @@ void UpdateVulkanScene
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             std::max(1024ull, MeshVertexBufferSize)
         );
-        WriteToDeviceLocalBuffer(Vulkan, &VulkanScene->MeshVertexBuffer, Scene->MeshVertexPack.data(), MeshVertexBufferSize);
+        WriteToVulkanBuffer(Vulkan, &VulkanScene->MeshVertexBuffer, Scene->MeshVertexPack.data(), MeshVertexBufferSize);
 
         size_t MeshFaceBufferSize = sizeof(packed_mesh_face) * Scene->MeshFacePack.size();
-        Result = CreateBuffer
+        Result = CreateVulkanBuffer
         (
             Vulkan,
             &VulkanScene->MeshFaceBuffer,
@@ -1854,10 +1854,10 @@ void UpdateVulkanScene
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             std::max(1024ull, MeshFaceBufferSize)
         );
-        WriteToDeviceLocalBuffer(Vulkan, &VulkanScene->MeshFaceBuffer, Scene->MeshFacePack.data(), MeshFaceBufferSize);
+        WriteToVulkanBuffer(Vulkan, &VulkanScene->MeshFaceBuffer, Scene->MeshFacePack.data(), MeshFaceBufferSize);
 
         size_t MeshNodeBufferSize = sizeof(packed_mesh_node) * Scene->MeshNodePack.size();
-        Result = CreateBuffer
+        Result = CreateVulkanBuffer
         (
             Vulkan,
             &VulkanScene->MeshNodeBuffer,
@@ -1865,7 +1865,7 @@ void UpdateVulkanScene
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             std::max(1024ull, MeshNodeBufferSize)
         );
-        WriteToDeviceLocalBuffer(Vulkan, &VulkanScene->MeshNodeBuffer, Scene->MeshNodePack.data(), MeshNodeBufferSize);
+        WriteToVulkanBuffer(Vulkan, &VulkanScene->MeshNodeBuffer, Scene->MeshNodePack.data(), MeshNodeBufferSize);
     }
 
     if (DirtyFlags & SCENE_DIRTY_CAMERAS)
@@ -1874,7 +1874,7 @@ void UpdateVulkanScene
         VulkanScene->CameraBuffer = vulkan_buffer {};
 
         size_t CameraBufferSize = sizeof(packed_camera) * Scene->CameraPack.size();
-        Result = CreateBuffer
+        Result = CreateVulkanBuffer
         (
             Vulkan,
             &VulkanScene->CameraBuffer,
@@ -1882,7 +1882,7 @@ void UpdateVulkanScene
             VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
             std::max(1024ull, CameraBufferSize)
         );
-        WriteToDeviceLocalBuffer(Vulkan, &VulkanScene->CameraBuffer, Scene->CameraPack.data(), CameraBufferSize);
+        WriteToVulkanBuffer(Vulkan, &VulkanScene->CameraBuffer, Scene->CameraPack.data(), CameraBufferSize);
     }
 
     vulkan_descriptor Descriptors[] =
@@ -1937,17 +1937,17 @@ void UpdateVulkanScene
         },
     };
 
-    WriteDescriptorSet(Vulkan, VulkanScene->DescriptorSet, Descriptors);
+    UpdateVulkanDescriptorSet(Vulkan, VulkanScene->DescriptorSet, Descriptors);
 
-    DestroyBuffer(Vulkan, &CameraBufferOld);
-    DestroyBuffer(Vulkan, &MeshVertexBufferOld);
-    DestroyBuffer(Vulkan, &MeshFaceBufferOld);
-    DestroyBuffer(Vulkan, &MeshNodeBufferOld);
-    DestroyBuffer(Vulkan, &ShapeBufferOld);
-    DestroyBuffer(Vulkan, &ShapeNodeBufferOld);
-    DestroyBuffer(Vulkan, &MaterialBufferOld);
-    DestroyBuffer(Vulkan, &TextureBufferOld);
-    DestroyImage(Vulkan, &ImageArrayOld);
+    DestroyVulkanBuffer(Vulkan, &CameraBufferOld);
+    DestroyVulkanBuffer(Vulkan, &MeshVertexBufferOld);
+    DestroyVulkanBuffer(Vulkan, &MeshFaceBufferOld);
+    DestroyVulkanBuffer(Vulkan, &MeshNodeBufferOld);
+    DestroyVulkanBuffer(Vulkan, &ShapeBufferOld);
+    DestroyVulkanBuffer(Vulkan, &ShapeNodeBufferOld);
+    DestroyVulkanBuffer(Vulkan, &MaterialBufferOld);
+    DestroyVulkanBuffer(Vulkan, &TextureBufferOld);
+    DestroyVulkanImage(Vulkan, &ImageArrayOld);
 }
 
 void DestroyVulkanScene
@@ -1963,16 +1963,16 @@ void DestroyVulkanScene
         vkDeviceWaitIdle(Vulkan->Device);
     }
 
-    DestroyBuffer(Vulkan, &VulkanScene->TextureBuffer);
-    DestroyBuffer(Vulkan, &VulkanScene->MaterialBuffer);
-    DestroyBuffer(Vulkan, &VulkanScene->ShapeNodeBuffer);
-    DestroyBuffer(Vulkan, &VulkanScene->ShapeBuffer);
-    DestroyBuffer(Vulkan, &VulkanScene->MeshNodeBuffer);
-    DestroyBuffer(Vulkan, &VulkanScene->MeshVertexBuffer);
-    DestroyBuffer(Vulkan, &VulkanScene->MeshFaceBuffer);
-    DestroyBuffer(Vulkan, &VulkanScene->CameraBuffer);
-    DestroyImage(Vulkan, &VulkanScene->ImageArray);
-    DestroyBuffer(Vulkan, &VulkanScene->UniformBuffer);
+    DestroyVulkanBuffer(Vulkan, &VulkanScene->TextureBuffer);
+    DestroyVulkanBuffer(Vulkan, &VulkanScene->MaterialBuffer);
+    DestroyVulkanBuffer(Vulkan, &VulkanScene->ShapeNodeBuffer);
+    DestroyVulkanBuffer(Vulkan, &VulkanScene->ShapeBuffer);
+    DestroyVulkanBuffer(Vulkan, &VulkanScene->MeshNodeBuffer);
+    DestroyVulkanBuffer(Vulkan, &VulkanScene->MeshVertexBuffer);
+    DestroyVulkanBuffer(Vulkan, &VulkanScene->MeshFaceBuffer);
+    DestroyVulkanBuffer(Vulkan, &VulkanScene->CameraBuffer);
+    DestroyVulkanImage(Vulkan, &VulkanScene->ImageArray);
+    DestroyVulkanBuffer(Vulkan, &VulkanScene->UniformBuffer);
 
     if (VulkanScene->DescriptorSetLayout)
     {

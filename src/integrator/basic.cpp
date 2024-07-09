@@ -184,7 +184,7 @@ basic_renderer* CreateBasicRenderer
         VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,  // TraceSSBO
     };
 
-    Result = CreateDescriptorSetLayout(Vulkan, &Renderer->DescriptorSetLayout, DescriptorTypes);
+    Result = CreateVulkanDescriptorSetLayout(Vulkan, &Renderer->DescriptorSetLayout, DescriptorTypes);
     if (Result != VK_SUCCESS) return nullptr;
 
     auto TraceConfig = vulkan_compute_pipeline_configuration
@@ -198,7 +198,7 @@ basic_renderer* CreateBasicRenderer
         .PushConstantBufferSize = sizeof(push_constant_buffer),
     };
 
-    Result = CreateComputePipeline(Vulkan, &Renderer->TracePipeline, TraceConfig);
+    Result = CreateVulkanComputePipeline(Vulkan, &Renderer->TracePipeline, TraceConfig);
     if (Result != VK_SUCCESS) return nullptr;
 
     auto ScatterConfig = vulkan_compute_pipeline_configuration
@@ -212,10 +212,10 @@ basic_renderer* CreateBasicRenderer
         .PushConstantBufferSize = sizeof(push_constant_buffer),
     };
 
-    Result = CreateComputePipeline(Vulkan, &Renderer->ScatterPipeline, ScatterConfig);
+    Result = CreateVulkanComputePipeline(Vulkan, &Renderer->ScatterPipeline, ScatterConfig);
     if (Result != VK_SUCCESS) return nullptr;
 
-    Result = CreateBuffer
+    Result = CreateVulkanBuffer
     (
         Vulkan, &Renderer->TraceBuffer,
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
@@ -224,7 +224,7 @@ basic_renderer* CreateBasicRenderer
     );
     if (Result != VK_SUCCESS) return nullptr;
 
-    Result = CreateBuffer
+    Result = CreateVulkanBuffer
     (
         Vulkan, &Renderer->PathBuffer,
         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
@@ -249,7 +249,7 @@ basic_renderer* CreateBasicRenderer
         },
     };
 
-    Result = CreateDescriptorSet
+    Result = CreateVulkanDescriptorSet
     (
         Vulkan,
         Renderer->DescriptorSetLayout,
@@ -267,11 +267,11 @@ void DestroyBasicRenderer
     basic_renderer* Renderer
 )
 {
-    DestroyBuffer(Vulkan, &Renderer->PathBuffer);
-    DestroyBuffer(Vulkan, &Renderer->TraceBuffer);
+    DestroyVulkanBuffer(Vulkan, &Renderer->PathBuffer);
+    DestroyVulkanBuffer(Vulkan, &Renderer->TraceBuffer);
 
-    DestroyPipeline(Vulkan, &Renderer->ScatterPipeline);
-    DestroyPipeline(Vulkan, &Renderer->TracePipeline);
+    DestroyVulkanPipeline(Vulkan, &Renderer->ScatterPipeline);
+    DestroyVulkanPipeline(Vulkan, &Renderer->TracePipeline);
 
     if (Renderer->DescriptorSetLayout)
     {

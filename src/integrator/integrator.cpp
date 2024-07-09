@@ -28,7 +28,7 @@ vulkan_sample_buffer* CreateSampleBuffer
         VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, // SampleAccumulatorImage
     };
 
-    Result = CreateDescriptorSetLayout(Vulkan, &SampleBuffer->ResolveDescriptorSetLayout, ResolveDescriptorTypes);
+    Result = CreateVulkanDescriptorSetLayout(Vulkan, &SampleBuffer->ResolveDescriptorSetLayout, ResolveDescriptorTypes);
     if (Result != VK_SUCCESS) return nullptr;
 
     auto ResolveConfig = vulkan_graphics_pipeline_configuration
@@ -41,10 +41,10 @@ vulkan_sample_buffer* CreateSampleBuffer
         .PushConstantBufferSize = sizeof(resolve_parameters),
     };
 
-    Result = CreateGraphicsPipeline(Vulkan, &SampleBuffer->ResolvePipeline, ResolveConfig);
+    Result = CreateVulkanGraphicsPipeline(Vulkan, &SampleBuffer->ResolvePipeline, ResolveConfig);
     if (Result != VK_SUCCESS) return nullptr;
 
-    Result = CreateImage
+    Result = CreateVulkanImage
     (
         Vulkan,
         &SampleBuffer->Image,
@@ -71,7 +71,7 @@ vulkan_sample_buffer* CreateSampleBuffer
         }
     };
 
-    Result = CreateDescriptorSet
+    Result = CreateVulkanDescriptorSet
     (
         Vulkan,
         SampleBuffer->ResolveDescriptorSetLayout,
@@ -94,7 +94,7 @@ void DestroySampleBuffer
 {
     std::erase(Vulkan->SharedImages, SampleBuffer->Image.Image);
 
-    DestroyImage(Vulkan, &SampleBuffer->Image);
+    DestroyVulkanImage(Vulkan, &SampleBuffer->Image);
 
     if (SampleBuffer->ResolveDescriptorSetLayout)
     {
@@ -102,7 +102,7 @@ void DestroySampleBuffer
         SampleBuffer->ResolveDescriptorSetLayout = VK_NULL_HANDLE;
     }
 
-    DestroyPipeline(Vulkan, &SampleBuffer->ResolvePipeline);
+    DestroyVulkanPipeline(Vulkan, &SampleBuffer->ResolvePipeline);
 
     delete SampleBuffer;
 }
