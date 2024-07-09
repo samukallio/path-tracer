@@ -153,17 +153,16 @@ void DestroyImGuiRenderContext
     imgui_render_context* Context
 )
 {
-    DestroyVulkanImage(Vulkan, &Context->Texture);
-
-    DestroyVulkanPipeline(Vulkan, &Context->Pipeline);
-
     for (uint I = 0; I < 2; I++)
     {
+        DestroyVulkanDescriptorSet(Vulkan, &Context->DescriptorSet[I]);
         DestroyVulkanBuffer(Vulkan, &Context->IndexBuffer[I]);
         DestroyVulkanBuffer(Vulkan, &Context->VertexBuffer[I]);
     }
 
-    vkDestroyDescriptorSetLayout(Vulkan->Device, Context->DescriptorSetLayout, nullptr);
+    DestroyVulkanImage(Vulkan, &Context->Texture);
+    DestroyVulkanPipeline(Vulkan, &Context->Pipeline);
+    DestroyVulkanDescriptorSetLayout(Vulkan, &Context->DescriptorSetLayout);
 }
 
 void RenderImGui

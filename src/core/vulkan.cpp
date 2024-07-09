@@ -665,6 +665,19 @@ VkResult CreateVulkanDescriptorSetLayout
     return Result;
 }
 
+void DestroyVulkanDescriptorSetLayout
+(
+    vulkan* Vulkan,
+    VkDescriptorSetLayout* Layout
+)
+{
+    if (*Layout != VK_NULL_HANDLE)
+    {
+        vkDestroyDescriptorSetLayout(Vulkan->Device, *Layout, nullptr);
+        *Layout = VK_NULL_HANDLE;
+    }
+}
+
 void UpdateVulkanDescriptorSet
 (
     vulkan*                      Vulkan,
@@ -745,6 +758,19 @@ VkResult CreateVulkanDescriptorSet
 
     UpdateVulkanDescriptorSet(Vulkan, *DescriptorSet, Descriptors);
     return Result;
+}
+
+void DestroyVulkanDescriptorSet
+(
+    vulkan* Vulkan,
+    VkDescriptorSet* Set
+)
+{
+    if (*Set != VK_NULL_HANDLE)
+    {
+        vkFreeDescriptorSets(Vulkan->Device, Vulkan->DescriptorPool, 1, Set);
+        *Set = VK_NULL_HANDLE;
+    }
 }
 
 static VkResult InternalCreatePresentationResources(vulkan* Vulkan)
@@ -1697,6 +1723,7 @@ static VkResult InternalCreateVulkan
         auto DescriptorPoolInfo = VkDescriptorPoolCreateInfo
         {
             .sType         = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            .flags         = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
             .maxSets       = 16,
             .poolSizeCount = static_cast<uint32_t>(std::size(DescriptorPoolSizes)),
             .pPoolSizes    = DescriptorPoolSizes,

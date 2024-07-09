@@ -224,6 +224,8 @@ VkResult CreateVulkanDescriptorSetLayout
     std::span<VkDescriptorType> DescriptorTypes
 );
 
+void DestroyVulkanDescriptorSetLayout(vulkan* Vulkan, VkDescriptorSetLayout* Layout);
+
 void UpdateVulkanDescriptorSet
 (
     vulkan*                      Vulkan,
@@ -238,6 +240,8 @@ VkResult CreateVulkanDescriptorSet
     VkDescriptorSet*             DescriptorSet,
     std::span<vulkan_descriptor> Descriptors
 );
+
+void DestroyVulkanDescriptorSet(vulkan* Vulkan, VkDescriptorSet* Set);
 
 VkResult CreateVulkanComputePipeline
 (

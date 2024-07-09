@@ -83,12 +83,14 @@ void DestroyPreviewRenderContext
     preview_render_context* Context
 )
 {
-    DestroyVulkanPipeline(Vulkan, &Context->Pipeline);
-
     for (uint I = 0; I < 2; I++)
+    {
+        DestroyVulkanDescriptorSet(Vulkan, &Context->DescriptorSet[I]);
         DestroyVulkanBuffer(Vulkan, &Context->QueryBuffer[I]);
+    }
 
-    vkDestroyDescriptorSetLayout(Vulkan->Device, Context->DescriptorSetLayout, nullptr);
+    DestroyVulkanPipeline(Vulkan, &Context->Pipeline);
+    DestroyVulkanDescriptorSetLayout(Vulkan, &Context->DescriptorSetLayout);
 }
 
 bool RetrievePreviewQueryResult

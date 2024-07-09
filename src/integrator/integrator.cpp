@@ -94,15 +94,10 @@ void DestroySampleBuffer
 {
     std::erase(Vulkan->SharedImages, SampleBuffer->Image.Image);
 
+    DestroyVulkanDescriptorSet(Vulkan, &SampleBuffer->ResolveDescriptorSet);
     DestroyVulkanImage(Vulkan, &SampleBuffer->Image);
-
-    if (SampleBuffer->ResolveDescriptorSetLayout)
-    {
-        vkDestroyDescriptorSetLayout(Vulkan->Device, SampleBuffer->ResolveDescriptorSetLayout, nullptr);
-        SampleBuffer->ResolveDescriptorSetLayout = VK_NULL_HANDLE;
-    }
-
     DestroyVulkanPipeline(Vulkan, &SampleBuffer->ResolvePipeline);
+    DestroyVulkanDescriptorSetLayout(Vulkan, &SampleBuffer->ResolveDescriptorSetLayout);
 
     delete SampleBuffer;
 }
