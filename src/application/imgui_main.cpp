@@ -1,7 +1,9 @@
-#include "core/common.h"
-#include "scene/scene.h"
-#include "renderer/vulkan.h"
-#include "application/application.h"
+#include "core/common.hpp"
+#include "core/vulkan.hpp"
+#include "scene/scene.hpp"
+#include "integrator/integrator.hpp"
+#include "application/application.hpp"
+#include "application/imgui_font.hpp"
 
 #include <imgui.h>
 #include <imgui_internal.h>
@@ -42,12 +44,15 @@ static bool DragEulerAngles(const char* Label, vec3* Angles)
 }
 
 template<typename resource_t>
-static bool ResourceSelectorDropDown(
+static bool ResourceSelectorDropDown
+(
     char const* Label,
     std::vector<resource_t*>& Resources,
-    resource_t** ResourcePtr)
+    resource_t** ResourcePtr
+)
 {
-    auto GetItemName = [](void* Context, int Index) {
+    auto GetItemName = [](void* Context, int Index)
+    {
         auto& Resources = *static_cast<std::vector<resource_t*>*>(Context);
         if (Index <= 0)
             return "(none)";
@@ -65,7 +70,8 @@ static bool ResourceSelectorDropDown(
 
     bool Changed = ImGui::Combo(Label, &Index, GetItemName, &Resources, Count, 6);
 
-    if (Changed) {
+    if (Changed)
+    {
         if (Index == 0)
             *ResourcePtr = nullptr;
         else
@@ -90,11 +96,14 @@ static void TextureInspector(application* App, texture* Texture)
     ImGui::InputText("Name", &Texture->Name);
     ImGui::LabelText("Size", "%u x %u", Texture->Width, Texture->Height);
 
-    if (ImGui::BeginCombo("Type", TextureTypeName(Texture->Type))) {
-        for (int I = 0; I < TEXTURE_TYPE__COUNT; I++) {
+    if (ImGui::BeginCombo("Type", TextureTypeName(Texture->Type)))
+    {
+        for (int I = 0; I < TEXTURE_TYPE__COUNT; I++)
+        {
             auto Type = static_cast<texture_type>(I);
             bool IsSelected = Texture->Type == Type;
-            if (ImGui::Selectable(TextureTypeName(Type), &IsSelected)) {
+            if (ImGui::Selectable(TextureTypeName(Type), &IsSelected))
+            {
                 Texture->Type = Type;
                 C = true;
             }
@@ -166,12 +175,14 @@ static void MaterialInspector(application* App, material* Material, bool Referen
 
     ImGui::PushID(Material);
 
-    if (Referenced) {
+    if (Referenced)
+    {
         char Title[256];
         snprintf(Title, 256, "Material: %s", Material->Name.c_str());
         ImGui::SeparatorText(Title);
     }
-    else {
+    else
+    {
         ImGui::SeparatorText("Material");
         ImGui::InputText("Name", &Material->Name);
     }
@@ -194,12 +205,14 @@ static void MeshInspector(application* App, mesh* Mesh, bool Referenced = false)
 
     ImGui::PushID(Mesh);
 
-    if (Referenced) {
+    if (Referenced)
+    {
         char Title[256];
         snprintf(Title, 256, "Mesh: %s", Mesh->Name.c_str());
         ImGui::SeparatorText(Title);
     }
-    else {
+    else
+    {
         ImGui::SeparatorText("Mesh");
         ImGui::InputText("Name", &Mesh->Name);
     }
@@ -218,11 +231,14 @@ static void CameraInspector(application* App, camera_entity* Camera)
     ImGui::Spacing();
     ImGui::SeparatorText("Projection");
 
-    if (ImGui::BeginCombo("Camera Model", CameraModelName(Camera->CameraModel))) {
-        for (int I = 0; I < CAMERA_MODEL__COUNT; I++) {
+    if (ImGui::BeginCombo("Camera Model", CameraModelName(Camera->CameraModel)))
+    {
+        for (int I = 0; I < CAMERA_MODEL__COUNT; I++)
+        {
             auto CameraModel = static_cast<camera_model>(I);
             bool IsSelected = Camera->CameraModel == CameraModel;
-            if (ImGui::Selectable(CameraModelName(CameraModel), &IsSelected)) {
+            if (ImGui::Selectable(CameraModelName(CameraModel), &IsSelected))
+            {
                 Camera->CameraModel = CameraModel;
                 C = true;
             }
@@ -230,14 +246,17 @@ static void CameraInspector(application* App, camera_entity* Camera)
         ImGui::EndCombo();
     }
 
-    if (Camera->CameraModel == CAMERA_MODEL_PINHOLE) {
+    if (Camera->CameraModel == CAMERA_MODEL_PINHOLE)
+    {
         C |= ImGui::DragFloat("FOV (degrees)", &Camera->Pinhole.FieldOfViewInDegrees, 1.0f, 0.01f, 179.99f);
         C |= ImGui::DragFloat("Aperture (mm)", &Camera->Pinhole.ApertureDiameterInMM, 0.1f, 0.0f, 50.0f);
     }
 
-    if (Camera->CameraModel == CAMERA_MODEL_THIN_LENS) {
+    if (Camera->CameraModel == CAMERA_MODEL_THIN_LENS)
+    {
         vec2 SensorSizeInMM = Camera->ThinLens.SensorSizeInMM;
-        if (ImGui::DragFloat2("Sensor Size (mm)", &SensorSizeInMM[0], 1.0f, 1.0f, 100.0f)) {
+        if (ImGui::DragFloat2("Sensor Size (mm)", &SensorSizeInMM[0], 1.0f, 1.0f, 100.0f))
+        {
             float const ASPECT_RATIO = 2048.0f / 1024.0f;
             if (SensorSizeInMM.x != Camera->ThinLens.SensorSizeInMM.x)
                 SensorSizeInMM.y = SensorSizeInMM.x / ASPECT_RATIO;
@@ -255,12 +274,14 @@ static void CameraInspector(application* App, camera_entity* Camera)
     ImGui::Spacing();
     ImGui::SeparatorText("Rendering");
 
-    if (App->SceneCameraToRender == Camera) {
+    if (App->SceneCameraToRender == Camera)
+    {
         bool Active = true;
         C |= ImGui::Checkbox("Render Using This Camera", &Active);
         if (!Active) App->SceneCameraToRender = nullptr;
     }
-    else {
+    else
+    {
         bool Active = false;
         C |= ImGui::Checkbox("Render Using This Camera", &Active);
         if (Active) App->SceneCameraToRender = Camera;
@@ -290,29 +311,6 @@ static void CameraInspector(application* App, camera_entity* Camera)
     //    (int*)&Camera->RenderSampleBlockSizeLog2,
     //    RenderSampleBlockSizeLabels, 4);
 
-    C |= ImGui::CheckboxFlags("Sample Accumulation", &Camera->RenderFlags, RENDER_FLAG_ACCUMULATE);
-    C |= ImGui::CheckboxFlags("Sample Jitter", &Camera->RenderFlags, RENDER_FLAG_SAMPLE_JITTER);
-
-    ImGui::Spacing();
-    ImGui::SeparatorText("Post-Processing");
-
-    ImGui::SliderFloat("Brightness", &Camera->Brightness, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-
-    if (ImGui::BeginCombo("Tone Mapping", ToneMappingModeName(Camera->ToneMappingMode))) {
-        for (int I = 0; I < TONE_MAPPING_MODE__COUNT; I++) {
-            auto ToneMappingMode = static_cast<tone_mapping_mode>(I);
-            bool IsSelected = Camera->ToneMappingMode == ToneMappingMode;
-            if (ImGui::Selectable(ToneMappingModeName(ToneMappingMode), &IsSelected)) {
-                Camera->ToneMappingMode = ToneMappingMode;
-            }
-        }
-        ImGui::EndCombo();
-    }
-
-    if (Camera->ToneMappingMode == TONE_MAPPING_MODE_REINHARD) {
-        ImGui::SliderFloat("White Level", &Camera->ToneMappingWhiteLevel, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-    }
-
     ImGui::Spacing();
 
     if (C) App->Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
@@ -329,7 +327,8 @@ static void EntityInspector(application* App, entity* Entity)
 
     bool C = false;
 
-    if (Entity->Type != ENTITY_TYPE_ROOT) {
+    if (Entity->Type != ENTITY_TYPE_ROOT)
+    {
         C |= ImGui::Checkbox("Active", &Entity->Active);
 
         ImGui::InputText("Name", &Entity->Name);
@@ -338,11 +337,15 @@ static void EntityInspector(application* App, entity* Entity)
         C |= ImGui::DragFloat3("Position", &Transform.Position[0], 0.1f);
         C |= DragEulerAngles("Rotation", &Transform.Rotation);
 
-        if (Entity->Type != ENTITY_TYPE_CAMERA) {
+        if (Entity->Type != ENTITY_TYPE_CAMERA)
+        {
             vec3 Scale = Transform.Scale;
-            if (ImGui::DragFloat3("Scale", &Scale[0], 0.01f)) {
-                if (Transform.ScaleIsUniform) {
-                    for (int I = 0; I < 3; I++) {
+            if (ImGui::DragFloat3("Scale", &Scale[0], 0.01f))
+            {
+                if (Transform.ScaleIsUniform)
+                {
+                    for (int I = 0; I < 3; I++)
+                    {
                         if (Scale[I] == Transform.Scale[I])
                             continue;
                         Scale = vec3(1) * Scale[I];
@@ -351,7 +354,8 @@ static void EntityInspector(application* App, entity* Entity)
                 }
                 C = true;
             }
-            if (ImGui::Checkbox("Uniform Scale", &Transform.ScaleIsUniform)) {
+            if (ImGui::Checkbox("Uniform Scale", &Transform.ScaleIsUniform))
+            {
                 if (Transform.ScaleIsUniform)
                     Scale = vec3(1) * Scale.x;
                 C = true;
@@ -360,8 +364,10 @@ static void EntityInspector(application* App, entity* Entity)
         }
     }
 
-    switch (Entity->Type) {
-        case ENTITY_TYPE_ROOT: {
+    switch (Entity->Type)
+    {
+        case ENTITY_TYPE_ROOT:
+        {
             auto Root = static_cast<root_entity*>(Entity);
             C |= ImGui::DragFloat("Scattering Rate", &Root->ScatterRate, 0.001f, 0.00001f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
             C |= ImGui::DragFloat("Skybox Brightness", &Root->SkyboxBrightness, 0.01f, 0.0f, 1.0f);
@@ -369,12 +375,14 @@ static void EntityInspector(application* App, entity* Entity)
             if (C) Scene->DirtyFlags |= SCENE_DIRTY_GLOBALS;
             break;
         }
-        case ENTITY_TYPE_CAMERA: {
+        case ENTITY_TYPE_CAMERA:
+        {
             CameraInspector(App, static_cast<camera_entity*>(Entity));
             if (C) Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
             break;
         }
-        case ENTITY_TYPE_MESH_INSTANCE: {
+        case ENTITY_TYPE_MESH_INSTANCE:
+        {
             auto Instance = static_cast<mesh_entity*>(Entity);
             C |= ResourceSelectorDropDown("Mesh", Scene->Meshes, &Instance->Mesh);
             C |= ResourceSelectorDropDown("Material", Scene->Materials, &Instance->Material);
@@ -383,21 +391,24 @@ static void EntityInspector(application* App, entity* Entity)
             MaterialInspector(App, Instance->Material, true);
             break;
         }
-        case ENTITY_TYPE_PLANE: {
+        case ENTITY_TYPE_PLANE:
+        {
             auto Plane = static_cast<plane_entity*>(Entity);
             C |= ResourceSelectorDropDown("Material", Scene->Materials, &Plane->Material);
             ImGui::Spacing();
             MaterialInspector(App, Plane->Material, true);
             break;
         }
-        case ENTITY_TYPE_SPHERE: {
+        case ENTITY_TYPE_SPHERE:
+        {
             auto Sphere = static_cast<sphere_entity*>(Entity);
             C |= ResourceSelectorDropDown("Material", Scene->Materials, &Sphere->Material);
             ImGui::Spacing();
             MaterialInspector(App, Sphere->Material, true);
             break;
         }
-        case ENTITY_TYPE_CUBE: {
+        case ENTITY_TYPE_CUBE:
+        {
             auto Cube = static_cast<cube_entity*>(Entity);
             C |= ResourceSelectorDropDown("Material", Scene->Materials, &Cube->Material);
             ImGui::Spacing();
@@ -424,7 +435,8 @@ static void EntityTreeNode(application* App, entity* Entity, bool PrefabMode=fal
     if (App->SelectionType == SELECTION_TYPE_ENTITY && App->SelectedEntity == Entity)
         Flags |= ImGuiTreeNodeFlags_Selected;
 
-    if (!Entity->Active) {
+    if (!Entity->Active)
+    {
         auto color = ImGui::GetStyleColorVec4(ImGuiCol_Text);
         color.x *= 0.5f;
         color.y *= 0.5f;
@@ -435,14 +447,18 @@ static void EntityTreeNode(application* App, entity* Entity, bool PrefabMode=fal
     bool IsOpen = ImGui::TreeNodeEx(Entity->Name.c_str(), Flags);
     bool IsDestroyed = false;
 
-    if (!PrefabMode) {
-        if (ImGui::BeginPopupContextItem()) {
-            for (int I = 0; I < ENTITY_TYPE__COUNT; I++) {
+    if (!PrefabMode)
+    {
+        if (ImGui::BeginPopupContextItem())
+        {
+            for (int I = 0; I < ENTITY_TYPE__COUNT; I++)
+            {
                 if (I == ENTITY_TYPE_ROOT) continue;
                 char Buffer[256];
                 auto EntityType = static_cast<entity_type>(I);
                 snprintf(Buffer, std::size(Buffer), "Create %s...", EntityTypeName(EntityType));
-                if (ImGui::MenuItem(Buffer)) {
+                if (ImGui::MenuItem(Buffer))
+                {
                     auto Child = CreateEntity(App->Scene, EntityType, Entity);
                     Child->Name = std::format("New {}", EntityTypeName(EntityType));
                     App->Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
@@ -450,10 +466,14 @@ static void EntityTreeNode(application* App, entity* Entity, bool PrefabMode=fal
                     App->SelectedEntity = Child;
                 }
             }
-            if (!App->Scene->Prefabs.empty()) {
-                if (ImGui::BeginMenu("Create Prefab Instance")) {
-                    for (prefab* Prefab : App->Scene->Prefabs) {
-                        if (ImGui::MenuItem(Prefab->Entity->Name.c_str())) {
+            if (!App->Scene->Prefabs.empty())
+            {
+                if (ImGui::BeginMenu("Create Prefab Instance"))
+                {
+                    for (prefab* Prefab : App->Scene->Prefabs)
+                    {
+                        if (ImGui::MenuItem(Prefab->Entity->Name.c_str()))
+                        {
                             auto Child = CreateEntity(App->Scene, Prefab, Entity);
                             App->Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
                             App->SelectionType = SELECTION_TYPE_ENTITY;
@@ -463,14 +483,16 @@ static void EntityTreeNode(application* App, entity* Entity, bool PrefabMode=fal
                     ImGui::EndMenu();
                 }
             }
-            if (Entity->Type != ENTITY_TYPE_ROOT) {
+            if (Entity->Type != ENTITY_TYPE_ROOT)
+            {
                 if (ImGui::MenuItem("Delete"))
                     IsDestroyed = true;
             }
             ImGui::EndPopup();
         }
 
-        if (ImGui::IsItemClicked()) {
+        if (ImGui::IsItemClicked())
+        {
             App->SelectionType = SELECTION_TYPE_ENTITY;
             App->SelectedEntity = Entity;
         }
@@ -486,23 +508,28 @@ static void EntityTreeNode(application* App, entity* Entity, bool PrefabMode=fal
         ImGui::PopStyleColor();
     }
 
-    if (IsOpen) {
+    if (IsOpen)
+    {
         for (entity* Child : Entity->Children)
             EntityTreeNode(App, Child, PrefabMode);
 
         ImGui::TreePop();
     }
 
-    if (!Entity->Active) {
+    if (!Entity->Active)
+    {
         ImGui::PopStyleColor();
     }
 
-    if (IsDestroyed) {
-        if (App->SelectedEntity == Entity) {
+    if (IsDestroyed)
+    {
+        if (App->SelectedEntity == Entity)
+        {
             App->SelectionType = SELECTION_TYPE_NONE;
             App->SelectedEntity = nullptr;
         }
-        if (App->SceneCameraToRender == Entity) {
+        if (App->SceneCameraToRender == Entity)
+        {
             App->SceneCameraToRender = nullptr;
         }
         DestroyEntity(App->Scene, Entity);
@@ -514,12 +541,14 @@ static void PrefabInspector(application* App, prefab* Prefab, bool Referenced = 
 {
     ImGui::PushID(Prefab);
 
-    if (Referenced) {
+    if (Referenced)
+    {
         char Title[256];
         snprintf(Title, 256, "Prefab: %s", Prefab->Entity->Name.c_str());
         ImGui::SeparatorText(Title);
     }
-    else {
+    else
+    {
         ImGui::SeparatorText("Prefab");
         ImGui::InputText("Name", &Prefab->Entity->Name);
     }
@@ -535,13 +564,16 @@ void TextureBrowserWindow(application* App)
 
     scene* Scene = App->Scene;
 
-    if (ImGui::Button("Import...")) {
-        nfdu8filteritem_t Filters[] = {
+    if (ImGui::Button("Import..."))
+    {
+        nfdu8filteritem_t Filters[] =
+        {
             { "Portable Network Graphics", "png" },
             { "High-Dynamic Range Image", "hdr" },
         };
         std::optional<std::filesystem::path> Path = OpenDialog(Filters);
-        if (Path.has_value()) {
+        if (Path.has_value())
+        {
             load_model_options Options;
             Options.DirectoryPath = Path.value().parent_path().string();
             App->SelectedTexture = LoadTexture(App->Scene, Path.value().string().c_str(), TEXTURE_TYPE_RAW);
@@ -550,14 +582,16 @@ void TextureBrowserWindow(application* App)
     }
     ImGui::SameLine();
     ImGui::BeginDisabled(App->SelectionType != SELECTION_TYPE_TEXTURE);
-    if (ImGui::Button("Delete")) {
+    if (ImGui::Button("Delete"))
+    {
         DestroyTexture(App->Scene, App->SelectedTexture);
         App->SelectedTexture = nullptr;
         App->SelectionType = SELECTION_TYPE_NONE;
     }
     ImGui::EndDisabled();
 
-    auto GetItemName = [](void* Context, int Index) {
+    auto GetItemName = [](void* Context, int Index)
+    {
         auto Scene = static_cast<scene*>(Context);
         if (Index < 0 || Index >= Scene->Textures.size())
             return "";
@@ -567,13 +601,15 @@ void TextureBrowserWindow(application* App)
     int Index = -1;
     int Count = static_cast<int>(Scene->Textures.size());
 
-    if (App->SelectionType == SELECTION_TYPE_TEXTURE) {
+    if (App->SelectionType == SELECTION_TYPE_TEXTURE)
+    {
         for (int I = 0; I < Count; I++)
             if (Scene->Textures[I] == App->SelectedTexture)
                 Index = I;
     }
 
-    if (ImGui::ListBox("Textures", &Index, GetItemName, Scene, Count, 6)) {
+    if (ImGui::ListBox("Textures", &Index, GetItemName, Scene, Count, 6))
+    {
         App->SelectionType = SELECTION_TYPE_TEXTURE;
         App->SelectedTexture = Scene->Textures[Index];
     }
@@ -587,20 +623,23 @@ void MaterialBrowserWindow(application* App)
 
     scene* Scene = App->Scene;
 
-    if (ImGui::Button("New")) {
+    if (ImGui::Button("New"))
+    {
         App->SelectedMaterial = CreateMaterial(App->Scene, MATERIAL_TYPE_OPENPBR, "New Material");
         App->SelectionType = SELECTION_TYPE_MATERIAL;
     }
     ImGui::SameLine();
     ImGui::BeginDisabled(App->SelectionType != SELECTION_TYPE_MATERIAL);
-    if (ImGui::Button("Clone")) {
+    if (ImGui::Button("Clone"))
+    {
         material* Clone = CreateMaterial(App->Scene, MATERIAL_TYPE_OPENPBR, "");
         *Clone = *App->SelectedMaterial;
         Clone->Name = std::format("{} (Clone)", App->SelectedMaterial->Name);
         App->SelectedMaterial = Clone;
     }
     ImGui::SameLine();
-    if (ImGui::Button("Delete")) {
+    if (ImGui::Button("Delete"))
+    {
         DestroyMaterial(App->Scene, App->SelectedMaterial);
         App->SelectedMaterial = nullptr;
         App->SelectionType = SELECTION_TYPE_NONE;
@@ -608,7 +647,8 @@ void MaterialBrowserWindow(application* App)
     ImGui::EndDisabled();
 
 
-    auto GetItemName = [](void* Context, int Index) {
+    auto GetItemName = [](void* Context, int Index)
+    {
         auto Scene = static_cast<scene*>(Context);
         if (Index < 0 || Index >= Scene->Materials.size())
             return "";
@@ -618,13 +658,15 @@ void MaterialBrowserWindow(application* App)
     int Index = -1;
     int Count = static_cast<int>(Scene->Materials.size());
 
-    if (App->SelectionType == SELECTION_TYPE_MATERIAL) {
+    if (App->SelectionType == SELECTION_TYPE_MATERIAL)
+    {
         for (int I = 0; I < Count; I++)
             if (Scene->Materials[I] == App->SelectedMaterial)
                 Index = I;
     }
 
-    if (ImGui::ListBox("Materials", &Index, GetItemName, Scene, Count, 6)) {
+    if (ImGui::ListBox("Materials", &Index, GetItemName, Scene, Count, 6))
+    {
         App->SelectionType = SELECTION_TYPE_MATERIAL;
         App->SelectedMaterial = Scene->Materials[Index];
     }
@@ -637,7 +679,8 @@ void MeshBrowserWindow(application* App)
     ImGui::Begin("Meshes");
 
     ImGui::BeginDisabled(App->SelectionType != SELECTION_TYPE_MESH);
-    if (ImGui::Button("Delete")) {
+    if (ImGui::Button("Delete"))
+    {
         DestroyMesh(App->Scene, App->SelectedMesh);
         App->SelectedMesh = nullptr;
         App->SelectionType = SELECTION_TYPE_NONE;
@@ -646,7 +689,8 @@ void MeshBrowserWindow(application* App)
 
     scene* Scene = App->Scene;
 
-    auto GetItemName = [](void* Context, int Index) {
+    auto GetItemName = [](void* Context, int Index)
+    {
         auto Scene = static_cast<scene*>(Context);
         if (Index < 0 || Index >= Scene->Meshes.size())
             return "";
@@ -656,13 +700,15 @@ void MeshBrowserWindow(application* App)
     int Index = -1;
     int Count = static_cast<int>(Scene->Meshes.size());
 
-    if (App->SelectionType == SELECTION_TYPE_MESH) {
+    if (App->SelectionType == SELECTION_TYPE_MESH)
+    {
         for (int I = 0; I < Count; I++)
             if (Scene->Meshes[I] == App->SelectedMesh)
                 Index = I;
     }
 
-    if (ImGui::ListBox("Meshes", &Index, GetItemName, Scene, Count, 6)) {
+    if (ImGui::ListBox("Meshes", &Index, GetItemName, Scene, Count, 6))
+    {
         App->SelectionType = SELECTION_TYPE_MESH;
         App->SelectedMesh = Scene->Meshes[Index];
     }
@@ -674,8 +720,10 @@ void PrefabBrowserWindow(application* App)
 {
     ImGui::Begin("Prefabs");
 
-    if (ImGui::Button("Import Model...")) {
-        nfdu8filteritem_t Filters[] = {
+    if (ImGui::Button("Import Model..."))
+    {
+        nfdu8filteritem_t Filters[] =
+        {
             { "Wavefront OBJ", "obj" }
         };
         std::optional<std::filesystem::path> Path = OpenDialog(Filters);
@@ -688,7 +736,8 @@ void PrefabBrowserWindow(application* App)
     }
     ImGui::SameLine();
     ImGui::BeginDisabled(App->SelectionType != SELECTION_TYPE_PREFAB);
-    if (ImGui::Button("Delete")) {
+    if (ImGui::Button("Delete"))
+    {
         DestroyPrefab(App->Scene, App->SelectedPrefab);
         App->SelectedPrefab = nullptr;
         App->SelectionType = SELECTION_TYPE_NONE;
@@ -697,7 +746,8 @@ void PrefabBrowserWindow(application* App)
 
     scene* Scene = App->Scene;
 
-    auto GetItemName = [](void* Context, int Index) {
+    auto GetItemName = [](void* Context, int Index)
+    {
         auto Scene = static_cast<scene*>(Context);
         if (Index < 0 || Index >= Scene->Prefabs.size())
             return "";
@@ -707,13 +757,15 @@ void PrefabBrowserWindow(application* App)
     int Index = -1;
     int Count = static_cast<int>(Scene->Prefabs.size());
 
-    if (App->SelectionType == SELECTION_TYPE_PREFAB) {
+    if (App->SelectionType == SELECTION_TYPE_PREFAB)
+    {
         for (int I = 0; I < Count; I++)
             if (Scene->Prefabs[I] == App->SelectedPrefab)
                 Index = I;
     }
 
-    if (ImGui::ListBox("Prefabs", &Index, GetItemName, Scene, Count, 6)) {
+    if (ImGui::ListBox("Prefabs", &Index, GetItemName, Scene, Count, 6))
+    {
         App->SelectionType = SELECTION_TYPE_PREFAB;
         App->SelectedPrefab = Scene->Prefabs[Index];
     }
@@ -739,7 +791,8 @@ void InspectorWindow(application* App)
 
     scene* Scene = App->Scene;
 
-    switch (App->SelectionType) {
+    switch (App->SelectionType)
+    {
         case SELECTION_TYPE_TEXTURE:
             TextureInspector(App, App->SelectedTexture);
             break;
@@ -782,8 +835,12 @@ void PreviewSettingsWindow(application* App, ImGuiDockNode* Node)
         ImGuiWindowFlags_NoResize |
         ImGuiWindowFlags_NoDocking);
 
-    if (ImGui::BeginCombo("Preview Mode", PreviewRenderModeName(App->PreviewRenderMode))) {
-        for (int I = 0; I < PREVIEW_RENDER_MODE__COUNT; I++) {
+    ImGui::PushItemWidth(0.50f * ImGui::GetWindowWidth());
+
+    if (ImGui::BeginCombo("Preview Mode", PreviewRenderModeName(App->PreviewRenderMode)))
+    {
+        for (int I = 0; I < PREVIEW_RENDER_MODE__COUNT; I++)
+        {
             auto RenderMode = static_cast<preview_render_mode>(I);
             bool IsSelected = App->PreviewRenderMode == RenderMode;
             if (ImGui::Selectable(PreviewRenderModeName(RenderMode), &IsSelected))
@@ -797,6 +854,61 @@ void PreviewSettingsWindow(application* App, ImGuiDockNode* Node)
     ImGui::End();
 }
 
+void RenderSettingsWindow(application* App, ImGuiDockNode* Node)
+{
+    if (!App->SceneCameraToRender) return;
+
+    ImVec2 Size = { 400, 120 };
+    ImVec2 Margin = { 16, 16 };
+
+    ImVec2 Position = Node->Pos;
+    Position.x = Node->Pos.x + Node->Size.x - Size.x - Margin.x;
+    Position.y = Node->Pos.y + Margin.y;
+    ImGui::SetNextWindowPos(Position);
+    ImGui::SetNextWindowSize(Size);
+    ImGui::SetNextWindowBgAlpha(0.5f);
+
+    bool Open = true;
+    ImGui::Begin("Render Settings", &Open,
+        ImGuiWindowFlags_NoDecoration |
+        ImGuiWindowFlags_NoMove |
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoDocking);
+
+    ImGui::Spacing();
+    ImGui::SeparatorText("Post-Processing");
+
+    ImGui::PushItemWidth(0.50f * ImGui::GetWindowWidth());
+
+    auto ResolveParameters = &App->ResolveParameters;
+
+    ImGui::SliderFloat("Brightness", &ResolveParameters->Brightness, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+
+    if (ImGui::BeginCombo("Tone Mapping", ToneMappingModeName(ResolveParameters->ToneMappingMode)))
+    {
+        for (int I = 0; I < TONE_MAPPING_MODE__COUNT; I++)
+        {
+            auto ToneMappingMode = static_cast<tone_mapping_mode>(I);
+            bool IsSelected = ResolveParameters->ToneMappingMode == ToneMappingMode;
+            if (ImGui::Selectable(ToneMappingModeName(ToneMappingMode), &IsSelected))
+            {
+                ResolveParameters->ToneMappingMode = ToneMappingMode;
+            }
+        }
+        ImGui::EndCombo();
+    }
+
+    if (ResolveParameters->ToneMappingMode == TONE_MAPPING_MODE_REINHARD)
+    {
+        ImGui::SliderFloat("White Level", &ResolveParameters->ToneMappingWhiteLevel, 0.01f, 100.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+    }
+
+    //ImGui::CheckboxFlags("Sample Accumulation", &Camera->RenderFlags, RENDER_FLAG_ACCUMULATE);
+    //ImGui::CheckboxFlags("Sample Jitter", &Camera->RenderFlags, RENDER_FLAG_SAMPLE_JITTER);
+
+    ImGui::End();
+}
+
 void ParametricSpectrumViewerWindow(application* App)
 {
     static float Spectrum[512] = {};
@@ -804,9 +916,11 @@ void ParametricSpectrumViewerWindow(application* App)
 
     ImGui::Begin("Parametric Spectrum Viewer");
 
-    if (ImGui::ColorEdit3("Color", &Color[0], ImGuiColorEditFlags_Float)) {
+    if (ImGui::ColorEdit3("Color", &Color[0], ImGuiColorEditFlags_Float))
+    {
         vec3 Beta = GetParametricSpectrumCoefficients(App->Scene->RGBSpectrumTable, Color);
-        for (int I = 0; I < IM_ARRAYSIZE(Spectrum); I++) {
+        for (int I = 0; I < IM_ARRAYSIZE(Spectrum); I++)
+        {
             float Lambda = glm::mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, I / 512.f);
             Spectrum[I] = SampleParametricSpectrum(Beta, Lambda);
         }
@@ -823,20 +937,25 @@ void ParametricSpectrumViewerWindow(application* App)
 void MainMenuBar(application* App)
 {
     ImGui::BeginMainMenuBar();
-    if (ImGui::BeginMenu("File")) {
-        if (ImGui::MenuItem("New Scene")) {
+    if (ImGui::BeginMenu("File"))
+    {
+        if (ImGui::MenuItem("New Scene"))
+        {
             DestroyScene(App->Scene);
             App->SelectionType = SELECTION_TYPE_NONE;
             App->SceneCameraToRender = nullptr;
             App->Scene = CreateScene();
             App->Scene->DirtyFlags = SCENE_DIRTY_ALL;
         }
-        if (ImGui::MenuItem("Open Scene...")) {
+        if (ImGui::MenuItem("Open Scene..."))
+        {
             nfdu8filteritem_t Filters[] = { { "Scene File", "json" } };
             std::optional<std::filesystem::path> Path = OpenDialog(Filters);
-            if (Path.has_value()) {
+            if (Path.has_value())
+            {
                 scene* Scene = LoadScene(Path.value().string().c_str());
-                if (Scene) {
+                if (Scene)
+                {
                     DestroyScene(App->Scene);
                     App->SelectionType = SELECTION_TYPE_NONE;
                     App->SceneCameraToRender = nullptr;
@@ -844,10 +963,12 @@ void MainMenuBar(application* App)
                 }
             }
         }
-        if (ImGui::MenuItem("Save Scene As...")) {
+        if (ImGui::MenuItem("Save Scene As..."))
+        {
             nfdu8filteritem_t Filters[] = { { "Scene File", "json" } };
             std::optional<std::filesystem::path> Path = SaveDialog(Filters, "scene.json");
-            if (Path.has_value()) {
+            if (Path.has_value())
+            {
                 SaveScene(Path.value().string().c_str(), App->Scene);
             }
         }
@@ -856,7 +977,7 @@ void MainMenuBar(application* App)
     ImGui::EndMainMenuBar();
 }
 
-void InitializeUI(application* App)
+void CreateImGui(application* App)
 {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -864,6 +985,9 @@ void InitializeUI(application* App)
     IO.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
     IO.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;
     IO.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+    IO.Fonts->AddFontFromMemoryCompressedTTF(CousineRegular_compressed_data, CousineRegular_compressed_size, 16);
+    IO.Fonts->Build();
 
     ImVec4* Colors = ImGui::GetStyle().Colors;
     Colors[ImGuiCol_Text]                   = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
@@ -947,13 +1071,19 @@ void InitializeUI(application* App)
     Style.TabRounding                       = 4;
 }
 
-void ShowUI(application* App)
+void DestroyImGui(application* App)
+{
+    ImGui::DestroyContext();
+}
+
+void ShowImGui(application* App)
 {
     MainMenuBar(App);
 
     ImGuiID NodeID = ImGui::DockSpaceOverViewport(nullptr, ImGuiDockNodeFlags_NoDockingInCentralNode | ImGuiDockNodeFlags_PassthruCentralNode);
     ImGuiDockNode* Node = ImGui::DockBuilderGetCentralNode(NodeID);
     PreviewSettingsWindow(App, Node);
+    RenderSettingsWindow(App, Node);
 
     ImGui::ShowDemoWindow();
     InspectorWindow(App);

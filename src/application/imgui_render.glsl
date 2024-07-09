@@ -1,6 +1,6 @@
 #version 450
 
-#define BIND_SCENE 1    // Scene data in descriptor set 0.
+#define BIND_SCENE 1 // Scene data in descriptor set 0.
 
 #include "core/common.glsl.inc"
 #include "scene/scene.glsl.inc"

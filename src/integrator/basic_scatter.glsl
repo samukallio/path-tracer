@@ -1,14 +1,13 @@
 #version 450
 
-#include "renderer/basic.glsl.inc"
-#include "scene/openpbr.glsl.inc"
+#include "integrator/basic.glsl.inc"
 
 layout(local_size_x=16, local_size_y=16, local_size_z=1) in;
 
 // Generate a random direction from the skybox directional distribution such
 // that the generated direction lies in the hemisphere corresponding to the
-// given normal.  The strategy is to sample a random direction first, then
-// flip the direction if it lies in the wrong hemisphere.  A more "correct"
+// given normal. The strategy is to sample a random direction first, then
+// flip the direction if it lies in the wrong hemisphere. A more "correct"
 // approach would be to do rejection sampling to sample from the probability
 // distribution conditioned on the direction lying in the correct hemisphere,
 // but that is less efficient and makes determining the resulting probability
@@ -59,11 +58,11 @@ void GenerateNewPath(uint Index, ivec2 ImagePosition)
 
     // Write new path.
     path Path;
-    Path.ImagePosition  = ImagePosition;
+    Path.ImagePosition = ImagePosition;
     Path.NormalizedLambda0 = Random0To1();
-    Path.Throughput     = vec4(1.0);
-    Path.Weight         = vec4(1.0);
-    Path.Sample         = vec3(0.0);
+    Path.Throughput = vec4(1.0);
+    Path.Weight = vec4(1.0);
+    Path.Sample = vec3(0.0);
 
     for (int I = 0; I < 4; I++)
         Path.ActiveShapeIndex[I] = SHAPE_INDEX_NONE;
@@ -75,14 +74,16 @@ void ResolveMedium(uint ShapeIndex, vec4 Lambda, out medium Medium)
 {
     Medium.Priority = ShapeIndex;
 
-    if (ShapeIndex == SHAPE_INDEX_NONE) {
+    if (ShapeIndex == SHAPE_INDEX_NONE)
+    {
         Medium.Priority = 0xFFFFFFFF;
         Medium.IOR = vec4(1.0);
         Medium.AbsorptionRate = vec4(0.0);
         Medium.ScatteringRate = vec4(Scene.SceneScatterRate);
         Medium.ScatteringAnisotropy = 0.0;
     }
-    else {
+    else
+    {
         packed_shape Shape = Shapes[ShapeIndex];
         OpenPBRResolveMedium(Shape.MaterialIndex, Lambda, Medium);
     }
@@ -90,8 +91,9 @@ void ResolveMedium(uint ShapeIndex, vec4 Lambda, out medium Medium)
 
 void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
 {
-    vec4 Lambda = vec4(
-        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX,       Path.NormalizedLambda0        ),
+    vec4 Lambda = vec4
+    (
+        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, Path.NormalizedLambda0 ),
         mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(Path.NormalizedLambda0 + 0.25)),
         mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(Path.NormalizedLambda0 + 0.50)),
         mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(Path.NormalizedLambda0 + 0.75))
@@ -114,8 +116,10 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
     if (Medium.ScatteringRate.x > 0.0)
         ScatteringTime = -log(Random0To1()) / Medium.ScatteringRate.x;
 
-    if (Hit.Time >= ScatteringTime) {
-        if (ScatteringTime < HIT_TIME_LIMIT) {
+    if (Hit.Time >= ScatteringTime)
+    {
+        if (ScatteringTime < HIT_TIME_LIMIT)
+        {
             Ray.Origin += Ray.Velocity * ScatteringTime;
 
             // Compute a local coordinate frame for the scattering event.
@@ -138,7 +142,8 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
             Ray.Duration = HIT_TIME_LIMIT;
         }
         // Otherwise, we hit the skybox.
-        else {
+        else
+        {
             vec4 Emission = SampleSkyboxRadiance(Ray.Velocity, Lambda);
             float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
             Path.Sample += SampleStandardObserver(Lambda) * (Emission * Path.Throughput) / ClusterPDF;
@@ -152,15 +157,17 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
     vec3 In;
 
     // Outgoing ray direction in normal/tangent space.
-    vec3 Out = -vec3(
+    vec3 Out = -vec3
+    (
         dot(Ray.Velocity, Hit.TangentX),
         dot(Ray.Velocity, Hit.TangentY),
-        dot(Ray.Velocity, Hit.Normal));
+        dot(Ray.Velocity, Hit.Normal)
+    );
 
     // This flag determines if the surface will scatter the ray.
     // It is always true, except when two or more objects overlap
     // and we hit a surface of a lower priority object while inside
-    // a higher priority one.  In that case the interior of the
+    // a higher priority one. In that case the interior of the
     // higher priority shape supersedes the lower priority one, and
     // it is as if there is no surface at all.
     bool IsRealSurface = true;
@@ -172,29 +179,33 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
     // Priority of the interior of the current shape.
     uint ShapePriority = Hit.ShapeIndex;
 
-    if (Out.z > 0) {
-        // We hit the exterior surface of a shape.  The ray should be
+    if (Out.z > 0)
+    {
+        // We hit the exterior surface of a shape. The ray should be
         // scattered if the priority of the shape is higher than the
-        // priority of the current medium.  Otherwise, the shape and
+        // priority of the current medium. Otherwise, the shape and
         // its surface are superseded by the current medium, and the
         // ray will pass through.
         IsRealSurface = Medium.Priority > ShapePriority;
 
         if (IsRealSurface) ExteriorIOR = Medium.IOR;
     }
-    else {
-        // We hit the interior surface of a shape.  The ray should be
+    else
+    {
+        // We hit the interior surface of a shape. The ray should be
         // scattered if this surface belongs to the shape whose interior
-        // we are currently traversing.  In that case the priority of
+        // we are currently traversing. In that case the priority of
         // the active medium and the surface are the same.
         IsRealSurface = Medium.Priority == ShapePriority;
 
         // If the surface is real, then we need to determine the IOR
         // on the other (exterior) side of the shape.
-        if (IsRealSurface) {
+        if (IsRealSurface)
+        {
             // Determine the highest priority shape outside the current shape.
             uint ExteriorShapeIndex = SHAPE_INDEX_NONE;
-            for (int I = 0; I < ACTIVE_SHAPE_LIMIT; I++) {
+            for (int I = 0; I < ACTIVE_SHAPE_LIMIT; I++)
+            {
                 if (Path.ActiveShapeIndex[I] == ActiveShapeIndex)
                     continue;
                 ExteriorShapeIndex = min(ExteriorShapeIndex, Path.ActiveShapeIndex[I]);
@@ -220,20 +231,27 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
     if (max4(Path.Weight) < EPSILON) return;
 
     // If the incoming and outgoing directions are within opposite hemispheres,
-    // then the ray is crossing the material interface boundary.  We need to
+    // then the ray is crossing the material interface boundary. We need to
     // perform bookkeeping to determine the current medium.
-    if (In.z * Out.z < 0) {
-        if (Out.z > 0) {
-            for (int I = 0; I < ACTIVE_SHAPE_LIMIT; I++) {
-                if (Path.ActiveShapeIndex[I] == SHAPE_INDEX_NONE) {
+    if (In.z * Out.z < 0)
+    {
+        if (Out.z > 0)
+        {
+            for (int I = 0; I < ACTIVE_SHAPE_LIMIT; I++)
+            {
+                if (Path.ActiveShapeIndex[I] == SHAPE_INDEX_NONE)
+                {
                     Path.ActiveShapeIndex[I] = Hit.ShapeIndex;
                     break;
                 }
             }
         }
-        else {
-            for (int I = 0; I < ACTIVE_SHAPE_LIMIT; I++) {
-                if (Path.ActiveShapeIndex[I] == Hit.ShapeIndex) {
+        else
+        {
+            for (int I = 0; I < ACTIVE_SHAPE_LIMIT; I++)
+            {
+                if (Path.ActiveShapeIndex[I] == Hit.ShapeIndex)
+                {
                     Path.ActiveShapeIndex[I] = SHAPE_INDEX_NONE;
                     break;
                 }
@@ -242,7 +260,8 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
     }
 
     // Handle probabilistic termination.
-    if (Random0To1() < PathTerminationProbability) {
+    if (Random0To1() < PathTerminationProbability)
+    {
         Path.Weight = vec4(0.0);
         return;
     }
@@ -277,7 +296,8 @@ void main()
         + gl_LocalInvocationID.y * 16
         + gl_LocalInvocationID.x;
 
-    if (Restart != 0) {
+    if (Restart != 0)
+    {
         ivec2 ImagePosition = ivec2(gl_GlobalInvocationID.xy);
         GenerateNewPath(Index, ImagePosition);
         imageStore(SampleAccumulatorImage, ImagePosition, vec4(0.0));
@@ -293,7 +313,8 @@ void main()
 
     RenderPathTrace(Path, Ray, Hit);
 
-    if (max4(Path.Weight) < EPSILON) {
+    if (max4(Path.Weight) < EPSILON)
+    {
         ivec2 ImagePosition = Path.ImagePosition;
 
         vec4 ImageValue = vec4(Path.Sample, 1.0);
@@ -305,7 +326,8 @@ void main()
 
         GenerateNewPath(Index, ImagePosition);
     }
-    else {
+    else
+    {
         StoreTraceRay(Index, Ray);
         StorePathVertexData(Index, Path);
     }

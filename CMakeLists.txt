@@ -12,8 +12,8 @@ add_subdirectory (lib/nativefiledialog-extended)
 set (CMAKE_CXX_STANDARD 20)
 
 add_executable (path-tracer
-	src/core/common.h
-	src/core/spectrum.h
+	src/core/common.hpp
+	src/core/spectrum.hpp
 	src/core/spectrum.cpp
 	src/core/json.hpp
 	src/core/miniz.h
@@ -23,18 +23,24 @@ add_executable (path-tracer
 	src/core/stb.cpp
 	src/core/tiny_obj_loader.h
 	src/core/tiny_obj_loader.cpp
-	src/scene/scene.h
+	src/core/vulkan.hpp
+	src/core/vulkan.cpp
+	src/scene/scene.hpp
 	src/scene/scene.cpp
 	src/scene/serializer.cpp
-	src/scene/openpbr.h
-	src/application/application.h
-	src/application/ui.cpp
-	src/application/ui_font.h
+	src/scene/openpbr.hpp
+	src/integrator/integrator.hpp
+	src/integrator/integrator.cpp
+	src/integrator/basic.hpp
+	src/integrator/basic.cpp
+	src/application/application.hpp
+	src/application/imgui_font.hpp
+	src/application/imgui_render.hpp
+	src/application/imgui_render.cpp
+	src/application/imgui_main.cpp
+	src/application/preview_render.hpp
+	src/application/preview_render.cpp
 	src/application/main.cpp
-	src/renderer/vulkan.h
-	src/renderer/vulkan.cpp
-	src/renderer/basic.h
-	src/renderer/basic.cpp
 	#
 	lib/imgui-1.90.5-docking/imgui.cpp
 	lib/imgui-1.90.5-docking/imgui_draw.cpp
@@ -97,37 +103,36 @@ endfunction ()
 
 target_sources (path-tracer PRIVATE
 	src/core/common.glsl.inc
-	src/scene/scene.glsl.inc
 	src/scene/openpbr.glsl.inc
-	src/renderer/basic.glsl.inc
+	src/scene/scene.glsl.inc
+	src/integrator/basic.glsl.inc
 )
 
 source_group ("Shader Files" FILES
 	src/core/common.glsl.inc
-	src/scene/scene.glsl.inc
 	src/scene/openpbr.glsl.inc
-	src/renderer/basic.glsl.inc
+	src/scene/scene.glsl.inc
+	src/integrator/basic.glsl.inc
 )
 
-compile_shader (path-tracer src/renderer/imgui.glsl
-		VERTEX imgui.vertex.inc
-		FRAGMENT imgui.fragment.inc)
-
-compile_shader (path-tracer src/renderer/resolve.glsl
+compile_shader (path-tracer src/integrator/resolve.glsl
 		VERTEX resolve.vertex.inc
 		FRAGMENT resolve.fragment.inc
 		DEPENDS src/core/common.glsl.inc)
 
-compile_shader (path-tracer src/renderer/preview.glsl
-		VERTEX preview.vertex.inc
-		FRAGMENT preview.fragment.inc
-		DEPENDS src/core/common.glsl.inc)
-
-compile_shader (path-tracer src/renderer/basic_trace.glsl
+compile_shader (path-tracer src/integrator/basic_trace.glsl
 		COMPUTE basic_trace.compute.inc
 		DEPENDS src/core/common.glsl.inc)
 
-compile_shader (path-tracer src/renderer/basic_scatter.glsl
+compile_shader (path-tracer src/integrator/basic_scatter.glsl
 		COMPUTE basic_scatter.compute.inc
 		DEPENDS src/core/common.glsl.inc)
 
+compile_shader (path-tracer src/application/imgui_render.glsl
+		VERTEX imgui_render.vertex.inc
+		FRAGMENT imgui_render.fragment.inc)
+
+compile_shader (path-tracer src/application/preview_render.glsl
+		VERTEX preview_render.vertex.inc
+		FRAGMENT preview_render.fragment.inc
+		DEPENDS src/core/common.glsl.inc)

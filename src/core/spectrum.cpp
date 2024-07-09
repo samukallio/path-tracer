@@ -1,5 +1,5 @@
-#include "core/common.h"
-#include "core/spectrum.h"
+#include "core/common.hpp"
+#include "core/spectrum.hpp"
 
 using glm::dvec3;
 
@@ -196,7 +196,8 @@ static dvec3 ObserveSpectrumUnderD65(dvec3 NormalizedBeta)
 
     dvec3 XYZ = {};
 
-    for (int I = 0; I < SampleCount; I++) {
+    for (int I = 0; I < SampleCount; I++)
+    {
         double NormalizedLambda = I / double(SampleCount - 1);
         double W = SampleD65(NormalizedLambda) / 10566.864005;
         double S = SampleSpectrum(NormalizedBeta, NormalizedLambda);
@@ -211,7 +212,8 @@ static dvec3 ObserveSpectrumUnderD65(dvec3 NormalizedBeta)
 // for the perceptual difference between two colors.
 static dvec3 XYZToLab(dvec3 XYZ)
 {
-    auto F = [](double T) -> double {
+    auto F = [](double T) -> double
+    {
         double const Delta = 6/29.0;
         if (T > Delta * Delta * Delta)
             return glm::pow(T, 1/3.0);
@@ -235,16 +237,19 @@ static dvec3 XYZToLab(dvec3 XYZ)
 // standard illuminant D65.  The residual is calculated in the CIELAB space
 // for a good perceptual match.  The optimization procedure uses Gauss-Newton
 // iteration with a numerically approximated residual Jacobian.
-static vec3 OptimizeSpectrum(
+static vec3 OptimizeSpectrum
+(
     dvec3 NormalizedBeta,
     dvec3 const& TargetXYZ,
-    int IterationCount = 15)
+    int IterationCount = 15
+)
 {
     double const Epsilon = 1e-5;
 
     double Error = 0.0;
 
-    for (int I = 0; I < IterationCount; I++) {
+    for (int I = 0; I < IterationCount; I++)
+    {
         // Compute the CIELAB difference between target XYZ and observed XYZ response of the spectrum.
         dvec3 ObservedXYZ = ObserveSpectrumUnderD65(NormalizedBeta);
         dvec3 Residual = XYZToLab(ObservedXYZ) - XYZToLab(TargetXYZ);
@@ -254,7 +259,8 @@ static vec3 OptimizeSpectrum(
 
         // Compute the Jacobian of the residual with respect to change in the coefficient.
         glm::dmat3 Jacobian = {};
-        for (int I = 0; I < 3; I++) {
+        for (int I = 0; I < 3; I++)
+        {
             dvec3 Beta0 = NormalizedBeta; Beta0[I] -= Epsilon;
             dvec3 XYZ0 = ObserveSpectrumUnderD65(Beta0);
             dvec3 Lab0 = XYZToLab(XYZ0);
@@ -266,7 +272,8 @@ static vec3 OptimizeSpectrum(
             Jacobian[I] = (Lab1 - Lab0) / (2 * Epsilon);
         }
 
-        if (glm::abs(glm::determinant(Jacobian)) < 1e-15) {
+        if (glm::abs(glm::determinant(Jacobian)) < 1e-15)
+        {
             // The Jacobian is degenerate, so we are probably
             // very close to a local optimum.  Stop iterating.
             //printf("Degenerate Jacobian: TargetXYZ=(%.5f,%.5f,%.5f), Iteration=%d, Error=%e\n",
@@ -277,7 +284,8 @@ static vec3 OptimizeSpectrum(
         NormalizedBeta -= glm::inverse(Jacobian) * Residual;
 
         double Max = glm::max(glm::max(NormalizedBeta.x, NormalizedBeta.y), NormalizedBeta.z);
-        if (Max > 200.0) {
+        if (Max > 200.0)
+        {
             NormalizedBeta *= 200.0 / Max;
         }
     }
@@ -354,17 +362,18 @@ static std::pair<glm::ivec4, vec3> ColorToIndex(vec3 const& Color)
     return { Index, Alpha };
 }
 
-void BuildParametricSpectrumTableForSRGB(
-    parametric_spectrum_table* Table)
+void BuildParametricSpectrumTableForSRGB(parametric_spectrum_table* Table)
 {
     constexpr int N = parametric_spectrum_table::COLOR_BINS;
     constexpr int M = parametric_spectrum_table::SCALE_BINS;
 
-    auto DenormalizeBeta = [](dvec3 const& NormalizedBeta) -> vec3 {
+    auto DenormalizeBeta = [](dvec3 const& NormalizedBeta) -> vec3
+    {
         constexpr float C0 = CIE_LAMBDA_MIN;
         constexpr float C1 = 1.f / (CIE_LAMBDA_MAX - CIE_LAMBDA_MIN);
         auto B = NormalizedBeta;
-        return {
+        return
+        {
             B[0] * C1 * C1,
             B[1] * C1 - 2 * B[0] * C0 * C1 * C1,
             B[2] - B[1] * C0 * C1 + B[0] * C0 * C0 * C1 * C1
@@ -373,12 +382,16 @@ void BuildParametricSpectrumTableForSRGB(
 
     dvec3 NormalizedBeta = {};
 
-    for (int L = 0; L < 3; L++) {
-        for (int J = 0; J < N; J++) {
-            for (int I = 0; I < N; I++) {
+    for (int L = 0; L < 3; L++)
+    {
+        for (int J = 0; J < N; J++)
+        {
+            for (int I = 0; I < N; I++)
+            {
                 // Light colors.
                 NormalizedBeta = {};
-                for (int K = M/5; K < M; K++) {
+                for (int K = M/5; K < M; K++)
+                {
                     auto TargetXYZ = SRGBToXYZ(IndexToColor(I, J, K, L));
                     NormalizedBeta = OptimizeSpectrum(NormalizedBeta, TargetXYZ, 15);
                     Table->Coefficients[L][K][J][I] = DenormalizeBeta(NormalizedBeta);
@@ -386,7 +399,8 @@ void BuildParametricSpectrumTableForSRGB(
 
                 // Dark colors.
                 NormalizedBeta = {};
-                for (int K = M/5; K >= 0; K--) {
+                for (int K = M/5; K >= 0; K--)
+                {
                     auto TargetXYZ = SRGBToXYZ(IndexToColor(I, J, K, L));
                     NormalizedBeta = OptimizeSpectrum(NormalizedBeta, TargetXYZ, 15);
                     Table->Coefficients[L][K][J][I] = DenormalizeBeta(NormalizedBeta);
@@ -396,13 +410,12 @@ void BuildParametricSpectrumTableForSRGB(
     }
 }
 
-bool SaveParametricSpectrumTable(
-    parametric_spectrum_table const* Table,
-    char const* Path)
+bool SaveParametricSpectrumTable(parametric_spectrum_table const* Table, char const* Path)
 {
     FILE* File = nullptr;
     fopen_s(&File, Path, "wb");
-    if (File) {
+    if (File)
+    {
         fwrite(Table->Coefficients, sizeof(Table->Coefficients), 1, File);
         fclose(File);
         return true;
@@ -410,13 +423,12 @@ bool SaveParametricSpectrumTable(
     return false;
 }
 
-bool LoadParametricSpectrumTable(
-    parametric_spectrum_table* Table,
-    char const* Path)
+bool LoadParametricSpectrumTable(parametric_spectrum_table* Table, char const* Path)
 {
     FILE* File = nullptr;
     fopen_s(&File, Path, "rb");
-    if (File) {
+    if (File)
+    {
         fread(Table->Coefficients, sizeof(Table->Coefficients), 1, File);
         fclose(File);
         return true;
@@ -424,9 +436,7 @@ bool LoadParametricSpectrumTable(
     return false;
 }
 
-vec3 GetParametricSpectrumCoefficients(
-    parametric_spectrum_table const* Table,
-    vec3 const& InColor)
+vec3 GetParametricSpectrumCoefficients(parametric_spectrum_table const* Table, vec3 const& InColor)
 {
     vec3 Color = glm::clamp(InColor, vec3(0), vec3(1));
 
@@ -434,25 +444,33 @@ vec3 GetParametricSpectrumCoefficients(
     vec3 Alpha;
     std::tie(Index, Alpha) = ColorToIndex(Color);
 
-    vec3 Beta00 = glm::mix(
+    vec3 Beta00 = glm::mix
+    (
         Table->Coefficients[Index.w][Index.z+0][Index.y+0][Index.x+0],
         Table->Coefficients[Index.w][Index.z+0][Index.y+0][Index.x+1],
-        Alpha.x);
+        Alpha.x
+    );
 
-    vec3 Beta01 = glm::mix(
+    vec3 Beta01 = glm::mix
+    (
         Table->Coefficients[Index.w][Index.z+0][Index.y+1][Index.x+0],
         Table->Coefficients[Index.w][Index.z+0][Index.y+1][Index.x+1],
-        Alpha.x);
+        Alpha.x
+    );
 
-    vec3 Beta10 = glm::mix(
+    vec3 Beta10 = glm::mix
+    (
         Table->Coefficients[Index.w][Index.z+1][Index.y+0][Index.x+0],
         Table->Coefficients[Index.w][Index.z+1][Index.y+0][Index.x+1],
-        Alpha.x);
+        Alpha.x
+    );
 
-    vec3 Beta11 = glm::mix(
+    vec3 Beta11 = glm::mix
+    (
         Table->Coefficients[Index.w][Index.z+1][Index.y+1][Index.x+0],
         Table->Coefficients[Index.w][Index.z+1][Index.y+1][Index.x+1],
-        Alpha.x);
+        Alpha.x
+    );
 
     vec3 Beta0 = glm::mix(Beta00, Beta01, Alpha.y);
     vec3 Beta1 = glm::mix(Beta10, Beta11, Alpha.y);
@@ -460,9 +478,7 @@ vec3 GetParametricSpectrumCoefficients(
     return glm::mix(Beta0, Beta1, Alpha.z);
 }
 
-float SampleParametricSpectrum(
-    vec3 const& Beta,
-    float Lambda)
+float SampleParametricSpectrum(vec3 const& Beta, float Lambda)
 {
     float X = (Beta.x * Lambda + Beta.y) * Lambda + Beta.z;
     return 0.5f + X / (2.0f * glm::sqrt(1.0f + X * X));

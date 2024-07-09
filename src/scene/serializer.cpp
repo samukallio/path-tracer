@@ -1,7 +1,7 @@
-#include "core/common.h"
+#include "core/common.hpp"
 #include "core/json.hpp"
 #include "core/miniz.h"
-#include "scene/scene.h"
+#include "scene/scene.hpp"
 
 #include <fstream>
 #include <filesystem>
@@ -12,10 +12,12 @@ void WriteCompressed(std::ostream& Out, void const* Data, size_t Size)
 {
     mz_ulong CompressedSize = static_cast<mz_ulong>(std::max(Size, 1024ull));
     auto CompressedData = std::vector<unsigned char>(CompressedSize);
-    int Result = mz_compress(
+    int Result = mz_compress
+    (
         CompressedData.data(), &CompressedSize,
         static_cast<unsigned char const*>(Data),
-        static_cast<mz_ulong>(Size));
+        static_cast<mz_ulong>(Size)
+    );
     assert(Result == MZ_OK);
     Out.write((char const*)&CompressedSize, sizeof(mz_ulong));
     Out.write((char const*)CompressedData.data(), CompressedSize);
@@ -28,10 +30,12 @@ void ReadCompressed(std::istream& In, void* Data, size_t Size)
     auto CompressedData = std::vector<unsigned char>(CompressedSize);
     In.read((char*)CompressedData.data(), CompressedSize);
     mz_ulong Size_ = static_cast<mz_ulong>(Size);
-    int Result = mz_uncompress(
+    int Result = mz_uncompress
+    (
         (unsigned char*)Data, &Size_,
         (unsigned char const*)CompressedData.data(),
-        CompressedSize);
+        CompressedSize
+    );
     assert(Result == MZ_OK);
 }
 
@@ -67,14 +71,17 @@ std::string MakeFileName(std::string const& Name, char const* Extension)
 template<typename type, int N>
 void SerializeField(serializer& S, json& JSON, type (&Array)[N])
 {
-    if (S.IsWriting) {
-        for (uint I = 0; I < N; I++) {
+    if (S.IsWriting)
+    {
+        for (uint I = 0; I < N; I++)
+        {
             json ValueJSON;
             Serialize(S, ValueJSON, Array[I]);
             JSON.push_back(ValueJSON);
         }
     }
-    else {
+    else
+    {
         for (uint I = 0; I < N; I++)
             Serialize(S, JSON[I], Array[I]);
     }
@@ -83,14 +90,17 @@ void SerializeField(serializer& S, json& JSON, type (&Array)[N])
 template<typename type>
 void SerializeField(serializer& S, json& JSON, std::vector<type>& Array)
 {
-    if (S.IsWriting) {
-        for (uint I = 0; I < Array.size(); I++) {
+    if (S.IsWriting)
+    {
+        for (uint I = 0; I < Array.size(); I++)
+        {
             json ValueJSON;
             SerializeField(S, ValueJSON, Array[I]);
             JSON.push_back(ValueJSON);
         }
     }
-    else {
+    else
+    {
         Array.resize(JSON.size());
         for (uint I = 0; I < Array.size(); I++)
             SerializeField(S, JSON[I], Array[I]);
@@ -105,10 +115,12 @@ void SerializeField(serializer& S, json& JSON, type& Value)
 
 void SerializeField(serializer& S, json& JSON, vec2& Value)
 {
-    if (S.IsWriting) {
+    if (S.IsWriting)
+    {
         JSON = { Value.x, Value.y };
     }
-    else {
+    else
+    {
         Value.x = JSON[0];
         Value.y = JSON[1];
     }
@@ -116,10 +128,12 @@ void SerializeField(serializer& S, json& JSON, vec2& Value)
 
 void SerializeField(serializer& S, json& JSON, vec3& Value)
 {
-    if (S.IsWriting) {
+    if (S.IsWriting)
+    {
         JSON = { Value.x, Value.y, Value.z };
     }
-    else {
+    else
+    {
         Value.x = JSON[0];
         Value.y = JSON[1];
         Value.z = JSON[2];
@@ -128,10 +142,12 @@ void SerializeField(serializer& S, json& JSON, vec3& Value)
 
 void SerializeField(serializer& S, json& JSON, vec4& Value)
 {
-    if (S.IsWriting) {
+    if (S.IsWriting)
+    {
         JSON = { Value.x, Value.y, Value.z, Value.w };
     }
-    else {
+    else
+    {
         Value.x = JSON[0];
         Value.y = JSON[1];
         Value.z = JSON[2];
@@ -145,14 +161,17 @@ void SerializeField(serializer& S, json& JSON, vec4& Value)
 template<typename type>
 void SerializeObject(serializer& S, json& JSON, std::vector<type>& Array)
 {
-    if (S.IsWriting) {
-        for (uint I = 0; I < Array.size(); I++) {
+    if (S.IsWriting)
+    {
+        for (uint I = 0; I < Array.size(); I++)
+        {
             json ValueJSON;
             SerializeObject(S, ValueJSON, Array[I]);
             JSON.push_back(ValueJSON);
         }
     }
-    else {
+    else
+    {
         Array.resize(JSON.size());
         for (uint I = 0; I < Array.size(); I++)
             SerializeObject(S, JSON[I], Array[I]);
@@ -177,26 +196,22 @@ void SerializeObject(serializer& S, json& JSON, texture& Object)
 
     texture_header Header;
 
-    if (S.IsWriting) {
+    if (S.IsWriting)
+    {
         Header.Magic = 'TEX ';
         Header.Version = 0;
         Header.Width = Object.Width;
         Header.Height = Object.Height;
 
         auto File = std::ofstream(FilePath, std::ios::binary);
-        File.write(
-            reinterpret_cast<char*>(&Header),
-            sizeof(texture_header));
-        WriteCompressed(File,
-            Object.Pixels,
-            sizeof(vec4) * Object.Width * Object.Height);
+        File.write(reinterpret_cast<char*>(&Header), sizeof(texture_header));
+        WriteCompressed(File, Object.Pixels, sizeof(vec4) * Object.Width * Object.Height);
     }
-    else {
+    else
+    {
         auto File = std::ifstream(FilePath, std::ios::binary);
 
-        File.read(
-            reinterpret_cast<char*>(&Header),
-            sizeof(texture_header));
+        File.read(reinterpret_cast<char*>(&Header), sizeof(texture_header));
 
         Object.Width = Header.Width;
         Object.Height = Header.Height;
@@ -210,13 +225,15 @@ void SerializeObject(serializer& S, json& JSON, texture& Object)
 
 void SerializeField(serializer& S, json& JSON, texture*& Pointer)
 {
-    if (S.IsWriting) {
+    if (S.IsWriting)
+    {
         if (S.TextureIndexMap.contains(Pointer))
             JSON = S.TextureIndexMap[Pointer];
         else
             JSON = -1;
     }
-    else {
+    else
+    {
         int Index = JSON.get<int>();
         if (Index >= 0)
             Pointer = S.Scene->Textures[Index];
@@ -227,7 +244,8 @@ void SerializeField(serializer& S, json& JSON, texture*& Pointer)
 
 void SerializeObject(serializer& S, json& JSON, material*& Material)
 {
-    if (Material->Type == MATERIAL_TYPE_OPENPBR) {
+    if (Material->Type == MATERIAL_TYPE_OPENPBR)
+    {
         material_openpbr& Object = *static_cast<material_openpbr*>(Material);
 
         F(Name);
@@ -266,13 +284,15 @@ void SerializeObject(serializer& S, json& JSON, material*& Material)
 
 void SerializeField(serializer& S, json& JSON, material*& Pointer)
 {
-    if (S.IsWriting) {
+    if (S.IsWriting)
+    {
         if (S.MaterialIndexMap.contains(Pointer))
             JSON = S.MaterialIndexMap[Pointer];
         else
             JSON = -1;
     }
-    else {
+    else
+    {
         int Index = JSON.get<int>();
         if (Index >= 0)
             Pointer = S.Scene->Materials[Index];
@@ -297,51 +317,43 @@ void SerializeObject(serializer& S, json& JSON, mesh& Object)
 
     mesh_header Header;
 
-    if (S.IsWriting) {
+    if (S.IsWriting)
+    {
         Header.Magic = 'MESH';
         Header.Version = 0;
         Header.FaceCount = static_cast<uint>(Object.Faces.size());
         Header.NodeCount = static_cast<uint>(Object.Nodes.size());
 
         auto File = std::ofstream(FilePath, std::ios::binary);
-        File.write(
-            reinterpret_cast<char*>(&Header),
-            sizeof(mesh_header));
-        WriteCompressed(File,
-            Object.Faces.data(),
-            sizeof(mesh_face) * Object.Faces.size());
-        WriteCompressed(File,
-            Object.Nodes.data(),
-            sizeof(mesh_node) * Object.Nodes.size());
+        File.write(reinterpret_cast<char*>(&Header), sizeof(mesh_header));
+        WriteCompressed(File, Object.Faces.data(), sizeof(mesh_face) * Object.Faces.size());
+        WriteCompressed(File, Object.Nodes.data(), sizeof(mesh_node) * Object.Nodes.size());
     }
-    else {
+    else
+    {
         auto File = std::ifstream(FilePath, std::ios::binary);
 
-        File.read(
-            reinterpret_cast<char*>(&Header),
-            sizeof(mesh_header));
+        File.read(reinterpret_cast<char*>(&Header), sizeof(mesh_header));
 
         Object.Faces.resize(Header.FaceCount);
         Object.Nodes.resize(Header.NodeCount);
 
-        ReadCompressed(File,
-            Object.Faces.data(),
-            sizeof(mesh_face) * Object.Faces.size());
-        ReadCompressed(File,
-            Object.Nodes.data(),
-            sizeof(mesh_node) * Object.Nodes.size());
+        ReadCompressed(File, Object.Faces.data(), sizeof(mesh_face) * Object.Faces.size());
+        ReadCompressed(File, Object.Nodes.data(), sizeof(mesh_node) * Object.Nodes.size());
     }
 }
 
 void SerializeField(serializer& S, json& JSON, mesh*& Pointer)
 {
-    if (S.IsWriting) {
+    if (S.IsWriting)
+    {
         if (S.MeshIndexMap.contains(Pointer))
             JSON = S.MeshIndexMap[Pointer];
         else
             JSON = -1;
     }
-    else {
+    else
+    {
         int Index = JSON.get<int>();
         if (Index >= 0)
             Pointer = S.Scene->Meshes[Index];
@@ -352,11 +364,13 @@ void SerializeField(serializer& S, json& JSON, mesh*& Pointer)
 
 void SerializeObject(serializer& S, json& JSON, entity*& Entity)
 {
-    if (!S.IsWriting) {
+    if (!S.IsWriting)
+    {
         auto EntityType = static_cast<entity_type>(JSON["Type"].get<int>());
         Entity = CreateEntityRaw(EntityType);
     }
-    else {
+    else
+    {
         JSON["Type"] = Entity->Type;
     }
 
@@ -367,22 +381,17 @@ void SerializeObject(serializer& S, json& JSON, entity*& Entity)
     SerializeField(S, JSON["Active"], Entity->Active);
     SerializeObject(S, JSON["Children"], Entity->Children);
 
-    if (!S.IsWriting) {
+    if (!S.IsWriting)
+    {
         for (entity* Child : Entity->Children)
             Child->Parent = Entity;
     }
 
-    switch (Entity->Type) {
-        case ENTITY_TYPE_CAMERA: {
+    switch (Entity->Type)
+    {
+        case ENTITY_TYPE_CAMERA:
+        {
             camera_entity& Object = *static_cast<camera_entity*>(Entity);
-            //F(RenderMode);
-            F(RenderFlags);
-            F(RenderBounceLimit);
-            F(RenderSampleBlockSizeLog2);
-            F(RenderTerminationProbability);
-            F(Brightness);
-            F(ToneMappingMode);
-            F(ToneMappingWhiteLevel);
             F(CameraModel);
             F2(Pinhole, FieldOfViewInDegrees);
             F2(Pinhole, ApertureDiameterInMM);
@@ -392,23 +401,27 @@ void SerializeObject(serializer& S, json& JSON, entity*& Entity)
             F2(ThinLens, FocusDistance);
             break;
         }
-        case ENTITY_TYPE_MESH_INSTANCE: {
+        case ENTITY_TYPE_MESH_INSTANCE:
+        {
             mesh_entity& Object = *static_cast<mesh_entity*>(Entity);
             F(Mesh);
             F(Material);
             break;
         }
-        case ENTITY_TYPE_PLANE: {
+        case ENTITY_TYPE_PLANE:
+        {
             plane_entity& Object = *static_cast<plane_entity*>(Entity);
             F(Material);
             break;
         }
-        case ENTITY_TYPE_SPHERE: {
+        case ENTITY_TYPE_SPHERE:
+        {
             sphere_entity& Object = *static_cast<sphere_entity*>(Entity);
             F(Material);
             break;
         }
-        case ENTITY_TYPE_CUBE: {
+        case ENTITY_TYPE_CUBE:
+        {
             cube_entity& Object = *static_cast<cube_entity*>(Entity);
             F(Material);
             break;
@@ -424,7 +437,8 @@ void SerializeObject(serializer& S, json& JSON, root_entity& Object)
 
     SerializeObject(S, JSON["Children"], Object.Children);
 
-    if (!S.IsWriting) {
+    if (!S.IsWriting)
+    {
         for (entity* Child : Object.Children)
             Child->Parent = &Object;
     }
@@ -436,12 +450,14 @@ void SerializeObject(serializer& S, scene& Scene)
     {
         json JSON;
 
-        if (!S.IsWriting) {
+        if (!S.IsWriting)
+        {
             auto SceneFile = std::ifstream(S.SceneFilePath);
             JSON = json::parse(SceneFile);
         }
 
-        if (!S.IsWriting) {
+        if (!S.IsWriting)
+        {
             for (uint I = 0; I < JSON["Textures"].size(); I++)
                 Scene.Textures.push_back(new texture);
             for (uint I = 0; I < JSON["Materials"].size(); I++)
@@ -452,25 +468,29 @@ void SerializeObject(serializer& S, scene& Scene)
                 Scene.Prefabs.push_back(new prefab);
         }
 
-        for (uint Index = 0; Index < Scene.Textures.size(); Index++) {
+        for (uint Index = 0; Index < Scene.Textures.size(); Index++)
+        {
             texture* Texture = Scene.Textures[Index];
             S.TextureIndexMap[Texture] = Index;
             SerializeObject(S, JSON["Textures"][Index], *Texture);
         }
 
-        for (uint Index = 0; Index < Scene.Materials.size(); Index++) {
+        for (uint Index = 0; Index < Scene.Materials.size(); Index++)
+        {
             material* Material = Scene.Materials[Index];
             S.MaterialIndexMap[Material] = Index;
             SerializeObject(S, JSON["Materials"][Index], Material);
         }
 
-        for (uint Index = 0; Index < Scene.Meshes.size(); Index++) {
+        for (uint Index = 0; Index < Scene.Meshes.size(); Index++)
+        {
             mesh* Mesh = Scene.Meshes[Index];
             S.MeshIndexMap[Mesh] = Index;
             SerializeObject(S, JSON["Meshes"][Index], *Mesh);
         }
 
-        for (uint Index = 0; Index < Scene.Prefabs.size(); Index++) {
+        for (uint Index = 0; Index < Scene.Prefabs.size(); Index++)
+        {
             prefab* Prefab = Scene.Prefabs[Index];
             S.PrefabIndexMap[Prefab] = Index;
             SerializeObject(S, JSON["Prefabs"][Index], Prefab->Entity);
@@ -478,7 +498,8 @@ void SerializeObject(serializer& S, scene& Scene)
 
         SerializeObject(S, JSON["Root"], Scene.Root);
 
-        if (S.IsWriting) {
+        if (S.IsWriting)
+        {
             auto SceneFile = std::ofstream(S.SceneFilePath);
             SceneFile << JSON.dump(4);
         }
@@ -496,31 +517,21 @@ void SerializeObject(serializer& S, scene& Scene)
 
         spectrum_table_header Header;
 
-        if (S.IsWriting) {
+        if (S.IsWriting)
+        {
             Header.Magic = 'SPEC';
             Header.Version = 0;
 
             auto File = std::ofstream(FilePath, std::ios::binary);
-            File.write(
-                reinterpret_cast<char*>(&Header),
-                sizeof(spectrum_table_header));
-
-            WriteCompressed(File,
-                &Scene.RGBSpectrumTable->Coefficients,
-                sizeof(parametric_spectrum_table::Coefficients));
+            File.write(reinterpret_cast<char*>(&Header), sizeof(spectrum_table_header));
+            WriteCompressed(File, &Scene.RGBSpectrumTable->Coefficients, sizeof(parametric_spectrum_table::Coefficients));
         }
-        else {
+        else
+        {
             auto File = std::ifstream(FilePath, std::ios::binary);
-
-            File.read(
-                reinterpret_cast<char*>(&Header),
-                sizeof(spectrum_table_header));
-
+            File.read(reinterpret_cast<char*>(&Header), sizeof(spectrum_table_header));
             Scene.RGBSpectrumTable = new parametric_spectrum_table;
-
-            ReadCompressed(File,
-                &Scene.RGBSpectrumTable->Coefficients,
-                sizeof(parametric_spectrum_table::Coefficients));
+            ReadCompressed(File, &Scene.RGBSpectrumTable->Coefficients, sizeof(parametric_spectrum_table::Coefficients));
         }
     }
 }

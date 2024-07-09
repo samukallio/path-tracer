@@ -2,73 +2,73 @@
 
 struct material_openpbr : material
 {
-    float       BaseWeight                          = 1.0f;
-    vec3        BaseColor                           = { 1, 1, 1 };
-    texture*    BaseColorTexture                    = nullptr;
-    float       BaseMetalness                       = 0.0f;
-    float       BaseDiffuseRoughness                = 0.0f;
+    float    BaseWeight = 1.0f;
+    vec3     BaseColor = { 1, 1, 1 };
+    texture* BaseColorTexture = nullptr;
+    float    BaseMetalness = 0.0f;
+    float    BaseDiffuseRoughness = 0.0f;
 
-    float       SpecularWeight                      = 1.0f;
-    vec3        SpecularColor                       = { 1, 1, 1 };
-    float       SpecularRoughness                   = 0.3f;
-    texture*    SpecularRoughnessTexture            = nullptr;
-    float       SpecularRoughnessAnisotropy         = 0.0f;
-    float       SpecularIOR                         = 1.5f;
+    float    SpecularWeight = 1.0f;
+    vec3     SpecularColor = { 1, 1, 1 };
+    float    SpecularRoughness = 0.3f;
+    texture* SpecularRoughnessTexture = nullptr;
+    float    SpecularRoughnessAnisotropy = 0.0f;
+    float    SpecularIOR = 1.5f;
 
-    float       TransmissionWeight                  = 0.0f;
-    vec3        TransmissionColor                   = { 1, 1, 1 };
-    float       TransmissionDepth                   = 0.0f;
-    vec3        TransmissionScatter                 = { 0, 0, 0 };
-    float       TransmissionScatterAnisotropy       = 0.0f;
-    float       TransmissionDispersionScale         = 0.0f;
-    float       TransmissionDispersionAbbeNumber    = 20.0f;
+    float    TransmissionWeight = 0.0f;
+    vec3     TransmissionColor = { 1, 1, 1 };
+    float    TransmissionDepth = 0.0f;
+    vec3     TransmissionScatter = { 0, 0, 0 };
+    float    TransmissionScatterAnisotropy = 0.0f;
+    float    TransmissionDispersionScale = 0.0f;
+    float    TransmissionDispersionAbbeNumber = 20.0f;
 
-    float       CoatWeight                          = 0.0f;
-    vec3        CoatColor                           = { 1, 1, 1 };
-    float       CoatRoughness                       = 0.0f;
-    float       CoatRoughnessAnisotropy             = 0.0f;
-    float       CoatIOR                             = 1.6f;
-    float       CoatDarkening                       = 1.0f;
+    float    CoatWeight = 0.0f;
+    vec3     CoatColor = { 1, 1, 1 };
+    float    CoatRoughness = 0.0f;
+    float    CoatRoughnessAnisotropy = 0.0f;
+    float    CoatIOR = 1.6f;
+    float    CoatDarkening = 1.0f;
 
-    float       EmissionLuminance                   = 0.0f;
-    vec3        EmissionColor                       = { 0, 0, 0 };
-    texture*    EmissionColorTexture                = nullptr;
+    float    EmissionLuminance = 0.0f;
+    vec3     EmissionColor = { 0, 0, 0 };
+    texture* EmissionColorTexture = nullptr;
 
-    int         LayerBounceLimit                    = 16;
+    int      LayerBounceLimit = 16;
 
-    uint32_t    PackedMaterialIndex                 = 0;
+    uint32_t PackedMaterialIndex = 0;
 
     material_openpbr() { Type = MATERIAL_TYPE_OPENPBR; }
 };
 
-const uint OPENPBR_OPACITY                                 = 0;
-const uint OPENPBR_LAYER_BOUNCE_LIMIT                      = 1;
-const uint OPENPBR_BASE_WEIGHT                             = 2;
-const uint OPENPBR_BASE_SPECTRUM                           = 3;
-const uint OPENPBR_BASE_SPECTRUM_TEXTURE_INDEX             = 6;
-const uint OPENPBR_BASE_METALNESS                          = 7;
-const uint OPENPBR_BASE_DIFFUSE_ROUGHNESS                  = 8;
-const uint OPENPBR_SPECULAR_WEIGHT                         = 9;
-const uint OPENPBR_SPECULAR_SPECTRUM                       = 10;
-const uint OPENPBR_SPECULAR_IOR                            = 13;
-const uint OPENPBR_SPECULAR_ROUGHNESS                      = 14;
-const uint OPENPBR_SPECULAR_ROUGHNESS_TEXTURE_INDEX        = 15;
-const uint OPENPBR_SPECULAR_ROUGHNESS_ANISOTROPY           = 16;
-const uint OPENPBR_TRANSMISSION_SPECTRUM                   = 17;
-const uint OPENPBR_TRANSMISSION_WEIGHT                     = 20;
-const uint OPENPBR_TRANSMISSION_SCATTER_SPECTRUM           = 21;
-const uint OPENPBR_TRANSMISSION_SCATTER_ANISOTROPY         = 24;
-const uint OPENPBR_TRANSMISSION_DEPTH                      = 25;
-const uint OPENPBR_TRANSMISSION_DISPERSION_ABBE_NUMBER     = 26;
-const uint OPENPBR_EMISSION_SPECTRUM                       = 27;
-const uint OPENPBR_EMISSION_SPECTRUM_TEXTURE_INDEX         = 30;
-const uint OPENPBR_EMISSION_LUMINANCE                      = 31;
-const uint OPENPBR_COAT_WEIGHT                             = 32;
-const uint OPENPBR_COAT_COLOR_SPECTRUM                     = 33;
-const uint OPENPBR_COAT_IOR                                = 36;
-const uint OPENPBR_COAT_ROUGHNESS                          = 37;
-const uint OPENPBR_COAT_ROUGHNESS_ANISOTROPY               = 38;
-const uint OPENPBR_COAT_DARKENING                          = 39;
+const uint OPENPBR_OPACITY                             = 0;
+const uint OPENPBR_LAYER_BOUNCE_LIMIT                  = 1;
+const uint OPENPBR_BASE_WEIGHT                         = 2;
+const uint OPENPBR_BASE_SPECTRUM                       = 3;
+const uint OPENPBR_BASE_SPECTRUM_TEXTURE_INDEX         = 6;
+const uint OPENPBR_BASE_METALNESS                      = 7;
+const uint OPENPBR_BASE_DIFFUSE_ROUGHNESS              = 8;
+const uint OPENPBR_SPECULAR_WEIGHT                     = 9;
+const uint OPENPBR_SPECULAR_SPECTRUM                   = 10;
+const uint OPENPBR_SPECULAR_IOR                        = 13;
+const uint OPENPBR_SPECULAR_ROUGHNESS                  = 14;
+const uint OPENPBR_SPECULAR_ROUGHNESS_TEXTURE_INDEX    = 15;
+const uint OPENPBR_SPECULAR_ROUGHNESS_ANISOTROPY       = 16;
+const uint OPENPBR_TRANSMISSION_SPECTRUM               = 17;
+const uint OPENPBR_TRANSMISSION_WEIGHT                 = 20;
+const uint OPENPBR_TRANSMISSION_SCATTER_SPECTRUM       = 21;
+const uint OPENPBR_TRANSMISSION_SCATTER_ANISOTROPY     = 24;
+const uint OPENPBR_TRANSMISSION_DEPTH                  = 25;
+const uint OPENPBR_TRANSMISSION_DISPERSION_ABBE_NUMBER = 26;
+const uint OPENPBR_EMISSION_SPECTRUM                   = 27;
+const uint OPENPBR_EMISSION_SPECTRUM_TEXTURE_INDEX     = 30;
+const uint OPENPBR_EMISSION_LUMINANCE                  = 31;
+const uint OPENPBR_COAT_WEIGHT                         = 32;
+const uint OPENPBR_COAT_COLOR_SPECTRUM                 = 33;
+const uint OPENPBR_COAT_IOR                            = 36;
+const uint OPENPBR_COAT_ROUGHNESS                      = 37;
+const uint OPENPBR_COAT_ROUGHNESS_ANISOTROPY           = 38;
+const uint OPENPBR_COAT_DARKENING                      = 39;
 
 template<typename function_type>
 inline void OpenPBRForEachTexture(material_openpbr* Material, function_type Function)

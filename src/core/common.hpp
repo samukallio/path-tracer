@@ -18,10 +18,10 @@
 #include <glm/gtc/quaternion.hpp>
 #include <glm/gtx/euler_angles.hpp>
 
-constexpr float EPSILON     = 1e-9f;
-constexpr float PI          = 3.141592653f;
-constexpr float TAU         = 6.283185306f;
-constexpr float INF         = std::numeric_limits<float>::infinity();
+constexpr float EPSILON = 1e-9f;
+constexpr float PI = 3.141592653f;
+constexpr float TAU = 6.283185306f;
+constexpr float INF = std::numeric_limits<float>::infinity();
 
 constexpr float CIE_LAMBDA_MIN = 360.0f;
 constexpr float CIE_LAMBDA_MAX = 830.0f;
@@ -38,54 +38,58 @@ using glm::aligned_vec4;
 using glm::aligned_mat3;
 using glm::aligned_mat4;
 
-uint const SHAPE_INDEX_NONE     = 0xFFFFFFFF;
-uint const TEXTURE_INDEX_NONE   = 0xFFFFFFFF;
+uint const SHAPE_INDEX_NONE   = 0xFFFFFFFF;
+uint const TEXTURE_INDEX_NONE = 0xFFFFFFFF;
 
 enum render_flag : uint
 {
-    RENDER_FLAG_ACCUMULATE              = 1 << 0,
-    RENDER_FLAG_SAMPLE_JITTER           = 1 << 1,
+    RENDER_FLAG_ACCUMULATE    = 1 << 0,
+    RENDER_FLAG_SAMPLE_JITTER = 1 << 1,
 };
 
 struct image
 {
-    uint        Width;
-    uint        Height;
+    uint Width;
+    uint Height;
     vec4 const* Pixels;
 };
 
 struct transform
 {
-    vec3        Position        = vec3(0, 0, 0);
-    vec3        Rotation        = vec3(0, 0, 0);
-    vec3        Scale           = vec3(1, 1, 1);
-    bool        ScaleIsUniform  = true;
+    vec3 Position = vec3(0, 0, 0);
+    vec3 Rotation = vec3(0, 0, 0);
+    vec3 Scale = vec3(1, 1, 1);
+    bool ScaleIsUniform = true;
 };
 
 struct bounds
 {
-    vec3        Minimum         = { +INF, +INF, +INF };
-    vec3        Maximum         = { -INF, -INF, -INF };
+    vec3 Minimum = { +INF, +INF, +INF };
+    vec3 Maximum = { -INF, -INF, -INF };
 };
 
 struct ray
 {
-    vec3        Origin;
-    vec3        Vector;
+    vec3 Origin;
+    vec3 Vector;
 };
 
-inline mat4 MakeTransformMatrix(
+inline mat4 MakeTransformMatrix
+(
     vec3 const& Position,
-    vec3 const& Rotation)
+    vec3 const& Rotation
+)
 {
     return glm::translate(glm::mat4(1.0f), Position)
          * glm::eulerAngleZYX(Rotation.z, Rotation.y, Rotation.x);
 }
 
-inline mat4 MakeTransformMatrix(
+inline mat4 MakeTransformMatrix
+(
     vec3 const& Position,
     vec3 const& Rotation,
-    vec3 const& Scale)
+    vec3 const& Scale
+)
 {
     return glm::translate(glm::mat4(1.0f), Position)
          * glm::eulerAngleZYX(Rotation.z, Rotation.y, Rotation.x)
@@ -94,7 +98,8 @@ inline mat4 MakeTransformMatrix(
 
 inline ray TransformRay(ray const& Ray, mat4 const& Matrix)
 {
-    return {
+    return
+    {
         .Origin = (Matrix * vec4(Ray.Origin, 1)).xyz(),
         .Vector = (Matrix * vec4(Ray.Vector, 0)).xyz(),
     };
@@ -108,9 +113,11 @@ inline float RepeatRange(float Value, float Min, float Max)
 
 inline vec2 SignNotZero(vec2 V)
 {
-    return vec2(
+    return vec2
+    (
         V.x >= 0.0f ? +1.0f : -1.0f,
-        V.y >= 0.0f ? +1.0f : -1.0f);
+        V.y >= 0.0f ? +1.0f : -1.0f
+    );
 }
 
 // Packs a unit vector into a single 32-bit value.

@@ -11,23 +11,25 @@ uniform sampler2D SampleAccumulatorImageSampler;
 layout(push_constant)
 uniform ResolvePushConstants
 {
-    float   Brightness;
-    uint    ToneMappingMode;
-    float   ToneMappingWhiteLevel;
+    float Brightness;
+    uint ToneMappingMode;
+    float ToneMappingWhiteLevel;
 };
 
 #if VERTEX
 
-vec2 Positions[6] = vec2[](
+vec2 Positions[6] = vec2[]
+(
     vec2(-1.0, -1.0),
     vec2( 1.0, -1.0),
-    vec2( 1.0,  1.0),
+    vec2( 1.0, 1.0),
     vec2(-1.0, -1.0),
-    vec2( 1.0,  1.0),
-    vec2(-1.0,  1.0)
+    vec2( 1.0, 1.0),
+    vec2(-1.0, 1.0)
 );
 
-vec2 UVs[6] = vec2[](
+vec2 UVs[6] = vec2[]
+(
 	vec2(0.0, 0.0),
 	vec2(1.0, 0.0),
 	vec2(1.0, 1.0),
@@ -80,16 +82,18 @@ vec3 ToneMapHable(vec3 Color)
     return Current * WhiteScale;
 }
 
-const mat3 ACES_INPUT_MATRIX = mat3(
-     0.59719f,  0.07600f,  0.02840f,
-     0.35458f,  0.90834f,  0.13383f,
-     0.04823f,  0.01566f,  0.83777f
+const mat3 ACES_INPUT_MATRIX = mat3
+(
+     0.59719f, 0.07600f, 0.02840f,
+     0.35458f, 0.90834f, 0.13383f,
+     0.04823f, 0.01566f, 0.83777f
 );
 
-const mat3 ACES_OUTPUT_MATRIX = mat3(
+const mat3 ACES_OUTPUT_MATRIX = mat3
+(
      1.60475f, -0.10208f, -0.00327f,
-    -0.53108f,  1.10813f, -0.07276f,
-    -0.07367f, -0.00605f,  1.07602f
+    -0.53108f, 1.10813f, -0.07276f,
+    -0.07367f, -0.00605f, 1.07602f
 );
 
 vec3 ToneMapACES(vec3 Color)

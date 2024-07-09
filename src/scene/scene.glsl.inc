@@ -3,117 +3,117 @@
 
 #include "core/common.glsl.inc"
 
-const uint SHAPE_INDEX_NONE                     = 0xFFFFFFFF;
-const uint TEXTURE_INDEX_NONE                   = 0xFFFFFFFF;
+const uint SHAPE_INDEX_NONE = 0xFFFFFFFF;
+const uint TEXTURE_INDEX_NONE = 0xFFFFFFFF;
 
-const uint SHAPE_TYPE_MESH_INSTANCE             = 0;
-const uint SHAPE_TYPE_PLANE                     = 1;
-const uint SHAPE_TYPE_SPHERE                    = 2;
-const uint SHAPE_TYPE_CUBE                      = 3;
+const uint SHAPE_TYPE_MESH_INSTANCE = 0;
+const uint SHAPE_TYPE_PLANE = 1;
+const uint SHAPE_TYPE_SPHERE = 2;
+const uint SHAPE_TYPE_CUBE = 3;
 
-const uint TEXTURE_TYPE_RAW                     = 0;
-const uint TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA  = 1;
-const uint TEXTURE_TYPE_RADIANCE                = 2;
+const uint TEXTURE_TYPE_RAW = 0;
+const uint TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA = 1;
+const uint TEXTURE_TYPE_RADIANCE = 2;
 
-const uint TEXTURE_FLAG_FILTER_NEAREST          = 1 << 0;
+const uint TEXTURE_FLAG_FILTER_NEAREST = 1 << 0;
 
-const uint TONE_MAPPING_MODE_CLAMP              = 0;
-const uint TONE_MAPPING_MODE_REINHARD           = 1;
-const uint TONE_MAPPING_MODE_HABLE              = 2;
-const uint TONE_MAPPING_MODE_ACES               = 3;
+const uint TONE_MAPPING_MODE_CLAMP = 0;
+const uint TONE_MAPPING_MODE_REINHARD = 1;
+const uint TONE_MAPPING_MODE_HABLE = 2;
+const uint TONE_MAPPING_MODE_ACES = 3;
 
-const uint CAMERA_MODEL_PINHOLE             = 0;
-const uint CAMERA_MODEL_THIN_LENS           = 1;
-const uint CAMERA_MODEL_360                 = 2;
+const uint CAMERA_MODEL_PINHOLE = 0;
+const uint CAMERA_MODEL_THIN_LENS = 1;
+const uint CAMERA_MODEL_360 = 2;
 
 struct packed_texture
 {
-    vec2                AtlasPlacementMinimum;
-    vec2                AtlasPlacementMaximum;
-    uint                AtlasImageIndex;
-    uint                Type;
-    uint                Flags;
-    uint                Dummy2;
+    vec2 AtlasPlacementMinimum;
+    vec2 AtlasPlacementMaximum;
+    uint AtlasImageIndex;
+    uint Type;
+    uint Flags;
+    uint Dummy2;
 };
 
 struct packed_shape
 {
-    uint                Type;
-    uint                MaterialIndex;
-    uint                MeshRootNodeIndex;
-    packed_transform    Transform;
+    uint Type;
+    uint MaterialIndex;
+    uint MeshRootNodeIndex;
+    packed_transform Transform;
 };
 
 struct packed_shape_node
 {
-    vec3                Minimum;
-    uint                ChildNodeIndices;
-    vec3                Maximum;
-    uint                ShapeIndex;
+    vec3 Minimum;
+    uint ChildNodeIndices;
+    vec3 Maximum;
+    uint ShapeIndex;
 };
 
 struct packed_mesh_face
 {
-    vec3                Position0;
-    uint                VertexIndex0;
-    vec3                Position1;
-    uint                VertexIndex1;
-    vec3                Position2;
-    uint                VertexIndex2;
+    vec3 Position0;
+    uint VertexIndex0;
+    vec3 Position1;
+    uint VertexIndex1;
+    vec3 Position2;
+    uint VertexIndex2;
 };
 
 struct packed_mesh_vertex
 {
-    uint                PackedNormal;
-    uint                PackedUV;
+    uint PackedNormal;
+    uint PackedUV;
 };
 
 struct packed_mesh_node
 {
-    vec3                Minimum;
-    uint                FaceBeginOrNodeIndex;
-    vec3                Maximum;
-    uint                FaceEndIndex;
+    vec3 Minimum;
+    uint FaceBeginOrNodeIndex;
+    vec3 Maximum;
+    uint FaceEndIndex;
 };
 
 struct packed_camera
 {
-    uint                Model;
-    float               FocalLength;
-    float               ApertureRadius;
-    float               SensorDistance;
-    vec2                SensorSize;
-    packed_transform    Transform;
+    uint Model;
+    float FocalLength;
+    float ApertureRadius;
+    float SensorDistance;
+    vec2 SensorSize;
+    packed_transform Transform;
 };
 
 struct packed_scene_globals
 {
-    mat3                SkyboxDistributionFrame;
-    float               SkyboxDistributionConcentration;
-    float               SkyboxBrightness;
-    uint                SkyboxTextureIndex;
-    uint                ShapeCount;
-    float               SceneScatterRate;
+    mat3 SkyboxDistributionFrame;
+    float SkyboxDistributionConcentration;
+    float SkyboxBrightness;
+    uint SkyboxTextureIndex;
+    uint ShapeCount;
+    float SceneScatterRate;
 };
 
 // Result of tracing a ray against the geometry of a scene.
 struct hit
 {
-    float               Time;                       // Time of hit along the ray vector.
-    uint                ShapeIndex;                 // Index (into the shape array) of shape that was hit.
-    vec3                Position;                   // World space position of the hit.
-    vec3                Normal;                     // World space normal of the hit surface.
-    vec3                TangentX;                   // World space tangent of the hit surface.
-    uint                MaterialIndex;              // Surface material index.
-    vec2                UV;                         // Surface texture map coordinates.
+    float Time; // Time of hit along the ray vector.
+    uint ShapeIndex; // Index (into the shape array) of shape that was hit.
+    vec3 Position; // World space position of the hit.
+    vec3 Normal; // World space normal of the hit surface.
+    vec3 TangentX; // World space tangent of the hit surface.
+    uint MaterialIndex; // Surface material index.
+    vec2 UV; // Surface texture map coordinates.
 
-    vec3                TangentY;                   // World space bitangent of the hit surface.
+    vec3 TangentY; // World space bitangent of the hit surface.
 
-    uint                ShapeType;                  // Type of shape that was hit.
-    vec3                PrimitiveCoordinates;       // Shape type-dependent primitive coordinates (e.g. barycentric coordinates).
-    uint                PrimitiveIndex;             // Index of primitive within the shape (e.g. mesh face) that was hit.
-    uint                SceneComplexity;            // Total number of shape nodes traversed while tracing.
-    uint                MeshComplexity;             // Total number of mesh nodes traversed while tracing.
+    uint ShapeType; // Type of shape that was hit.
+    vec3 PrimitiveCoordinates; // Shape type-dependent primitive coordinates (e.g. barycentric coordinates).
+    uint PrimitiveIndex; // Index of primitive within the shape (e.g. mesh face) that was hit.
+    uint SceneComplexity; // Total number of shape nodes traversed while tracing.
+    uint MeshComplexity; // Total number of mesh nodes traversed while tracing.
 };
 
 #ifdef BIND_SCENE
@@ -200,15 +200,19 @@ vec4 SampleTexture(uint Index, vec2 UV)
 {
     packed_texture Texture = Textures[Index];
 
-    float U = mix(
+    float U = mix
+    (
         Texture.AtlasPlacementMinimum.x,
         Texture.AtlasPlacementMaximum.x,
-        fract(UV.x));
+        fract(UV.x)
+    );
 
-    float V = mix(
+    float V = mix
+    (
         Texture.AtlasPlacementMinimum.y,
         Texture.AtlasPlacementMaximum.y,
-        fract(UV.y));
+        fract(UV.y)
+    );
 
     vec3 UVW = vec3(U, V, Texture.AtlasImageIndex);
 
@@ -281,16 +285,19 @@ void IntersectMeshNode(ray Ray, uint MeshNodeIndex, inout hit Hit)
 
     packed_mesh_node Node = MeshNodes[MeshNodeIndex];
 
-    while (true) {
+    while (true)
+    {
         Hit.MeshComplexity++;
 
         // Leaf node or internal?
-        if (Node.FaceEndIndex > 0) {
+        if (Node.FaceEndIndex > 0)
+        {
             // Leaf node, trace all geometry within.
             for (uint FaceIndex = Node.FaceBeginOrNodeIndex; FaceIndex < Node.FaceEndIndex; FaceIndex++)
                 IntersectMeshFace(Ray, FaceIndex, Hit);
         }
-        else {
+        else
+        {
             // Internal node.
             // Load the first subnode as the node to be processed next.
             uint Index = Node.FaceBeginOrNodeIndex;
@@ -304,7 +311,8 @@ void IntersectMeshNode(ray Ray, uint MeshNodeIndex, inout hit Hit)
 
             // If the second subnode is strictly closer than the first one,
             // then it was definitely hit, so process it next.
-            if (Time > TimeB) {
+            if (Time > TimeB)
+            {
                 // If the first subnode was also hit, then set it aside for later.
                 if (Time < INFINITY) Stack[Depth++] = Index;
                 Node = NodeB;
@@ -314,19 +322,20 @@ void IntersectMeshNode(ray Ray, uint MeshNodeIndex, inout hit Hit)
             // The first subnode is at least as close as the second one.
             // If the second subnode was hit, then both of them were,
             // and we should set the second one aside for later.
-            if (TimeB < INFINITY) {
+            if (TimeB < INFINITY)
+            {
                 Stack[Depth++] = IndexB;
                 continue;
             }
 
             // The first subnode is at least as close as the second one,
-            // and the second subnode was not Hit.  If the first one was
+            // and the second subnode was not Hit. If the first one was
             // hit, then process it next.
             if (Time < INFINITY) continue;
         }
 
         // Just processed a leaf node or an internal node with no intersecting
-        // subnodes.  If the stack is also empty, then we are done.
+        // subnodes. If the stack is also empty, then we are done.
         if (Depth == 0) break;
 
         // Pull a node from the stack.
@@ -340,12 +349,14 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
 
     Ray = InverseTransformRay(Ray, Shape.Transform);
 
-    if (Shape.Type == SHAPE_TYPE_MESH_INSTANCE) {
+    if (Shape.Type == SHAPE_TYPE_MESH_INSTANCE)
+    {
         IntersectMeshNode(Ray, Shape.MeshRootNodeIndex, Hit);
         if (Hit.ShapeIndex == 0xFFFFFFFE)
             Hit.ShapeIndex = ShapeIndex;
     }
-    else if (Shape.Type == SHAPE_TYPE_PLANE) {
+    else if (Shape.Type == SHAPE_TYPE_PLANE)
+    {
         float T = -Ray.Origin.z / Ray.Velocity.z;
         if (T < 0 || T > Hit.Time) return;
 
@@ -355,7 +366,8 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Velocity * T;
     }
-    else if (Shape.Type == SHAPE_TYPE_SPHERE) {
+    else if (Shape.Type == SHAPE_TYPE_SPHERE)
+    {
         float V = dot(Ray.Velocity, Ray.Velocity);
         float P = dot(Ray.Origin, Ray.Velocity);
         float Q = dot(Ray.Origin, Ray.Origin) - 1.0;
@@ -376,7 +388,8 @@ void IntersectShape(ray Ray, uint ShapeIndex, inout hit Hit)
         Hit.PrimitiveIndex = 0;
         Hit.PrimitiveCoordinates = Ray.Origin + Ray.Velocity * Hit.Time;
     }
-    else if (Shape.Type == SHAPE_TYPE_CUBE) {
+    else if (Shape.Type == SHAPE_TYPE_CUBE)
+    {
         vec3 Minimum = (vec3(-1,-1,-1) - Ray.Origin) / Ray.Velocity;
         vec3 Maximum = (vec3(+1,+1,+1) - Ray.Origin) / Ray.Velocity;
         vec3 Earlier = min(Minimum, Maximum);
@@ -407,15 +420,18 @@ void Intersect(ray Ray, inout hit Hit)
     packed_shape_node NodeA = ShapeNodes[0];
     packed_shape_node NodeB;
 
-    while (true) {
+    while (true)
+    {
         Hit.SceneComplexity++;
 
         // Leaf node or internal?
-        if (NodeA.ChildNodeIndices == 0) {
+        if (NodeA.ChildNodeIndices == 0)
+        {
             // Leaf node, intersect object.
             IntersectShape(Ray, NodeA.ShapeIndex, Hit);
         }
-        else {
+        else
+        {
             // Internal node.
             uint IndexA = NodeA.ChildNodeIndices & 0xFFFF;
             uint IndexB = NodeA.ChildNodeIndices >> 16;
@@ -426,13 +442,15 @@ void Intersect(ray Ray, inout hit Hit)
             float TimeA = IntersectBoundingBox(Ray, Hit.Time, NodeA.Minimum, NodeA.Maximum);
             float TimeB = IntersectBoundingBox(Ray, Hit.Time, NodeB.Minimum, NodeB.Maximum);
 
-            if (TimeA > TimeB) {
+            if (TimeA > TimeB)
+            {
                 if (TimeA < INFINITY) Stack[Depth++] = IndexA;
                 NodeA = NodeB;
                 continue;
             }
 
-            if (TimeB < INFINITY) {
+            if (TimeB < INFINITY)
+            {
                 Stack[Depth++] = IndexB;
                 continue;
             }
@@ -463,30 +481,35 @@ hit Trace(ray Ray)
 
     Hit.MaterialIndex = Shape.MaterialIndex;
 
-    if (Hit.ShapeType == SHAPE_TYPE_MESH_INSTANCE) {
+    if (Hit.ShapeType == SHAPE_TYPE_MESH_INSTANCE)
+    {
         packed_mesh_face Face = MeshFaces[Hit.PrimitiveIndex];
 
         packed_mesh_vertex Vertex0 = MeshVertices[Face.VertexIndex0];
         packed_mesh_vertex Vertex1 = MeshVertices[Face.VertexIndex1];
         packed_mesh_vertex Vertex2 = MeshVertices[Face.VertexIndex2];
 
-        vec3 Normal = SafeNormalize(
+        vec3 Normal = SafeNormalize
+        (
             UnpackUnitVector(Vertex0.PackedNormal) * Hit.PrimitiveCoordinates.x +
             UnpackUnitVector(Vertex1.PackedNormal) * Hit.PrimitiveCoordinates.y +
-            UnpackUnitVector(Vertex2.PackedNormal) * Hit.PrimitiveCoordinates.z);
+            UnpackUnitVector(Vertex2.PackedNormal) * Hit.PrimitiveCoordinates.z
+        );
 
         Hit.Normal = TransformNormal(Normal, Shape.Transform);
         Hit.TangentX = ComputeTangentVector(Hit.Normal);
         Hit.UV = unpackHalf2x16(Vertex0.PackedUV) * Hit.PrimitiveCoordinates.x
-                + unpackHalf2x16(Vertex1.PackedUV) * Hit.PrimitiveCoordinates.y
-                + unpackHalf2x16(Vertex2.PackedUV) * Hit.PrimitiveCoordinates.z;
+               + unpackHalf2x16(Vertex1.PackedUV) * Hit.PrimitiveCoordinates.y
+               + unpackHalf2x16(Vertex2.PackedUV) * Hit.PrimitiveCoordinates.z;
     }
-    else if (Hit.ShapeType == SHAPE_TYPE_PLANE) {
+    else if (Hit.ShapeType == SHAPE_TYPE_PLANE)
+    {
         Hit.Normal = TransformNormal(vec3(0, 0, 1), Shape.Transform);
         Hit.TangentX = TransformDirection(vec3(1, 0, 0), Shape.Transform);
         Hit.UV = fract(Hit.PrimitiveCoordinates.xy);
     }
-    else if (Hit.ShapeType == SHAPE_TYPE_SPHERE) {
+    else if (Hit.ShapeType == SHAPE_TYPE_SPHERE)
+    {
         vec3 P = Hit.PrimitiveCoordinates;
         float U = (atan(P.y, P.x) + PI) / TAU;
         float V = (P.z + 1.0) / 2.0;
@@ -495,26 +518,30 @@ hit Trace(ray Ray)
         Hit.TangentX = TransformDirection(cross(P, vec3(-P.y, P.x, 0)), Shape.Transform);
         Hit.UV = vec2(U, V);
     }
-    else if (Hit.ShapeType == SHAPE_TYPE_CUBE) {
+    else if (Hit.ShapeType == SHAPE_TYPE_CUBE)
+    {
         vec3 P = Hit.PrimitiveCoordinates;
         vec3 Q = abs(P);
 
         vec3 Normal;
         vec3 TangentX;
 
-        if (Q.x >= Q.y && Q.x >= Q.z) {
+        if (Q.x >= Q.y && Q.x >= Q.z)
+        {
             float S = sign(P.x);
             Normal = vec3(S, 0, 0);
             TangentX = vec3(0, S, 0);
             Hit.UV = 0.5 * (1.0 + P.yz);
         }
-        else if (Q.y >= Q.x && Q.y >= Q.z) {
+        else if (Q.y >= Q.x && Q.y >= Q.z)
+        {
             float S = sign(P.y);
             Normal = vec3(0, S, 0);
             TangentX = vec3(0, 0, S);
             Hit.UV = 0.5 * (1.0 + P.xz);
         }
-        else {
+        else
+        {
             float S = sign(P.z);
             Normal = vec3(0, 0, S);
             TangentX = vec3(S, 0, 0);
@@ -534,29 +561,34 @@ ray GenerateCameraRay(packed_camera Camera, vec2 NormalizedSamplePosition)
 
     Ray.Duration = HIT_TIME_LIMIT;
 
-    if (Camera.Model == CAMERA_MODEL_PINHOLE) {
-        vec3 SensorPosition = vec3(
+    if (Camera.Model == CAMERA_MODEL_PINHOLE)
+    {
+        vec3 SensorPosition = vec3
+        (
             -Camera.SensorSize.x * (NormalizedSamplePosition.x - 0.5),
             -Camera.SensorSize.y * (0.5 - NormalizedSamplePosition.y),
-            Camera.SensorDistance);
+            Camera.SensorDistance
+        );
 
         Ray.Origin = vec3(Camera.ApertureRadius * RandomPointOnDisk(), 0);
         Ray.Velocity = normalize(Ray.Origin - SensorPosition);
     }
-
-    else if (Camera.Model == CAMERA_MODEL_THIN_LENS) {
-        vec3 SensorPosition = vec3(
+    else if (Camera.Model == CAMERA_MODEL_THIN_LENS)
+    {
+        vec3 SensorPosition = vec3
+        (
             -Camera.SensorSize.x * (NormalizedSamplePosition.x - 0.5),
             -Camera.SensorSize.y * (0.5 - NormalizedSamplePosition.y),
-            Camera.SensorDistance);
+            Camera.SensorDistance
+        );
 
         vec3 ObjectPosition = -SensorPosition * Camera.FocalLength / (SensorPosition.z - Camera.FocalLength);
 
         Ray.Origin = vec3(Camera.ApertureRadius * RandomPointOnDisk(), 0);
         Ray.Velocity = normalize(ObjectPosition - Ray.Origin);
     }
-
-    else if (Camera.Model == CAMERA_MODEL_360) {
+    else if (Camera.Model == CAMERA_MODEL_360)
+    {
         float Phi = (NormalizedSamplePosition.x - 0.5f) * TAU;
         float Theta = (0.5f - NormalizedSamplePosition.y) * PI;
 
@@ -566,6 +598,8 @@ ray GenerateCameraRay(packed_camera Camera, vec2 NormalizedSamplePosition)
 
     return TransformRay(Ray, Camera.Transform);
 }
+
+#include "scene/openpbr.glsl.inc"
 
 #endif // BIND_SCENE
 
