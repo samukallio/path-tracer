@@ -16,16 +16,14 @@ int const WINDOW_WIDTH = 2048;
 int const WINDOW_HEIGHT = 1024;
 char const* APPLICATION_NAME = "Path Tracer";
 
-application App;
-
-bool HandleCameraMovement()
+bool HandleCameraMovement(application* App)
 {
     ImGuiIO& IO = ImGui::GetIO();
 
-    bool IsEditing = !App.SceneCameraToRender;
-    vec3& Position = IsEditing ? App.PreviewCamera.Position : App.SceneCameraToRender->Transform.Position;
-    vec3& Velocity = IsEditing ? App.PreviewCamera.Velocity : App.SceneCameraToRender->Velocity;
-    vec3& Rotation = IsEditing ? App.PreviewCamera.Rotation : App.SceneCameraToRender->Transform.Rotation;
+    bool IsEditing = !App->SceneCameraToRender;
+    vec3& Position = IsEditing ? App->PreviewCamera.Position : App->SceneCameraToRender->Transform.Position;
+    vec3& Velocity = IsEditing ? App->PreviewCamera.Velocity : App->SceneCameraToRender->Velocity;
+    vec3& Rotation = IsEditing ? App->PreviewCamera.Rotation : App->SceneCameraToRender->Transform.Rotation;
     bool WasMoved = false;
 
     vec3 Forward = glm::quat(Rotation) * vec3(0, 0, -1);
@@ -33,13 +31,13 @@ bool HandleCameraMovement()
     if (!IO.WantCaptureMouse && IO.MouseDown[1])
     {
         vec3 Delta {};
-        if (glfwGetKey(App.Window, GLFW_KEY_A))
+        if (glfwGetKey(App->Window, GLFW_KEY_A))
             Delta -= glm::cross(Forward, vec3(0, 0, 1));
-        if (glfwGetKey(App.Window, GLFW_KEY_D))
+        if (glfwGetKey(App->Window, GLFW_KEY_D))
             Delta += glm::cross(Forward, vec3(0, 0, 1));
-        if (glfwGetKey(App.Window, GLFW_KEY_W))
+        if (glfwGetKey(App->Window, GLFW_KEY_W))
             Delta += Forward;
-        if (glfwGetKey(App.Window, GLFW_KEY_S))
+        if (glfwGetKey(App->Window, GLFW_KEY_S))
             Delta -= Forward;
         if (glm::length(Delta) > 0)
             Velocity = 2.0f * glm::normalize(Delta);
@@ -60,81 +58,81 @@ bool HandleCameraMovement()
     if (glm::length(Velocity) < 1e-2f)
         Velocity = vec3(0);
 
-    if (WasMoved && App.SceneCameraToRender)
+    if (WasMoved && App->SceneCameraToRender)
     {
-        App.Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
-        App.PreviewCamera.Position = App.SceneCameraToRender->Transform.Position;
-        App.PreviewCamera.Rotation = App.SceneCameraToRender->Transform.Rotation;
+        App->Scene->DirtyFlags |= SCENE_DIRTY_CAMERAS;
+        App->PreviewCamera.Position = App->SceneCameraToRender->Transform.Position;
+        App->PreviewCamera.Rotation = App->SceneCameraToRender->Transform.Rotation;
     }
 
     return WasMoved;
 }
 
-void Update()
+void Update(application* App)
 {
     ImGuiIO& IO = ImGui::GetIO();
 
     // ImGui.
     ImGui::NewFrame();
     if (ImGui::IsKeyPressed(ImGuiKey_F11, false))
-        App.ImGuiIsVisible = !App.ImGuiIsVisible;
+        App->ImGuiIsVisible = !App->ImGuiIsVisible;
 
-    if (App.ImGuiIsVisible)
-        ShowImGui(&App);
+    if (App->ImGuiIsVisible)
+        ShowImGui(App);
 
     ImGui::EndFrame();
 
     // 
     bool Restart = false;
 
-    if (HandleCameraMovement())
+    if (HandleCameraMovement(App))
         Restart = true;
 
-    uint DirtyFlags = PackSceneData(App.Scene);
+    uint DirtyFlags = PackSceneData(App->Scene);
 
     if (DirtyFlags != 0)
         Restart = true;
 
-    UpdateVulkanScene(App.Vulkan, App.VulkanScene, App.Scene, DirtyFlags);
+    UpdateVulkanScene(App->Vulkan, App->VulkanScene, App->Scene, DirtyFlags);
 
-    BeginFrame(App.Vulkan);
+    BeginFrame(App->Vulkan);
 
-    if (App.SceneCameraToRender)
+    if (App->SceneCameraToRender)
     {
         if (Restart)
         {
-            App.BasicRenderer->CameraIndex      = App.SceneCameraToRender->PackedCameraIndex;
-            App.BasicRenderer->Scene            = App.VulkanScene;
-            App.BasicRenderer->RenderFlags      = RENDER_FLAG_ACCUMULATE | RENDER_FLAG_SAMPLE_JITTER;
-            App.BasicRenderer->PathTerminationProbability = 0.0f; //Parameters.RenderTerminationProbability;
+            App->BasicRenderer->CameraIndex      = App->SceneCameraToRender->PackedCameraIndex;
+            App->BasicRenderer->Scene            = App->VulkanScene;
+            App->BasicRenderer->RenderFlags      = RENDER_FLAG_ACCUMULATE | RENDER_FLAG_SAMPLE_JITTER;
+            App->BasicRenderer->PathTerminationProbability = 0.0f; //Parameters.RenderTerminationProbability;
 
-            ResetBasicRenderer(App.Vulkan, App.BasicRenderer);
-            RunBasicRenderer(App.Vulkan, App.BasicRenderer, 2);
+            ResetBasicRenderer(App->Vulkan, App->BasicRenderer);
+            RunBasicRenderer(App->Vulkan, App->BasicRenderer, 2);
         }
         else
         {
-            RunBasicRenderer(App.Vulkan, App.BasicRenderer, 1);
+            RunBasicRenderer(App->Vulkan, App->BasicRenderer, 1);
         }
 
         auto ResolveParameters = resolve_parameters {
-            .Brightness             = App.ResolveParameters.Brightness,
-            .ToneMappingMode        = App.ResolveParameters.ToneMappingMode,
-            .ToneMappingWhiteLevel  = App.ResolveParameters.ToneMappingWhiteLevel,
+            .Brightness             = App->ResolveParameters.Brightness,
+            .ToneMappingMode        = App->ResolveParameters.ToneMappingMode,
+            .ToneMappingWhiteLevel  = App->ResolveParameters.ToneMappingWhiteLevel,
         };
 
-        RenderSampleBuffer(App.Vulkan, App.SampleBuffer, &App.ResolveParameters);
+        RenderSampleBuffer(App->Vulkan, App->SampleBuffer, &App->ResolveParameters);
     }
     else
     {
-        preview_camera& Camera = App.PreviewCamera;
+        preview_camera& Camera = App->PreviewCamera;
 
         mat4 Transform = MakeTransformMatrix(Camera.Position, Camera.Rotation);
 
         auto PreviewParameters = preview_parameters
         {
             .CameraTransform    = PackTransform(Transform),
-            .RenderMode         = App.PreviewRenderMode,
-            .Brightness         = App.PreviewBrightness,
+            .RenderMode         = App->PreviewRenderMode,
+            .Brightness         = App->PreviewBrightness,
             .SelectedShapeIndex = SHAPE_INDEX_NONE,
             .RenderSizeX        = WINDOW_WIDTH,
             .RenderSizeY        = WINDOW_HEIGHT,
@@ -145,26 +143,26 @@ void Update()
         if (!IO.WantCaptureMouse && IO.MouseDown[0])
         {
             preview_query_result Result;
-            if (RetrievePreviewQueryResult(App.Vulkan, &App.PreviewRenderContext, &Result))
+            if (RetrievePreviewQueryResult(App->Vulkan, &App->PreviewRenderContext, &Result))
             {
-                entity* Entity = FindEntityByPackedShapeIndex(App.Scene, Result.HitShapeIndex);
+                entity* Entity = FindEntityByPackedShapeIndex(App->Scene, Result.HitShapeIndex);
                 if (Entity)
                 {
-                    App.SelectedEntity = Entity;
-                    App.SelectionType = SELECTION_TYPE_ENTITY;
+                    App->SelectedEntity = Entity;
+                    App->SelectionType = SELECTION_TYPE_ENTITY;
                 }
             }
         }
 
-        if (App.SelectionType == SELECTION_TYPE_ENTITY)
-            PreviewParameters.SelectedShapeIndex = App.SelectedEntity->PackedShapeIndex;
+        if (App->SelectionType == SELECTION_TYPE_ENTITY)
+            PreviewParameters.SelectedShapeIndex = App->SelectedEntity->PackedShapeIndex;
 
-        RenderPreview(App.Vulkan, &App.PreviewRenderContext, &PreviewParameters);
+        RenderPreview(App->Vulkan, &App->PreviewRenderContext, &PreviewParameters);
     }
 
-    RenderImGui(App.Vulkan, &App.ImGuiRenderContext);
+    RenderImGui(App->Vulkan, &App->ImGuiRenderContext);
 
-    EndFrame(App.Vulkan);
+    EndFrame(App->Vulkan);
 }
 
 static void MouseButtonInputCallback(GLFWwindow* Window, int Button, int Action, int Mods)
@@ -336,50 +334,50 @@ static void CharacterInputCallback(GLFWwindow* Window, unsigned int CodePoint)
     IO.AddInputCharacter(CodePoint);
 }
 
-int main()
+void RunApplication(application* App)
 {
     scene* Scene = CreateScene();
 
-    App.Scene = Scene;
-    App.SceneCameraToRender = nullptr;
+    App->Scene = Scene;
+    App->SceneCameraToRender = nullptr;
 
-    CreateImGui(&App);
+    CreateImGui(App);
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
     glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
-    App.Window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, APPLICATION_NAME, nullptr, nullptr);
-    App.Vulkan = CreateVulkan(App.Window, APPLICATION_NAME);
+    App->Window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, APPLICATION_NAME, nullptr, nullptr);
+    App->Vulkan = CreateVulkan(App->Window, APPLICATION_NAME);
 
-    App.VulkanScene = CreateVulkanScene(App.Vulkan);
+    App->VulkanScene = CreateVulkanScene(App->Vulkan);
 
-    App.SampleBuffer = CreateSampleBuffer(App.Vulkan, WINDOW_WIDTH, WINDOW_HEIGHT);
+    App->SampleBuffer = CreateSampleBuffer(App->Vulkan, WINDOW_WIDTH, WINDOW_HEIGHT);
 
-    CreateImGuiRenderContext(App.Vulkan, App.VulkanScene, &App.ImGuiRenderContext);
+    CreateImGuiRenderContext(App->Vulkan, App->VulkanScene, &App->ImGuiRenderContext);
 
-    UpdateVulkanScene(App.Vulkan, App.VulkanScene, Scene, SCENE_DIRTY_ALL);
+    UpdateVulkanScene(App->Vulkan, App->VulkanScene, Scene, SCENE_DIRTY_ALL);
 
-    CreatePreviewRenderContext(App.Vulkan, App.VulkanScene, &App.PreviewRenderContext);
+    CreatePreviewRenderContext(App->Vulkan, App->VulkanScene, &App->PreviewRenderContext);
 
-    App.BasicRenderer = CreateBasicRenderer(App.Vulkan, App.VulkanScene, App.SampleBuffer);
+    App->BasicRenderer = CreateBasicRenderer(App->Vulkan, App->VulkanScene, App->SampleBuffer);
 
-    App.PreviewCamera.Position = { 0, 0, 0 };
-    App.PreviewCamera.Velocity = { 0, 0, 0 };
-    App.PreviewCamera.Rotation = { 0, 0, 0 };
+    App->PreviewCamera.Position = { 0, 0, 0 };
+    App->PreviewCamera.Velocity = { 0, 0, 0 };
+    App->PreviewCamera.Rotation = { 0, 0, 0 };
 
     ImGuiIO& IO = ImGui::GetIO();
     IO.DisplaySize.x = WINDOW_WIDTH;
     IO.DisplaySize.y = WINDOW_HEIGHT;
 
-    glfwSetMouseButtonCallback(App.Window, MouseButtonInputCallback);
-    glfwSetCursorPosCallback(App.Window, MousePositionInputCallback);
-    glfwSetScrollCallback(App.Window, MouseScrollInputCallback);
-    glfwSetKeyCallback(App.Window, KeyInputCallback);
-    glfwSetCharCallback(App.Window, CharacterInputCallback);
+    glfwSetMouseButtonCallback(App->Window, MouseButtonInputCallback);
+    glfwSetCursorPosCallback(App->Window, MousePositionInputCallback);
+    glfwSetScrollCallback(App->Window, MouseScrollInputCallback);
+    glfwSetKeyCallback(App->Window, KeyInputCallback);
+    glfwSetCharCallback(App->Window, CharacterInputCallback);
 
     double PreviousTime = glfwGetTime();
-    while (!glfwWindowShouldClose(App.Window))
+    while (!glfwWindowShouldClose(App->Window))
     {
         glfwPollEvents();
 
@@ -387,27 +385,27 @@ int main()
         IO.DeltaTime = static_cast<float>(CurrentTime - PreviousTime);
         PreviousTime = CurrentTime;
 
-        Update();
+        Update(App);
 
-        App.FrameIndex++;
+        App->FrameIndex++;
     }
 
-    vkDeviceWaitIdle(App.Vulkan->Device);
+    vkDeviceWaitIdle(App->Vulkan->Device);
 
-    DestroyImGuiRenderContext(App.Vulkan, &App.ImGuiRenderContext);
+    DestroyImGuiRenderContext(App->Vulkan, &App->ImGuiRenderContext);
 
-    DestroyPreviewRenderContext(App.Vulkan, &App.PreviewRenderContext);
+    DestroyPreviewRenderContext(App->Vulkan, &App->PreviewRenderContext);
 
-    DestroyBasicRenderer(App.Vulkan, App.BasicRenderer);
+    DestroyBasicRenderer(App->Vulkan, App->BasicRenderer);
 
-    DestroySampleBuffer(App.Vulkan, App.SampleBuffer);
+    DestroySampleBuffer(App->Vulkan, App->SampleBuffer);
 
-    DestroyVulkanScene(App.Vulkan, App.VulkanScene);
+    DestroyVulkanScene(App->Vulkan, App->VulkanScene);
 
-    DestroyVulkan(App.Vulkan);
+    DestroyVulkan(App->Vulkan);
 
-    glfwDestroyWindow(App.Window);
+    glfwDestroyWindow(App->Window);
     glfwTerminate();
 
-    DestroyImGui(&App);
+    DestroyImGui(App);
 }

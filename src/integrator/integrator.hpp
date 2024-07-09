@@ -3,6 +3,12 @@
 #include "core/common.hpp"
 #include "core/vulkan.hpp"
 
+enum render_flag : uint
+{
+    RENDER_FLAG_ACCUMULATE    = 1 << 0,
+    RENDER_FLAG_SAMPLE_JITTER = 1 << 1,
+};
+
 enum tone_mapping_mode : uint
 {
     TONE_MAPPING_MODE_CLAMP    = 0,

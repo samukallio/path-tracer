@@ -2,6 +2,7 @@
 #define SCENE_GLSL_INC
 
 #include "core/common.glsl.inc"
+#include "core/spectrum.glsl.inc"
 
 const uint SHAPE_INDEX_NONE = 0xFFFFFFFF;
 const uint TEXTURE_INDEX_NONE = 0xFFFFFFFF;

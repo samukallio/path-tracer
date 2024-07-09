@@ -68,3 +68,7 @@ struct application
 void CreateImGui(application* App);
 void DestroyImGui(application* App);
 void ShowImGui(application* App);
+
+/* --- application.cpp ----------------------------------------------------- */
+
+void RunApplication(application* App);

@@ -34,13 +34,14 @@ add_executable (path-tracer
 	src/integrator/basic.hpp
 	src/integrator/basic.cpp
 	src/application/application.hpp
+	src/application/application.cpp
 	src/application/imgui_font.hpp
 	src/application/imgui_render.hpp
 	src/application/imgui_render.cpp
 	src/application/imgui_main.cpp
 	src/application/preview_render.hpp
 	src/application/preview_render.cpp
-	src/application/main.cpp
+	src/main.cpp
 	#
 	lib/imgui-1.90.5-docking/imgui.cpp
 	lib/imgui-1.90.5-docking/imgui_draw.cpp
@@ -103,6 +104,7 @@ endfunction ()
 
 target_sources (path-tracer PRIVATE
 	src/core/common.glsl.inc
+	src/core/spectrum.glsl.inc
 	src/scene/openpbr.glsl.inc
 	src/scene/scene.glsl.inc
 	src/integrator/basic.glsl.inc
@@ -110,6 +112,7 @@ target_sources (path-tracer PRIVATE
 
 source_group ("Shader Files" FILES
 	src/core/common.glsl.inc
+	src/core/spectrum.glsl.inc
 	src/scene/openpbr.glsl.inc
 	src/scene/scene.glsl.inc
 	src/integrator/basic.glsl.inc

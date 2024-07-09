@@ -7,12 +7,12 @@
 
 uint32_t const IMGUI_VERTEX_SHADER[] =
 {
-    #include "imgui.vertex.inc"
+    #include "imgui_render.vertex.inc"
 };
 
 uint32_t const IMGUI_FRAGMENT_SHADER[] =
 {
-    #include "imgui.fragment.inc"
+    #include "imgui_render.fragment.inc"
 };
 
 struct imgui_push_constant_buffer

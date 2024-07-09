@@ -38,15 +38,6 @@ using glm::aligned_vec4;
 using glm::aligned_mat3;
 using glm::aligned_mat4;
 
-uint const SHAPE_INDEX_NONE   = 0xFFFFFFFF;
-uint const TEXTURE_INDEX_NONE = 0xFFFFFFFF;
-
-enum render_flag : uint
-{
-    RENDER_FLAG_ACCUMULATE    = 1 << 0,
-    RENDER_FLAG_SAMPLE_JITTER = 1 << 1,
-};
-
 struct image
 {
     uint Width;
@@ -66,12 +57,6 @@ struct bounds
 {
     vec3 Minimum = { +INF, +INF, +INF };
     vec3 Maximum = { -INF, -INF, -INF };
-};
-
-struct ray
-{
-    vec3 Origin;
-    vec3 Vector;
 };
 
 inline mat4 MakeTransformMatrix
@@ -94,15 +79,6 @@ inline mat4 MakeTransformMatrix
     return glm::translate(glm::mat4(1.0f), Position)
          * glm::eulerAngleZYX(Rotation.z, Rotation.y, Rotation.x)
          * glm::scale(glm::mat4(1.0f), Scale);
-}
-
-inline ray TransformRay(ray const& Ray, mat4 const& Matrix)
-{
-    return
-    {
-        .Origin = (Matrix * vec4(Ray.Origin, 1)).xyz(),
-        .Vector = (Matrix * vec4(Ray.Vector, 0)).xyz(),
-    };
 }
 
 inline float RepeatRange(float Value, float Min, float Max)

@@ -4,6 +4,9 @@
 #include "core/spectrum.hpp"
 #include "core/vulkan.hpp"
 
+uint const SHAPE_INDEX_NONE   = 0xFFFFFFFF;
+uint const TEXTURE_INDEX_NONE = 0xFFFFFFFF;
+
 enum texture_type
 {
     TEXTURE_TYPE_RAW                    = 0,
