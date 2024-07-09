@@ -134,8 +134,8 @@ void Update(application* App)
             .RenderMode         = App->PreviewRenderMode,
             .Brightness         = App->PreviewBrightness,
             .SelectedShapeIndex = SHAPE_INDEX_NONE,
-            .RenderSizeX        = WINDOW_WIDTH,
-            .RenderSizeY        = WINDOW_HEIGHT,
+            .RenderSizeX        = static_cast<uint>(IO.DisplaySize.x),
+            .RenderSizeY        = static_cast<uint>(IO.DisplaySize.y),
             .MouseX             = static_cast<uint>(IO.MousePos.x),
             .MouseY             = static_cast<uint>(IO.MousePos.y),
         };
@@ -345,7 +345,6 @@ void RunApplication(application* App)
 
     glfwInit();
     glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
 
     App->Window = glfwCreateWindow(WINDOW_WIDTH, WINDOW_HEIGHT, APPLICATION_NAME, nullptr, nullptr);
     App->Vulkan = CreateVulkan(App->Window, APPLICATION_NAME);
@@ -366,9 +365,6 @@ void RunApplication(application* App)
     App->PreviewCamera.Velocity = { 0, 0, 0 };
     App->PreviewCamera.Rotation = { 0, 0, 0 };
 
-    ImGuiIO& IO = ImGui::GetIO();
-    IO.DisplaySize.x = WINDOW_WIDTH;
-    IO.DisplaySize.y = WINDOW_HEIGHT;
 
     glfwSetMouseButtonCallback(App->Window, MouseButtonInputCallback);
     glfwSetCursorPosCallback(App->Window, MousePositionInputCallback);
@@ -381,13 +377,21 @@ void RunApplication(application* App)
     {
         glfwPollEvents();
 
+        ImGuiIO& IO = ImGui::GetIO();
+
+        int Width, Height;
+        glfwGetWindowSize(App->Window, &Width, &Height);
+        IO.DisplaySize.x = static_cast<float>(Width);
+        IO.DisplaySize.y = static_cast<float>(Height);
+
         double CurrentTime = glfwGetTime();
         IO.DeltaTime = static_cast<float>(CurrentTime - PreviousTime);
-        PreviousTime = CurrentTime;
 
         Update(App);
 
         App->FrameIndex++;
+
+        PreviousTime = CurrentTime;
     }
 
     vkDeviceWaitIdle(App->Vulkan->Device);
