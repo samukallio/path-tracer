@@ -346,6 +346,7 @@ VkResult CreateVulkanImage
         return Result;
     }
 
+    // Perform a layout transition if an initial layout is requested.
     if (Layout != VK_IMAGE_LAYOUT_UNDEFINED)
     {
         VkCommandPool CommandPool = Compute
@@ -429,11 +430,20 @@ void DestroyVulkanImage
 )
 {
     if (Image->View)
+    {
         vkDestroyImageView(Vulkan->Device, Image->View, nullptr);
+        Image->View = VK_NULL_HANDLE;
+    }
     if (Image->Image)
+    {
         vkDestroyImage(Vulkan->Device, Image->Image, nullptr);
+        Image->Image = VK_NULL_HANDLE;
+    }
     if (Image->Memory)
+    {
         vkFreeMemory(Vulkan->Device, Image->Memory, nullptr);
+        Image->Memory = VK_NULL_HANDLE;
+    }
 }
 
 VkResult WriteToVulkanImage
@@ -482,18 +492,18 @@ VkResult WriteToVulkanImage
 
     VkBufferImageCopy Region =
     {
-        .bufferOffset       = 0,
-        .bufferRowLength    = Width,
-        .bufferImageHeight  = Height,
-        .imageSubresource   =
+        .bufferOffset = 0,
+        .bufferRowLength = Width,
+        .bufferImageHeight = Height,
+        .imageSubresource =
         {
-            .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
-            .mipLevel       = 0,
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .mipLevel = 0,
             .baseArrayLayer = LayerIndex,
-            .layerCount     = LayerCount,
+            .layerCount = LayerCount,
         },
-        .imageOffset        = { 0, 0 },
-        .imageExtent        = { Width, Height, 1 },
+        .imageOffset = { 0, 0 },
+        .imageExtent = { Width, Height, 1 },
     };
 
     vkCmdCopyBufferToImage
@@ -506,10 +516,10 @@ VkResult WriteToVulkanImage
 
     VkImageMemoryBarrier Barrier =
     {
-        .sType                  = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex    = VK_QUEUE_FAMILY_IGNORED,
-        .image                  = Image->Image,
+        .sType               = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .image               = Image->Image,
         .subresourceRange =
         {
             .aspectMask     = VK_IMAGE_ASPECT_COLOR_BIT,
@@ -520,78 +530,7 @@ VkResult WriteToVulkanImage
         },
     };
 
-    //int32_t srcWidth = image->extent.width;
-    //int32_t srcHeight = image->extent.height;
-
-    //for (uint32_t level = 1; level < image->levelCount; level++)
-    //{
-    //    barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-    //    barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    //    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-    //    barrier.newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-    //    barrier.subresourceRange.baseMipLevel = level - 1;
-
-    //    vkCmdPipelineBarrier(commandBuffer,
-    //        VK_PIPELINE_STAGE_TRANSFER_BIT,
-    //        VK_PIPELINE_STAGE_TRANSFER_BIT,
-    //        0,
-    //        0, nullptr,
-    //        0, nullptr,
-    //        1, &barrier);
-
-    //    int32_t dstWidth = std::max(1, srcWidth / 2);
-    //    int32_t dstHeight = std::max(1, srcHeight / 2);
-
-    //    VkImageBlit blit =
-    //    {
-    //        .srcSubresource =
-    //        {
-    //            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-    //            .mipLevel = level - 1,
-    //            .baseArrayLayer = 0,
-    //            .layerCount = 1,
-    //        },
-    //        .srcOffsets =
-    //        {
-    //            { 0, 0, 0 },
-    //            { srcWidth, srcHeight, 1 },
-    //        },
-    //        .dstSubresource =
-    //        {
-    //            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-    //            .mipLevel = level,
-    //            .baseArrayLayer = 0,
-    //            .layerCount = 1,
-    //        },
-    //        .dstOffsets =
-    //        {
-    //            { 0, 0, 0 },
-    //            { dstWidth, dstHeight, 1 },
-    //        },
-    //    };
-
-    //    vkCmdBlitImage(commandBuffer,
-    //        vki->image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-    //        vki->image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-    //        1, &blit, VK_FILTER_LINEAR);
-
-    //    barrier.srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-    //    barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    //    barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
-    //    barrier.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-    //    vkCmdPipelineBarrier(commandBuffer,
-    //        VK_PIPELINE_STAGE_TRANSFER_BIT,
-    //        VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-    //        0,
-    //        0, nullptr,
-    //        0, nullptr,
-    //        1, &barrier);
-
-    //    srcWidth = dstWidth;
-    //    srcHeight = dstHeight;
-    //}
-
-    Barrier.subresourceRange.baseMipLevel = 0; //vki->levelCount - 1;
+    Barrier.subresourceRange.baseMipLevel = 0;
     Barrier.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
     Barrier.dstAccessMask = 0;
     Barrier.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
@@ -609,13 +548,13 @@ VkResult WriteToVulkanImage
 
     vkEndCommandBuffer(CommandBuffer);
 
-    VkSubmitInfo submitInfo =
+    VkSubmitInfo SubmitInfo =
     {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+        .sType              = VK_STRUCTURE_TYPE_SUBMIT_INFO,
         .commandBufferCount = 1,
-        .pCommandBuffers = &CommandBuffer,
+        .pCommandBuffers    = &CommandBuffer,
     };
-    vkQueueSubmit(Vulkan->ComputeQueue, 1, &submitInfo, VK_NULL_HANDLE);
+    vkQueueSubmit(Vulkan->ComputeQueue, 1, &SubmitInfo, VK_NULL_HANDLE);
     vkQueueWaitIdle(Vulkan->ComputeQueue);
 
     vkFreeCommandBuffers(Vulkan->Device, Vulkan->ComputeCommandPool, 1, &CommandBuffer);
@@ -894,53 +833,53 @@ VkResult CreateVulkanGraphicsPipeline
     // Multisample state.
     auto MultisampleStateInfo = VkPipelineMultisampleStateCreateInfo
     {
-        .sType                   = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-        .rasterizationSamples    = VK_SAMPLE_COUNT_1_BIT,
-        .sampleShadingEnable     = VK_FALSE,
-        .minSampleShading        = 1.0f,
-        .pSampleMask             = nullptr,
-        .alphaToCoverageEnable   = VK_FALSE,
-        .alphaToOneEnable        = VK_FALSE,
+        .sType                 = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+        .rasterizationSamples  = VK_SAMPLE_COUNT_1_BIT,
+        .sampleShadingEnable   = VK_FALSE,
+        .minSampleShading      = 1.0f,
+        .pSampleMask           = nullptr,
+        .alphaToCoverageEnable = VK_FALSE,
+        .alphaToOneEnable      = VK_FALSE,
     };
 
     // Depth-stencil state.
     auto DepthStencilStateInfo = VkPipelineDepthStencilStateCreateInfo
     {
-        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
-        .depthTestEnable        = VK_FALSE,
-        .depthWriteEnable       = VK_FALSE,
-        .depthCompareOp         = VK_COMPARE_OP_LESS,
-        .depthBoundsTestEnable  = VK_FALSE,
-        .stencilTestEnable      = VK_FALSE,
-        .front                  = {},
-        .back                   = {},
-        .minDepthBounds         = 0.0f,
-        .maxDepthBounds         = 1.0f,
+        .sType                 = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+        .depthTestEnable       = VK_FALSE,
+        .depthWriteEnable      = VK_FALSE,
+        .depthCompareOp        = VK_COMPARE_OP_LESS,
+        .depthBoundsTestEnable = VK_FALSE,
+        .stencilTestEnable     = VK_FALSE,
+        .front                 = {},
+        .back                  = {},
+        .minDepthBounds        = 0.0f,
+        .maxDepthBounds        = 1.0f,
     };
 
     // Color blend state.
     auto ColorBlendAttachmentState = VkPipelineColorBlendAttachmentState
     {
-        .blendEnable            = VK_TRUE,
-        .srcColorBlendFactor    = VK_BLEND_FACTOR_SRC_ALPHA,
-        .dstColorBlendFactor    = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
-        .colorBlendOp           = VK_BLEND_OP_ADD,
-        .srcAlphaBlendFactor    = VK_BLEND_FACTOR_ONE,
-        .dstAlphaBlendFactor    = VK_BLEND_FACTOR_ZERO,
-        .alphaBlendOp           = VK_BLEND_OP_ADD,
-        .colorWriteMask         = VK_COLOR_COMPONENT_R_BIT
-                                | VK_COLOR_COMPONENT_G_BIT
-                                | VK_COLOR_COMPONENT_B_BIT
-                                | VK_COLOR_COMPONENT_A_BIT,
+        .blendEnable         = VK_TRUE,
+        .srcColorBlendFactor = VK_BLEND_FACTOR_SRC_ALPHA,
+        .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+        .colorBlendOp        = VK_BLEND_OP_ADD,
+        .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+        .dstAlphaBlendFactor = VK_BLEND_FACTOR_ZERO,
+        .alphaBlendOp        = VK_BLEND_OP_ADD,
+        .colorWriteMask      = VK_COLOR_COMPONENT_R_BIT
+                             | VK_COLOR_COMPONENT_G_BIT
+                             | VK_COLOR_COMPONENT_B_BIT
+                             | VK_COLOR_COMPONENT_A_BIT,
     };
     auto ColorBlendStateInfo = VkPipelineColorBlendStateCreateInfo
     {
-        .sType                  = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-        .logicOpEnable          = VK_FALSE,
-        .logicOp                = VK_LOGIC_OP_COPY,
-        .attachmentCount        = 1,
-        .pAttachments           = &ColorBlendAttachmentState,
-        .blendConstants         = { 0, 0, 0, 0 },
+        .sType           = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .logicOpEnable   = VK_FALSE,
+        .logicOp         = VK_LOGIC_OP_COPY,
+        .attachmentCount = 1,
+        .pAttachments    = &ColorBlendAttachmentState,
+        .blendConstants  = { 0, 0, 0, 0 },
     };
 
     // Pipeline layout.
@@ -970,22 +909,22 @@ VkResult CreateVulkanGraphicsPipeline
     // Create pipeline.
     auto GraphicsPipelineInfo = VkGraphicsPipelineCreateInfo
     {
-        .sType                  = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
-        .stageCount             = static_cast<uint32_t>(std::size(ShaderStageInfos)),
-        .pStages                = ShaderStageInfos,
-        .pVertexInputState      = &VertexInputStateInfo,
-        .pInputAssemblyState    = &InputAssemblyStateInfo,
-        .pViewportState         = &ViewportStateInfo,
-        .pRasterizationState    = &RasterizationStateInfo,
-        .pMultisampleState      = &MultisampleStateInfo,
-        .pDepthStencilState     = &DepthStencilStateInfo,
-        .pColorBlendState       = &ColorBlendStateInfo,
-        .pDynamicState          = &DynamicStateInfo,
-        .layout                 = Pipeline->PipelineLayout,
-        .renderPass             = Vulkan->RenderPass,
-        .subpass                = 0,
-        .basePipelineHandle     = VK_NULL_HANDLE,
-        .basePipelineIndex      = -1,
+        .sType               = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+        .stageCount          = static_cast<uint32_t>(std::size(ShaderStageInfos)),
+        .pStages             = ShaderStageInfos,
+        .pVertexInputState   = &VertexInputStateInfo,
+        .pInputAssemblyState = &InputAssemblyStateInfo,
+        .pViewportState      = &ViewportStateInfo,
+        .pRasterizationState = &RasterizationStateInfo,
+        .pMultisampleState   = &MultisampleStateInfo,
+        .pDepthStencilState  = &DepthStencilStateInfo,
+        .pColorBlendState    = &ColorBlendStateInfo,
+        .pDynamicState       = &DynamicStateInfo,
+        .layout              = Pipeline->PipelineLayout,
+        .renderPass          = Vulkan->RenderPass,
+        .subpass             = 0,
+        .basePipelineHandle  = VK_NULL_HANDLE,
+        .basePipelineIndex   = -1,
     };
 
     Result = vkCreateGraphicsPipelines(Vulkan->Device, VK_NULL_HANDLE, 1, &GraphicsPipelineInfo, nullptr, &Pipeline->Pipeline);
@@ -1127,19 +1066,19 @@ static VkResult InternalCreatePresentationResources(vulkan* Vulkan)
 
         auto SwapChainInfo = VkSwapchainCreateInfoKHR
         {
-            .sType              = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-            .surface            = Vulkan->Surface,
-            .minImageCount      = ImageCount,
-            .imageFormat        = Vulkan->SurfaceFormat.format,
-            .imageColorSpace    = Vulkan->SurfaceFormat.colorSpace,
-            .imageExtent        = ImageExtent,
-            .imageArrayLayers   = 1,
-            .imageUsage         = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
-            .preTransform       = SurfaceCapabilities.currentTransform,
-            .compositeAlpha     = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
-            .presentMode        = Vulkan->PresentMode,
-            .clipped            = VK_TRUE,
-            .oldSwapchain       = VK_NULL_HANDLE,
+            .sType            = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
+            .surface          = Vulkan->Surface,
+            .minImageCount    = ImageCount,
+            .imageFormat      = Vulkan->SurfaceFormat.format,
+            .imageColorSpace  = Vulkan->SurfaceFormat.colorSpace,
+            .imageExtent      = ImageExtent,
+            .imageArrayLayers = 1,
+            .imageUsage       = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT,
+            .preTransform     = SurfaceCapabilities.currentTransform,
+            .compositeAlpha   = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
+            .presentMode      = Vulkan->PresentMode,
+            .clipped          = VK_TRUE,
+            .oldSwapchain     = VK_NULL_HANDLE,
         };
 
         if (Vulkan->GraphicsQueueFamilyIndex == Vulkan->PresentQueueFamilyIndex)
@@ -1221,13 +1160,13 @@ static VkResult InternalCreatePresentationResources(vulkan* Vulkan)
 
             auto FrameBufferInfo = VkFramebufferCreateInfo
             {
-                .sType              = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
-                .renderPass         = Vulkan->RenderPass,
-                .attachmentCount    = 1,
-                .pAttachments       = &ImageView,
-                .width              = Vulkan->SwapChainExtent.width,
-                .height             = Vulkan->SwapChainExtent.height,
-                .layers             = 1,
+                .sType           = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO,
+                .renderPass      = Vulkan->RenderPass,
+                .attachmentCount = 1,
+                .pAttachments    = &ImageView,
+                .width           = Vulkan->SwapChainExtent.width,
+                .height          = Vulkan->SwapChainExtent.height,
+                .layers          = 1,
             };
 
             VkFramebuffer FrameBuffer;
@@ -1259,7 +1198,7 @@ static void InternalDestroyPresentationResources(vulkan* Vulkan)
     if (Vulkan->SwapChain)
     {
         vkDestroySwapchainKHR(Vulkan->Device, Vulkan->SwapChain, nullptr);
-        Vulkan->SwapChain = nullptr;
+        Vulkan->SwapChain = VK_NULL_HANDLE;
         Vulkan->SwapChainExtent = {};
         Vulkan->SwapChainFormat = VK_FORMAT_UNDEFINED;
         Vulkan->SwapChainImages.clear();
@@ -1268,9 +1207,9 @@ static void InternalDestroyPresentationResources(vulkan* Vulkan)
 
 static VkResult InternalCreateVulkan
 (
-    vulkan*             Vulkan,
-    GLFWwindow*         Window,
-    char const*         ApplicationName
+    vulkan*     Vulkan,
+    GLFWwindow* Window,
+    char const* ApplicationName
 )
 {
     VkResult Result = VK_SUCCESS;
@@ -1344,9 +1283,9 @@ static VkResult InternalCreateVulkan
             .sType                   = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
             .pNext                   = &DebugMessengerInfo,
             .pApplicationInfo        = &ApplicationInfo,
-            .enabledLayerCount       = (uint32_t)RequiredLayerNames.size(),
+            .enabledLayerCount       = static_cast<uint>(RequiredLayerNames.size()),
             .ppEnabledLayerNames     = RequiredLayerNames.data(),
-            .enabledExtensionCount   = (uint32_t)RequiredExtensionNames.size(),
+            .enabledExtensionCount   = static_cast<uint>(RequiredExtensionNames.size()),
             .ppEnabledExtensionNames = RequiredExtensionNames.data(),
         };
 
@@ -1419,6 +1358,8 @@ static VkResult InternalCreateVulkan
                 }
             }
 
+            // If any of the required queue families are missing,
+            // then the physical device is not eligible.
             if (!GraphicsQueueFamilyIndex.has_value())
                 continue;
             if (!ComputeQueueFamilyIndex.has_value())
@@ -1447,6 +1388,9 @@ static VkResult InternalCreateVulkan
                     break;
                 }
             }
+
+            // If any of the required device extensions are missing,
+            // then the physical device is not eligible.
             if (!DeviceExtensionsFound)
                 continue;
 
@@ -1466,6 +1410,9 @@ static VkResult InternalCreateVulkan
                     SurfaceFormatFound = true;
                 }
             }
+
+            // If the required surface format is not supported,
+            // then the physical device is not eligible.
             if (!SurfaceFormatFound)
                 continue;
 
@@ -1489,14 +1436,14 @@ static VkResult InternalCreateVulkan
             vkGetPhysicalDeviceProperties(PhysicalDevice, &PhysicalDeviceProperties);
 
             // Suitable physical device found.
-            Vulkan->PhysicalDevice = PhysicalDevice;
-            Vulkan->PhysicalDeviceFeatures = PhysicalDeviceFeatures;
+            Vulkan->PhysicalDevice           = PhysicalDevice;
+            Vulkan->PhysicalDeviceFeatures   = PhysicalDeviceFeatures;
             Vulkan->PhysicalDeviceProperties = PhysicalDeviceProperties;
             Vulkan->GraphicsQueueFamilyIndex = GraphicsQueueFamilyIndex.value();
-            Vulkan->ComputeQueueFamilyIndex = ComputeQueueFamilyIndex.value();
-            Vulkan->PresentQueueFamilyIndex = PresentQueueFamilyIndex.value();
-            Vulkan->SurfaceFormat = SurfaceFormat;
-            Vulkan->PresentMode = PresentMode;
+            Vulkan->ComputeQueueFamilyIndex  = ComputeQueueFamilyIndex.value();
+            Vulkan->PresentQueueFamilyIndex  = PresentQueueFamilyIndex.value();
+            Vulkan->SurfaceFormat            = SurfaceFormat;
+            Vulkan->PresentMode              = PresentMode;
             break;
         }
 
@@ -1559,7 +1506,7 @@ static VkResult InternalCreateVulkan
         vkGetDeviceQueue(Vulkan->Device, Vulkan->PresentQueueFamilyIndex, 0, &Vulkan->PresentQueue);
     }
 
-    // Create graphics and compute command pools.
+    // Create command and descriptor pools.
     {
         auto GraphicsCommandPoolInfo = VkCommandPoolCreateInfo
         {
@@ -1588,10 +1535,7 @@ static VkResult InternalCreateVulkan
             Errorf(Vulkan, "failed to create compute command pool");
             return Result;
         }
-    }
 
-    // Create descriptor pool.
-    {
         VkDescriptorPoolSize DescriptorPoolSizes[] =
         {
             {
@@ -1645,8 +1589,8 @@ static VkResult InternalCreateVulkan
 
         auto ColorAttachmentRef = VkAttachmentReference
         {
-            .attachment     = 0,
-            .layout         = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .attachment = 0,
+            .layout     = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
         };
 
         auto SubpassDesc = VkSubpassDescription
@@ -1687,6 +1631,7 @@ static VkResult InternalCreateVulkan
         }
     }
 
+    // Create linear texture sampler.
     {
         auto SamplerInfo = VkSamplerCreateInfo
         {
@@ -1716,6 +1661,7 @@ static VkResult InternalCreateVulkan
         }
     }
 
+    // Create nearest no-mipmap texture sampler.
     {
         auto SamplerInfo = VkSamplerCreateInfo
         {
@@ -1745,6 +1691,7 @@ static VkResult InternalCreateVulkan
         }
     }
 
+    // Create linear no-mipmap texture sampler.
     {
         auto SamplerInfo = VkSamplerCreateInfo
         {
@@ -1777,7 +1724,7 @@ static VkResult InternalCreateVulkan
     // Create per-in-flight-frame resources.
     for (int Index = 0; Index < 2; Index++)
     {
-        vulkan_frame* Frame = &Vulkan->FrameStates[Index];
+        vulkan_frame* Frame = &Vulkan->Frames[Index];
 
         Frame->Index = Index;
         Frame->Fresh = true;
@@ -1819,8 +1766,8 @@ static VkResult InternalCreateVulkan
 
         VkSemaphore* SemaphorePtrs[] =
         {
-            &Frame->ImageAvailableSemaphore,
-            &Frame->ImageFinishedSemaphore,
+            &Frame->PresentToGraphicsSemaphore,
+            &Frame->GraphicsToPresentSemaphore,
             &Frame->ComputeToComputeSemaphore,
             &Frame->ComputeToGraphicsSemaphore,
         };
@@ -1856,9 +1803,10 @@ static VkResult InternalCreateVulkan
             }
         }
 
-        Vulkan->FrameStates[Index].Previous = &Vulkan->FrameStates[1-Index];
+        Vulkan->Frames[Index].Previous = &Vulkan->Frames[1-Index];
     }
 
+    // Create swap chain and related resources.
     Result = InternalCreatePresentationResources(Vulkan);
     if (Result != VK_SUCCESS) return Result;
 
@@ -1898,12 +1846,12 @@ void DestroyVulkan(vulkan* Vulkan)
     // Destroy per-in-flight-frame resources.
     for (int Index = 0; Index < 2; Index++)
     {
-        vulkan_frame* Frame = &Vulkan->FrameStates[Index];
+        vulkan_frame* Frame = &Vulkan->Frames[Index];
 
         vkDestroySemaphore(Vulkan->Device, Frame->ComputeToComputeSemaphore, nullptr);
         vkDestroySemaphore(Vulkan->Device, Frame->ComputeToGraphicsSemaphore, nullptr);
-        vkDestroySemaphore(Vulkan->Device, Frame->ImageAvailableSemaphore, nullptr);
-        vkDestroySemaphore(Vulkan->Device, Frame->ImageFinishedSemaphore, nullptr);
+        vkDestroySemaphore(Vulkan->Device, Frame->PresentToGraphicsSemaphore, nullptr);
+        vkDestroySemaphore(Vulkan->Device, Frame->GraphicsToPresentSemaphore, nullptr);
 
         vkDestroyFence(Vulkan->Device, Frame->AvailableFence, nullptr);
 
@@ -1956,7 +1904,7 @@ void DestroyVulkan(vulkan* Vulkan)
     if (Vulkan->Device)
     {
         vkDestroyDevice(Vulkan->Device, nullptr);
-        Vulkan->Device = nullptr;
+        Vulkan->Device = VK_NULL_HANDLE;
         Vulkan->GraphicsQueue = VK_NULL_HANDLE;
         Vulkan->ComputeQueue = VK_NULL_HANDLE;
         Vulkan->PresentQueue = VK_NULL_HANDLE;
@@ -2002,15 +1950,21 @@ VkResult BeginVulkanFrame(vulkan* Vulkan)
 
     Vulkan->FrameIndex++;
 
-    vulkan_frame* Frame = &Vulkan->FrameStates[Vulkan->FrameIndex % 2];
-
-    uint32_t RandomSeed = Vulkan->FrameIndex * 65537;
+    vulkan_frame* Frame = &Vulkan->Frames[Vulkan->FrameIndex % 2];
 
     // Wait for the previous commands using this frame state to finish executing.
     vkWaitForFences(Vulkan->Device, 1, &Frame->AvailableFence, VK_TRUE, UINT64_MAX);
 
     // Try to acquire a swap chain image for us to render to.
-    Result = vkAcquireNextImageKHR(Vulkan->Device, Vulkan->SwapChain, UINT64_MAX, Frame->ImageAvailableSemaphore, VK_NULL_HANDLE, &Frame->ImageIndex);
+    Result = vkAcquireNextImageKHR
+    (
+        Vulkan->Device,
+        Vulkan->SwapChain,
+        UINT64_MAX,
+        Frame->PresentToGraphicsSemaphore,
+        VK_NULL_HANDLE,
+        &Frame->ImageIndex
+    );
 
     // Image acquisition can fail if the swap chain becomes out of date, which
     // can happen for example if the window is resized or moves to another monitor.
@@ -2019,6 +1973,7 @@ VkResult BeginVulkanFrame(vulkan* Vulkan)
     {
         // Device must be idle to recreate presentation resources.
         vkDeviceWaitIdle(Vulkan->Device);
+        InternalDestroyPresentationResources(Vulkan);
 
         // Wait until window frame buffer size is available.
         int Width = 0, Height = 0;
@@ -2029,12 +1984,29 @@ VkResult BeginVulkanFrame(vulkan* Vulkan)
             glfwWaitEvents();
         }
 
-        // Recreate the swap chain and try again to acquire an image.
-        InternalDestroyPresentationResources(Vulkan);
-        InternalCreatePresentationResources(Vulkan);
-        Result = vkAcquireNextImageKHR(Vulkan->Device, Vulkan->SwapChain, UINT64_MAX, Frame->ImageAvailableSemaphore, VK_NULL_HANDLE, &Frame->ImageIndex);
+        // Try to recreate the swap chain.
+        Result = InternalCreatePresentationResources(Vulkan);
+        if (Result != VK_SUCCESS)
+        {
+            Errorf(Vulkan, "failed to recreate swap chain after failing to acquire an image");
+            return Result;
+        }
+
+        // Try again to acquire an image.
+        Result = vkAcquireNextImageKHR
+        (
+            Vulkan->Device,
+            Vulkan->SwapChain,
+            UINT64_MAX,
+            Frame->PresentToGraphicsSemaphore,
+            VK_NULL_HANDLE,
+            &Frame->ImageIndex
+        );
     }
 
+    // If the image acquisition failed for reasons other than the swap
+    // chain being out of date, or failed again despite the swap chain
+    // being recreated, then give up.
     if (Result != VK_SUCCESS)
     {
         Errorf(Vulkan, "failed to acquire swap chain image");
@@ -2044,14 +2016,16 @@ VkResult BeginVulkanFrame(vulkan* Vulkan)
     // Reset the fence to indicate that the frame state is no longer available.
     vkResetFences(Vulkan->Device, 1, &Frame->AvailableFence);
 
-    // Prepare compute command buffer.
+    // Begin recording compute command buffer.
     vkResetCommandBuffer(Frame->ComputeCommandBuffer, 0);
+
     auto ComputeBeginInfo = VkCommandBufferBeginInfo
     {
         .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags            = 0,
         .pInheritanceInfo = nullptr,
     };
+
     Result = vkBeginCommandBuffer(Frame->ComputeCommandBuffer, &ComputeBeginInfo);
     if (Result != VK_SUCCESS)
     {
@@ -2059,14 +2033,16 @@ VkResult BeginVulkanFrame(vulkan* Vulkan)
         return Result;
     }
 
-    // Prepare graphics command buffer.
+    // Begin recording graphics command buffer.
     vkResetCommandBuffer(Frame->GraphicsCommandBuffer, 0);
+
     auto GraphicsBeginInfo = VkCommandBufferBeginInfo
     {
         .sType            = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         .flags            = 0,
         .pInheritanceInfo = nullptr,
     };
+
     Result = vkBeginCommandBuffer(Frame->GraphicsCommandBuffer, &GraphicsBeginInfo);
     if (Result != VK_SUCCESS)
     {
@@ -2114,25 +2090,23 @@ VkResult BeginVulkanFrame(vulkan* Vulkan)
     }
 
     // Begin render pass.
+    VkClearValue ClearValues[] =
     {
-        VkClearValue ClearValues[] =
-        {
-            { .color = {{ 0.0f, 0.0f, 0.0f, 1.0f }} },
-            { .depthStencil = { 1.0f, 0 } }
-        };
+        { .color = {{ 0.0f, 0.0f, 0.0f, 1.0f }} },
+        { .depthStencil = { 1.0f, 0 } }
+    };
 
-        auto RenderPassBeginInfo = VkRenderPassBeginInfo
-        {
-            .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-            .renderPass      = Vulkan->RenderPass,
-            .framebuffer     = Vulkan->SwapChainFrameBuffers[Frame->ImageIndex],
-            .renderArea      = { .offset = { 0, 0 }, .extent = Vulkan->SwapChainExtent },
-            .clearValueCount = 2,
-            .pClearValues    = ClearValues,
-        };
+    auto RenderPassBeginInfo = VkRenderPassBeginInfo
+    {
+        .sType           = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+        .renderPass      = Vulkan->RenderPass,
+        .framebuffer     = Vulkan->SwapChainFrameBuffers[Frame->ImageIndex],
+        .renderArea      = { .offset = { 0, 0 }, .extent = Vulkan->SwapChainExtent },
+        .clearValueCount = 2,
+        .pClearValues    = ClearValues,
+    };
 
-        vkCmdBeginRenderPass(Frame->GraphicsCommandBuffer, &RenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
-    }
+    vkCmdBeginRenderPass(Frame->GraphicsCommandBuffer, &RenderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
     Vulkan->CurrentFrame = Frame;
 
@@ -2246,7 +2220,7 @@ VkResult EndVulkanFrame(vulkan* Vulkan)
         VkSemaphore GraphicsWaitSemaphores[] =
         {
             Frame->ComputeToGraphicsSemaphore,
-            Frame->ImageAvailableSemaphore,
+            Frame->PresentToGraphicsSemaphore,
         };
 
         auto GraphicsSubmitInfo = VkSubmitInfo
@@ -2258,7 +2232,7 @@ VkResult EndVulkanFrame(vulkan* Vulkan)
             .commandBufferCount   = 1,
             .pCommandBuffers      = &Frame->GraphicsCommandBuffer,
             .signalSemaphoreCount = 1,
-            .pSignalSemaphores    = &Frame->ImageFinishedSemaphore,
+            .pSignalSemaphores    = &Frame->GraphicsToPresentSemaphore,
         };
 
         Result = vkQueueSubmit(Vulkan->GraphicsQueue, 1, &GraphicsSubmitInfo, Frame->AvailableFence);
@@ -2267,12 +2241,15 @@ VkResult EndVulkanFrame(vulkan* Vulkan)
             Errorf(Vulkan, "failed to submit graphics command buffer");
             return Result;
         }
+    }
 
+    // Queue the swap chain image for presentation.
+    {
         auto PresentInfo = VkPresentInfoKHR
         {
             .sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
             .waitSemaphoreCount = 1,
-            .pWaitSemaphores    = &Frame->ImageFinishedSemaphore,
+            .pWaitSemaphores    = &Frame->GraphicsToPresentSemaphore,
             .swapchainCount     = 1,
             .pSwapchains        = &Vulkan->SwapChain,
             .pImageIndices      = &Frame->ImageIndex,

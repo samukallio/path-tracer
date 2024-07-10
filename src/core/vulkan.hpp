@@ -76,23 +76,19 @@ struct vulkan_frame
     // Previous in-flight frame.
     vulkan_frame* Previous = nullptr;
 
-    // Signaled when the previous commands accessing the resources of this frame state have been completed.
-    VkFence AvailableFence = VK_NULL_HANDLE;
-
     // Index of the swap chain image to render to in this frame.
     uint32_t ImageIndex = 0;
 
-    // Signaled when a swap chain image is ready to render into.
-    VkSemaphore ImageAvailableSemaphore = VK_NULL_HANDLE;
-
-    // Signaled when rendering has finished and swap chain image can be presented.
-    VkSemaphore ImageFinishedSemaphore = VK_NULL_HANDLE;
-
     // Signaled when compute has finished for this frame, waited on by next frame compute.
     VkSemaphore ComputeToComputeSemaphore = VK_NULL_HANDLE;
-
     // Signaled when compute has finished for this frame, waited on by this frame graphics.
     VkSemaphore ComputeToGraphicsSemaphore = VK_NULL_HANDLE;
+    // Signaled when a swap chain image is ready to render into.
+    VkSemaphore PresentToGraphicsSemaphore = VK_NULL_HANDLE;
+    // Signaled when rendering has finished and swap chain image can be presented.
+    VkSemaphore GraphicsToPresentSemaphore = VK_NULL_HANDLE;
+    // Signaled when the previous commands accessing the resources of this frame state have been completed.
+    VkFence AvailableFence = VK_NULL_HANDLE;
 
     // Command buffers for this frame.
     VkCommandBuffer GraphicsCommandBuffer = VK_NULL_HANDLE;
@@ -149,9 +145,9 @@ struct vulkan
     VkRenderPass RenderPass = VK_NULL_HANDLE;
 
     // Resources per in-flight frame.
-    uint32_t      FrameIndex     = 0;
-    vulkan_frame  FrameStates[2] = {};
-    vulkan_frame* CurrentFrame   = nullptr;
+    uint32_t      FrameIndex   = 0;
+    vulkan_frame  Frames[2]    = {};
+    vulkan_frame* CurrentFrame = nullptr;
 
     // Texture samplers.
     VkSampler ImageSamplerNearestNoMip = VK_NULL_HANDLE;
