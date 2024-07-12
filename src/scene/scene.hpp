@@ -23,6 +23,7 @@ enum texture_flag : uint
 enum material_type
 {
     MATERIAL_TYPE_OPENPBR = 0,
+    MATERIAL_TYPE__COUNT  = 1,
 };
 
 enum shape_type : int32_t
@@ -40,17 +41,6 @@ enum camera_model : int32_t
     CAMERA_MODEL_360       = 2,
     CAMERA_MODEL__COUNT    = 3,
 };
-
-inline char const* MaterialTypeName(material_type Type)
-{
-    switch (Type)
-    {
-        case MATERIAL_TYPE_OPENPBR:
-            return "OpenPBR";
-    }
-    assert(false);
-    return nullptr;
-}
 
 inline char const* TextureTypeName(texture_type Type)
 {
@@ -455,3 +445,38 @@ void DestroyVulkanScene(vulkan* Vulkan, vulkan_scene* VulkanScene);
 /* --- Material Types -------------------------------------------------------- */
 
 #include "scene/openpbr.hpp"
+
+inline char const* MaterialTypeName(material_type Type)
+{
+    switch (Type)
+    {
+        case MATERIAL_TYPE_OPENPBR:
+            return "OpenPBR";
+    }
+    assert(false);
+    return nullptr;
+}
+
+inline uint MaterialTypePackedSize(material_type Type)
+{
+    switch (Type)
+    {
+        case MATERIAL_TYPE_OPENPBR:
+            return 64;
+    }
+    assert(false);
+    return 0;
+}
+
+template<typename function_type>
+inline void ForEachMaterialTexture(scene* Scene, material* Material, function_type&& Function)
+{
+    if (Material->Type == MATERIAL_TYPE_OPENPBR)
+        OpenPBR_ForEachTexture(Scene, static_cast<material_openpbr*>(Material), std::forward<function_type>(Function));
+}
+
+inline void PackMaterialData(scene* Scene, material* Material, uint* AttributeData)
+{
+    if (Material->Type == MATERIAL_TYPE_OPENPBR)
+        OpenPBR_PackData(Scene, static_cast<material_openpbr*>(Material), AttributeData);
+}

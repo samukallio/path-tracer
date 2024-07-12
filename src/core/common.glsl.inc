@@ -22,29 +22,19 @@ struct packed_transform
 
 struct ray
 {
-    vec3 Origin;
-    vec3 Velocity;
+    vec3  Origin;
+    vec3  Velocity;
     float Duration;
 };
 
 // Volumetric material properties of a participating medium.
 struct medium
 {
-    uint Priority; // Priority of the medium when multiple media overlap.
-    vec4 IOR; // Absolute index of refraction at each of the 4 sampling wavelengths.
-    vec4 AbsorptionRate; // Absorption rate at each of the 4 sampling wavelengths.
-    vec4 ScatteringRate; // Scattering rate at each of the 4 sampling wavelengths.
+    uint  Priority;             // Priority of the medium when multiple media overlap.
+    vec4  IOR;                  // Absolute index of refraction at each of the 4 sampling wavelengths.
+    vec4  AbsorptionRate;       // Absorption rate at each of the 4 sampling wavelengths.
+    vec4  ScatteringRate;       // Scattering rate at each of the 4 sampling wavelengths.
     float ScatteringAnisotropy; // Scattering phase function anisotropy.
-};
-
-struct path
-{
-    float NormalizedLambda0;
-    vec4 Throughput; // Path throughput at each of the 4 sampling wavelengths.
-    vec4 Weight; // Path weight at each of the 4 sampling wavelengths.
-    vec3 Sample;
-    ivec2 ImagePosition;
-    uint ActiveShapeIndex[4];
 };
 
 vec3 TransformPosition(vec3 P, packed_transform Transform)

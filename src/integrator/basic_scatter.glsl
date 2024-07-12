@@ -70,9 +70,9 @@ void GenerateNewPath(uint Index, ivec2 ImagePosition)
     StorePath(Index, Path);
 }
 
-void ResolveMedium(uint ShapeIndex, vec4 Lambda, out medium Medium)
+medium ResolveMedium(uint ShapeIndex, vec4 Lambda)
 {
-    Medium.Priority = ShapeIndex;
+    medium Medium;
 
     if (ShapeIndex == SHAPE_INDEX_NONE)
     {
@@ -85,8 +85,11 @@ void ResolveMedium(uint ShapeIndex, vec4 Lambda, out medium Medium)
     else
     {
         packed_shape Shape = Shapes[ShapeIndex];
-        OpenPBRResolveMedium(Shape.MaterialIndex, Lambda, Medium);
+        Medium = MaterialMedium(Shape.MaterialIndex, Lambda);
     }
+
+    Medium.Priority = ShapeIndex;
+    return Medium;
 }
 
 void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
@@ -105,8 +108,7 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
         ActiveShapeIndex = min(ActiveShapeIndex, Path.ActiveShapeIndex[I]);
 
     // Determine the properties of the incident participating medium.
-    medium Medium;
-    ResolveMedium(ActiveShapeIndex, Lambda, Medium);
+    medium Medium = ResolveMedium(ActiveShapeIndex, Lambda);
 
     // Apply attenuation due to absorption.
     Path.Throughput *= exp(-Medium.AbsorptionRate * Hit.Time);
@@ -211,22 +213,17 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
                 ExteriorShapeIndex = min(ExteriorShapeIndex, Path.ActiveShapeIndex[I]);
             }
 
-            medium Exterior;
-            ResolveMedium(ExteriorShapeIndex, Lambda, Exterior);
+            medium Exterior = ResolveMedium(ExteriorShapeIndex, Lambda);
 
             ExteriorIOR = Exterior.IOR;
         }
     }
 
     // Resolve the surface and medium details.
-    {
-        openpbr_surface Surface = OpenPBRResolveSurface(Hit, Lambda, ExteriorIOR);
-
-        if (IsRealSurface && Random0To1() < Surface.Opacity)
-            OpenPBRBSDF(Surface, Lambda, Out, In, Path);
-        else
-            In = -Out;
-    }
+    if (IsRealSurface)
+        MaterialSample(Hit.MaterialIndex, Hit.UV, Lambda, ExteriorIOR, Out, In, Path.Throughput, Path.Weight);
+    else
+        In = -Out;
 
     if (max4(Path.Weight) < EPSILON) return;
 

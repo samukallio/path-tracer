@@ -317,21 +317,17 @@ void DestroyTexture(scene* Scene, texture* Texture)
     bool MaterialsDirty = false;
     for (material* Material : Scene->Materials)
     {
-        if (Material->Type == MATERIAL_TYPE_OPENPBR)
-        {
-            OpenPBRForEachTexture
-            (
-                static_cast<material_openpbr*>(Material),
-                [Texture, &MaterialsDirty](texture*& T)
+        ForEachMaterialTexture
+        (
+            Scene, Material, [Texture, &MaterialsDirty](texture*& T)
+            {
+                if (T == Texture)
                 {
-                    if (T == Texture)
-                    {
-                        T = nullptr;
-                        MaterialsDirty = true;
-                    }
+                    T = nullptr;
+                    MaterialsDirty = true;
                 }
-            );
-        }
+            }
+        );
     }
 
     if (MaterialsDirty) Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
@@ -1275,20 +1271,23 @@ uint32_t PackSceneData(scene* Scene)
 
         // Fallback material.
         {
-            material_openpbr Material = {};
+            material_openpbr OpenPBR = {};
+
+            material* Material = &OpenPBR;
             size_t Offset = Scene->MaterialAttributePack.size();
+            size_t Size = MaterialTypePackedSize(Material->Type);
             Scene->MaterialAttributePack.resize(Offset + 64);
-            OpenPBRPackMaterial(Scene, &Material, &Scene->MaterialAttributePack[Offset]);
+            Scene->MaterialAttributePack[Offset] = Material->Type;
+            PackMaterialData(Scene, Material, &Scene->MaterialAttributePack[Offset]);
         }
 
         for (material* Material : Scene->Materials)
         {
             size_t Offset = Scene->MaterialAttributePack.size();
-            if (Material->Type == MATERIAL_TYPE_OPENPBR)
-            {
-                Scene->MaterialAttributePack.resize(Offset + 64);
-                OpenPBRPackMaterial(Scene, static_cast<material_openpbr*>(Material), &Scene->MaterialAttributePack[Offset]);
-            }
+            size_t Size = MaterialTypePackedSize(Material->Type);
+            Scene->MaterialAttributePack.resize(Offset + Size);
+            Scene->MaterialAttributePack[Offset] = Material->Type;
+            PackMaterialData(Scene, Material, &Scene->MaterialAttributePack[Offset]);
             Material->PackedMaterialIndex = static_cast<uint32_t>(Offset) / 32;
         }
 

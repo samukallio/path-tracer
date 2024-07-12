@@ -4,28 +4,30 @@
 #include "core/common.glsl.inc"
 #include "core/spectrum.glsl.inc"
 
-const uint SHAPE_INDEX_NONE = 0xFFFFFFFF;
+const uint SHAPE_INDEX_NONE   = 0xFFFFFFFF;
 const uint TEXTURE_INDEX_NONE = 0xFFFFFFFF;
 
 const uint SHAPE_TYPE_MESH_INSTANCE = 0;
-const uint SHAPE_TYPE_PLANE = 1;
-const uint SHAPE_TYPE_SPHERE = 2;
-const uint SHAPE_TYPE_CUBE = 3;
+const uint SHAPE_TYPE_PLANE         = 1;
+const uint SHAPE_TYPE_SPHERE        = 2;
+const uint SHAPE_TYPE_CUBE          = 3;
 
-const uint TEXTURE_TYPE_RAW = 0;
+const uint TEXTURE_TYPE_RAW                    = 0;
 const uint TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA = 1;
-const uint TEXTURE_TYPE_RADIANCE = 2;
+const uint TEXTURE_TYPE_RADIANCE               = 2;
 
 const uint TEXTURE_FLAG_FILTER_NEAREST = 1 << 0;
 
-const uint TONE_MAPPING_MODE_CLAMP = 0;
-const uint TONE_MAPPING_MODE_REINHARD = 1;
-const uint TONE_MAPPING_MODE_HABLE = 2;
-const uint TONE_MAPPING_MODE_ACES = 3;
+const uint MATERIAL_TYPE_OPENPBR = 0;
 
-const uint CAMERA_MODEL_PINHOLE = 0;
+const uint TONE_MAPPING_MODE_CLAMP    = 0;
+const uint TONE_MAPPING_MODE_REINHARD = 1;
+const uint TONE_MAPPING_MODE_HABLE    = 2;
+const uint TONE_MAPPING_MODE_ACES     = 3;
+
+const uint CAMERA_MODEL_PINHOLE   = 0;
 const uint CAMERA_MODEL_THIN_LENS = 1;
-const uint CAMERA_MODEL_360 = 2;
+const uint CAMERA_MODEL_360       = 2;
 
 struct packed_texture
 {
@@ -79,42 +81,42 @@ struct packed_mesh_node
 
 struct packed_camera
 {
-    uint Model;
+    uint  Model;
     float FocalLength;
     float ApertureRadius;
     float SensorDistance;
-    vec2 SensorSize;
+    vec2  SensorSize;
     packed_transform Transform;
 };
 
 struct packed_scene_globals
 {
-    mat3 SkyboxDistributionFrame;
+    mat3  SkyboxDistributionFrame;
     float SkyboxDistributionConcentration;
     float SkyboxBrightness;
-    uint SkyboxTextureIndex;
-    uint ShapeCount;
+    uint  SkyboxTextureIndex;
+    uint  ShapeCount;
     float SceneScatterRate;
 };
 
 // Result of tracing a ray against the geometry of a scene.
 struct hit
 {
-    float Time; // Time of hit along the ray vector.
-    uint ShapeIndex; // Index (into the shape array) of shape that was hit.
-    vec3 Position; // World space position of the hit.
-    vec3 Normal; // World space normal of the hit surface.
-    vec3 TangentX; // World space tangent of the hit surface.
-    uint MaterialIndex; // Surface material index.
-    vec2 UV; // Surface texture map coordinates.
+    float Time;                 // Time of hit along the ray vector.
+    uint  ShapeIndex;           // Index (into the shape array) of shape that was hit.
+    vec3  Position;             // World space position of the hit.
+    vec3  Normal;               // World space normal of the hit surface.
+    vec3  TangentX;             // World space tangent of the hit surface.
+    uint  MaterialIndex;        // Surface material index.
+    vec2  UV;                   // Surface texture map coordinates.
 
-    vec3 TangentY; // World space bitangent of the hit surface.
+    vec3  TangentY;             // World space bitangent of the hit surface.
 
-    uint ShapeType; // Type of shape that was hit.
-    vec3 PrimitiveCoordinates; // Shape type-dependent primitive coordinates (e.g. barycentric coordinates).
-    uint PrimitiveIndex; // Index of primitive within the shape (e.g. mesh face) that was hit.
-    uint SceneComplexity; // Total number of shape nodes traversed while tracing.
-    uint MeshComplexity; // Total number of mesh nodes traversed while tracing.
+    uint  ShapeType;            // Type of shape that was hit.
+    vec3  PrimitiveCoordinates; // Shape type-dependent primitive coordinates (e.g. barycentric coordinates).
+    uint  PrimitiveIndex;       // Index of primitive within the shape (e.g. mesh face) that was hit.
+    uint  SceneComplexity;      // Total number of shape nodes traversed while tracing.
+    uint  MeshComplexity;       // Total number of mesh nodes traversed while tracing.
 };
 
 #ifdef BIND_SCENE
@@ -178,6 +180,11 @@ readonly buffer CameraSSBO
 {
     packed_camera Cameras[];
 };
+
+uint MaterialType(uint MaterialSlotIndex)
+{
+    return MaterialData[32*MaterialSlotIndex];
+}
 
 uint MaterialUint(uint MaterialSlotIndex, uint AttributeIndex)
 {
@@ -601,6 +608,43 @@ ray GenerateCameraRay(packed_camera Camera, vec2 NormalizedSamplePosition)
 }
 
 #include "scene/openpbr.glsl.inc"
+
+vec3 MaterialBaseColor(uint MaterialIndex, vec2 TextureUV)
+{
+    uint Type = MaterialType(MaterialIndex);
+    if (Type == MATERIAL_TYPE_OPENPBR)
+        return OpenPBR_BaseColor(MaterialIndex, TextureUV);
+    return vec3(0,0,0);
+}
+
+medium MaterialMedium(uint MaterialIndex, vec4 Lambda)
+{
+    medium Medium;
+    uint Type = MaterialType(MaterialIndex);
+    if (Type == MATERIAL_TYPE_OPENPBR)
+        Medium = OpenPBR_Medium(MaterialIndex, Lambda);
+    return Medium;
+}
+
+void MaterialSample
+(
+    uint MaterialIndex,
+    vec2 TextureUV,
+    vec4 Lambda,
+    vec4 ExteriorIOR,
+
+    vec3 Out, out vec3 In,
+    inout vec4 PathThroughput,
+    inout vec4 PathDensity
+)
+{
+    uint Type = MaterialType(MaterialIndex);
+    if (Type == MATERIAL_TYPE_OPENPBR)
+    {
+        openpbr_parameters Parameters = OpenPBR_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
+        OpenPBR_Sample(Parameters, Out, In, PathThroughput, PathDensity);
+    }
+}
 
 #endif // BIND_SCENE
 

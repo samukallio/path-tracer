@@ -41,7 +41,6 @@ struct material_openpbr : material
     material_openpbr() { Type = MATERIAL_TYPE_OPENPBR; }
 };
 
-const uint OPENPBR_OPACITY                             = 0;
 const uint OPENPBR_LAYER_BOUNCE_LIMIT                  = 1;
 const uint OPENPBR_BASE_WEIGHT                         = 2;
 const uint OPENPBR_BASE_SPECTRUM                       = 3;
@@ -71,18 +70,17 @@ const uint OPENPBR_COAT_ROUGHNESS_ANISOTROPY           = 38;
 const uint OPENPBR_COAT_DARKENING                      = 39;
 
 template<typename function_type>
-inline void OpenPBRForEachTexture(material_openpbr* Material, function_type Function)
+inline void OpenPBR_ForEachTexture(scene* Scene, material_openpbr* Material, function_type Function)
 {
     Function(Material->BaseColorTexture);
     Function(Material->SpecularRoughnessTexture);
     Function(Material->EmissionColorTexture);
 }
 
-inline void OpenPBRPackMaterial(scene* Scene, material_openpbr* Material, uint* AttributeData)
+inline void OpenPBR_PackData(scene* Scene, material_openpbr* Material, uint* AttributeData)
 {
     uint* A = AttributeData;
 
-    A[OPENPBR_OPACITY] = glm::floatBitsToUint(Material->Opacity);
     A[OPENPBR_LAYER_BOUNCE_LIMIT] = static_cast<uint32_t>(Material->LayerBounceLimit);
 
     vec3 BaseSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->BaseColor);

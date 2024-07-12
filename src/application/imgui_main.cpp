@@ -189,6 +189,21 @@ static void MaterialInspector(application* App, material* Material, bool Referen
 
     bool C = false;
 
+    if (ImGui::BeginCombo("Material Type", MaterialTypeName(Material->Type)))
+    {
+        for (int I = 0; I < MATERIAL_TYPE__COUNT; I++)
+        {
+            auto MaterialType = static_cast<material_type>(I);
+            bool IsSelected = Material->Type == MaterialType;
+            if (ImGui::Selectable(MaterialTypeName(Material->Type), &IsSelected))
+            {
+                Material->Type = MaterialType;
+                C = true;
+            }
+        }
+        ImGui::EndCombo();
+    }
+
     if (Material->Type == MATERIAL_TYPE_OPENPBR)
         C |= OpenPBRMaterialInspector(App, static_cast<material_openpbr*>(Material));
 

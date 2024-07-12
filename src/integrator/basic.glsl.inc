@@ -10,42 +10,52 @@ const int TRACE_COUNT = 2048*1024;
 const int PATH_COUNT = 2048*1024;
 const int ACTIVE_SHAPE_LIMIT = 4;
 
+struct path
+{
+    float NormalizedLambda0;
+    vec4  Throughput;          // Path throughput at each of the 4 sampling wavelengths.
+    vec4  Weight;              // Path weight at each of the 4 sampling wavelengths.
+    vec3  Sample;
+    ivec2 ImagePosition;
+    uint  ActiveShapeIndex[4];
+};
+
 struct trace_buffer
 {
     // Query data.
-    float OriginX [TRACE_COUNT];
-    float OriginY [TRACE_COUNT];
-    float OriginZ [TRACE_COUNT];
-    uint PackedVelocity [TRACE_COUNT];
-    float Duration [TRACE_COUNT];
+    float OriginX        [TRACE_COUNT];
+    float OriginY        [TRACE_COUNT];
+    float OriginZ        [TRACE_COUNT];
+    uint  PackedVelocity [TRACE_COUNT];
+    float Duration       [TRACE_COUNT];
 
     // Result data.
-    float Time [TRACE_COUNT];
-    uint ShapeAndMaterialIndex [TRACE_COUNT];
-    uint PackedNormal [TRACE_COUNT];
-    uint PackedTangentX [TRACE_COUNT];
-    float TextureU [TRACE_COUNT];
-    float TextureV [TRACE_COUNT];
+    float Time                  [TRACE_COUNT];
+    uint  ShapeAndMaterialIndex [TRACE_COUNT];
+    uint  PackedNormal          [TRACE_COUNT];
+    uint  PackedTangentX        [TRACE_COUNT];
+    float TextureU              [TRACE_COUNT];
+    float TextureV              [TRACE_COUNT];
 };
 
 struct path_buffer
 {
-    int ImagePosition [PATH_COUNT];
-    float NormalizedLambda0 [PATH_COUNT];
-    float Throughput0 [PATH_COUNT];
-    float Throughput1 [PATH_COUNT];
-    float Throughput2 [PATH_COUNT];
-    float Throughput3 [PATH_COUNT];
-    float Weight0 [PATH_COUNT];
-    float Weight1 [PATH_COUNT];
-    float Weight2 [PATH_COUNT];
-    float Weight3 [PATH_COUNT];
-    float SampleR [PATH_COUNT];
-    float SampleG [PATH_COUNT];
-    float SampleB [PATH_COUNT];
+    int   ImagePosition      [PATH_COUNT];
+    float NormalizedLambda0  [PATH_COUNT];
+    float Throughput0        [PATH_COUNT];
+    float Throughput1        [PATH_COUNT];
+    float Throughput2        [PATH_COUNT];
+    float Throughput3        [PATH_COUNT];
+    float Weight0            [PATH_COUNT];
+    float Weight1            [PATH_COUNT];
+    float Weight2            [PATH_COUNT];
+    float Weight3            [PATH_COUNT];
+    float SampleR            [PATH_COUNT];
+    float SampleG            [PATH_COUNT];
+    float SampleB            [PATH_COUNT];
 
-    uint ActiveShapeIndex01 [PATH_COUNT];
-    uint ActiveShapeIndex23 [PATH_COUNT];
+    uint  ActiveShapeIndex01 [PATH_COUNT];
+    uint  ActiveShapeIndex23 [PATH_COUNT];
 };
 
 layout(set=0, binding=0, rgba32f)
@@ -66,12 +76,12 @@ buffer TraceSSBO
 layout(push_constant)
 uniform ComputePushConstantBuffer
 {
-    uint CameraIndex;
-    uint RenderFlags;
-    uint PathLengthLimit;
+    uint  CameraIndex;
+    uint  RenderFlags;
+    uint  PathLengthLimit;
     float PathTerminationProbability;
-    uint RandomSeed;
-    uint Restart;
+    uint  RandomSeed;
+    uint  Restart;
 };
 
 ray LoadTraceRay(uint Index)
