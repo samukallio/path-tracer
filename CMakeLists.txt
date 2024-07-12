@@ -29,6 +29,9 @@ add_executable (path-tracer
 	src/scene/scene.cpp
 	src/scene/serializer.cpp
 	src/scene/openpbr.hpp
+	src/scene/basic_diffuse.hpp
+	src/scene/basic_metal.hpp
+	src/scene/basic_translucent.hpp
 	src/integrator/integrator.hpp
 	src/integrator/integrator.cpp
 	src/integrator/basic.hpp
@@ -106,6 +109,9 @@ target_sources (path-tracer PRIVATE
 	src/core/common.glsl.inc
 	src/core/spectrum.glsl.inc
 	src/scene/openpbr.glsl.inc
+	src/scene/basic_diffuse.glsl.inc
+	src/scene/basic_metal.glsl.inc
+	src/scene/basic_translucent.glsl.inc
 	src/scene/scene.glsl.inc
 	src/integrator/basic.glsl.inc
 )
@@ -114,6 +120,9 @@ source_group ("Shader Files" FILES
 	src/core/common.glsl.inc
 	src/core/spectrum.glsl.inc
 	src/scene/openpbr.glsl.inc
+	src/scene/basic_diffuse.glsl.inc
+	src/scene/basic_metal.glsl.inc
+	src/scene/basic_translucent.glsl.inc
 	src/scene/scene.glsl.inc
 	src/integrator/basic.glsl.inc
 )

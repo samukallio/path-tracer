@@ -383,10 +383,21 @@ material* CreateMaterial(scene* Scene, material_type Type, char const* Name)
 
     switch (Type)
     {
+        case MATERIAL_TYPE_BASIC_DIFFUSE:
+            Material = new basic_diffuse_material;
+            break;
+        case MATERIAL_TYPE_BASIC_METAL:
+            Material = new basic_metal_material;
+            break;
+        case MATERIAL_TYPE_BASIC_TRANSLUCENT:
+            Material = new basic_translucent_material;
+            break;
         case MATERIAL_TYPE_OPENPBR:
             Material = new openpbr_material;
             break;
     }
+
+    assert(Material);
 
     Material->Name = Name;
 

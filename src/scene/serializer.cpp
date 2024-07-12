@@ -244,6 +244,43 @@ void SerializeField(serializer& S, json& JSON, texture*& Pointer)
 
 void SerializeObject(serializer& S, json& JSON, material*& Material)
 {
+    SerializeField(S, JSON["Type"], Material->Type);
+
+    if (Material->Type == MATERIAL_TYPE_BASIC_DIFFUSE)
+    {
+        basic_diffuse_material& Object = *static_cast<basic_diffuse_material*>(Material);
+
+        F(BaseColor);
+        F(BaseTexture);
+    }
+    if (Material->Type == MATERIAL_TYPE_BASIC_METAL)
+    {
+        basic_metal_material& Object = *static_cast<basic_metal_material*>(Material);
+
+        F(BaseColor);
+        F(BaseTexture);
+        F(SpecularColor);
+        F(SpecularTexture);
+        F(Roughness);
+        F(RoughnessTexture);
+        F(RoughnessAnisotropy);
+        F(RoughnessAnisotropyTexture);
+    }
+    if (Material->Type == MATERIAL_TYPE_BASIC_TRANSLUCENT)
+    {
+        basic_translucent_material& Object = *static_cast<basic_translucent_material*>(Material);
+
+        F(IOR);
+        F(AbbeNumber);
+        F(Roughness);
+        F(RoughnessTexture);
+        F(RoughnessAnisotropy);
+        F(RoughnessAnisotropyTexture);
+        F(TransmissionColor);
+        F(TransmissionDepth);
+        F(ScatteringColor);
+        F(ScatteringAnisotropy);
+    }
     if (Material->Type == MATERIAL_TYPE_OPENPBR)
     {
         openpbr_material& Object = *static_cast<openpbr_material*>(Material);
@@ -460,10 +497,16 @@ void SerializeObject(serializer& S, scene& Scene)
         {
             for (uint I = 0; I < JSON["Textures"].size(); I++)
                 Scene.Textures.push_back(new texture);
+
             for (uint I = 0; I < JSON["Materials"].size(); I++)
-                Scene.Materials.push_back(new material);
+            {
+                auto MaterialType = static_cast<material_type>(JSON["Materials"][I]["Type"].get<int>());
+                CreateMaterial(&Scene, MaterialType, "");
+            }
+
             for (uint I = 0; I < JSON["Meshes"].size(); I++)
                 Scene.Meshes.push_back(new mesh);
+
             for (uint I = 0; I < JSON["Prefabs"].size(); I++)
                 Scene.Prefabs.push_back(new prefab);
         }

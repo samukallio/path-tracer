@@ -74,7 +74,7 @@ medium ResolveMedium(uint ShapeIndex, vec4 Lambda)
 {
     medium Medium;
 
-    if (ShapeIndex == SHAPE_INDEX_NONE)
+    if (true) //ShapeIndex == SHAPE_INDEX_NONE)
     {
         Medium.Priority = 0xFFFFFFFF;
         Medium.IOR = vec4(1.0);

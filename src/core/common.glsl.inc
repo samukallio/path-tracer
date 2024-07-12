@@ -382,12 +382,12 @@ vec4 SchlickFresnelMetal(vec4 Base, vec4 Specular, float CosTheta)
 {
     const float CosThetaMax = 1 / 7.0f;
 
-    vec4 FSchlick = Base + (1 - Base) * pow(1 - CosTheta, 5);
+    vec4 FSchlick = Base + (1 - Base) * pow(1.0 - CosTheta, 5);
     vec4 FSchlickMax = Base + (1 - Base) * pow(1 - CosThetaMax, 5);
     vec4 FMax = Specular * FSchlickMax;
 
     const float Denominator = CosThetaMax * pow(1 - CosThetaMax, 6);
-    float Nominator = CosTheta * pow(1 - CosTheta, 6);
+    float Nominator = CosTheta * pow(1.0 - CosTheta, 6);
     return FSchlick - (Nominator / Denominator) * (FSchlickMax - FMax);
 }
 

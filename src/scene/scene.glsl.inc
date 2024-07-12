@@ -18,7 +18,10 @@ const uint TEXTURE_TYPE_RADIANCE               = 2;
 
 const uint TEXTURE_FLAG_FILTER_NEAREST = 1 << 0;
 
-const uint MATERIAL_TYPE_OPENPBR = 0;
+const uint MATERIAL_TYPE_BASIC_DIFFUSE     = 0;
+const uint MATERIAL_TYPE_BASIC_METAL       = 1;
+const uint MATERIAL_TYPE_BASIC_TRANSLUCENT = 2;
+const uint MATERIAL_TYPE_OPENPBR           = 3;
 
 const uint TONE_MAPPING_MODE_CLAMP    = 0;
 const uint TONE_MAPPING_MODE_REINHARD = 1;
@@ -181,29 +184,6 @@ readonly buffer CameraSSBO
     packed_camera Cameras[];
 };
 
-uint MaterialType(uint MaterialSlotIndex)
-{
-    return MaterialData[32*MaterialSlotIndex];
-}
-
-uint MaterialUint(uint MaterialSlotIndex, uint AttributeIndex)
-{
-    return MaterialData[32*MaterialSlotIndex + AttributeIndex];
-}
-
-float MaterialFloat(uint MaterialSlotIndex, uint AttributeIndex)
-{
-    return uintBitsToFloat(MaterialUint(MaterialSlotIndex, AttributeIndex));
-}
-
-vec3 MaterialVec3(uint MaterialSlotIndex, uint AttributeIndex)
-{
-    return vec3(
-        MaterialFloat(MaterialSlotIndex, AttributeIndex+0),
-        MaterialFloat(MaterialSlotIndex, AttributeIndex+1),
-        MaterialFloat(MaterialSlotIndex, AttributeIndex+2));
-}
-
 vec4 SampleTexture(uint Index, vec2 UV)
 {
     packed_texture Texture = Textures[Index];
@@ -252,6 +232,79 @@ vec4 SampleSkyboxRadiance(vec3 Direction, vec4 Lambda)
 {
     vec4 Spectrum = SampleSkyboxSpectrum(Direction);
     return SampleParametricSpectrum(Spectrum, Lambda) * Scene.SkyboxBrightness;
+}
+
+uint MaterialType(uint MaterialSlotIndex)
+{
+    return MaterialData[32*MaterialSlotIndex];
+}
+
+uint MaterialUint(uint MaterialSlotIndex, uint AttributeIndex)
+{
+    return MaterialData[32*MaterialSlotIndex + AttributeIndex];
+}
+
+float MaterialFloat(uint MaterialSlotIndex, uint AttributeIndex)
+{
+    return uintBitsToFloat(MaterialUint(MaterialSlotIndex, AttributeIndex));
+}
+
+vec3 MaterialVec3(uint MaterialSlotIndex, uint AttributeIndex)
+{
+    return vec3(
+        MaterialFloat(MaterialSlotIndex, AttributeIndex+0),
+        MaterialFloat(MaterialSlotIndex, AttributeIndex+1),
+        MaterialFloat(MaterialSlotIndex, AttributeIndex+2));
+}
+
+vec3 MaterialColor(uint MaterialIndex, uint AttributeIndex)
+{
+    vec3 Beta = MaterialVec3(MaterialIndex, AttributeIndex);
+    return ObserveParametricSpectrumUnderD65(Beta);
+}
+
+vec3 MaterialTexturableColor(uint MaterialIndex, uint AttributeIndex, vec2 TextureUV)
+{
+    vec3 Beta = MaterialVec3(MaterialIndex, AttributeIndex+0);
+    vec3 Color = ObserveParametricSpectrumUnderD65(Beta);
+
+    uint TextureIndex = MaterialUint(MaterialIndex, AttributeIndex+3);
+
+    if (TextureIndex != TEXTURE_INDEX_NONE)
+    {
+        vec3 TextureBeta = SampleTexture(TextureIndex, TextureUV).xyz;
+        Color *= ObserveParametricSpectrumUnderD65(TextureBeta);
+    }
+
+    return Color;
+}
+
+vec4 MaterialTexturableReflectance(uint MaterialIndex, uint AttributeIndex, vec4 Lambda, vec2 TextureUV)
+{
+    vec3 Beta = MaterialVec3(MaterialIndex, AttributeIndex+0);
+    vec4 Value = SampleParametricSpectrum(Beta, Lambda);
+
+    uint TextureIndex = MaterialUint(MaterialIndex, AttributeIndex+3);
+
+    if (TextureIndex != TEXTURE_INDEX_NONE)
+    {
+        vec3 TextureBeta = SampleTexture(TextureIndex, TextureUV).xyz;
+        Value *= SampleParametricSpectrum(TextureBeta, Lambda);
+    }
+
+    return Value;
+}
+
+float MaterialTexturableValue(uint MaterialIndex, uint AttributeIndex, vec2 TextureUV)
+{
+    float Value = MaterialFloat(MaterialIndex, AttributeIndex+0);
+
+    uint TextureIndex = MaterialUint(MaterialIndex, AttributeIndex+1);
+
+    if (TextureIndex != TEXTURE_INDEX_NONE)
+        Value *= SampleTexture(TextureIndex, TextureUV).r;
+
+    return Value;
 }
 
 void IntersectMeshFace(ray Ray, uint MeshFaceIndex, inout hit Hit)
@@ -607,11 +660,20 @@ ray GenerateCameraRay(packed_camera Camera, vec2 NormalizedSamplePosition)
     return TransformRay(Ray, Camera.Transform);
 }
 
+#include "scene/basic_diffuse.glsl.inc"
+#include "scene/basic_metal.glsl.inc"
+#include "scene/basic_translucent.glsl.inc"
 #include "scene/openpbr.glsl.inc"
 
 vec3 MaterialBaseColor(uint MaterialIndex, vec2 TextureUV)
 {
     uint Type = MaterialType(MaterialIndex);
+    if (Type == MATERIAL_TYPE_BASIC_DIFFUSE)
+        return BasicDiffuse_BaseColor(MaterialIndex, TextureUV);
+    if (Type == MATERIAL_TYPE_BASIC_METAL)
+        return BasicMetal_BaseColor(MaterialIndex, TextureUV);
+    if (Type == MATERIAL_TYPE_BASIC_TRANSLUCENT)
+        return BasicTranslucent_BaseColor(MaterialIndex, TextureUV);
     if (Type == MATERIAL_TYPE_OPENPBR)
         return OpenPBR_BaseColor(MaterialIndex, TextureUV);
     return vec3(0,0,0);
@@ -621,6 +683,8 @@ medium MaterialMedium(uint MaterialIndex, vec4 Lambda)
 {
     medium Medium;
     uint Type = MaterialType(MaterialIndex);
+    if (Type == MATERIAL_TYPE_BASIC_TRANSLUCENT)
+        Medium = BasicTranslucent_Medium(MaterialIndex, Lambda);
     if (Type == MATERIAL_TYPE_OPENPBR)
         Medium = OpenPBR_Medium(MaterialIndex, Lambda);
     return Medium;
@@ -639,6 +703,21 @@ void MaterialSample
 )
 {
     uint Type = MaterialType(MaterialIndex);
+    if (Type == MATERIAL_TYPE_BASIC_DIFFUSE)
+    {
+        basic_diffuse_parameters Parameters = BasicDiffuse_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
+        BasicDiffuse_Sample(Parameters, Out, In, PathThroughput, PathDensity);
+    }
+    if (Type == MATERIAL_TYPE_BASIC_METAL)
+    {
+        basic_metal_parameters Parameters = BasicMetal_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
+        BasicMetal_Sample(Parameters, Out, In, PathThroughput, PathDensity);
+    }
+    if (Type == MATERIAL_TYPE_BASIC_TRANSLUCENT)
+    {
+        basic_translucent_parameters Parameters = BasicTranslucent_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
+        BasicTranslucent_Sample(Parameters, Out, In, PathThroughput, PathDensity);
+    }
     if (Type == MATERIAL_TYPE_OPENPBR)
     {
         openpbr_parameters Parameters = OpenPBR_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);

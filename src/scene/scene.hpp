@@ -22,8 +22,11 @@ enum texture_flag : uint
 
 enum material_type
 {
-    MATERIAL_TYPE_OPENPBR = 0,
-    MATERIAL_TYPE__COUNT  = 1,
+    MATERIAL_TYPE_BASIC_DIFFUSE     = 0,
+    MATERIAL_TYPE_BASIC_METAL       = 1,
+    MATERIAL_TYPE_BASIC_TRANSLUCENT = 2,
+    MATERIAL_TYPE_OPENPBR           = 3,
+    MATERIAL_TYPE__COUNT            = 4,
 };
 
 enum shape_type : int32_t
@@ -444,12 +447,21 @@ void DestroyVulkanScene(vulkan* Vulkan, vulkan_scene* VulkanScene);
 
 /* --- Material Types -------------------------------------------------------- */
 
+#include "scene/basic_diffuse.hpp"
+#include "scene/basic_metal.hpp"
+#include "scene/basic_translucent.hpp"
 #include "scene/openpbr.hpp"
 
 inline char const* MaterialTypeName(material_type Type)
 {
     switch (Type)
     {
+        case MATERIAL_TYPE_BASIC_DIFFUSE:
+            return "Basic Diffuse";
+        case MATERIAL_TYPE_BASIC_METAL:
+            return "Basic Metal";
+        case MATERIAL_TYPE_BASIC_TRANSLUCENT:
+            return "Basic Translucent";
         case MATERIAL_TYPE_OPENPBR:
             return "OpenPBR";
     }
@@ -461,6 +473,12 @@ inline uint MaterialTypePackedSize(material_type Type)
 {
     switch (Type)
     {
+        case MATERIAL_TYPE_BASIC_DIFFUSE:
+            return 32;
+        case MATERIAL_TYPE_BASIC_METAL:
+            return 32;
+        case MATERIAL_TYPE_BASIC_TRANSLUCENT:
+            return 32;
         case MATERIAL_TYPE_OPENPBR:
             return 64;
     }
@@ -471,12 +489,35 @@ inline uint MaterialTypePackedSize(material_type Type)
 template<typename function_type>
 inline void ForEachMaterialTexture(scene* Scene, material* Material, function_type&& Function)
 {
-    if (Material->Type == MATERIAL_TYPE_OPENPBR)
-        OpenPBR_ForEachTexture(Scene, static_cast<openpbr_material*>(Material), std::forward<function_type>(Function));
+    switch (Material->Type)
+    {
+        case MATERIAL_TYPE_BASIC_METAL:
+            BasicMetal_ForEachTexture(Scene, static_cast<basic_metal_material*>(Material), std::forward<function_type>(Function));
+            break;
+        case MATERIAL_TYPE_BASIC_TRANSLUCENT:
+            BasicTranslucent_ForEachTexture(Scene, static_cast<basic_translucent_material*>(Material), std::forward<function_type>(Function));
+            break;
+        case MATERIAL_TYPE_OPENPBR:
+            OpenPBR_ForEachTexture(Scene, static_cast<openpbr_material*>(Material), std::forward<function_type>(Function));
+            break;
+    }
 }
 
 inline void PackMaterialData(scene* Scene, material* Material, uint* AttributeData)
 {
-    if (Material->Type == MATERIAL_TYPE_OPENPBR)
-        OpenPBR_PackData(Scene, static_cast<openpbr_material*>(Material), AttributeData);
+    switch (Material->Type)
+    {
+        case MATERIAL_TYPE_BASIC_DIFFUSE:
+            BasicDiffuse_PackData(Scene, static_cast<basic_diffuse_material*>(Material), AttributeData);
+            break;
+        case MATERIAL_TYPE_BASIC_METAL:
+            BasicMetal_PackData(Scene, static_cast<basic_metal_material*>(Material), AttributeData);
+            break;
+        case MATERIAL_TYPE_BASIC_TRANSLUCENT:
+            BasicTranslucent_PackData(Scene, static_cast<basic_translucent_material*>(Material), AttributeData);
+            break;
+        case MATERIAL_TYPE_OPENPBR:
+            OpenPBR_PackData(Scene, static_cast<openpbr_material*>(Material), AttributeData);
+            break;
+    }
 }
