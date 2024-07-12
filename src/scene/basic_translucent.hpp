@@ -16,15 +16,6 @@ struct basic_translucent_material : material
     basic_translucent_material() { Type = MATERIAL_TYPE_BASIC_TRANSLUCENT; }
 };
 
-const uint BASIC_TRANSLUCENT_IOR                   = 1;
-const uint BASIC_TRANSLUCENT_ABBE_NUMBER           = 2;
-const uint BASIC_TRANSLUCENT_ROUGHNESS             = 3;
-const uint BASIC_TRANSLUCENT_ROUGHNESS_ANISOTROPY  = 5;
-const uint BASIC_TRANSLUCENT_TRANSMISSION_SPECTRUM = 7;
-const uint BASIC_TRANSLUCENT_TRANSMISSION_DEPTH    = 10;
-const uint BASIC_TRANSLUCENT_SCATTERING_SPECTRUM   = 11;
-const uint BASIC_TRANSLUCENT_SCATTERING_ANISOTROPY = 14;
-
 template<typename function_type>
 inline void BasicTranslucent_ForEachTexture(scene* Scene, basic_translucent_material* Material, function_type&& Function)
 {
@@ -34,6 +25,15 @@ inline void BasicTranslucent_ForEachTexture(scene* Scene, basic_translucent_mate
 
 inline void BasicTranslucent_PackData(scene* Scene, basic_translucent_material* Material, uint* AttributeData)
 {
+    const uint BASIC_TRANSLUCENT_IOR                   = 1;
+    const uint BASIC_TRANSLUCENT_ABBE_NUMBER           = 2;
+    const uint BASIC_TRANSLUCENT_ROUGHNESS             = 3;
+    const uint BASIC_TRANSLUCENT_ROUGHNESS_ANISOTROPY  = 5;
+    const uint BASIC_TRANSLUCENT_TRANSMISSION_SPECTRUM = 7;
+    const uint BASIC_TRANSLUCENT_TRANSMISSION_DEPTH    = 10;
+    const uint BASIC_TRANSLUCENT_SCATTERING_SPECTRUM   = 11;
+    const uint BASIC_TRANSLUCENT_SCATTERING_ANISOTROPY = 14;
+
     uint* A = AttributeData;
 
     A[BASIC_TRANSLUCENT_IOR] = glm::floatBitsToUint(Material->IOR);

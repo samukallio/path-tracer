@@ -14,11 +14,6 @@ struct basic_metal_material : material
     basic_metal_material() { Type = MATERIAL_TYPE_BASIC_METAL; }
 };
 
-const uint BASIC_METAL_BASE_SPECTRUM        = 1;
-const uint BASIC_METAL_SPECULAR_SPECTRUM    = 5;
-const uint BASIC_METAL_ROUGHNESS            = 9;
-const uint BASIC_METAL_ROUGHNESS_ANISOTROPY = 11;
-
 template<typename function_type>
 inline void BasicMetal_ForEachTexture(scene* Scene, basic_metal_material* Material, function_type&& Function)
 {
@@ -30,6 +25,11 @@ inline void BasicMetal_ForEachTexture(scene* Scene, basic_metal_material* Materi
 
 inline void BasicMetal_PackData(scene* Scene, basic_metal_material* Material, uint* AttributeData)
 {
+    const uint BASIC_METAL_BASE_SPECTRUM        = 1;
+    const uint BASIC_METAL_SPECULAR_SPECTRUM    = 5;
+    const uint BASIC_METAL_ROUGHNESS            = 9;
+    const uint BASIC_METAL_ROUGHNESS_ANISOTROPY = 11;
+
     uint* A = AttributeData;
 
     vec3 BaseSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->BaseColor);

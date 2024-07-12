@@ -8,8 +8,6 @@ struct basic_diffuse_material : material
     basic_diffuse_material() { Type = MATERIAL_TYPE_BASIC_DIFFUSE; }
 };
 
-const uint BASIC_DIFFUSE_BASE_SPECTRUM = 1;
-
 template<typename function_type>
 inline void BasicDiffuse_ForEachTexture(scene* Scene, basic_diffuse_material* Material, function_type&& Function)
 {
@@ -18,6 +16,8 @@ inline void BasicDiffuse_ForEachTexture(scene* Scene, basic_diffuse_material* Ma
 
 inline void BasicDiffuse_PackData(scene* Scene, basic_diffuse_material* Material, uint* AttributeData)
 {
+    const uint BASIC_DIFFUSE_BASE_SPECTRUM = 1;
+
     uint* A = AttributeData;
 
     vec3 BaseSpectrum = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Material->BaseColor);
