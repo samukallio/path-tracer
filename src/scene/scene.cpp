@@ -384,7 +384,7 @@ material* CreateMaterial(scene* Scene, material_type Type, char const* Name)
     switch (Type)
     {
         case MATERIAL_TYPE_OPENPBR:
-            Material = new material_openpbr;
+            Material = new openpbr_material;
             break;
     }
 
@@ -704,7 +704,7 @@ prefab* LoadModelAsPrefab(scene* Scene, char const* Path, load_model_options* Op
     {
         tinyobj::material_t const& FileMaterial = FileMaterials[MaterialId];
 
-        auto Material = (material_openpbr*)CreateMaterial(Scene, MATERIAL_TYPE_OPENPBR, FileMaterial.name.c_str());
+        auto Material = (openpbr_material*)CreateMaterial(Scene, MATERIAL_TYPE_OPENPBR, FileMaterial.name.c_str());
 
         Material->BaseColor = glm::vec4
         (
@@ -958,7 +958,7 @@ scene* CreateScene()
         SaveParametricSpectrumTable(Scene->RGBSpectrumTable, SRGB_SPECTRUM_TABLE_FILE);
     }
 
-    auto PlaneMaterial = (material_openpbr*)CreateMaterial(Scene, MATERIAL_TYPE_OPENPBR, "Plane Material");
+    auto PlaneMaterial = (openpbr_material*)CreateMaterial(Scene, MATERIAL_TYPE_OPENPBR, "Plane Material");
     PlaneMaterial->BaseColorTexture = CreateCheckerTexture(Scene, "Plane Texture", TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA, glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
     PlaneMaterial->BaseColorTexture->EnableNearestFiltering = true;
     plane_entity* Plane = (plane_entity*)CreateEntity(Scene, ENTITY_TYPE_PLANE);
@@ -1271,7 +1271,7 @@ uint32_t PackSceneData(scene* Scene)
 
         // Fallback material.
         {
-            material_openpbr OpenPBR = {};
+            openpbr_material OpenPBR = {};
 
             material* Material = &OpenPBR;
             size_t Offset = Scene->MaterialAttributePack.size();

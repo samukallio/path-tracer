@@ -472,11 +472,11 @@ template<typename function_type>
 inline void ForEachMaterialTexture(scene* Scene, material* Material, function_type&& Function)
 {
     if (Material->Type == MATERIAL_TYPE_OPENPBR)
-        OpenPBR_ForEachTexture(Scene, static_cast<material_openpbr*>(Material), std::forward<function_type>(Function));
+        OpenPBR_ForEachTexture(Scene, static_cast<openpbr_material*>(Material), std::forward<function_type>(Function));
 }
 
 inline void PackMaterialData(scene* Scene, material* Material, uint* AttributeData)
 {
     if (Material->Type == MATERIAL_TYPE_OPENPBR)
-        OpenPBR_PackData(Scene, static_cast<material_openpbr*>(Material), AttributeData);
+        OpenPBR_PackData(Scene, static_cast<openpbr_material*>(Material), AttributeData);
 }

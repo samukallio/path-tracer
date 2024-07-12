@@ -246,7 +246,7 @@ void SerializeObject(serializer& S, json& JSON, material*& Material)
 {
     if (Material->Type == MATERIAL_TYPE_OPENPBR)
     {
-        material_openpbr& Object = *static_cast<material_openpbr*>(Material);
+        openpbr_material& Object = *static_cast<openpbr_material*>(Material);
 
         F(Name);
         F(Flags);

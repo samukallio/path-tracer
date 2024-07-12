@@ -1,6 +1,6 @@
 #pragma once
 
-struct material_openpbr : material
+struct openpbr_material : material
 {
     float    BaseWeight = 1.0f;
     vec3     BaseColor = { 1, 1, 1 };
@@ -38,7 +38,7 @@ struct material_openpbr : material
 
     uint32_t PackedMaterialIndex = 0;
 
-    material_openpbr() { Type = MATERIAL_TYPE_OPENPBR; }
+    openpbr_material() { Type = MATERIAL_TYPE_OPENPBR; }
 };
 
 const uint OPENPBR_LAYER_BOUNCE_LIMIT                  = 1;
@@ -70,14 +70,14 @@ const uint OPENPBR_COAT_ROUGHNESS_ANISOTROPY           = 38;
 const uint OPENPBR_COAT_DARKENING                      = 39;
 
 template<typename function_type>
-inline void OpenPBR_ForEachTexture(scene* Scene, material_openpbr* Material, function_type Function)
+inline void OpenPBR_ForEachTexture(scene* Scene, openpbr_material* Material, function_type Function)
 {
     Function(Material->BaseColorTexture);
     Function(Material->SpecularRoughnessTexture);
     Function(Material->EmissionColorTexture);
 }
 
-inline void OpenPBR_PackData(scene* Scene, material_openpbr* Material, uint* AttributeData)
+inline void OpenPBR_PackData(scene* Scene, openpbr_material* Material, uint* AttributeData)
 {
     uint* A = AttributeData;
 

@@ -122,7 +122,7 @@ static void TextureInspector(application* App, texture* Texture)
     ImGui::PopID();
 }
 
-static bool OpenPBRMaterialInspector(application* App, material_openpbr* Material)
+static bool OpenPBRMaterialInspector(application* App, openpbr_material* Material)
 {
     bool C = false;
 
@@ -205,7 +205,7 @@ static void MaterialInspector(application* App, material* Material, bool Referen
     }
 
     if (Material->Type == MATERIAL_TYPE_OPENPBR)
-        C |= OpenPBRMaterialInspector(App, static_cast<material_openpbr*>(Material));
+        C |= OpenPBRMaterialInspector(App, static_cast<openpbr_material*>(Material));
 
     if (C) Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
 
