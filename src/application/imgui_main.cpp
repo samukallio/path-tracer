@@ -1,3 +1,10 @@
+#include <imgui.h>
+#include <imgui_internal.h>
+
+#define IMGUI_IMPLEMENTATION
+
+static bool TextureSelectorDropDown(char const* Label, struct scene* Scene, struct texture** TexturePtr);
+
 #include "core/common.hpp"
 #include "core/vulkan.hpp"
 #include "scene/scene.hpp"
@@ -5,8 +12,6 @@
 #include "application/application.hpp"
 #include "application/imgui_font.hpp"
 
-#include <imgui.h>
-#include <imgui_internal.h>
 #include <misc/cpp/imgui_stdlib.h>
 #include <nfd.h>
 
@@ -81,6 +86,11 @@ static bool ResourceSelectorDropDown
     return Changed;
 }
 
+static bool TextureSelectorDropDown(char const* Label, scene* Scene, texture** TexturePtr)
+{
+    return ResourceSelectorDropDown(Label, Scene->Textures, TexturePtr);
+}
+
 static void TextureInspector(application* App, texture* Texture)
 {
     scene* Scene = App->Scene;
@@ -120,103 +130,6 @@ static void TextureInspector(application* App, texture* Texture)
     if (C) Scene->DirtyFlags |= SCENE_DIRTY_TEXTURES;
 
     ImGui::PopID();
-}
-
-static bool BasicDiffuse_Inspector(application* App, basic_diffuse_material* Material)
-{
-    bool C = false;
-
-    scene* Scene = App->Scene;
-
-    C |= ImGui::ColorEdit3("Base Color", &Material->BaseColor[0]);
-    C |= ResourceSelectorDropDown("Base Color Texture", Scene->Textures, &Material->BaseTexture);
-
-    return C;
-}
-
-static bool BasicMetal_Inspector(application* App, basic_metal_material* Material)
-{
-    bool C = false;
-
-    scene* Scene = App->Scene;
-
-    C |= ImGui::ColorEdit3("Base Color", &Material->BaseColor[0]);
-    C |= ResourceSelectorDropDown("Base Color Texture", Scene->Textures, &Material->BaseTexture);
-    C |= ImGui::ColorEdit3("Specular Color", &Material->SpecularColor[0]);
-    C |= ResourceSelectorDropDown("Specular Color Texture", Scene->Textures, &Material->SpecularTexture);
-    C |= ImGui::DragFloat("Roughness", &Material->Roughness, 0.01f, 0.0f, 1.0f);
-    C |= ResourceSelectorDropDown("Roughness Texture", Scene->Textures, &Material->RoughnessTexture);
-    C |= ImGui::DragFloat("Roughness Anisotropy", &Material->RoughnessAnisotropy, 0.01f, 0.0f, 1.0f);
-    C |= ResourceSelectorDropDown("Roughness Anisotropy Texture", Scene->Textures, &Material->RoughnessAnisotropyTexture);
-
-    return C;
-}
-
-static bool BasicTranslucent_Inspector(application* App, basic_translucent_material* Material)
-{
-    bool C = false;
-
-    scene* Scene = App->Scene;
-
-    C |= ImGui::DragFloat("IOR", &Material->IOR, 0.01f, 1.0f, 3.0f);
-    C |= ImGui::DragFloat("Abbe Number", &Material->AbbeNumber, 1.0f, 0.0f, 10000.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-
-    C |= ImGui::DragFloat("Roughness", &Material->Roughness, 0.01f, 0.0f, 1.0f);
-    C |= ResourceSelectorDropDown("Roughness Texture", Scene->Textures, &Material->RoughnessTexture);
-    C |= ImGui::DragFloat("Roughness Anisotropy", &Material->RoughnessAnisotropy, 0.01f, 0.0f, 1.0f);
-    C |= ResourceSelectorDropDown("Roughness Anisotropy Texture", Scene->Textures, &Material->RoughnessAnisotropyTexture);
-
-    C |= ImGui::ColorEdit3("Transmission Color", &Material->TransmissionColor[0]);
-    C |= ImGui::DragFloat("Transmission Depth", &Material->TransmissionDepth, 0.01f, 0.0f, 1.0f);
-    C |= ImGui::ColorEdit3("Scattering Color", &Material->ScatteringColor[0]);
-    C |= ImGui::DragFloat("Scattering Anisotropy", &Material->ScatteringAnisotropy, 0.01f, -1.0f, 1.0f);
-
-    return C;
-}
-
-static bool OpenPBRMaterialInspector(application* App, openpbr_material* Material)
-{
-    bool C = false;
-
-    scene* Scene = App->Scene;
-
-    C |= ImGui::DragFloat("Opacity", &Material->Opacity, 0.01f, 0.0f, 1.0f);
-
-    C |= ImGui::DragFloat("Base Weight", &Material->BaseWeight, 0.01f, 0.0f, 1.0f);
-    C |= ImGui::ColorEdit3("Base Color", &Material->BaseColor[0]);
-    C |= ResourceSelectorDropDown("Base Color Texture", Scene->Textures, &Material->BaseColorTexture);
-    C |= ImGui::DragFloat("Base Metalness", &Material->BaseMetalness, 0.01f, 0.0f, 1.0f);
-    C |= ImGui::DragFloat("Base Diffuse Roughness", &Material->BaseDiffuseRoughness, 0.01f, 0.0f, 1.0f);
-
-    C |= ImGui::DragFloat("Specular Weight", &Material->SpecularWeight, 0.01f, 0.0f, 1.0f);
-    C |= ImGui::ColorEdit3("Specular Color", &Material->SpecularColor[0]);
-    C |= ImGui::DragFloat("Specular Roughness", &Material->SpecularRoughness, 0.01f, 0.0f, 1.0f);
-    C |= ResourceSelectorDropDown("Specular Roughness Texture", Scene->Textures, &Material->SpecularRoughnessTexture);
-    C |= ImGui::DragFloat("Specular Roughness Anisotropy", &Material->SpecularRoughnessAnisotropy, 0.01f, 0.0f, 1.0f);
-    C |= ImGui::DragFloat("Specular IOR", &Material->SpecularIOR, 0.01f, 1.0f, 3.0f);
-
-    C |= ImGui::DragFloat("Transmission Weight", &Material->TransmissionWeight, 0.01f, 0.0f, 1.0f);
-    C |= ImGui::ColorEdit3("Transmission Color", &Material->TransmissionColor[0]);
-    C |= ImGui::DragFloat("Transmission Depth", &Material->TransmissionDepth, 0.01f, 0.0f, 1.0f);
-    C |= ImGui::ColorEdit3("Transmission Scatter", &Material->TransmissionScatter[0]);
-    C |= ImGui::DragFloat("Transmission Scatter Anisotropy", &Material->TransmissionScatterAnisotropy, 0.01f, -1.0f, 1.0f);
-    C |= ImGui::DragFloat("Transmission Dispersion Scale", &Material->TransmissionDispersionScale, 0.01f, 0.0f, 1.0f);
-    C |= ImGui::DragFloat("Transmission Dispersion Abbe Number", &Material->TransmissionDispersionAbbeNumber, 0.01f, 0.0f, 10000.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
-
-    C |= ImGui::DragFloat("Coat Weight", &Material->CoatWeight, 0.01f, 0.0f, 1.0f);
-    C |= ImGui::ColorEdit3("Coat Color", &Material->CoatColor[0]);
-    C |= ImGui::DragFloat("Coat Roughness", &Material->CoatRoughness, 0.01f, 0.0f, 1.0f);
-    C |= ImGui::DragFloat("Coat Roughness Anisotropy", &Material->CoatRoughnessAnisotropy, 0.01f, 0.0f, 1.0f);
-    C |= ImGui::DragFloat("Coat IOR", &Material->CoatIOR, 0.01f, 1.0f, 3.0f);
-    C |= ImGui::DragFloat("Coat Darkening", &Material->CoatDarkening, 0.01f, 0.0f, 1.0f);
-
-    C |= ImGui::DragFloat("Emission Luminance", &Material->EmissionLuminance, 1.0f, 0.0f, 1000.0f);
-    C |= ImGui::ColorEdit3("Emission Color", &Material->EmissionColor[0]);
-    C |= ResourceSelectorDropDown("Emission Color Texture", Scene->Textures, &Material->EmissionColorTexture);
-
-    C |= ImGui::DragInt("Layer Bounce Limit", &Material->LayerBounceLimit, 1.0f, 1, 128);
-
-    return C;
 }
 
 static void MaterialInspector(application* App, material* Material, bool Referenced = false)
@@ -262,14 +175,7 @@ static void MaterialInspector(application* App, material* Material, bool Referen
         ImGui::EndCombo();
     }
 
-    if (Material->Type == MATERIAL_TYPE_BASIC_DIFFUSE)
-        C |= BasicDiffuse_Inspector(App, static_cast<basic_diffuse_material*>(Material));
-    if (Material->Type == MATERIAL_TYPE_BASIC_METAL)
-        C |= BasicMetal_Inspector(App, static_cast<basic_metal_material*>(Material));
-    if (Material->Type == MATERIAL_TYPE_BASIC_TRANSLUCENT)
-        C |= BasicTranslucent_Inspector(App, static_cast<basic_translucent_material*>(Material));
-    if (Material->Type == MATERIAL_TYPE_OPENPBR)
-        C |= OpenPBRMaterialInspector(App, static_cast<openpbr_material*>(Material));
+    C |= MaterialInspectorX(App->Scene, Material);
 
     if (C) Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
 

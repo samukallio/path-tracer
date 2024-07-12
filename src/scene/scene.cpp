@@ -317,17 +317,14 @@ void DestroyTexture(scene* Scene, texture* Texture)
     bool MaterialsDirty = false;
     for (material* Material : Scene->Materials)
     {
-        ForEachMaterialTexture
-        (
-            Scene, Material, [Texture, &MaterialsDirty](texture*& T)
+        ForEachMaterialTexture(Scene, Material, [Texture, &MaterialsDirty](texture*& T)
+        {
+            if (T == Texture)
             {
-                if (T == Texture)
-                {
-                    T = nullptr;
-                    MaterialsDirty = true;
-                }
+                T = nullptr;
+                MaterialsDirty = true;
             }
-        );
+        });
     }
 
     if (MaterialsDirty) Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;
@@ -356,19 +353,15 @@ void DestroyMesh(scene* Scene, mesh* Mesh)
 
     for (prefab* Prefab : Scene->Prefabs)
     {
-        ForEachEntity
-        (
-            Prefab->Entity,
-            [Scene, Mesh](entity* Entity)
+        ForEachEntity(Prefab->Entity, [Scene, Mesh](entity* Entity)
+        {
+            if (Entity->Type == ENTITY_TYPE_MESH_INSTANCE)
             {
-                if (Entity->Type == ENTITY_TYPE_MESH_INSTANCE)
-                {
-                    auto MeshInstance = static_cast<mesh_entity*>(Entity);
-                    if (MeshInstance->Mesh == Mesh)
-                        MeshInstance->Mesh = nullptr;
-                }
+                auto MeshInstance = static_cast<mesh_entity*>(Entity);
+                if (MeshInstance->Mesh == Mesh)
+                    MeshInstance->Mesh = nullptr;
             }
-        );
+        });
     }
 
     std::erase(Scene->Meshes, Mesh);
@@ -410,17 +403,14 @@ material* CreateMaterial(scene* Scene, material_type Type, char const* Name)
 
 void ReplaceMaterialReferences(scene* Scene, material* Old, material* New)
 {
-    ForEachEntity
-    (
-        &Scene->Root, [Scene, Old, New](entity* Entity)
+    ForEachEntity(&Scene->Root, [Scene, Old, New](entity* Entity)
+    {
+        if (Entity->Material == Old)
         {
-            if (Entity->Material == Old)
-            {
-                Entity->Material = New;
-                Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
-            }
+            Entity->Material = New;
+            Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
         }
-    );
+    });
 }
 
 void DestroyMaterial(scene* Scene, material* Material)
@@ -1358,60 +1348,56 @@ uint32_t PackSceneData(scene* Scene)
         Scene->ShapePack.clear();
         Scene->ShapeNodePack.resize(1);
 
-        ForEachEntityWithTransform
-        (
-            &Scene->Root,
-            [Scene](entity* Entity, mat4 const& Transform)
+        ForEachEntityWithTransform(&Scene->Root, [Scene](entity* Entity, mat4 const& Transform)
+        {
+            packed_shape Packed;
+
+            Packed.MaterialIndex = 0;
+
+            switch (Entity->Type)
             {
-                packed_shape Packed;
-
-                Packed.MaterialIndex = 0;
-
-                switch (Entity->Type)
+                case ENTITY_TYPE_MESH_INSTANCE:
                 {
-                    case ENTITY_TYPE_MESH_INSTANCE:
-                    {
-                        auto Instance = static_cast<mesh_entity*>(Entity);
-                        if (!Instance->Mesh) return;
-                        Packed.MaterialIndex = GetPackedMaterialIndex(Instance->Material);
-                        Packed.MeshRootNodeIndex = Instance->Mesh->PackedRootNodeIndex;
-                        Packed.Type = SHAPE_TYPE_MESH_INSTANCE;
-                        break;
-                    }
-                    case ENTITY_TYPE_PLANE:
-                    {
-                        auto Plane = static_cast<plane_entity*>(Entity);
-                        Packed.MaterialIndex = GetPackedMaterialIndex(Plane->Material);
-                        Packed.Type = SHAPE_TYPE_PLANE;
-                        break;
-                    }
-                    case ENTITY_TYPE_SPHERE:
-                    {
-                        auto Sphere = static_cast<sphere_entity*>(Entity);
-                        Packed.MaterialIndex = GetPackedMaterialIndex(Sphere->Material);
-                        Packed.Type = SHAPE_TYPE_SPHERE;
-                        break;
-                    }
-                    case ENTITY_TYPE_CUBE:
-                    {
-                        auto Cube = static_cast<cube_entity*>(Entity);
-                        Packed.MaterialIndex = GetPackedMaterialIndex(Cube->Material);
-                        Packed.Type = SHAPE_TYPE_CUBE;
-                        break;
-                    }
-                    default:
-                    {
-                        return;
-                    }
+                    auto Instance = static_cast<mesh_entity*>(Entity);
+                    if (!Instance->Mesh) return;
+                    Packed.MaterialIndex = GetPackedMaterialIndex(Instance->Material);
+                    Packed.MeshRootNodeIndex = Instance->Mesh->PackedRootNodeIndex;
+                    Packed.Type = SHAPE_TYPE_MESH_INSTANCE;
+                    break;
                 }
-
-                Packed.Transform = PackTransform(Transform);
-
-                Entity->PackedShapeIndex = static_cast<uint32_t>(Scene->ShapePack.size());
-
-                Scene->ShapePack.push_back(Packed);
+                case ENTITY_TYPE_PLANE:
+                {
+                    auto Plane = static_cast<plane_entity*>(Entity);
+                    Packed.MaterialIndex = GetPackedMaterialIndex(Plane->Material);
+                    Packed.Type = SHAPE_TYPE_PLANE;
+                    break;
+                }
+                case ENTITY_TYPE_SPHERE:
+                {
+                    auto Sphere = static_cast<sphere_entity*>(Entity);
+                    Packed.MaterialIndex = GetPackedMaterialIndex(Sphere->Material);
+                    Packed.Type = SHAPE_TYPE_SPHERE;
+                    break;
+                }
+                case ENTITY_TYPE_CUBE:
+                {
+                    auto Cube = static_cast<cube_entity*>(Entity);
+                    Packed.MaterialIndex = GetPackedMaterialIndex(Cube->Material);
+                    Packed.Type = SHAPE_TYPE_CUBE;
+                    break;
+                }
+                default:
+                {
+                    return;
+                }
             }
-        );
+
+            Packed.Transform = PackTransform(Transform);
+
+            Entity->PackedShapeIndex = static_cast<uint32_t>(Scene->ShapePack.size());
+
+            Scene->ShapePack.push_back(Packed);
+        });
 
         std::vector<uint16_t> Map;
 
@@ -1516,43 +1502,40 @@ uint32_t PackSceneData(scene* Scene)
     {
         Scene->CameraPack.clear();
 
-        ForEachEntityWithTransform(
-            &Scene->Root,
-            [Scene](entity* Entity, mat4 const& Transform)
+        ForEachEntityWithTransform(&Scene->Root, [Scene](entity* Entity, mat4 const& Transform)
+        {
+            if (Entity->Type != ENTITY_TYPE_CAMERA)
+                return;
+
+            auto Camera = static_cast<camera_entity*>(Entity);
+
+            packed_camera Packed;
+
+            Packed.Model = Camera->CameraModel;
+
+            if (Camera->CameraModel == CAMERA_MODEL_PINHOLE)
             {
-                if (Entity->Type != ENTITY_TYPE_CAMERA)
-                    return;
-
-                auto Camera = static_cast<camera_entity*>(Entity);
-
-                packed_camera Packed;
-
-                Packed.Model = Camera->CameraModel;
-
-                if (Camera->CameraModel == CAMERA_MODEL_PINHOLE)
-                {
-                    float const AspectRatio = 2.0f;
-                    Packed.ApertureRadius = Camera->Pinhole.ApertureDiameterInMM / 2000.0f;
-                    Packed.SensorSize.x   = 2 * glm::tan(glm::radians(Camera->Pinhole.FieldOfViewInDegrees / 2));
-                    Packed.SensorSize.y   = Packed.SensorSize.x / AspectRatio;
-                    Packed.SensorDistance = 1.0f;
-                }
-
-                if (Camera->CameraModel == CAMERA_MODEL_THIN_LENS)
-                {
-                    Packed.FocalLength    = Camera->ThinLens.FocalLengthInMM / 1000.0f;
-                    Packed.ApertureRadius = Camera->ThinLens.ApertureDiameterInMM / 2000.0f;
-                    Packed.SensorDistance = 1.0f / (1000.0f / Camera->ThinLens.FocalLengthInMM - 1.0f / Camera->ThinLens.FocusDistance);
-                    Packed.SensorSize     = Camera->ThinLens.SensorSizeInMM / 1000.0f;
-                }
-
-                Packed.Transform = PackTransform(Transform);
-
-                Camera->PackedCameraIndex = static_cast<uint>(Scene->CameraPack.size());
-
-                Scene->CameraPack.push_back(Packed);
+                float const AspectRatio = 2.0f;
+                Packed.ApertureRadius = Camera->Pinhole.ApertureDiameterInMM / 2000.0f;
+                Packed.SensorSize.x   = 2 * glm::tan(glm::radians(Camera->Pinhole.FieldOfViewInDegrees / 2));
+                Packed.SensorSize.y   = Packed.SensorSize.x / AspectRatio;
+                Packed.SensorDistance = 1.0f;
             }
-        );
+
+            if (Camera->CameraModel == CAMERA_MODEL_THIN_LENS)
+            {
+                Packed.FocalLength    = Camera->ThinLens.FocalLengthInMM / 1000.0f;
+                Packed.ApertureRadius = Camera->ThinLens.ApertureDiameterInMM / 2000.0f;
+                Packed.SensorDistance = 1.0f / (1000.0f / Camera->ThinLens.FocalLengthInMM - 1.0f / Camera->ThinLens.FocusDistance);
+                Packed.SensorSize     = Camera->ThinLens.SensorSizeInMM / 1000.0f;
+            }
+
+            Packed.Transform = PackTransform(Transform);
+
+            Camera->PackedCameraIndex = static_cast<uint>(Scene->CameraPack.size());
+
+            Scene->CameraPack.push_back(Packed);
+        });
     }
 
     // Pack scene global data.

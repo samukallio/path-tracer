@@ -132,3 +132,88 @@ inline void OpenPBR_PackData(scene* Scene, openpbr_material* Material, uint* Att
     A[OPENPBR_EMISSION_SPECTRUM_TEXTURE_INDEX] = GetPackedTextureIndex(Material->EmissionColorTexture);
     A[OPENPBR_EMISSION_LUMINANCE] = glm::floatBitsToUint(Material->EmissionLuminance);
 }
+
+#ifdef IMGUI_IMPLEMENTATION
+
+inline bool OpenPBR_Inspector(scene* Scene, openpbr_material* Material)
+{
+    bool C = false;
+
+    C |= ImGui::DragFloat("Opacity", &Material->Opacity, 0.01f, 0.0f, 1.0f);
+
+    C |= ImGui::DragFloat("Base Weight", &Material->BaseWeight, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::ColorEdit3("Base Color", &Material->BaseColor[0]);
+    C |= TextureSelectorDropDown("Base Color Texture", Scene, &Material->BaseColorTexture);
+    C |= ImGui::DragFloat("Base Metalness", &Material->BaseMetalness, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Base Diffuse Roughness", &Material->BaseDiffuseRoughness, 0.01f, 0.0f, 1.0f);
+
+    C |= ImGui::DragFloat("Specular Weight", &Material->SpecularWeight, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::ColorEdit3("Specular Color", &Material->SpecularColor[0]);
+    C |= ImGui::DragFloat("Specular Roughness", &Material->SpecularRoughness, 0.01f, 0.0f, 1.0f);
+    C |= TextureSelectorDropDown("Specular Roughness Texture", Scene, &Material->SpecularRoughnessTexture);
+    C |= ImGui::DragFloat("Specular Roughness Anisotropy", &Material->SpecularRoughnessAnisotropy, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Specular IOR", &Material->SpecularIOR, 0.01f, 1.0f, 3.0f);
+
+    C |= ImGui::DragFloat("Transmission Weight", &Material->TransmissionWeight, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::ColorEdit3("Transmission Color", &Material->TransmissionColor[0]);
+    C |= ImGui::DragFloat("Transmission Depth", &Material->TransmissionDepth, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::ColorEdit3("Transmission Scatter", &Material->TransmissionScatter[0]);
+    C |= ImGui::DragFloat("Transmission Scatter Anisotropy", &Material->TransmissionScatterAnisotropy, 0.01f, -1.0f, 1.0f);
+    C |= ImGui::DragFloat("Transmission Dispersion Scale", &Material->TransmissionDispersionScale, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Transmission Dispersion Abbe Number", &Material->TransmissionDispersionAbbeNumber, 0.01f, 0.0f, 10000.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
+
+    C |= ImGui::DragFloat("Coat Weight", &Material->CoatWeight, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::ColorEdit3("Coat Color", &Material->CoatColor[0]);
+    C |= ImGui::DragFloat("Coat Roughness", &Material->CoatRoughness, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Coat Roughness Anisotropy", &Material->CoatRoughnessAnisotropy, 0.01f, 0.0f, 1.0f);
+    C |= ImGui::DragFloat("Coat IOR", &Material->CoatIOR, 0.01f, 1.0f, 3.0f);
+    C |= ImGui::DragFloat("Coat Darkening", &Material->CoatDarkening, 0.01f, 0.0f, 1.0f);
+
+    C |= ImGui::DragFloat("Emission Luminance", &Material->EmissionLuminance, 1.0f, 0.0f, 1000.0f);
+    C |= ImGui::ColorEdit3("Emission Color", &Material->EmissionColor[0]);
+    C |= TextureSelectorDropDown("Emission Color Texture", Scene, &Material->EmissionColorTexture);
+
+    C |= ImGui::DragInt("Layer Bounce Limit", &Material->LayerBounceLimit, 1.0f, 1, 128);
+
+    return C;
+}
+
+#endif
+
+#ifdef SERIALIZER_IMPLEMENTATION
+
+inline void OpenPBR_Serialize(serializer& S, json& JSON, openpbr_material& Material)
+{
+    #define F(NAME) Serialize(S, JSON[#NAME], Material.NAME);
+    F(BaseWeight);
+    F(BaseColor);
+    F(BaseColorTexture);
+    F(BaseMetalness);
+    F(BaseDiffuseRoughness);
+    F(SpecularWeight);
+    F(SpecularColor);
+    F(SpecularRoughness);
+    F(SpecularRoughnessTexture);
+    F(SpecularRoughnessAnisotropy);
+    F(SpecularIOR);
+    F(TransmissionWeight);
+    F(TransmissionColor);
+    F(TransmissionDepth);
+    F(TransmissionScatter);
+    F(TransmissionScatterAnisotropy);
+    F(TransmissionDispersionScale);
+    F(TransmissionDispersionAbbeNumber);
+    F(CoatWeight);
+    F(CoatColor);
+    F(CoatRoughness);
+    F(CoatRoughnessAnisotropy);
+    F(CoatIOR);
+    F(CoatDarkening);
+    F(EmissionLuminance);
+    F(EmissionColor);
+    F(EmissionColorTexture);
+    F(LayerBounceLimit);
+    #undef F
+}
+
+#endif

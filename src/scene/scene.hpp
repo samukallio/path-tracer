@@ -516,3 +516,46 @@ inline void PackMaterialData(scene* Scene, material* Material, uint* AttributeDa
             break;
     }
 }
+
+#ifdef IMGUI_IMPLEMENTATION
+
+inline bool MaterialInspectorX(scene* Scene, material* Material)
+{
+    switch (Material->Type)
+    {
+        case MATERIAL_TYPE_BASIC_DIFFUSE:
+            return BasicDiffuse_Inspector(Scene, static_cast<basic_diffuse_material*>(Material));
+        case MATERIAL_TYPE_BASIC_METAL:
+            return BasicMetal_Inspector(Scene, static_cast<basic_metal_material*>(Material));
+        case MATERIAL_TYPE_BASIC_TRANSLUCENT:
+            return BasicTranslucent_Inspector(Scene, static_cast<basic_translucent_material*>(Material));
+        case MATERIAL_TYPE_OPENPBR:
+            return OpenPBR_Inspector(Scene, static_cast<openpbr_material*>(Material));
+    }
+    return false;
+}
+
+#endif
+
+#ifdef SERIALIZER_IMPLEMENTATION
+
+inline void SerializeMaterial(serializer& S, json& JSON, material& Material)
+{
+    switch (Material.Type)
+    {
+        case MATERIAL_TYPE_BASIC_DIFFUSE:
+            BasicDiffuse_Serialize(S, JSON, static_cast<basic_diffuse_material&>(Material));
+            break;
+        case MATERIAL_TYPE_BASIC_METAL:
+            BasicMetal_Serialize(S, JSON, static_cast<basic_metal_material&>(Material));
+            break;
+        case MATERIAL_TYPE_BASIC_TRANSLUCENT:
+            BasicTranslucent_Serialize(S, JSON, static_cast<basic_translucent_material&>(Material));
+            break;
+        case MATERIAL_TYPE_OPENPBR:
+            OpenPBR_Serialize(S, JSON, static_cast<openpbr_material&>(Material));
+            break;
+    }
+}
+
+#endif
