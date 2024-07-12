@@ -246,6 +246,7 @@ struct entity
     transform            Transform = {};
     entity*              Parent = nullptr;
     std::vector<entity*> Children = {};
+    material*            Material = nullptr;
     uint32_t             PackedShapeIndex = SHAPE_INDEX_NONE;
 
     virtual ~entity() {}
@@ -293,29 +294,22 @@ struct camera_entity : entity
 struct mesh_entity : entity
 {
     mesh*     Mesh = nullptr;
-    material* Material = nullptr;
 
     mesh_entity() { Type = ENTITY_TYPE_MESH_INSTANCE; }
 };
 
 struct plane_entity : entity
 {
-    material* Material = nullptr;
-
     plane_entity() { Type = ENTITY_TYPE_PLANE; }
 };
 
 struct sphere_entity : entity
 {
-    material* Material = nullptr;
-
     sphere_entity() { Type = ENTITY_TYPE_SPHERE; }
 };
 
 struct cube_entity : entity
 {
-    material* Material = nullptr;
-
     cube_entity() { Type = ENTITY_TYPE_CUBE; }
 };
 
@@ -421,6 +415,7 @@ entity* CreateEntity(scene* Scene, prefab* Prefab, entity* Parent = nullptr);
 void DestroyEntity(scene* Scene, entity* Entity);
 
 material* CreateMaterial(scene* Scene, material_type Type, char const* Name);
+void ReplaceMaterialReferences(scene* Scene, material* Old, material* New);
 void DestroyMaterial(scene* Scene, material* Material);
 
 texture* CreateCheckerTexture(scene* Scene, char const* Name, texture_type Type, glm::vec4 const& ColorA, glm::vec4 const& ColorB);

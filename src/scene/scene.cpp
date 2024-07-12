@@ -408,57 +408,24 @@ material* CreateMaterial(scene* Scene, material_type Type, char const* Name)
     return Material;
 }
 
-void DestroyMaterial(scene* Scene, material* Material)
+void ReplaceMaterialReferences(scene* Scene, material* Old, material* New)
 {
-    ForEachEntity(
-        &Scene->Root,
-        [Scene, Material](entity* Entity)
+    ForEachEntity
+    (
+        &Scene->Root, [Scene, Old, New](entity* Entity)
         {
-            switch (Entity->Type)
+            if (Entity->Material == Old)
             {
-                case ENTITY_TYPE_MESH_INSTANCE:
-                {
-                    auto MeshInstance = static_cast<mesh_entity*>(Entity);
-                    if (MeshInstance->Material == Material)
-                    {
-                        MeshInstance->Material = nullptr;
-                        Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
-                    }
-                    break;
-                }
-                case ENTITY_TYPE_PLANE:
-                {
-                    auto Plane = static_cast<plane_entity*>(Entity);
-                    if (Plane->Material == Material)
-                    {
-                        Plane->Material = nullptr;
-                        Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
-                    }
-                    break;
-                }
-                case ENTITY_TYPE_SPHERE:
-                {
-                    auto Sphere = static_cast<sphere_entity*>(Entity);
-                    if (Sphere->Material == Material)
-                    {
-                        Sphere->Material = nullptr;
-                        Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
-                    }
-                    break;
-                }
-                case ENTITY_TYPE_CUBE:
-                {
-                    auto Cube = static_cast<cube_entity*>(Entity);
-                    if (Cube->Material == Material)
-                    {
-                        Cube->Material = nullptr;
-                        Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
-                    }
-                    break;
-                }
+                Entity->Material = New;
+                Scene->DirtyFlags |= SCENE_DIRTY_SHAPES;
             }
         }
     );
+}
+
+void DestroyMaterial(scene* Scene, material* Material)
+{
+    ReplaceMaterialReferences(Scene, Material, nullptr);
 
     std::erase(Scene->Materials, Material);
     Scene->DirtyFlags |= SCENE_DIRTY_MATERIALS;

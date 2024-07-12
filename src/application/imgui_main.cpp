@@ -249,9 +249,13 @@ static void MaterialInspector(application* App, material* Material, bool Referen
             bool IsSelected = Material->Type == MaterialType;
             if (ImGui::Selectable(MaterialTypeName(MaterialType), &IsSelected))
             {
-                std::string MaterialName = Material->Name;
+                material* NewMaterial = CreateMaterial(Scene, MaterialType, Material->Name.c_str());
+
+                if (App->SelectedMaterial == Material)
+                    App->SelectedMaterial = NewMaterial;
+
+                ReplaceMaterialReferences(Scene, Material, NewMaterial);
                 DestroyMaterial(Scene, Material);
-                Material = CreateMaterial(Scene, MaterialType, MaterialName.c_str());
                 C = true;
             }
         }
