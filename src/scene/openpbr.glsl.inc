@@ -285,8 +285,8 @@ void OpenPBR_CoatSample
 // Specular part of the OpenPBR base substrate BSDF.
 void OpenPBR_BaseSpecularSample
 (
-    openpbr_parameters Parameters,
-    vec3 Out, out vec3 In,
+    openpbr_parameters Parameters, vec3 Out,
+    out vec3 In,
     inout vec4 PathThroughput,
     inout vec4 PathDensity
 )
@@ -341,16 +341,9 @@ void OpenPBR_BaseSpecularSample
             RelativeIOR = (1.0 - R) / (1.0 + R);
         }
 
-        // Compute the cosine of the angle between the refraction direction and
-        // the microsurface normal. The squared cosine is clamped to zero, the
-        // boundary for total internal reflection (TIR). When the cosine is zero,
-        // the Fresnel formulas give a reflectivity of 1, producing a TIR without
-        // the need for branches.
-        float RefractedCosineSquared = 1 - RelativeIOR.x * RelativeIOR.x * (1 - Cosine * Cosine);
-        float RefractedCosine = -sign(Out.z) * sqrt(max(RefractedCosineSquared, 0.0));
-
         // Compute dielectric reflectance.
-        float Reflectance = FresnelDielectric(RefractedCosine, Cosine, RelativeIOR.x);
+        float RefractedCosine = ComputeCosThetaRefracted(RelativeIOR.x, Cosine);
+        float Reflectance = FresnelDielectric(RelativeIOR.x, Cosine, RefractedCosine);
 
         // Specular reflection?
         if (Random0To1() < Reflectance)
@@ -394,7 +387,8 @@ void OpenPBR_BaseSpecularSample
             if (length(Parameters.SpecularRoughnessAlpha) > EPSILON)
             {
                 // Compute the Fresnel terms for all wavelengths.
-                vec4 Fresnel = FresnelDielectric(RefractedCosine, Cosine, RelativeIOR);
+                // TODO: This is broken for now!
+                vec4 Fresnel = vec4(0.0); //FresnelDielectricFixed(RelativeIOR, dot(In, Out));
 
                 // Compute the microfacet surface normals that would be necessary
                 // to cause the same refraction to occur but for the secondary
@@ -433,9 +427,8 @@ void OpenPBR_BaseSpecularSample
                 // The surface is perfectly smooth, so the probability of generating
                 // this refraction with any of the secondary wavelengths is zero.
                 // We continue with just the primary wavelength.
-                PathThroughput.x *= Shadowing;
-                PathThroughput.yzw = vec3(0.0);
-                PathDensity.yzw = vec3(0.0);
+                PathThroughput *= vec4(Shadowing, 0, 0, 0);
+                PathDensity *= vec4(1, 0, 0, 0);
             }
         }
     }
@@ -467,12 +460,13 @@ void OpenPBR_BaseDiffuseSample
     PathThroughput *= Parameters.BaseReflectance * (A + B * S / T);
 }
 
-void OpenPBR_Sample
+bool OpenPBR_Sample
 (
-    openpbr_parameters Parameters,
-    vec3 Out, out vec3 In,
-    inout vec4 PathThroughput,
-    inout vec4 PathDensity
+    in  openpbr_parameters Parameters,
+    in  vec3 Out,
+    out vec3 In,
+    out vec4 Throughput,
+    out vec4 InPDF
 )
 {
     const int LAYER_EXTERNAL = -1;
@@ -487,21 +481,24 @@ void OpenPBR_Sample
     else
         Layer = LAYER_BASE_SPECULAR;
 
+    Throughput = vec4(1, 1, 1, 1);
+    InPDF = vec4(1, 1, 1, 1);
+
     for (int I = 0; I < Parameters.LayerBounceLimit; I++)
     {
         if (Layer == LAYER_COAT)
         {
-            OpenPBR_CoatSample(Parameters, Out, In, PathThroughput, PathDensity);
+            OpenPBR_CoatSample(Parameters, Out, In, Throughput, InPDF);
             Layer = In.z < 0 ? LAYER_BASE_SPECULAR : LAYER_EXTERNAL;
         }
         else if (Layer == LAYER_BASE_SPECULAR)
         {
-            OpenPBR_BaseSpecularSample(Parameters, Out, In, PathThroughput, PathDensity);
+            OpenPBR_BaseSpecularSample(Parameters, Out, In, Throughput, InPDF);
             Layer = In.z < 0 ? LAYER_BASE_DIFFUSE : LAYER_COAT;
         }
         else if (Layer == LAYER_BASE_DIFFUSE)
         {
-            OpenPBR_BaseDiffuseSample(Parameters, Out, In, PathThroughput, PathDensity);
+            OpenPBR_BaseDiffuseSample(Parameters, Out, In, Throughput, InPDF);
             Layer = In.z < 0 ? LAYER_EXTERNAL : LAYER_BASE_SPECULAR;
         }
         else if (Layer == LAYER_EXTERNAL)
@@ -509,8 +506,10 @@ void OpenPBR_Sample
             break;
         }
 
-        if (max4(PathDensity) < EPSILON) break;
+        if (max4(InPDF) < EPSILON) return false;
 
         Out = -In;
     }
+
+    return true;
 }

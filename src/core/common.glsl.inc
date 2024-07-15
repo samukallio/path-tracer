@@ -99,6 +99,11 @@ vec3 SafeNormalize(vec3 V)
         return V / sqrt(LenSq);
 }
 
+vec4 Sqr(vec4 X)
+{
+    return X * X;
+}
+
 float max4(vec4 V)
 {
     return max(max(V.x, V.y), max(V.z, V.w));
@@ -233,23 +238,6 @@ vec3 RandomVonMisesFisher(float Kappa)
     return vec3(X, Y, Z);
 }
 
-/* --- Refraction Utilities ------------------------------------------------ */
-
-// Computes a wavelength-dependent refractive index according to
-// the Cauchy empirical formula.
-vec4 CauchyEmpiricalIOR(float BaseIOR, float AbbeNumber, vec4 Lambda)
-{
-    // Fraunhofer C, d, and F spectral lines.
-    const float LC = 656.3;
-    const float Ld = 587.6;
-    const float LF = 486.1;
-
-    float B = (BaseIOR - 1) / (AbbeNumber * (1.0 / (LF * LF) - 1.0 / (LC * LC)));
-    float A = BaseIOR - B / (Ld * Ld);
-
-    return A + B / (Lambda * Lambda);
-}
-
 /* --- Henyey-Greenstein Phase Function ------------------------------------ */
 
 // Sample a direction from the Henyey-Greenstein phase function.
@@ -350,29 +338,70 @@ float GGXDistribution(vec3 Normal, vec2 RoughnessAlpha)
     return 1.0 / (PI * RoughnessAlpha.x * RoughnessAlpha.y * B * B);
 }
 
-/* --- Fresnel ------------------------------------------------------------- */
+/* --- Reflection and Refraction ------------------------------------------- */
 
-// Compute surface reflectance using the Fresnel equations,
-// assuming equal proportions of s and p polarized light.
-float FresnelDielectric(float CosThetaIn, float CosThetaOut, float RelativeIOR)
+// Computes a wavelength-dependent refractive index according to
+// the Cauchy empirical formula.
+vec4 CauchyEmpiricalIOR(float BaseIOR, float AbbeNumber, vec4 Lambda)
 {
-    float A = CosThetaIn;
-    float Bs = CosThetaOut * RelativeIOR;
-    float Bp = CosThetaOut / RelativeIOR;
-    float Rs = (A + Bs) / (A - Bs);
-    float Rp = (A + Bp) / (A - Bp);
-    return 0.5 * (Rs * Rs + Rp * Rp);
+    // Fraunhofer C, d, and F spectral lines.
+    const float LC = 656.3;
+    const float Ld = 587.6;
+    const float LF = 486.1;
+
+    float B = (BaseIOR - 1) / (AbbeNumber * (1.0 / (LF * LF) - 1.0 / (LC * LC)));
+    float A = BaseIOR - B / (Ld * Ld);
+
+    return A + B / (Lambda * Lambda);
 }
 
-// Like above, but computes the Fresnel coefficient for 4 IOR values at the same time.
-vec4 FresnelDielectric(float CosThetaIn, float CosThetaOut, vec4 RelativeIOR)
+// Compute the cosine of the angle of refraction with respect to the surface
+// normal, given the cosine of the angle of incidence with respect to the
+// surface normal and the relative index of refraction at the interface
+// (IOR of incident medium over that of the refracting medium).  Both angles
+// are measured with respect to the same surface normal.  In case of total
+// internal reflection, the return value is zero.
+float ComputeCosThetaRefracted(float Eta, float CosTheta)
 {
-    float A = CosThetaIn;
-    vec4 Bs = CosThetaOut * RelativeIOR;
-    vec4 Bp = CosThetaOut / RelativeIOR;
-    vec4 Rs = (A + Bs) / (A - Bs);
-    vec4 Rp = (A + Bp) / (A - Bp);
-    return 0.5 * (Rs * Rs + Rp * Rp);
+    float Cos2ThetaRefracted = 1 - Eta * Eta * (1 - CosTheta * CosTheta);
+    return -sign(CosTheta) * sqrt(max(Cos2ThetaRefracted, 0.0));
+}
+
+// Like above, but for 4 quantities at the same time.
+vec4 ComputeCosThetaRefracted(vec4 Eta, vec4 CosTheta)
+{
+    vec4 Cos2ThetaRefracted = 1 - Eta * Eta * (1 - CosTheta * CosTheta);
+    return -sign(CosTheta) * sqrt(max(Cos2ThetaRefracted, 0.0));
+}
+
+// Compute surface reflectance using the Fresnel equations given a relative
+// index of refraction and cosines of the angles of the incident and refracted
+// rays with respect to the surface normal.  Both angles are measured with
+// respect to the same surface normal.
+float FresnelDielectric(float Eta, float CosTheta1, float CosTheta2)
+{
+    float Ks = Eta * CosTheta1;
+    float SqrtRs = (Ks + CosTheta2) / (Ks - CosTheta2);
+    float Kp = Eta * CosTheta2;
+    float SqrtRp = (Kp + CosTheta1) / (Kp - CosTheta1);
+    return 0.5 * (SqrtRs * SqrtRs + SqrtRp * SqrtRp);
+}
+
+// Like the float version, but computes 4 quantities at the same time.
+vec4 FresnelDielectric(vec4 Eta, vec4 CosTheta1, vec4 CosTheta2)
+{
+    vec4 Ks = Eta * CosTheta1;
+    vec4 SqrtRs = (Ks + CosTheta2) / (Ks - CosTheta2);
+    vec4 Kp = Eta * CosTheta2;
+    vec4 SqrtRp = (Kp + CosTheta1) / (Kp - CosTheta1);
+    return 0.5 * (SqrtRs * SqrtRs + SqrtRp * SqrtRp);
+}
+
+// As above, but with CosTheta2 implicit from Eta and CosTheta1.
+vec4 FresnelDielectric(vec4 Eta, vec4 CosTheta1)
+{
+    vec4 CosTheta2 = ComputeCosThetaRefracted(Eta, CosTheta1);
+    return FresnelDielectric(Eta, CosTheta1, CosTheta2);
 }
 
 // Computes the Fresnel term for a metallic surface using the "F82-tint"

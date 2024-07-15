@@ -221,9 +221,31 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
 
     // Resolve the surface and medium details.
     if (IsRealSurface)
-        MaterialSample(Hit.MaterialIndex, Hit.UV, Lambda, ExteriorIOR, Out, In, Path.Throughput, Path.Weight);
+    {
+        vec4 Throughput;
+        vec4 InPDF;
+
+        bool IsScatter = MaterialSample(Hit.MaterialIndex, Hit.UV, Lambda, ExteriorIOR, Out, In, Throughput, InPDF);
+        if (!IsScatter)
+        {
+            Path.Weight = vec4(0.0);
+            return;
+        }
+
+        float C = max4(Throughput);
+        if (C > EPSILON)
+        {
+            Throughput /= C;
+            InPDF /= C;
+        }
+
+        Path.Throughput *= Throughput;
+        Path.Weight *= InPDF;
+    }
     else
+    {
         In = -Out;
+    }
 
     if (max4(Path.Weight) < EPSILON) return;
 

@@ -63,39 +63,74 @@ basic_metal_parameters BasicMetal_Parameters
     return Parameters;
 }
 
-void BasicMetal_Sample
+bool BasicMetal_Sample
 (
-    basic_metal_parameters Parameters,
-    vec3 Out, out vec3 In,
-    inout vec4 PathThroughput,
-    inout vec4 PathDensity
+    in  basic_metal_parameters Parameters,
+    in  vec3 Out,
+    out vec3 In,
+    out vec4 Throughput,
+    out vec4 InPDF
 )
 {
+    if (Out.z <= 0.0) return false;
+
     // Sample a microsurface normal for specular scattering.
     float NormalU1 = Random0To1();
     float NormalU2 = Random0To1();
-    vec3 Normal = GGXVisibleNormal(Out * sign(Out.z), Parameters.RoughnessAlpha, NormalU1, NormalU2);
-    float Cosine = clamp(dot(Normal, Out), -1.0, +1.0);
+    vec3 Normal = GGXVisibleNormal(Out, Parameters.RoughnessAlpha, NormalU1, NormalU2);
+    float OutDotNormal = min(dot(Normal, Out), 1.0);
 
     // Compute reflected direction.
-    In = 2 * Cosine * Normal - Out;
+    In = 2 * OutDotNormal * Normal - Out;
 
     // If the reflected direction is in the wrong hemisphere,
     // then it is shadowed and we terminate here.
-    if (Out.z * In.z <= 0)
-    {
-        PathDensity = vec4(0.0);
-        return;
-    }
+    if (In.z <= 0.0) return false;
 
-    float Shadowing = GGXSmithG1(Out, Parameters.RoughnessAlpha);
-
-    vec4 Fresnel = SchlickFresnelMetal
+    vec4 F = SchlickFresnelMetal
     (
         Parameters.BaseReflectance,
         Parameters.SpecularReflectance,
-        abs(Cosine)
+        abs(OutDotNormal)
     );
 
-    PathThroughput *= Fresnel * Shadowing;
+    // NormalPDF = Gm * OutDotNormal * D / Out.z
+    // InPDF = NormalPDF / (4 * OutDotNormal);
+    // BRDF = D * F * Gs * Gm / (4 * Out.z * In.z)
+    // Throughput = BRDF * In.z
+
+    if (Parameters.RoughnessAlpha.x * Parameters.RoughnessAlpha.y < EPSILON)
+    {
+        InPDF = vec4(1.0);
+    }
+    else
+    {
+        float Gm = GGXSmithG1(Out, Parameters.RoughnessAlpha);
+        float D = GGXDistribution(Normal, Parameters.RoughnessAlpha);
+        InPDF = vec4(Gm * D / (4 * Out.z));
+    }
+
+    float Gs = GGXSmithG1(In, Parameters.RoughnessAlpha);
+
+    Throughput = InPDF * Gs * F;
+
+    return true;
+}
+
+vec4 BasicMetal_PDF(basic_metal_parameters Parameters, vec3 Out, vec3 In)
+{
+    if (Out.z <= 0.0 || In.z <= 0.0) return vec4(0.0);
+
+    // Normal of the microfacet that would reflect Out to In.
+    vec3 Half = SafeNormalize(Out + In);
+
+    // NormalPDF = Gm * OutDotNormal * D / Out.z
+    // InPDF = NormalPDF / (4 * OutDotNormal);
+
+    if (Parameters.RoughnessAlpha.x * Parameters.RoughnessAlpha.y < EPSILON)
+        return vec4(0.0);
+
+    float Gm = GGXSmithG1(Out, Parameters.RoughnessAlpha);
+    float D = GGXDistribution(Half, Parameters.RoughnessAlpha);
+    return vec4(Gm * D / (4 * Out.z));
 }

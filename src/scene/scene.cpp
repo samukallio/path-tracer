@@ -926,9 +926,9 @@ scene* CreateScene()
         SaveParametricSpectrumTable(Scene->RGBSpectrumTable, SRGB_SPECTRUM_TABLE_FILE);
     }
 
-    auto PlaneMaterial = (openpbr_material*)CreateMaterial(Scene, MATERIAL_TYPE_OPENPBR, "Plane Material");
-    PlaneMaterial->BaseColorTexture = CreateCheckerTexture(Scene, "Plane Texture", TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA, glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
-    PlaneMaterial->BaseColorTexture->EnableNearestFiltering = true;
+    auto PlaneMaterial = (basic_diffuse_material*)CreateMaterial(Scene, MATERIAL_TYPE_BASIC_DIFFUSE, "Plane Material");
+    PlaneMaterial->BaseTexture = CreateCheckerTexture(Scene, "Plane Texture", TEXTURE_TYPE_REFLECTANCE_WITH_ALPHA, glm::vec4(1,1,1,1), glm::vec4(0.5,0.5,0.5,1));
+    PlaneMaterial->BaseTexture->EnableNearestFiltering = true;
     plane_entity* Plane = (plane_entity*)CreateEntity(Scene, ENTITY_TYPE_PLANE);
     Plane->Name = "Plane";
     Plane->Material = PlaneMaterial;

@@ -33,15 +33,22 @@ basic_diffuse_parameters BasicDiffuse_Parameters
     return Parameters;
 }
 
-void BasicDiffuse_Sample
+bool BasicDiffuse_Sample
 (
-    basic_diffuse_parameters Parameters,
-    vec3 Out, out vec3 In,
-    inout vec4 PathThroughput,
-    inout vec4 PathDensity
+    in  basic_diffuse_parameters Parameters,
+    in  vec3 Out,
+    out vec3 In,
+    out vec4 Throughput,
+    out vec4 InPDF
 )
 {
     In = SafeNormalize(RandomDirection() + vec3(0, 0, 1));
+    InPDF = vec4(In.z / PI);
+    Throughput = InPDF * Parameters.BaseReflectance;
+    return true;
+}
 
-    PathThroughput *= Parameters.BaseReflectance;
+vec4 BasicDiffuse_PDF(basic_diffuse_parameters Parameters, vec3 Out, vec3 In)
+{
+    return vec4(In.z / PI);
 }

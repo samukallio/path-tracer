@@ -90,112 +90,228 @@ basic_translucent_parameters BasicTranslucent_Parameters
     return Parameters;
 }
 
-void BasicTranslucent_Sample
+bool BasicTranslucent_Sample
 (
-    basic_translucent_parameters Parameters,
-    vec3 Out, out vec3 In,
-    inout vec4 PathThroughput,
-    inout vec4 PathDensity
+    in  basic_translucent_parameters Parameters,
+    in  vec3 Out,
+    out vec3 In,
+    out vec4 Throughput,
+    out vec4 InPDF
 )
 {
+    // Compute relative IOR (incident/transmitted).
     vec4 RelativeIOR = Parameters.RelativeIOR;
     if (Out.z < 0) RelativeIOR = 1.0 / RelativeIOR;
+
+    bool SurfaceIsRough = Parameters.RoughnessAlpha.x * Parameters.RoughnessAlpha.y > EPSILON;
 
     // Sample a microsurface normal for specular scattering.
     float NormalU1 = Random0To1();
     float NormalU2 = Random0To1();
     vec3 Normal = GGXVisibleNormal(Out * sign(Out.z), Parameters.RoughnessAlpha, NormalU1, NormalU2);
-    float Cosine = clamp(dot(Normal, Out), -1.0, +1.0);
 
-    // Compute the cosine of the angle between the refraction direction and
-    // the microsurface normal. The squared cosine is clamped to zero, the
-    // boundary for total internal reflection (TIR). When the cosine is zero,
-    // the Fresnel formulas give a reflectivity of 1, producing a TIR without
-    // the need for branches.
-    float RefractedCosineSquared = 1 - RelativeIOR.x * RelativeIOR.x * (1 - Cosine * Cosine);
-    float RefractedCosine = -sign(Out.z) * sqrt(max(RefractedCosineSquared, 0.0));
+    // Cosine of the angle of the outgoing ray with respect to the microsurface normal.
+    float CosThetaOut = clamp(dot(Normal, Out), -1.0, +1.0);
 
-    // Compute dielectric reflectance.
-    float Reflectance = FresnelDielectric(RefractedCosine, Cosine, RelativeIOR.x);
+    // Cosine of the angle of a refracted ray with respect to the microsurface normal,
+    // using the relative IOR associated with the primary wavelength.
+    float CosThetaRefracted = ComputeCosThetaRefracted(RelativeIOR.x, CosThetaOut);
 
-    // Specular reflection?
+    // Surface reflectance using the relative IOR associated with the primary wavelength.
+    float Reflectance = FresnelDielectric(RelativeIOR.x, CosThetaOut, CosThetaRefracted);
+
+    // Choose between reflection and refraction for this sample.
     if (Random0To1() < Reflectance)
     {
-        // Compute reflected direction.
-        In = 2 * Cosine * Normal - Out;
+        // Reflected direction.
+        In = 2 * CosThetaOut * Normal - Out;
 
-        // If the reflected direction is in the wrong hemisphere,
-        // then it is shadowed and we terminate here.
-        if (In.z * Out.z <= 0)
+        // If the microfacet reflects the ray through the macrosurface, then it is shadowed.
+        if (In.z * Out.z <= 0) return false;
+
+        // Surface reflectances at each sampling wavelength.
+        vec4 F = FresnelDielectric(RelativeIOR, vec4(CosThetaOut));
+
+        // NormalPDF = Gm * OutDotNormal * D / abs(Out.z)
+        // InPDF = NormalPDF / (4 * OutDotNormal);
+        // BRDF = D * F * Gs * Gm / (4 * OutDotZ * abs(In.z))
+        // Throughput = BRDF * abs(In.z)
+
+        // The Fresnel coefficient varies by wavelength and is always incorporated into the PDF.
+        InPDF = F;
+
+        // If the surface is rough, then we have a finite PDF for the reflected
+        // direction, and should include it in the final PDF.  Otherwise, the
+        // PDF of the reflected direction is a delta distribution, and we cannot
+        // evaluate or represent it directly.  In that case, the interpretation
+        // of the resulting PDF and throughput is that they are coefficients of
+        // hidden, implied delta distributions.  This must be taken into account
+        // then combining results from multiple BSDFs.
+        if (SurfaceIsRough)
         {
-            PathDensity = vec4(0.0);
-            return;
+            float Gm = GGXSmithG1(Out, Parameters.RoughnessAlpha);
+            float D = GGXDistribution(Normal, Parameters.RoughnessAlpha);
+            InPDF *= Gm * D / (4 * abs(Out.z));
         }
 
-        PathThroughput *= GGXSmithG1(In, Parameters.RoughnessAlpha);
-        return;
+        // Geometric shadowing term.
+        float Gs = GGXSmithG1(In, Parameters.RoughnessAlpha);
+
+        // Radiance throughput.
+        Throughput = InPDF * Gs;
+
+        return true;
     }
 
     // Compute refracted direction.
-    In = (RelativeIOR.x * Cosine + RefractedCosine) * Normal - RelativeIOR.x * Out;
+    In = (CosThetaRefracted + RelativeIOR.x * CosThetaOut) * Normal - RelativeIOR.x * Out;
 
-    // If the refracted direction is in the wrong hemisphere,
-    // then it is shadowed and we terminate here.
-    if (In.z * Out.z > 0)
+    // If the microfacet refracts the ray back out of the macrosurface, then it is shadowed.
+    if (In.z * Out.z >= 0) return false;
+
+    // If the surface is rough, then it is possible for this same refraction
+    // to have been generated at a secondary wavelength but with a different
+    // microsurface normal.  In that case we compute the alternate probabilities
+    // and continue with on with the full set of sampling wavelengths.
+    if (SurfaceIsRough)
     {
-        PathDensity = vec4(0.0);
-        return;
-    }
-
-    float Shadowing = GGXSmithG1(In, Parameters.RoughnessAlpha);
-
-    // If the surface is rough, then a refraction with the same incoming
-    // and outgoing direction is possible for the secondary wavelengths,
-    // although with different probabilities.
-    if (length(Parameters.RoughnessAlpha) > EPSILON)
-    {
-        // Compute the Fresnel terms for all wavelengths.
-        vec4 Fresnel = FresnelDielectric(RefractedCosine, Cosine, RelativeIOR);
-
         // Compute the microfacet surface normals that would be necessary
         // to cause the same refraction to occur but for the secondary
-        // wavelengths. Note that the orientation of the normals might
-        // be wrong, but it doesn't matter here, since GGXDistribution()
-        // has reflection symmetry.
+        // wavelengths.
         vec3 Normal2 = SafeNormalize(In + Out * RelativeIOR.y);
         vec3 Normal3 = SafeNormalize(In + Out * RelativeIOR.z);
         vec3 Normal4 = SafeNormalize(In + Out * RelativeIOR.w);
 
-        // Now figure out the GGX densities of the normals.
-        vec4 Density = vec4(0.0);
+        // Cosines of angles of the outgoing direction with respect to each microsurface normal.
+        vec4 CosThetaOut4 = vec4(
+            CosThetaOut,
+            dot(Out, Normal2),
+            dot(Out, Normal3),
+            dot(Out, Normal4));
+        
+        // Cosines of angles of the refracted direction with respect to each microsurface normal.
+        vec4 CosThetaIn4 = vec4(
+            CosThetaRefracted,
+            dot(In, Normal2),
+            dot(In, Normal3),
+            dot(In, Normal4));
 
-        // Density of the normal corresponding to the primary wavelength.
-        Density.x = GGXDistribution(Normal, Parameters.RoughnessAlpha);
+        // Surface reflectances at each sampling wavelength.
+        vec4 F = FresnelDielectric(RelativeIOR, CosThetaOut4, CosThetaIn4);
+
+        // GGX densities of the microfact normals.
+        vec4 D = vec4(0.0);
+        D.x = GGXDistribution(Normal, Parameters.RoughnessAlpha);
 
         // Densities for the secondary wavelengths. We also need to check
         // that the generated normals are actually plausible (no total
-        // internal reflection). Otherwise, the refraction is impossible
+        // internal reflection).  Otherwise, the refraction is impossible
         // and the corresponding density is zero.
-        if (dot(In, Normal2) * dot(Out, Normal2) < 0.0)
-            Density.y = GGXDistribution(Normal2, Parameters.RoughnessAlpha);
-        if (dot(In, Normal3) * dot(Out, Normal3) < 0.0)
-            Density.z = GGXDistribution(Normal3, Parameters.RoughnessAlpha);
-        if (dot(In, Normal4) * dot(Out, Normal4) < 0.0)
-            Density.w = GGXDistribution(Normal4, Parameters.RoughnessAlpha);
+        if (CosThetaOut4.y * CosThetaIn4.y < 0.0)
+            D.y = GGXDistribution(Normal2, Parameters.RoughnessAlpha);
+        if (CosThetaOut4.z * CosThetaIn4.z < 0.0)
+            D.z = GGXDistribution(Normal3, Parameters.RoughnessAlpha);
+        if (CosThetaOut4.w * CosThetaIn4.w < 0.0)
+            D.w = GGXDistribution(Normal4, Parameters.RoughnessAlpha);
 
-        // Scale the densities towards unity to mitigate numerical problems.
-        Density /= max(EPSILON, max4(Density));
+        // Geometric masking term.
+        float Gm = GGXSmithG1(Out, Parameters.RoughnessAlpha);
 
-        PathThroughput *= Density * Fresnel * Shadowing;
-        PathDensity *= Density * Fresnel;
+        //
+        // NormalPDF = Gm * abs(CosThetaOut) * D / abs(Out.z)
+        //
+
+        // Jacobian of the refraction operator:
+        //
+        // J = abs(CosThetaIn) / (CosThetaOut * RelativeIOR + CosThetaIn)^2
+        //
+
+        //
+        // InPDF = (1 - F) * J * NormalPDF
+        //       = (1 - F) * J * Gm * abs(CosThetaOut) * D / abs(Out.z)
+        //
+
+        //
+        // BTDF = D * (1 - F) * Gs * Gm * J * abs(CosThetaOut) / abs(In.z * Out.z)
+        //      = InPDF * Gs  / abs(In.z)
+        //
+        //
+        // Throughput = BTDF * abs(In.z)
+        //            = InPDF * Gs
+        //
+
+        vec4 J = abs(CosThetaIn4) / Sqr(CosThetaOut4 * RelativeIOR + CosThetaIn4);
+        InPDF = D * (1 - F) * Gm * J * abs(CosThetaOut4 / Out.z);
     }
     else
     {
         // The surface is perfectly smooth, so the probability of generating
         // this refraction with any of the secondary wavelengths is zero.
         // We continue with just the primary wavelength.
-        PathThroughput.x *= Shadowing;
-        PathThroughput.yzw = vec3(0.0);
-        PathDensity.yzw = vec3(0.0);
+        InPDF = vec4(1 - Reflectance, 0, 0, 0);
+    }
+
+    float Gs = GGXSmithG1(In, Parameters.RoughnessAlpha);
+
+    Throughput = InPDF * Gs;
+
+    return true;
+}
+
+vec4 BasicTranslucent_PDF(basic_translucent_parameters Parameters, vec3 Out, vec3 In)
+{
+    vec4 RelativeIOR = Parameters.RelativeIOR;
+    if (Out.z < 0) RelativeIOR = 1.0 / RelativeIOR;
+
+    bool SurfaceIsRough = Parameters.RoughnessAlpha.x * Parameters.RoughnessAlpha.y > EPSILON;
+
+    if (!SurfaceIsRough) return vec4(0.0);
+
+    // Geometric masking term.
+    float Gm = GGXSmithG1(Out, Parameters.RoughnessAlpha);
+
+    if (Out.z * In.z > 0)
+    {
+        vec3 Half = SafeNormalize(In + Out);
+        float CosThetaOut = dot(Half, Out);
+
+        vec4 F = FresnelDielectric(RelativeIOR, vec4(CosThetaOut));
+
+        float D = GGXDistribution(Half, Parameters.RoughnessAlpha);
+        return F * Gm * D / (4 * Out.z);
+    }
+    else
+    {
+        // Compute the refraction half-vectors, i.e. the normals that
+        // microfacets should have to produce the refraction in question
+        // at each of the sampling wavelengths.  The vectors are computed
+        // up to sign, which is inconsequential here due to symmetry.
+        vec3 Half1 = SafeNormalize(In + Out * RelativeIOR.x);
+        vec3 Half2 = SafeNormalize(In + Out * RelativeIOR.y);
+        vec3 Half3 = SafeNormalize(In + Out * RelativeIOR.z);
+        vec3 Half4 = SafeNormalize(In + Out * RelativeIOR.w);
+
+        vec4 CosThetaOut = vec4(dot(Out, Half1), dot(Out, Half2), dot(Out, Half3), dot(Out, Half4));
+        vec4 CosThetaIn  = vec4(dot(In , Half1), dot(In , Half2), dot(In , Half3), dot(In , Half4));
+
+        // Surface reflectance at each sampling wavelength.
+        vec4 F = FresnelDielectric(RelativeIOR, CosThetaOut, CosThetaIn);
+
+        // GGX density for each half-vector.
+        vec4 D = vec4(0.0);
+        if (CosThetaOut.x * CosThetaIn.x < 0.0)
+            D.x = GGXDistribution(Half1, Parameters.RoughnessAlpha);
+        if (CosThetaOut.y * CosThetaIn.y < 0.0)
+            D.y = GGXDistribution(Half2, Parameters.RoughnessAlpha);
+        if (CosThetaOut.z * CosThetaIn.z < 0.0)
+            D.z = GGXDistribution(Half3, Parameters.RoughnessAlpha);
+        if (CosThetaOut.w * CosThetaIn.w < 0.0)
+            D.w = GGXDistribution(Half4, Parameters.RoughnessAlpha);
+
+        // Jacobian of the refraction operator for each sampling wavelength.
+        vec4 J = abs(CosThetaIn) / Sqr(CosThetaOut * RelativeIOR + CosThetaIn);
+
+        // Final PDFs.
+        return D * (1 - F) * Gm * J * abs(CosThetaOut / Out.z);
     }
 }

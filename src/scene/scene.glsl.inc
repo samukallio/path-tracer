@@ -690,39 +690,74 @@ medium MaterialMedium(uint MaterialIndex, vec4 Lambda)
     return Medium;
 }
 
-void MaterialSample
+bool MaterialSample
 (
-    uint MaterialIndex,
-    vec2 TextureUV,
-    vec4 Lambda,
-    vec4 ExteriorIOR,
+    in  uint MaterialIndex,
+    in  vec2 TextureUV,
+    in  vec4 Lambda,
+    in  vec4 ExteriorIOR,
+    in  vec3 Out,
 
-    vec3 Out, out vec3 In,
-    inout vec4 PathThroughput,
-    inout vec4 PathDensity
+    out vec3 In,
+    out vec4 Throughput,
+    out vec4 InPDF
 )
 {
     uint Type = MaterialType(MaterialIndex);
     if (Type == MATERIAL_TYPE_BASIC_DIFFUSE)
     {
         basic_diffuse_parameters Parameters = BasicDiffuse_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
-        BasicDiffuse_Sample(Parameters, Out, In, PathThroughput, PathDensity);
+        return BasicDiffuse_Sample(Parameters, Out, In, Throughput, InPDF);
     }
     if (Type == MATERIAL_TYPE_BASIC_METAL)
     {
         basic_metal_parameters Parameters = BasicMetal_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
-        BasicMetal_Sample(Parameters, Out, In, PathThroughput, PathDensity);
+        return BasicMetal_Sample(Parameters, Out, In, Throughput, InPDF);
     }
     if (Type == MATERIAL_TYPE_BASIC_TRANSLUCENT)
     {
         basic_translucent_parameters Parameters = BasicTranslucent_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
-        BasicTranslucent_Sample(Parameters, Out, In, PathThroughput, PathDensity);
+        return BasicTranslucent_Sample(Parameters, Out, In, Throughput, InPDF);
     }
     if (Type == MATERIAL_TYPE_OPENPBR)
     {
         openpbr_parameters Parameters = OpenPBR_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
-        OpenPBR_Sample(Parameters, Out, In, PathThroughput, PathDensity);
+        return OpenPBR_Sample(Parameters, Out, In, Throughput, InPDF);
     }
+    return false;
+}
+
+vec4 MaterialPDF
+(
+    in uint MaterialIndex,
+    in vec2 TextureUV,
+    in vec4 Lambda,
+    in vec4 ExteriorIOR,
+    in vec3 Out,
+    in vec3 In
+)
+{
+    uint Type = MaterialType(MaterialIndex);
+    if (Type == MATERIAL_TYPE_BASIC_DIFFUSE)
+    {
+        basic_diffuse_parameters Parameters = BasicDiffuse_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
+        return BasicDiffuse_PDF(Parameters, Out, In);
+    }
+    if (Type == MATERIAL_TYPE_BASIC_METAL)
+    {
+        basic_metal_parameters Parameters = BasicMetal_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
+        return BasicMetal_PDF(Parameters, Out, In);
+    }
+    if (Type == MATERIAL_TYPE_BASIC_TRANSLUCENT)
+    {
+        basic_translucent_parameters Parameters = BasicTranslucent_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
+        return BasicTranslucent_PDF(Parameters, Out, In);
+    }
+    if (Type == MATERIAL_TYPE_OPENPBR)
+    {
+        // TODO: Implement!
+    }
+    return vec4(0.0);
 }
 
 #endif // BIND_SCENE
