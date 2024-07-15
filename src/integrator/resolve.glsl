@@ -2,8 +2,13 @@
 
 #version 450
 
+const uint TONE_MAPPING_MODE_CLAMP    = 0;
+const uint TONE_MAPPING_MODE_REINHARD = 1;
+const uint TONE_MAPPING_MODE_HABLE    = 2;
+const uint TONE_MAPPING_MODE_ACES     = 3;
+
 #include "core/common.glsl.inc"
-#include "scene/scene.glsl.inc"
+#include "core/spectrum.glsl.inc"
 
 layout(set=0, binding=0)
 uniform sampler2D SampleAccumulatorImageSampler;

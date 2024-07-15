@@ -23,11 +23,6 @@ const uint MATERIAL_TYPE_BASIC_METAL       = 1;
 const uint MATERIAL_TYPE_BASIC_TRANSLUCENT = 2;
 const uint MATERIAL_TYPE_OPENPBR           = 3;
 
-const uint TONE_MAPPING_MODE_CLAMP    = 0;
-const uint TONE_MAPPING_MODE_REINHARD = 1;
-const uint TONE_MAPPING_MODE_HABLE    = 2;
-const uint TONE_MAPPING_MODE_ACES     = 3;
-
 const uint CAMERA_MODEL_PINHOLE   = 0;
 const uint CAMERA_MODEL_THIN_LENS = 1;
 const uint CAMERA_MODEL_360       = 2;
@@ -121,8 +116,6 @@ struct hit
     uint  SceneComplexity;      // Total number of shape nodes traversed while tracing.
     uint  MeshComplexity;       // Total number of mesh nodes traversed while tracing.
 };
-
-#ifdef BIND_SCENE
 
 layout(set=BIND_SCENE, binding=0)
 uniform SceneUBO
@@ -759,7 +752,5 @@ vec4 MaterialPDF
     }
     return vec4(0.0);
 }
-
-#endif // BIND_SCENE
 
 #endif // SCENE_GLSL_INC
