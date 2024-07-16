@@ -10,11 +10,14 @@ bool BasicDiffuse_HasDiracBSDF(bsdf_parameters Parameters)
     return false;
 }
 
+// Evaluate the BSDF for a given incident and scattered direction.
 bool BasicDiffuse_EvaluateBSDF
 (
+    // Inputs.
     in  bsdf_parameters Parameters,
+    in  vec3 In,
     in  vec3 Out,
-    out vec3 In,
+    // Outputs.
     out vec4 Throughput,
     out vec4 Probability
 )
@@ -25,15 +28,18 @@ bool BasicDiffuse_EvaluateBSDF
     return true;
 }
 
+// Importance sample a scattered direction and evaluate the BSDF using it.
 bool BasicDiffuse_SampleBSDF
 (
+    // Inputs.
     in  bsdf_parameters Parameters,
-    in  vec3 Out,
-    out vec3 In,
+    in  vec3 In,
+    // Outputs.
+    out vec3 Out,
     out vec4 Throughput,
     out vec4 Probability
 )
 {
-    In = SafeNormalize(RandomDirection() + vec3(0, 0, 1));
-    return BasicDiffuse_EvaluateBSDF(Parameters, Out, In, Throughput, Probability);
+    Out = SafeNormalize(RandomDirection() + vec3(0, 0, 1));
+    return BasicDiffuse_EvaluateBSDF(Parameters, In, Out, Throughput, Probability);
 }

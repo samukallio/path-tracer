@@ -35,11 +35,14 @@ bool BasicMetal_HasDiracBSDF(bsdf_parameters Parameters)
     return MaterialTexturableValue(Parameters, BASIC_METAL_ROUGHNESS) < 1e-3;
 }
 
+// Evaluate the BSDF for a given incident and scattered direction.
 bool BasicMetal_EvaluateBSDF
 (
+    // Inputs.
     in  bsdf_parameters Parameters,
-    in  vec3 Out,
     in  vec3 In,
+    in  vec3 Out,
+    // Outputs.
     out vec4 Throughput,
     out vec4 Probability
 )
@@ -50,9 +53,9 @@ bool BasicMetal_EvaluateBSDF
     bool SurfaceIsRough;
     BasicMetal_GetParameters(Parameters, BaseReflectance, SpecularReflectance, RoughnessAlpha, SurfaceIsRough);
 
-    if (Out.z <= 0.0 || In.z <= 0.0 || !SurfaceIsRough) return false;
+    if (In.z <= 0.0 || Out.z <= 0.0 || !SurfaceIsRough) return false;
 
-    vec3 Half = SafeNormalize(Out + In);
+    vec3 Half = SafeNormalize(In + Out);
 
     // NormalPDF = Gm * OutDotNormal * D / Out.z
     // Probability = NormalPDF / (4 * OutDotNormal);
@@ -63,22 +66,25 @@ bool BasicMetal_EvaluateBSDF
     // Throughput = BRDF * In.z
     //            = Probability * F * Gs
 
-    float Gm = GGXSmithG1(Out, RoughnessAlpha);
+    float Gm = GGXSmithG1(In, RoughnessAlpha);
     float D = GGXDistribution(Half, RoughnessAlpha);
-    Probability = vec4(Gm * D / (4 * Out.z));
+    Probability = vec4(Gm * D / (4 * In.z));
 
-    float Gs = GGXSmithG1(In, RoughnessAlpha);
-    vec4 F = SchlickFresnelMetal(BaseReflectance, SpecularReflectance, dot(Out, Half));
+    float Gs = GGXSmithG1(Out, RoughnessAlpha);
+    vec4 F = SchlickFresnelMetal(BaseReflectance, SpecularReflectance, dot(In, Half));
     Throughput = Probability * Gs * F;
 
     return true;
 }
 
+// Importance sample a scattered direction and evaluate the BSDF using it.
 bool BasicMetal_SampleBSDF
 (
+    // Inputs.
     in  bsdf_parameters Parameters,
-    in  vec3 Out,
-    out vec3 In,
+    in  vec3 In,
+    // Outputs.
+    out vec3 Out,
     out vec4 Throughput,
     out vec4 Probability
 )
@@ -89,20 +95,20 @@ bool BasicMetal_SampleBSDF
     bool SurfaceIsRough;
     BasicMetal_GetParameters(Parameters, BaseReflectance, SpecularReflectance, RoughnessAlpha, SurfaceIsRough);
 
-    if (Out.z <= 0.0) return false;
+    if (In.z <= 0.0) return false;
 
     // Sample a microsurface normal for specular scattering.
     float NormalU1 = Random0To1();
     float NormalU2 = Random0To1();
-    vec3 Normal = GGXVisibleNormal(Out, RoughnessAlpha, NormalU1, NormalU2);
-    float OutDotNormal = min(dot(Normal, Out), 1.0);
+    vec3 Normal = GGXVisibleNormal(In, RoughnessAlpha, NormalU1, NormalU2);
+    float CosThetaIn = min(dot(Normal, In), 1.0);
 
     // Compute reflected direction.
-    In = 2 * OutDotNormal * Normal - Out;
+    Out = 2 * CosThetaIn * Normal - In;
 
     // If the reflected direction is in the wrong hemisphere,
     // then it is shadowed and we terminate here.
-    if (In.z <= 0.0) return false;
+    if (Out.z <= 0.0) return false;
 
     // NormalPDF = Gm * OutDotNormal * D / Out.z
     // Probability = NormalPDF / (4 * OutDotNormal);
@@ -117,13 +123,13 @@ bool BasicMetal_SampleBSDF
 
     if (SurfaceIsRough)
     {
-        float Gm = GGXSmithG1(Out, RoughnessAlpha);
+        float Gm = GGXSmithG1(In, RoughnessAlpha);
         float D = GGXDistribution(Normal, RoughnessAlpha);
-        Probability *= vec4(Gm * D / (4 * Out.z));
+        Probability *= vec4(Gm * D / (4 * In.z));
     }
 
-    float Gs = GGXSmithG1(In, RoughnessAlpha);
-    vec4 F = SchlickFresnelMetal(BaseReflectance, SpecularReflectance, OutDotNormal);
+    float Gs = GGXSmithG1(Out, RoughnessAlpha);
+    vec4 F = SchlickFresnelMetal(BaseReflectance, SpecularReflectance, CosThetaIn);
     Throughput = Probability * Gs * F;
 
     return true;
