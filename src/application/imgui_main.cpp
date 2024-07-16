@@ -356,7 +356,11 @@ static void EntityInspector(application* App, entity* Entity)
             auto Root = static_cast<root_entity*>(Entity);
             C |= ImGui::DragFloat("Scattering Rate", &Root->ScatterRate, 0.001f, 0.00001f, 1.0f, "%.3f", ImGuiSliderFlags_Logarithmic);
             C |= ImGui::DragFloat("Skybox Brightness", &Root->SkyboxBrightness, 0.01f, 0.0f, 1.0f);
-            C |= ResourceSelectorDropDown("Skybox Texture", Scene->Textures, &Root->SkyboxTexture);
+            C |= ImGui::DragFloat("Skybox Sampling Probability", &Root->SkyboxSamplingProbability, 0.01f, 0.0f, 1.0f);
+
+            if (ResourceSelectorDropDown("Skybox Texture", Scene->Textures, &Root->SkyboxTexture))
+                Scene->DirtyFlags |= SCENE_DIRTY_SKYBOX_TEXTURE;
+
             if (C) Scene->DirtyFlags |= SCENE_DIRTY_GLOBALS;
             break;
         }

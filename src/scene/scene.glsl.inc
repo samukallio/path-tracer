@@ -89,8 +89,9 @@ struct packed_camera
 
 struct packed_scene_globals
 {
-    mat3  SkyboxDistributionFrame;
-    float SkyboxDistributionConcentration;
+    vec3  SkyboxMeanDirection;
+    float SkyboxConcentration;
+    float SkyboxSamplingProbability;
     float SkyboxBrightness;
     uint  SkyboxTextureIndex;
     uint  ShapeCount;
@@ -653,22 +654,48 @@ ray GenerateCameraRay(packed_camera Camera, vec2 NormalizedSamplePosition)
     return TransformRay(Ray, Camera.Transform);
 }
 
+/* --- Materials ----------------------------------------------------------- */
+
+struct bsdf_parameters
+{
+    uint MaterialIndex;
+    vec2 TextureUV;
+    vec4 Lambda;
+    vec4 ExteriorIOR;
+};
+
+float MaterialTexturableValue(bsdf_parameters Parameters, uint AttributeIndex)
+{
+    return MaterialTexturableValue(Parameters.MaterialIndex, AttributeIndex, Parameters.TextureUV);
+}
+
+vec3 MaterialTexturableColor(bsdf_parameters Parameters, uint AttributeIndex)
+{
+    return MaterialTexturableColor(Parameters.MaterialIndex, AttributeIndex, Parameters.TextureUV);
+}
+
+vec4 MaterialTexturableReflectance(bsdf_parameters Parameters, uint AttributeIndex)
+{
+    return MaterialTexturableReflectance(Parameters.MaterialIndex, AttributeIndex, Parameters.Lambda, Parameters.TextureUV);
+}
+
 #include "scene/basic_diffuse.glsl.inc"
 #include "scene/basic_metal.glsl.inc"
 #include "scene/basic_translucent.glsl.inc"
-#include "scene/openpbr.glsl.inc"
+//#include "scene/openpbr.glsl.inc"
+
+#define DISPATCH_MATERIAL(NAME, ARGUMENTS) \
+    if (Type == MATERIAL_TYPE_BASIC_DIFFUSE) \
+        return BasicDiffuse_##NAME ARGUMENTS; \
+    if (Type == MATERIAL_TYPE_BASIC_METAL) \
+        return BasicMetal_##NAME ARGUMENTS; \
+    if (Type == MATERIAL_TYPE_BASIC_TRANSLUCENT) \
+        return BasicTranslucent_##NAME ARGUMENTS; \
 
 vec3 MaterialBaseColor(uint MaterialIndex, vec2 TextureUV)
 {
     uint Type = MaterialType(MaterialIndex);
-    if (Type == MATERIAL_TYPE_BASIC_DIFFUSE)
-        return BasicDiffuse_BaseColor(MaterialIndex, TextureUV);
-    if (Type == MATERIAL_TYPE_BASIC_METAL)
-        return BasicMetal_BaseColor(MaterialIndex, TextureUV);
-    if (Type == MATERIAL_TYPE_BASIC_TRANSLUCENT)
-        return BasicTranslucent_BaseColor(MaterialIndex, TextureUV);
-    if (Type == MATERIAL_TYPE_OPENPBR)
-        return OpenPBR_BaseColor(MaterialIndex, TextureUV);
+    DISPATCH_MATERIAL(BaseColor, (MaterialIndex, TextureUV));
     return vec3(0,0,0);
 }
 
@@ -678,79 +705,30 @@ medium MaterialMedium(uint MaterialIndex, vec4 Lambda)
     uint Type = MaterialType(MaterialIndex);
     if (Type == MATERIAL_TYPE_BASIC_TRANSLUCENT)
         Medium = BasicTranslucent_Medium(MaterialIndex, Lambda);
-    if (Type == MATERIAL_TYPE_OPENPBR)
-        Medium = OpenPBR_Medium(MaterialIndex, Lambda);
     return Medium;
 }
 
-bool MaterialSample
-(
-    in  uint MaterialIndex,
-    in  vec2 TextureUV,
-    in  vec4 Lambda,
-    in  vec4 ExteriorIOR,
-    in  vec3 Out,
-
-    out vec3 In,
-    out vec4 Throughput,
-    out vec4 InPDF
-)
+bool MaterialHasDiracBSDF(bsdf_parameters Parameters)
 {
-    uint Type = MaterialType(MaterialIndex);
-    if (Type == MATERIAL_TYPE_BASIC_DIFFUSE)
-    {
-        basic_diffuse_parameters Parameters = BasicDiffuse_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
-        return BasicDiffuse_Sample(Parameters, Out, In, Throughput, InPDF);
-    }
-    if (Type == MATERIAL_TYPE_BASIC_METAL)
-    {
-        basic_metal_parameters Parameters = BasicMetal_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
-        return BasicMetal_Sample(Parameters, Out, In, Throughput, InPDF);
-    }
-    if (Type == MATERIAL_TYPE_BASIC_TRANSLUCENT)
-    {
-        basic_translucent_parameters Parameters = BasicTranslucent_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
-        return BasicTranslucent_Sample(Parameters, Out, In, Throughput, InPDF);
-    }
-    if (Type == MATERIAL_TYPE_OPENPBR)
-    {
-        openpbr_parameters Parameters = OpenPBR_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
-        return OpenPBR_Sample(Parameters, Out, In, Throughput, InPDF);
-    }
+    uint Type = MaterialType(Parameters.MaterialIndex);
+    DISPATCH_MATERIAL(HasDiracBSDF, (Parameters));
     return false;
 }
 
-vec4 MaterialPDF
-(
-    in uint MaterialIndex,
-    in vec2 TextureUV,
-    in vec4 Lambda,
-    in vec4 ExteriorIOR,
-    in vec3 Out,
-    in vec3 In
-)
+bool MaterialSampleBSDF(bsdf_parameters Parameters, vec3 Out, out vec3 In, out vec4 Throughput, out vec4 InPDF)
 {
-    uint Type = MaterialType(MaterialIndex);
-    if (Type == MATERIAL_TYPE_BASIC_DIFFUSE)
-    {
-        basic_diffuse_parameters Parameters = BasicDiffuse_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
-        return BasicDiffuse_PDF(Parameters, Out, In);
-    }
-    if (Type == MATERIAL_TYPE_BASIC_METAL)
-    {
-        basic_metal_parameters Parameters = BasicMetal_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
-        return BasicMetal_PDF(Parameters, Out, In);
-    }
-    if (Type == MATERIAL_TYPE_BASIC_TRANSLUCENT)
-    {
-        basic_translucent_parameters Parameters = BasicTranslucent_Parameters(MaterialIndex, TextureUV, Lambda, ExteriorIOR);
-        return BasicTranslucent_PDF(Parameters, Out, In);
-    }
-    if (Type == MATERIAL_TYPE_OPENPBR)
-    {
-        // TODO: Implement!
-    }
-    return vec4(0.0);
+    uint Type = MaterialType(Parameters.MaterialIndex);
+    DISPATCH_MATERIAL(SampleBSDF, (Parameters, Out, In, Throughput, InPDF));
+    return false;
 }
+
+bool MaterialEvaluateBSDF(bsdf_parameters Parameters, vec3 Out, vec3 In, out vec4 Throughput, out vec4 InPDF)
+{
+    uint Type = MaterialType(Parameters.MaterialIndex);
+    DISPATCH_MATERIAL(EvaluateBSDF, (Parameters, Out, In, Throughput, InPDF));
+    return false;
+}
+
+#undef DISPATCH_MATERIAL
 
 #endif // SCENE_GLSL_INC

@@ -1,54 +1,25 @@
 const uint BASIC_DIFFUSE_BASE_SPECTRUM = 1;
 
-struct basic_diffuse_parameters
-{
-    vec4  Lambda;                 // Sampling wavelengths.
-    vec4  BaseReflectance;        // Base reflectance value at each of the 4 sampling wavelengths.
-};
-
 vec3 BasicDiffuse_BaseColor(uint MaterialIndex, vec2 TextureUV)
 {
     return MaterialTexturableColor(MaterialIndex, BASIC_DIFFUSE_BASE_SPECTRUM, TextureUV);
 }
 
-basic_diffuse_parameters BasicDiffuse_Parameters
-(
-    uint MaterialIndex,
-    vec2 TextureUV,
-    vec4 Lambda,
-    vec4 ExteriorIOR
-)
+bool BasicDiffuse_HasDiracBSDF(bsdf_parameters Parameters)
 {
-    basic_diffuse_parameters Parameters;
-
-    Parameters.Lambda = Lambda;
-
-    Parameters.BaseReflectance = MaterialTexturableReflectance
-    (
-        MaterialIndex,
-        BASIC_DIFFUSE_BASE_SPECTRUM,
-        Lambda, TextureUV
-    );
-
-    return Parameters;
+    return false;
 }
 
-bool BasicDiffuse_Sample
-(
-    in  basic_diffuse_parameters Parameters,
-    in  vec3 Out,
-    out vec3 In,
-    out vec4 Throughput,
-    out vec4 InPDF
-)
+bool BasicDiffuse_EvaluateBSDF(bsdf_parameters Parameters, vec3 Out, vec3 In, out vec4 Throughput, out vec4 InPDF)
 {
-    In = SafeNormalize(RandomDirection() + vec3(0, 0, 1));
+    vec4 Reflectance = MaterialTexturableReflectance(Parameters, BASIC_DIFFUSE_BASE_SPECTRUM);
     InPDF = vec4(In.z / PI);
-    Throughput = InPDF * Parameters.BaseReflectance;
+    Throughput = InPDF * Reflectance;
     return true;
 }
 
-vec4 BasicDiffuse_PDF(basic_diffuse_parameters Parameters, vec3 Out, vec3 In)
+bool BasicDiffuse_SampleBSDF(bsdf_parameters Parameters, vec3 Out, out vec3 In, out vec4 Throughput, out vec4 InPDF)
 {
-    return vec4(In.z / PI);
+    In = SafeNormalize(RandomDirection() + vec3(0, 0, 1));
+    return BasicDiffuse_EvaluateBSDF(Parameters, Out, In, Throughput, InPDF);
 }

@@ -1538,15 +1538,79 @@ uint32_t PackSceneData(scene* Scene)
         });
     }
 
+    //
+    if (DirtyFlags & SCENE_DIRTY_SKYBOX_TEXTURE)
+    {
+        packed_scene_globals* G = &Scene->Globals;
+
+        texture* SkyboxTexture = Scene->Root.SkyboxTexture;
+
+        G->SkyboxTextureIndex = GetPackedTextureIndex(SkyboxTexture);
+
+        if (SkyboxTexture)
+        {
+            vec4 const* Pixels = SkyboxTexture->Pixels;
+            uint Width = SkyboxTexture->Width;
+            uint Height = SkyboxTexture->Height;
+
+            //for (int Y = 0; Y < Height; Y++)
+            //{
+            //    for (int X = 0; X < Width; X++)
+            //    {
+            //        int Index = Y * Width + X;
+
+            //        glm::vec3 Color = Scene->SkyboxPixels[Index].rgb();
+            //        float Intensity = 2 * glm::max(glm::max(Color.r, Color.g), Color.b);
+            //        glm::vec3 Beta = GetParametricSpectrumCoefficients(Scene->RGBSpectrumTable, Color / Intensity);
+            //        Scene->SkyboxPixels[Index] = glm::vec4(Beta, Intensity);
+            //    }
+            //}
+
+            vec3 Mean = {};
+            float WeightSum = 0.0f;
+            for (uint Y = 0; Y < Height; Y++)
+            {
+                float Theta = (0.5f - (Y + 0.5f) / Height) * PI;
+                for (uint X = 0; X < Width; X++)
+                {
+                    float Phi = ((X + 0.5f) / Width - 0.5f) * TAU;
+
+                    vec4 Color = Pixels[Y * Width + X];
+                    float Luminance = glm::dot(vec3(0.2126f, 0.7152f, 0.0722f), Color.rgb());
+                    float Area = glm::cos(Theta);
+
+                    float Weight = Area * Luminance * Luminance;
+
+                    vec3 Direction =
+                    {
+                        glm::cos(Theta) * glm::cos(Phi),
+                        glm::cos(Theta) * glm::sin(Phi),
+                        glm::sin(Theta),
+                    };
+
+                    Mean += Weight * Direction;
+                    WeightSum += Weight;
+                }
+            }
+            Mean /= WeightSum;
+
+            float MeanLength = glm::length(Mean);
+
+            G->SkyboxMeanDirection = Mean / MeanLength;
+            G->SkyboxConcentration = MeanLength * (3.0f - MeanLength * MeanLength) / (1 - MeanLength * MeanLength);
+        }
+
+        DirtyFlags |= SCENE_DIRTY_GLOBALS;
+    }
+
     // Pack scene global data.
     if (DirtyFlags & SCENE_DIRTY_GLOBALS)
     {
         packed_scene_globals* G = &Scene->Globals;
 
-        G->SkyboxDistributionFrame = Scene->SkyboxDistributionFrame;
-        G->SkyboxDistributionConcentration = Scene->SkyboxDistributionConcentration;
+        G->SkyboxSamplingProbability = Scene->Root.SkyboxSamplingProbability;
+
         G->SkyboxBrightness = Scene->Root.SkyboxBrightness;
-        G->SkyboxTextureIndex = GetPackedTextureIndex(Scene->Root.SkyboxTexture);
         G->SceneScatterRate = Scene->Root.ScatterRate;
         G->ShapeCount = static_cast<uint>(Scene->ShapePack.size());
     }

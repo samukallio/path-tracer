@@ -228,7 +228,7 @@ vec3 RandomHemisphereDirection(vec3 Normal)
 vec3 RandomVonMisesFisher(float Kappa)
 {
     float Xi = Random0To1();
-    float Z = 1 + (1 / Kappa) * log(Xi - exp(-2 * Kappa) * (Xi - 1));
+    float Z = 1 + (1 / Kappa) * log(Xi + (1 - Xi) * exp(-2 * Kappa));
 
     float R = sqrt(1 - Z * Z);
     float Phi = Random0To1() * TAU;
@@ -236,6 +236,21 @@ vec3 RandomVonMisesFisher(float Kappa)
     float Y = R * sin(Phi);
 
     return vec3(X, Y, Z);
+}
+
+vec3 RandomVonMisesFisher(float Kappa, vec3 Mu)
+{
+    vec3 V = RandomVonMisesFisher(Kappa);
+    vec3 MuX, MuY;
+    ComputeCoordinateFrame(Mu, MuX, MuY);
+    return SafeNormalize(V.x * MuX + V.y * MuY + V.z * Mu);
+}
+
+float VonMisesFisherPDF(float Kappa, vec3 Mu, vec3 Direction)
+{
+    if (Kappa < EPSILON) return 1.0 / (4 * PI);
+    float C = Kappa / (2 * PI * (1 - exp(-2 * Kappa)));
+    return C * exp(Kappa * (dot(Mu, Direction) - 1.0));
 }
 
 /* --- Henyey-Greenstein Phase Function ------------------------------------ */
