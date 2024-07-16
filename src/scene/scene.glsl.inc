@@ -715,17 +715,17 @@ bool MaterialHasDiracBSDF(bsdf_parameters Parameters)
     return false;
 }
 
-bool MaterialSampleBSDF(bsdf_parameters Parameters, vec3 Out, out vec3 In, out vec4 Throughput, out vec4 InPDF)
+bool MaterialSampleBSDF(bsdf_parameters Parameters, vec3 Out, out vec3 In, out vec4 Throughput, out vec4 Probability)
 {
     uint Type = MaterialType(Parameters.MaterialIndex);
-    DISPATCH_MATERIAL(SampleBSDF, (Parameters, Out, In, Throughput, InPDF));
+    DISPATCH_MATERIAL(SampleBSDF, (Parameters, Out, In, Throughput, Probability));
     return false;
 }
 
-bool MaterialEvaluateBSDF(bsdf_parameters Parameters, vec3 Out, vec3 In, out vec4 Throughput, out vec4 InPDF)
+bool MaterialEvaluateBSDF(bsdf_parameters Parameters, vec3 Out, vec3 In, out vec4 Throughput, out vec4 Probability)
 {
     uint Type = MaterialType(Parameters.MaterialIndex);
-    DISPATCH_MATERIAL(EvaluateBSDF, (Parameters, Out, In, Throughput, InPDF));
+    DISPATCH_MATERIAL(EvaluateBSDF, (Parameters, Out, In, Throughput, Probability));
     return false;
 }
 

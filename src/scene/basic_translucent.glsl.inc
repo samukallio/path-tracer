@@ -94,7 +94,7 @@ bool BasicTranslucent_EvaluateBSDF
     in  vec3 Out,
     in  vec3 In,
     out vec4 Throughput,
-    out vec4 InPDF
+    out vec4 Probability
 )
 {
     vec4 RelativeIOR;
@@ -104,7 +104,7 @@ bool BasicTranslucent_EvaluateBSDF
 
     if (!SurfaceIsRough)
     {
-        InPDF = vec4(0.0);
+        Probability = vec4(0.0);
         Throughput = vec4(0.0);
         return true;
     }
@@ -121,7 +121,7 @@ bool BasicTranslucent_EvaluateBSDF
 
         float D = GGXDistribution(Half, RoughnessAlpha);
 
-        InPDF = F * Gm * D / (4 * Out.z);
+        Probability = F * Gm * D / (4 * Out.z);
     }
     else
     {
@@ -155,14 +155,14 @@ bool BasicTranslucent_EvaluateBSDF
         vec4 J = abs(CosThetaIn) / Sqr(CosThetaOut * RelativeIOR + CosThetaIn);
 
         // Final PDFs.
-        InPDF = D * (1 - F) * Gm * J * abs(CosThetaOut / Out.z);
+        Probability = D * (1 - F) * Gm * J * abs(CosThetaOut / Out.z);
     }
 
     // Geometric shadowing term.
     float Gs = GGXSmithG1(In, RoughnessAlpha);
 
     // Radiance throughput.
-    Throughput = InPDF * Gs;
+    Throughput = Probability * Gs;
 
     return true;
 }
@@ -173,7 +173,7 @@ bool BasicTranslucent_SampleBSDF
     in  vec3 Out,
     out vec3 In,
     out vec4 Throughput,
-    out vec4 InPDF
+    out vec4 Probability
 )
 {
     vec4 RelativeIOR;
@@ -209,12 +209,12 @@ bool BasicTranslucent_SampleBSDF
         vec4 F = FresnelDielectric(RelativeIOR, vec4(CosThetaOut));
 
         // NormalPDF = Gm * OutDotNormal * D / abs(Out.z)
-        // InPDF = NormalPDF / (4 * OutDotNormal);
+        // Probability = NormalPDF / (4 * OutDotNormal);
         // BRDF = D * F * Gs * Gm / (4 * OutDotZ * abs(In.z))
         // Throughput = BRDF * abs(In.z)
 
         // The Fresnel coefficient varies by wavelength and is always incorporated into the PDF.
-        InPDF = F;
+        Probability = F;
 
         // If the surface is rough, then we have a finite PDF for the reflected
         // direction, and should include it in the final PDF.  Otherwise, the
@@ -227,14 +227,14 @@ bool BasicTranslucent_SampleBSDF
         {
             float Gm = GGXSmithG1(Out, RoughnessAlpha);
             float D = GGXDistribution(Normal, RoughnessAlpha);
-            InPDF *= Gm * D / (4 * abs(Out.z));
+            Probability *= Gm * D / (4 * abs(Out.z));
         }
 
         // Geometric shadowing term.
         float Gs = GGXSmithG1(In, RoughnessAlpha);
 
         // Radiance throughput.
-        Throughput = InPDF * Gs;
+        Throughput = Probability * Gs;
 
         return true;
     }
@@ -303,33 +303,33 @@ bool BasicTranslucent_SampleBSDF
         //
 
         //
-        // InPDF = (1 - F) * J * NormalPDF
+        // Probability = (1 - F) * J * NormalPDF
         //       = (1 - F) * J * Gm * abs(CosThetaOut) * D / abs(Out.z)
         //
 
         //
         // BTDF = D * (1 - F) * Gs * Gm * J * abs(CosThetaOut) / abs(In.z * Out.z)
-        //      = InPDF * Gs  / abs(In.z)
+        //      = Probability * Gs  / abs(In.z)
         //
         //
         // Throughput = BTDF * abs(In.z)
-        //            = InPDF * Gs
+        //            = Probability * Gs
         //
 
         vec4 J = abs(CosThetaIn4) / Sqr(CosThetaOut4 * RelativeIOR + CosThetaIn4);
-        InPDF = D * (1 - F) * Gm * J * abs(CosThetaOut4 / Out.z);
+        Probability = D * (1 - F) * Gm * J * abs(CosThetaOut4 / Out.z);
     }
     else
     {
         // The surface is perfectly smooth, so the probability of generating
         // this refraction with any of the secondary wavelengths is zero.
         // We continue with just the primary wavelength.
-        InPDF = vec4(1 - Reflectance, 0, 0, 0);
+        Probability = vec4(1 - Reflectance, 0, 0, 0);
     }
 
     float Gs = GGXSmithG1(In, RoughnessAlpha);
 
-    Throughput = InPDF * Gs;
+    Throughput = Probability * Gs;
 
     return true;
 }

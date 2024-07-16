@@ -14,7 +14,7 @@ struct path
 {
     float NormalizedLambda0;
     vec4  Throughput;          // Path throughput at each of the 4 sampling wavelengths.
-    vec4  Weight;              // Path weight at each of the 4 sampling wavelengths.
+    vec4  Probability;         // Path weight at each of the 4 sampling wavelengths.
     vec3  Sample;
     ivec2 ImagePosition;
     uint  ActiveShapeIndex[4];
@@ -46,10 +46,10 @@ struct path_buffer
     float Throughput1        [PATH_COUNT];
     float Throughput2        [PATH_COUNT];
     float Throughput3        [PATH_COUNT];
-    float Weight0            [PATH_COUNT];
-    float Weight1            [PATH_COUNT];
-    float Weight2            [PATH_COUNT];
-    float Weight3            [PATH_COUNT];
+    float Probability0       [PATH_COUNT];
+    float Probability1       [PATH_COUNT];
+    float Probability2       [PATH_COUNT];
+    float Probability3       [PATH_COUNT];
     float SampleR            [PATH_COUNT];
     float SampleG            [PATH_COUNT];
     float SampleB            [PATH_COUNT];
@@ -96,18 +96,15 @@ ray LoadTraceRay(uint Index)
     return Ray;
 }
 
-void StoreTraceRay(uint Index, ray Ray)
+void LoadTraceResult(uint Index, out ray Ray, out hit Hit)
 {
-    TraceBuffer.OriginX [Index] = Ray.Origin.x;
-    TraceBuffer.OriginY [Index] = Ray.Origin.y;
-    TraceBuffer.OriginZ [Index] = Ray.Origin.z;
-    TraceBuffer.PackedVelocity [Index] = PackUnitVector(Ray.Velocity);
-    TraceBuffer.Duration [Index] = Ray.Duration;
-}
+    Ray.Origin.x = TraceBuffer.OriginX [Index];
+    Ray.Origin.y = TraceBuffer.OriginY [Index];
+    Ray.Origin.z = TraceBuffer.OriginZ [Index];
 
-hit LoadTraceHit(uint Index)
-{
-    hit Hit;
+    Ray.Velocity = UnpackUnitVector(TraceBuffer.PackedVelocity[Index]);
+
+    Ray.Duration = TraceBuffer.Duration [Index];
 
     uint ShapeAndMaterialIndex = TraceBuffer.ShapeAndMaterialIndex[Index];
 
@@ -115,7 +112,7 @@ hit LoadTraceHit(uint Index)
     {
         Hit.ShapeIndex = SHAPE_INDEX_NONE;
         Hit.Time = HIT_TIME_LIMIT;
-        return Hit;
+        return;
     }
 
     Hit.ShapeIndex = ShapeAndMaterialIndex >> 16;
@@ -129,7 +126,17 @@ hit LoadTraceHit(uint Index)
 
     Hit.UV.x = TraceBuffer.TextureU [Index];
     Hit.UV.y = TraceBuffer.TextureV [Index];
-    return Hit;
+
+    Hit.Position = Ray.Origin + Hit.Time * Ray.Velocity;
+}
+
+void StoreTraceRay(uint Index, ray Ray)
+{
+    TraceBuffer.OriginX [Index] = Ray.Origin.x;
+    TraceBuffer.OriginY [Index] = Ray.Origin.y;
+    TraceBuffer.OriginZ [Index] = Ray.Origin.z;
+    TraceBuffer.PackedVelocity [Index] = PackUnitVector(Ray.Velocity);
+    TraceBuffer.Duration [Index] = Ray.Duration;
 }
 
 void StoreTraceHit(uint Index, hit Hit)
@@ -164,10 +171,10 @@ path LoadPath(uint Index)
     Path.Throughput.z = PathBuffer.Throughput2 [Index];
     Path.Throughput.w = PathBuffer.Throughput3 [Index];
 
-    Path.Weight.x = PathBuffer.Weight0 [Index];
-    Path.Weight.y = PathBuffer.Weight1 [Index];
-    Path.Weight.w = PathBuffer.Weight2 [Index];
-    Path.Weight.z = PathBuffer.Weight3 [Index];
+    Path.Probability.x = PathBuffer.Probability0 [Index];
+    Path.Probability.y = PathBuffer.Probability1 [Index];
+    Path.Probability.w = PathBuffer.Probability2 [Index];
+    Path.Probability.z = PathBuffer.Probability3 [Index];
 
     Path.Sample.r = PathBuffer.SampleR [Index];
     Path.Sample.g = PathBuffer.SampleG [Index];
@@ -196,10 +203,10 @@ void StorePathVertexData(uint Index, path Path)
     PathBuffer.Throughput1 [Index] = Path.Throughput.y;
     PathBuffer.Throughput2 [Index] = Path.Throughput.z;
     PathBuffer.Throughput3 [Index] = Path.Throughput.w;
-    PathBuffer.Weight0 [Index] = Path.Weight.x;
-    PathBuffer.Weight1 [Index] = Path.Weight.y;
-    PathBuffer.Weight2 [Index] = Path.Weight.w;
-    PathBuffer.Weight3 [Index] = Path.Weight.z;
+    PathBuffer.Probability0 [Index] = Path.Probability.x;
+    PathBuffer.Probability1 [Index] = Path.Probability.y;
+    PathBuffer.Probability2 [Index] = Path.Probability.w;
+    PathBuffer.Probability3 [Index] = Path.Probability.z;
     PathBuffer.SampleR [Index] = Path.Sample.r;
     PathBuffer.SampleG [Index] = Path.Sample.g;
     PathBuffer.SampleB [Index] = Path.Sample.b;

@@ -32,7 +32,7 @@ void GenerateNewPath(uint Index, ivec2 ImagePosition)
     Path.ImagePosition = ImagePosition;
     Path.NormalizedLambda0 = Random0To1();
     Path.Throughput = vec4(1.0);
-    Path.Weight = vec4(1.0);
+    Path.Probability = vec4(1.0);
     Path.Sample = vec3(0.0);
 
     for (int I = 0; I < 4; I++)
@@ -45,7 +45,7 @@ medium ResolveMedium(uint ShapeIndex, vec4 Lambda)
 {
     medium Medium;
 
-    if (true) //ShapeIndex == SHAPE_INDEX_NONE)
+    if (ShapeIndex == SHAPE_INDEX_NONE)
     {
         Medium.Priority = 0xFFFFFFFF;
         Medium.IOR = vec4(1.0);
@@ -63,14 +63,16 @@ medium ResolveMedium(uint ShapeIndex, vec4 Lambda)
     return Medium;
 }
 
-bool Sample
+// Given a surface hit, sample an incoming ray direction.  Returns true if a
+// valid sample was generated and false if the path is terminated.
+bool SampleSurfaceIntegrand
 (
     in  hit Hit,
     in  bsdf_parameters Parameters,
     in  vec3 Out,
     out vec3 In,
     out vec4 Throughput,
-    out vec4 InPDF
+    out vec4 Probability
 )
 {
     float LightProbability = MaterialHasDiracBSDF(Parameters) ? 0.0 : Scene.SkyboxSamplingProbability;
@@ -102,11 +104,14 @@ bool Sample
 
     vec4 SkyboxPDF = vec4(VonMisesFisherPDF(Scene.SkyboxConcentration, SkyboxMeanDirection, In));
 
-    InPDF = LightProbability * SkyboxPDF + (1 - LightProbability) * MaterialPDF;
+    Probability = LightProbability * SkyboxPDF + (1 - LightProbability) * MaterialPDF;
     return true;
 }
 
-void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
+// Process a path vertex by updating path throughput and probability, and produce
+// either an extension ray or terminate the path.  Returns true when an extension
+// ray was generated (in Ray), and false if the path is terminated.
+bool Scatter(inout path Path, inout ray Ray, hit Hit)
 {
     vec4 Lambda = vec4
     (
@@ -151,7 +156,7 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
             vec4 Density = Medium.ScatteringRate * exp(-Medium.ScatteringRate * ScatteringTime);
             Density /= max(EPSILON, max4(Density));
             Path.Throughput *= Density;
-            Path.Weight *= Density;
+            Path.Probability *= Density;
 
             // Transform the scattered ray into world space and set it as the extension ray.
             Ray.Velocity = normalize(X * Scattered.x + Y * Scattered.y + Z * Scattered.z);
@@ -161,12 +166,12 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
         else
         {
             vec4 Emission = SampleSkyboxRadiance(Ray.Velocity, Lambda);
-            float ClusterPDF = Path.Weight.x + Path.Weight.y + Path.Weight.z + Path.Weight.w;
+            float ClusterPDF = Path.Probability.x + Path.Probability.y + Path.Probability.z + Path.Probability.w;
             Path.Sample += SampleStandardObserver(Lambda) * (Emission * Path.Throughput) / ClusterPDF;
-            Path.Weight = vec4(0.0);
+            Path.Probability = vec4(0.0);
         }
 
-        return;
+        return max4(Path.Probability) > EPSILON;
     }
 
     // Incoming ray direction in normal/tangent space.
@@ -242,29 +247,20 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
         Parameters.ExteriorIOR = ExteriorIOR;
 
         vec4 Throughput;
-        vec4 InPDF;
-        if (!Sample(Hit, Parameters, Out, In, Throughput, InPDF))
-        {
-            Path.Weight = vec4(0.0);
-            return;
-        }
+        vec4 Probability;
 
-        float C = max4(InPDF);
-        if (C > EPSILON)
-        {
-            Throughput /= C;
-            InPDF /= C;
-        }
+        if (!SampleSurfaceIntegrand(Hit, Parameters, Out, In, Throughput, Probability))
+            return false;
 
-        Path.Throughput *= Throughput;
-        Path.Weight *= InPDF;
+        float Scale = 1.0 / max(EPSILON, max4(Probability));
+
+        Path.Throughput *= Throughput * Scale;
+        Path.Probability *= Probability * Scale;
     }
     else
     {
         In = -Out;
     }
-
-    if (max4(Path.Weight) < EPSILON) return;
 
     // If the incoming and outgoing directions are within opposite hemispheres,
     // then the ray is crossing the material interface boundary. We need to
@@ -297,12 +293,9 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
 
     // Handle probabilistic termination.
     if (Random0To1() < PathTerminationProbability)
-    {
-        Path.Weight = vec4(0.0);
-        return;
-    }
+        return false;
 
-    Path.Weight *= 1.0 - PathTerminationProbability;
+    Path.Probability *= 1.0 - PathTerminationProbability;
 
     // Prepare the extension ray.
     Ray.Velocity = In.x * Hit.TangentX
@@ -312,6 +305,8 @@ void RenderPathTrace(inout path Path, inout ray Ray, hit Hit)
     Ray.Origin = Hit.Position + 1e-3 * Ray.Velocity;
 
     Ray.Duration = HIT_TIME_LIMIT;
+
+    return max4(Path.Probability) > EPSILON;
 }
 
 void main()
@@ -340,31 +335,26 @@ void main()
         return;
     }
 
-    ray Ray = LoadTraceRay(Index);
-    hit Hit = LoadTraceHit(Index);
-
-    Hit.Position = Ray.Origin + Hit.Time * Ray.Velocity;
-
     path Path = LoadPath(Index);
 
-    RenderPathTrace(Path, Ray, Hit);
+    ray Ray;
+    hit Hit;
+    LoadTraceResult(Index, Ray, Hit);
 
-    if (max4(Path.Weight) < EPSILON)
+    if (Scatter(Path, Ray, Hit))
     {
-        ivec2 ImagePosition = Path.ImagePosition;
-
-        vec4 ImageValue = vec4(Path.Sample, 1.0);
-
-        if ((RenderFlags & RENDER_FLAG_ACCUMULATE) != 0)
-            ImageValue += imageLoad(SampleAccumulatorImage, ImagePosition);
-
-        imageStore(SampleAccumulatorImage, ImagePosition, ImageValue);
-
-        GenerateNewPath(Index, ImagePosition);
+        // Store extension ray and path vertex data.
+        StoreTraceRay(Index, Ray);
+        StorePathVertexData(Index, Path);
     }
     else
     {
-        StoreTraceRay(Index, Ray);
-        StorePathVertexData(Index, Path);
+        // Generate a new camera ray.
+        ivec2 ImagePosition = Path.ImagePosition;
+        vec4 ImageValue = vec4(Path.Sample, 1.0);
+        if ((RenderFlags & RENDER_FLAG_ACCUMULATE) != 0)
+            ImageValue += imageLoad(SampleAccumulatorImage, ImagePosition);
+        imageStore(SampleAccumulatorImage, ImagePosition, ImageValue);
+        GenerateNewPath(Index, ImagePosition);
     }
 }

@@ -1,9 +1,7 @@
 const uint BASIC_METAL_BASE_SPECTRUM                      = 1;
 const uint BASIC_METAL_SPECULAR_SPECTRUM                  = 5;
 const uint BASIC_METAL_ROUGHNESS                          = 9;
-const uint BASIC_METAL_ROUGHNESS_TEXTURE_INDEX            = 10;
 const uint BASIC_METAL_ROUGHNESS_ANISOTROPY               = 11;
-const uint BASIC_METAL_ROUGHNESS_ANISOTROPY_TEXTURE_INDEX = 12;
 
 void BasicMetal_GetParameters
 (
@@ -43,7 +41,7 @@ bool BasicMetal_EvaluateBSDF
     in  vec3 Out,
     in  vec3 In,
     out vec4 Throughput,
-    out vec4 InPDF
+    out vec4 Probability
 )
 {
     vec4 BaseReflectance;
@@ -57,21 +55,21 @@ bool BasicMetal_EvaluateBSDF
     vec3 Half = SafeNormalize(Out + In);
 
     // NormalPDF = Gm * OutDotNormal * D / Out.z
-    // InPDF = NormalPDF / (4 * OutDotNormal);
+    // Probability = NormalPDF / (4 * OutDotNormal);
     //       = Gm * D / (4 * Out.z)
 
     // BRDF = D * F * Gs * Gm / (4 * Out.z * In.z)
-    //      = InPDF * F * Gs / In.z
+    //      = Probability * F * Gs / In.z
     // Throughput = BRDF * In.z
-    //            = InPDF * F * Gs
+    //            = Probability * F * Gs
 
     float Gm = GGXSmithG1(Out, RoughnessAlpha);
     float D = GGXDistribution(Half, RoughnessAlpha);
-    InPDF = vec4(Gm * D / (4 * Out.z));
+    Probability = vec4(Gm * D / (4 * Out.z));
 
     float Gs = GGXSmithG1(In, RoughnessAlpha);
     vec4 F = SchlickFresnelMetal(BaseReflectance, SpecularReflectance, dot(Out, Half));
-    Throughput = InPDF * Gs * F;
+    Throughput = Probability * Gs * F;
 
     return true;
 }
@@ -82,7 +80,7 @@ bool BasicMetal_SampleBSDF
     in  vec3 Out,
     out vec3 In,
     out vec4 Throughput,
-    out vec4 InPDF
+    out vec4 Probability
 )
 {
     vec4 BaseReflectance;
@@ -107,26 +105,26 @@ bool BasicMetal_SampleBSDF
     if (In.z <= 0.0) return false;
 
     // NormalPDF = Gm * OutDotNormal * D / Out.z
-    // InPDF = NormalPDF / (4 * OutDotNormal);
+    // Probability = NormalPDF / (4 * OutDotNormal);
     //       = Gm * D / (4 * Out.z)
 
     // BRDF = D * F * Gs * Gm / (4 * Out.z * In.z)
-    //      = InPDF * F * Gs / In.z
+    //      = Probability * F * Gs / In.z
     // Throughput = BRDF * In.z
-    //            = InPDF * F * Gs
+    //            = Probability * F * Gs
 
-    InPDF = vec4(1.0);
+    Probability = vec4(1.0);
 
     if (SurfaceIsRough)
     {
         float Gm = GGXSmithG1(Out, RoughnessAlpha);
         float D = GGXDistribution(Normal, RoughnessAlpha);
-        InPDF *= vec4(Gm * D / (4 * Out.z));
+        Probability *= vec4(Gm * D / (4 * Out.z));
     }
 
     float Gs = GGXSmithG1(In, RoughnessAlpha);
     vec4 F = SchlickFresnelMetal(BaseReflectance, SpecularReflectance, OutDotNormal);
-    Throughput = InPDF * Gs * F;
+    Throughput = Probability * Gs * F;
 
     return true;
 }
