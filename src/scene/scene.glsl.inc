@@ -708,6 +708,9 @@ medium MaterialMedium(uint MaterialIndex, vec4 Lambda)
     return Medium;
 }
 
+// Returns true if the BSDF is a Dirac delta distribution in the outgoing
+// direction, otherwise false.  A Dirac BSDF requires special treatment
+// in multiple importance sampling schemes.
 bool MaterialHasDiracBSDF(bsdf_parameters Parameters)
 {
     uint Type = MaterialType(Parameters.MaterialIndex);
@@ -715,17 +718,47 @@ bool MaterialHasDiracBSDF(bsdf_parameters Parameters)
     return false;
 }
 
-bool MaterialSampleBSDF(bsdf_parameters Parameters, vec3 Out, out vec3 In, out vec4 Throughput, out vec4 Probability)
+// Evaluate a material BSDF for a given input and output direction.
+// Produces a throughput value (incoming radiance to outgoing radiance)
+// and a probability density for the Out direction according to the
+// importance sampling scheme implemented by MaterialSampleBSDF.
+// Returns true if the scattering from In to Out is possible, otherwise
+// returns false.
+bool MaterialEvaluateBSDF
+(
+    // Inputs.
+    in  bsdf_parameters Parameters,
+    in  vec3 In,
+    in  vec3 Out,
+    // Outputs.
+    out vec4 Throughput,
+    out vec4 Probability
+)
 {
     uint Type = MaterialType(Parameters.MaterialIndex);
-    DISPATCH_MATERIAL(SampleBSDF, (Parameters, Out, In, Throughput, Probability));
+    DISPATCH_MATERIAL(EvaluateBSDF, (Parameters, In, Out, Throughput, Probability));
     return false;
 }
 
-bool MaterialEvaluateBSDF(bsdf_parameters Parameters, vec3 Out, vec3 In, out vec4 Throughput, out vec4 Probability)
+// Importance sample an outgoing direction from a material BSDF given an
+// input direction.  Produces a throughput value (incoming radiance to
+// outgoing radiance along the In and Out directions, respectively), as
+// well as the probability density for the Out direction according to the
+// importance sampling scheme that was used.  Returns true if a sample
+// was successfully produced, otherwise false.
+bool MaterialSampleBSDF
+(
+    // Inputs.
+    in  bsdf_parameters Parameters,
+    in  vec3 In,
+    // Outputs.
+    out vec3 Out,
+    out vec4 Throughput,
+    out vec4 Probability
+)
 {
     uint Type = MaterialType(Parameters.MaterialIndex);
-    DISPATCH_MATERIAL(EvaluateBSDF, (Parameters, Out, In, Throughput, Probability));
+    DISPATCH_MATERIAL(SampleBSDF, (Parameters, In, Out, Throughput, Probability));
     return false;
 }
 
