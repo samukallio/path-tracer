@@ -45,8 +45,6 @@ medium ResolveMedium(uint ShapeIndex, vec4 Lambda)
 {
     medium Medium;
 
-    Medium.Priority = ShapeIndex;
-
     if (ShapeIndex == SHAPE_INDEX_NONE)
     {
         Medium.Priority = 0xFFFFFFFF;
@@ -59,6 +57,7 @@ medium ResolveMedium(uint ShapeIndex, vec4 Lambda)
     {
         packed_shape Shape = Shapes[ShapeIndex];
         MaterialLoadMedium(Shape.MaterialIndex, Lambda, Medium);
+        Medium.Priority = ShapeIndex;
     }
 
     return Medium;
@@ -116,7 +115,7 @@ bool Scatter(inout path Path, inout ray Ray, hit Hit)
 {
     vec4 Lambda = vec4
     (
-        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, Path.NormalizedLambda0 ),
+        mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, Path.NormalizedLambda0),
         mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(Path.NormalizedLambda0 + 0.25)),
         mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(Path.NormalizedLambda0 + 0.50)),
         mix(CIE_LAMBDA_MIN, CIE_LAMBDA_MAX, fract(Path.NormalizedLambda0 + 0.75))

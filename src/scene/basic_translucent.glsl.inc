@@ -10,7 +10,7 @@ const uint BASIC_TRANSLUCENT_SCATTERING_ANISOTROPY = 14;
 void BasicTranslucent_GetParameters
 (
     in  bsdf_parameters Parameters,
-    in  vec3 Out,
+    in  vec3 In,
     out vec4 RelativeIOR,
     out vec2 RoughnessAlpha,
     out bool SurfaceIsRough
@@ -23,7 +23,7 @@ void BasicTranslucent_GetParameters
         Parameters.Lambda
     );
 
-    if (Out.z < 0.0)
+    if (In.z < 0.0)
         RelativeIOR = InteriorIOR / Parameters.ExteriorIOR;
     else
         RelativeIOR = Parameters.ExteriorIOR / InteriorIOR;
@@ -298,7 +298,7 @@ bool BasicTranslucent_SampleBSDF
         float Gm = GGXSmithG1(In, RoughnessAlpha);
 
         //
-        // NormalPDF = Gm * abs(CosThetaIn) * D / abs(Out.z)
+        // NormalPDF = Gm * abs(CosThetaIn) * D / abs(In.z)
         //
 
         // Jacobian of the refraction operator:
@@ -308,15 +308,15 @@ bool BasicTranslucent_SampleBSDF
 
         //
         // Probability = (1 - F) * J * NormalPDF
-        //       = (1 - F) * J * Gm * abs(CosThetaIn) * D / abs(Out.z)
+        //       = (1 - F) * J * Gm * abs(CosThetaIn) * D / abs(In.z)
         //
 
         //
         // BTDF = D * (1 - F) * Gs * Gm * J * abs(CosThetaIn) / abs(In.z * Out.z)
-        //      = Probability * Gs  / abs(In.z)
+        //      = Probability * Gs  / abs(Out.z)
         //
         //
-        // Throughput = BTDF * abs(In.z)
+        // Throughput = BTDF * abs(Out.z)
         //            = Probability * Gs
         //
 
