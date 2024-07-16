@@ -52,10 +52,8 @@ vec3 BasicTranslucent_BaseColor(uint MaterialIndex, vec2 TextureUV)
     return MaterialColor(MaterialIndex, BASIC_TRANSLUCENT_TRANSMISSION_SPECTRUM);
 }
 
-medium BasicTranslucent_Medium(uint MaterialIndex, vec4 Lambda)
+bool BasicTranslucent_LoadMedium(uint MaterialIndex, vec4 Lambda, out medium Medium)
 {
-    medium Medium;
-
     Medium.IOR = CauchyEmpiricalIOR
     (
         MaterialFloat(MaterialIndex, BASIC_TRANSLUCENT_IOR),
@@ -80,7 +78,7 @@ medium BasicTranslucent_Medium(uint MaterialIndex, vec4 Lambda)
         Medium.ScatteringAnisotropy = 0.0;
     }
 
-    return Medium;
+    return true;
 }
 
 bool BasicTranslucent_HasDiracBSDF(bsdf_parameters Parameters)

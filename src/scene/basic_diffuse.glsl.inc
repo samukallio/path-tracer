@@ -5,6 +5,11 @@ vec3 BasicDiffuse_BaseColor(uint MaterialIndex, vec2 TextureUV)
     return MaterialTexturableColor(MaterialIndex, BASIC_DIFFUSE_BASE_SPECTRUM, TextureUV);
 }
 
+bool BasicDiffuse_LoadMedium(uint MaterialIndex, vec4 Lambda, out medium Medium)
+{
+    return false;
+}
+
 bool BasicDiffuse_HasDiracBSDF(bsdf_parameters Parameters)
 {
     return false;

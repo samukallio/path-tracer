@@ -45,6 +45,8 @@ medium ResolveMedium(uint ShapeIndex, vec4 Lambda)
 {
     medium Medium;
 
+    Medium.Priority = ShapeIndex;
+
     if (ShapeIndex == SHAPE_INDEX_NONE)
     {
         Medium.Priority = 0xFFFFFFFF;
@@ -56,10 +58,9 @@ medium ResolveMedium(uint ShapeIndex, vec4 Lambda)
     else
     {
         packed_shape Shape = Shapes[ShapeIndex];
-        Medium = MaterialMedium(Shape.MaterialIndex, Lambda);
+        MaterialLoadMedium(Shape.MaterialIndex, Lambda, Medium);
     }
 
-    Medium.Priority = ShapeIndex;
     return Medium;
 }
 

@@ -692,6 +692,7 @@ vec4 MaterialTexturableReflectance(bsdf_parameters Parameters, uint AttributeInd
     if (Type == MATERIAL_TYPE_BASIC_TRANSLUCENT) \
         return BasicTranslucent_##NAME ARGUMENTS; \
 
+// Load a preview base color for the material.
 vec3 MaterialBaseColor(uint MaterialIndex, vec2 TextureUV)
 {
     uint Type = MaterialType(MaterialIndex);
@@ -699,13 +700,11 @@ vec3 MaterialBaseColor(uint MaterialIndex, vec2 TextureUV)
     return vec3(0,0,0);
 }
 
-medium MaterialMedium(uint MaterialIndex, vec4 Lambda)
+// Load information about the participating medium associated with a material.
+bool MaterialLoadMedium(uint MaterialIndex, vec4 Lambda, out medium Medium)
 {
-    medium Medium;
     uint Type = MaterialType(MaterialIndex);
-    if (Type == MATERIAL_TYPE_BASIC_TRANSLUCENT)
-        Medium = BasicTranslucent_Medium(MaterialIndex, Lambda);
-    return Medium;
+    DISPATCH_MATERIAL(LoadMedium, (MaterialIndex, Lambda, Medium));
 }
 
 // Returns true if the BSDF is a Dirac delta distribution in the outgoing

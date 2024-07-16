@@ -30,6 +30,11 @@ vec3 BasicMetal_BaseColor(uint MaterialIndex, vec2 TextureUV)
     return MaterialTexturableColor(MaterialIndex, BASIC_METAL_BASE_SPECTRUM, TextureUV);
 }
 
+bool BasicMetal_LoadMedium(uint MaterialIndex, vec4 Lambda, out medium Medium)
+{
+    return false;
+}
+
 bool BasicMetal_HasDiracBSDF(bsdf_parameters Parameters)
 {
     return MaterialTexturableValue(Parameters, BASIC_METAL_ROUGHNESS) < 1e-3;
